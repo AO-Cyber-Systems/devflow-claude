@@ -1,0 +1,39 @@
+name: Sync Marketplace Manifest
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'plugins/*/.claude-plugin/plugin.json'
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check marketplace sync
+        id: check
+        run: |
+          if scripts/sync-marketplace.sh --check; then
+            echo "in_sync=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "in_sync=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Sync marketplace.json
+        if: steps.check.outputs.in_sync == 'false'
+        run: scripts/sync-marketplace.sh
+
+      - name: Commit and push
+        if: steps.check.outputs.in_sync == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .claude-plugin/marketplace.json
+          git commit -m "chore: auto-sync marketplace.json from plugin sources"
+          git push

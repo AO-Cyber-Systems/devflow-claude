@@ -8,7 +8,7 @@
   "plugins": [
     {
       "name": "devflow-agent",
-      "description": "Autonomous agent loop for DevFlow - unlimited iterative task completion with TRD-driven workflows. Features subagent delegation, native Claude Code integration (Tasks, Plan Mode), and persistent agent memory.",
+      "description": "Autonomous agent loop for DevFlow - unlimited iterative task completion with TRD-driven workflows. Features subagent delegation, native Claude Code integration (Tasks, Plan Mode), and persistent agent memory. Optimized for Svelte 5, FastAPI, and Ruby stacks.",
       "version": "1.3.0",
       "author": {
         "name": "AO Cyber Systems"
