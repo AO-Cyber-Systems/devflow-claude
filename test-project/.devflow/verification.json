@@ -1,0 +1,82 @@
+{
+  "version": "1.0",
+  "description": "DevFlow verification checks (auto-generated from project analysis)",
+  "categories": {
+    "unit": {
+      "description": "Unit tests",
+      "checks": [
+        {
+          "name": "test-0",
+          "command": "npm run test",
+          "timeout": 120,
+          "required": true,
+          "working_dir": ".",
+          "enabled": true,
+          "detect": "package.json"
+        },
+        {
+          "name": "test-1",
+          "command": "npm run test:integration",
+          "timeout": 120,
+          "required": true,
+          "working_dir": ".",
+          "enabled": true,
+          "detect": "package.json"
+        },
+        {
+          "name": "test-2",
+          "command": "npm run test:unit",
+          "timeout": 120,
+          "required": true,
+          "working_dir": ".",
+          "enabled": true,
+          "detect": "package.json"
+        }
+      ]
+    },
+    "integration": {
+      "description": "Integration tests",
+      "checks": []
+    },
+    "type_check": {
+      "description": "Type checking",
+      "checks": [
+        {
+          "name": "typecheck-0",
+          "command": "npm run check",
+          "timeout": 60,
+          "required": true,
+          "working_dir": ".",
+          "enabled": true
+        }
+      ]
+    },
+    "lint": {
+      "description": "Linting",
+      "checks": [
+        {
+          "name": "lint-0",
+          "command": "npm run lint",
+          "timeout": 60,
+          "required": true,
+          "working_dir": ".",
+          "enabled": true
+        }
+      ]
+    },
+    "build": {
+      "description": "Build verification",
+      "checks": [
+        {
+          "name": "build-0",
+          "command": "npm run build",
+          "timeout": 180,
+          "required": true,
+          "working_dir": ".",
+          "enabled": true
+        }
+      ]
+    }
+  },
+  "lastRun": null
+}

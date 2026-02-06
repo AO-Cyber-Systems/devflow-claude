@@ -1,0 +1,8 @@
+{
+  "devDependencies": {
+    "bats": "^1.13.0",
+    "bats-assert": "^2.2.4",
+    "bats-file": "^0.0.1-security",
+    "bats-support": "^0.3.0"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "name": "supabase",
+  "description": "Supabase database and project management",
+  "command": "npx",
+  "args": ["@supabase/mcp-server-supabase"],
+  "env": {
+    "SUPABASE_ACCESS_TOKEN": "${SUPABASE_ACCESS_TOKEN}"
+  },
+  "tools": [
+    "execute_sql",
+    "list_projects",
+    "get_project",
+    "create_project",
+    "list_tables",
+    "get_table",
+    "create_migration",
+    "run_migration",
+    "list_functions",
+    "invoke_function",
+    "get_logs",
+    "list_branches",
+    "create_branch"
+  ],
+  "notes": {
+    "security": "Only use with development/test projects, never production",
+    "auth": "Requires SUPABASE_ACCESS_TOKEN environment variable"
+  }
+}

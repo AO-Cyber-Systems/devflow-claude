@@ -1,0 +1,18 @@
+{
+  "name": "fetch",
+  "description": "HTTP requests and web content fetching",
+  "command": "npx",
+  "args": ["@anthropic-ai/mcp-server-fetch"],
+  "env": {},
+  "tools": [
+    "fetch"
+  ],
+  "notes": {
+    "features": [
+      "Automatic HTML-to-markdown conversion",
+      "Content summarization for large responses",
+      "LLM-optimized response formatting"
+    ],
+    "usage": "Use for API testing and external service verification"
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "version": "1.0",
+  "analyzed_at": "2026-02-05T07:07:34Z",
+  "project": {
+    "name": "test-project",
+    "root": "/Users/justin/dev/devflow-claude/test-project"
+  },
+  "structure": {
+    "source_dirs": [
+      "src"
+    ],
+    "test_dirs": [
+      "tests"
+    ],
+    "config_files": [
+      "package.json",
+      "tsconfig.json",
+      "svelte.config.js"
+    ],
+    "has_monorepo": false
+  },
+  "tech_stack": {
+    "languages": [
+      "javascript",
+      "typescript"
+    ],
+    "frameworks": {
+      "frontend": "sveltekit",
+      "backend": null
+    },
+    "tools": [
+      "eslint",
+      "tailwind"
+    ],
+    "package_manager": null
+  },
+  "commands": {
+    "build": [
+      "npm run build"
+    ],
+    "test": [
+      "npm run test",
+      "npm run test:integration",
+      "npm run test:unit"
+    ],
+    "lint": [
+      "npm run lint"
+    ],
+    "type_check": [
+      "npm run check"
+    ],
+    "dev": [
+      "npm run dev"
+    ]
+  },
+  "existing_docs": {
+    "readme": "README.md",
+    "prd": null,
+    "architecture": null,
+    "changelog": null
+  }
+}

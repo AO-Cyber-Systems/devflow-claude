@@ -1,0 +1,15 @@
+{
+  "version": "1.0",
+  "features": [
+    {
+      "id": "TRD-001",
+      "name": "User authentication",
+      "status": "complete"
+    },
+    {
+      "id": "TRD-002",
+      "name": "API endpoints",
+      "status": "complete"
+    }
+  ]
+}

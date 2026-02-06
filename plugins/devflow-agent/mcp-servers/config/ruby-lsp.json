@@ -1,0 +1,36 @@
+{
+  "name": "ruby-lsp",
+  "description": "Ruby Language Server (Solargraph) configuration",
+  "type": "lsp",
+  "command": "solargraph",
+  "args": ["stdio"],
+  "languages": ["ruby"],
+  "install": {
+    "gem": "solargraph",
+    "command": "gem install solargraph --no-document"
+  },
+  "capabilities": [
+    "completion",
+    "hover",
+    "definition",
+    "references",
+    "documentSymbol",
+    "workspaceSymbol",
+    "rename",
+    "formatting",
+    "diagnostics"
+  ],
+  "settings": {
+    "solargraph.diagnostics": true,
+    "solargraph.completion": true,
+    "solargraph.hover": true,
+    "solargraph.definitions": true,
+    "solargraph.references": true,
+    "solargraph.rename": true,
+    "solargraph.formatting": true
+  },
+  "notes": {
+    "setup": "Run 'solargraph bundle' in project root to index gems",
+    "docs": "Run 'solargraph download-core' to download Ruby core documentation"
+  }
+}

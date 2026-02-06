@@ -1,0 +1,17 @@
+{
+  "name": "sequential-thinking",
+  "description": "Dynamic problem-solving through thought sequences",
+  "command": "npx",
+  "args": ["@anthropic-ai/mcp-server-sequential-thinking"],
+  "env": {},
+  "tools": [
+    "create_thinking_session",
+    "add_thought",
+    "get_thinking_summary",
+    "branch_thinking",
+    "revise_thought"
+  ],
+  "notes": {
+    "usage": "Use for complex multi-step reasoning and problem decomposition"
+  }
+}

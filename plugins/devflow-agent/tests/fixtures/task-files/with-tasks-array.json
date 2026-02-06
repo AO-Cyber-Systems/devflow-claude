@@ -1,0 +1,15 @@
+{
+  "version": "1.0",
+  "tasks": [
+    {
+      "id": "TASK-001",
+      "name": "Fix login bug",
+      "status": "done"
+    },
+    {
+      "id": "TASK-002",
+      "name": "Add logout button",
+      "status": "pending"
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "name": "playwright",
+  "description": "Browser automation for UI testing",
+  "command": "npx",
+  "args": ["@playwright/mcp"],
+  "env": {},
+  "tools": [
+    "browser_navigate",
+    "browser_snapshot",
+    "browser_click",
+    "browser_type",
+    "browser_wait_for",
+    "browser_take_screenshot",
+    "browser_fill_form",
+    "browser_evaluate",
+    "browser_close",
+    "browser_resize",
+    "browser_hover",
+    "browser_drag",
+    "browser_select_option",
+    "browser_tabs",
+    "browser_run_code",
+    "browser_navigate_back",
+    "browser_network_requests",
+    "browser_console_messages",
+    "browser_press_key",
+    "browser_handle_dialog",
+    "browser_file_upload",
+    "browser_install"
+  ]
+}

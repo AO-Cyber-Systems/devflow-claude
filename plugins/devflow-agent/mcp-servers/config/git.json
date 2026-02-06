@@ -1,0 +1,21 @@
+{
+  "name": "git",
+  "description": "Git repository operations",
+  "command": "npx",
+  "args": ["@anthropic-ai/mcp-server-git"],
+  "env": {},
+  "tools": [
+    "git_status",
+    "git_diff",
+    "git_diff_staged",
+    "git_commit",
+    "git_add",
+    "git_reset",
+    "git_log",
+    "git_show",
+    "git_branch",
+    "git_checkout",
+    "git_search",
+    "git_blame"
+  ]
+}

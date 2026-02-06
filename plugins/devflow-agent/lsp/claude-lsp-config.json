@@ -1,0 +1,79 @@
+{
+  "$schema": "https://code.claude.com/schemas/lsp-config.json",
+  "description": "DevFlow Agent LSP Configuration for Claude Code",
+  "servers": {
+    "typescript": {
+      "command": "typescript-language-server",
+      "args": ["--stdio"],
+      "languages": ["typescript", "javascript", "typescriptreact", "javascriptreact"],
+      "rootPatterns": ["tsconfig.json", "jsconfig.json", "package.json"]
+    },
+    "svelte": {
+      "command": "svelte-language-server",
+      "args": ["--stdio"],
+      "languages": ["svelte"],
+      "rootPatterns": ["svelte.config.js", "svelte.config.ts"]
+    },
+    "python": {
+      "command": "pyright",
+      "args": ["--stdio"],
+      "languages": ["python"],
+      "rootPatterns": ["pyproject.toml", "setup.py", "requirements.txt", "pyrightconfig.json"]
+    },
+    "ruby": {
+      "command": "solargraph",
+      "args": ["--stdio"],
+      "languages": ["ruby"],
+      "rootPatterns": ["Gemfile", ".ruby-version", "Rakefile"]
+    },
+    "rust": {
+      "command": "rust-analyzer",
+      "args": [],
+      "languages": ["rust"],
+      "rootPatterns": ["Cargo.toml"]
+    },
+    "go": {
+      "command": "gopls",
+      "args": ["serve"],
+      "languages": ["go"],
+      "rootPatterns": ["go.mod", "go.sum"]
+    },
+    "tailwind": {
+      "command": "tailwindcss-language-server",
+      "args": ["--stdio"],
+      "languages": ["css", "scss", "html", "svelte", "vue", "javascriptreact", "typescriptreact"],
+      "rootPatterns": ["tailwind.config.js", "tailwind.config.ts", "tailwind.config.cjs"]
+    },
+    "json": {
+      "command": "vscode-json-languageserver",
+      "args": ["--stdio"],
+      "languages": ["json", "jsonc"],
+      "rootPatterns": []
+    },
+    "yaml": {
+      "command": "yaml-language-server",
+      "args": ["--stdio"],
+      "languages": ["yaml"],
+      "rootPatterns": []
+    }
+  },
+  "languageAssociations": {
+    "*.ts": "typescript",
+    "*.tsx": "typescriptreact",
+    "*.js": "javascript",
+    "*.jsx": "javascriptreact",
+    "*.svelte": "svelte",
+    "*.py": "python",
+    "*.rb": "ruby",
+    "*.rake": "ruby",
+    "Gemfile": "ruby",
+    "Rakefile": "ruby",
+    "*.rs": "rust",
+    "*.go": "go",
+    "*.css": "css",
+    "*.scss": "scss",
+    "*.json": "json",
+    "*.yaml": "yaml",
+    "*.yml": "yaml"
+  }
+}
