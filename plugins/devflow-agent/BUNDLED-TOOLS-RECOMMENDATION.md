@@ -10,7 +10,7 @@ This document describes the MCP servers and LSP servers bundled with the DevFlow
 |----------|---------------------|
 | **Frontend** | Svelte 5, SvelteKit, TypeScript, JavaScript, Tailwind CSS |
 | **Backend** | FastAPI (Python), Rails (Ruby), Go, Rust |
-| **Database** | Supabase (PostgreSQL) |
+| **Database** | PostgreSQL |
 | **Testing** | Playwright, Vitest, pytest, RSpec |
 
 ---
@@ -37,7 +37,6 @@ cd plugins/devflow-agent/mcp-servers && npm install
 | **Fetch** | `@anthropic-ai/mcp-server-fetch` | HTTP requests, API testing |
 | **Memory** | `@anthropic-ai/mcp-server-memory` | Persistent knowledge graph |
 | **Sequential Thinking** | `@anthropic-ai/mcp-server-sequential-thinking` | Complex reasoning |
-| **Supabase** | `@supabase/mcp-server-supabase` | Database operations |
 
 ### MCP Tools by Server
 
@@ -71,13 +70,6 @@ cd plugins/devflow-agent/mcp-servers && npm install
 - `create_entities`, `create_relations`
 - `search_nodes`, `open_nodes`, `read_graph`
 - `add_observations`, `delete_entities`
-
-#### Supabase
-- `execute_sql`, `list_tables`, `get_table`
-- `list_projects`, `create_project`, `get_project`
-- `create_migration`, `run_migration`
-- `list_functions`, `invoke_function`
-- `get_logs`, `list_branches`
 
 ---
 
@@ -122,7 +114,6 @@ devflow-agent/
 │   ├── package.json              # MCP server dependencies
 │   └── config/
 │       ├── playwright.json       # Playwright config & tool list
-│       ├── supabase.json         # Supabase config (needs env vars)
 │       ├── filesystem.json       # Filesystem allowed paths
 │       ├── git.json              # Git operations
 │       ├── fetch.json            # HTTP/API testing
@@ -153,7 +144,7 @@ The security hook allowlists commands for:
 - **Build**: vite, vitest, playwright, eslint, prettier, tsc, svelte-check
 - **Git**: git, gh
 - **Docker**: docker, docker-compose
-- **Services**: supabase, stripe
+- **Services**: stripe
 - **Utilities**: curl, wget, jq, yq, rg, fd, make
 
 ### MCP Server Permissions
@@ -161,7 +152,6 @@ The security hook allowlists commands for:
 | Server | Read | Write | Execute | Network |
 |--------|------|-------|---------|---------|
 | Playwright | Yes | No | No | Browser |
-| Supabase | Yes | Yes | SQL | API |
 | Filesystem | Yes | Yes | No | No |
 | Git | Yes | Yes | No | No |
 | Fetch | Yes | No | No | HTTP |
@@ -187,7 +177,6 @@ The security hook allowlists commands for:
 ## Sources
 
 - [MCP Official Servers](https://github.com/modelcontextprotocol/servers)
-- [Supabase MCP](https://supabase.com/docs/guides/getting-started/mcp)
 - [Playwright MCP](https://github.com/anthropics/mcp-playwright)
 - [Svelte Language Tools](https://github.com/sveltejs/language-tools)
 - [Solargraph (Ruby LSP)](https://solargraph.org/)

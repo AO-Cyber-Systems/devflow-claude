@@ -158,7 +158,7 @@ The loop ends when ANY of these occur:
 
 - **Frontend**: Svelte 5, SvelteKit, Vite, Vitest, Playwright
 - **Backend**: FastAPI, Python, Poetry, pytest
-- **Tools**: npm, pnpm, git, docker, supabase, make
+- **Tools**: npm, pnpm, git, docker, make
 
 ## Monitoring
 

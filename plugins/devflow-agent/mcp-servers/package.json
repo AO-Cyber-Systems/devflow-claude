@@ -8,8 +8,7 @@
     "@anthropic-ai/mcp-server-git": "latest",
     "@anthropic-ai/mcp-server-fetch": "latest",
     "@anthropic-ai/mcp-server-sequential-thinking": "latest",
-    "@playwright/mcp": "latest",
-    "@supabase/mcp-server-supabase": "latest"
+    "@playwright/mcp": "latest"
   },
   "optionalDependencies": {
     "@anthropic-ai/mcp-server-memory": "latest"

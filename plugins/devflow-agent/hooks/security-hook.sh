@@ -95,11 +95,6 @@ ALLOWED_DOCKER=(
   "^docker-compose"
 )
 
-# --- Supabase (aocodex-v2, aocyberweb) ---
-ALLOWED_SUPABASE=(
-  "^supabase "
-)
-
 # --- Stripe (aocyberweb) ---
 ALLOWED_STRIPE=(
   "^stripe "
@@ -265,7 +260,6 @@ ALLOWED_UTILS=(
   "^export VITE_"
   "^export SVELTE_"
   "^export DATABASE_URL="
-  "^export SUPABASE_"
   "^export PUBLIC_"
   "^export PRIVATE_"
   "^which "
@@ -337,7 +331,6 @@ ALL_PATTERNS=(
   "${ALLOWED_MAKE[@]}"
   "${ALLOWED_GIT[@]}"
   "${ALLOWED_DOCKER[@]}"
-  "${ALLOWED_SUPABASE[@]}"
   "${ALLOWED_STRIPE[@]}"
   "${ALLOWED_FILES_READ[@]}"
   "${ALLOWED_FILES_WRITE[@]}"
@@ -399,6 +392,6 @@ jq -n --arg cmd "$COMMAND" '{
   "hookSpecificOutput": {
     "hookEventName": "PreToolUse",
     "permissionDecision": "deny",
-    "permissionDecisionReason": ("Command not allowed: " + $cmd + "\n\nAllowed: npm/pnpm, python/poetry/pytest/ruff/black/mypy, ruby/bundle/gem/rake/rails/rspec/rubocop, vite/vitest/playwright/eslint/prettier, git/gh, docker, supabase, stripe, make, file ops (ls/cat/grep/find/rg/fd), jq/yq, curl")
+    "permissionDecisionReason": ("Command not allowed: " + $cmd + "\n\nAllowed: npm/pnpm, python/poetry/pytest/ruff/black/mypy, ruby/bundle/gem/rake/rails/rspec/rubocop, vite/vitest/playwright/eslint/prettier, git/gh, docker, stripe, make, file ops (ls/cat/grep/find/rg/fd), jq/yq, curl")
   }
 }'

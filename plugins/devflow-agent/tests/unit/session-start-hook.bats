@@ -208,7 +208,7 @@ EOF
   "tech_stack": {
     "frontend": "Svelte 5",
     "backend": "FastAPI",
-    "database": "Supabase"
+    "database": "PostgreSQL"
   }
 }
 EOF

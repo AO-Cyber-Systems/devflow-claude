@@ -128,7 +128,7 @@ The `full` command runs these phases in sequence:
 - Docker, GitHub Actions
 - ESLint, Prettier
 - Vitest, Jest, Playwright, pytest
-- Tailwind, Supabase
+- Tailwind
 
 ## Generated Files
 

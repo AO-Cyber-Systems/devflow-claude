@@ -60,11 +60,6 @@ allowed-tools:
   - mcp__filesystem__get_file_info
   # Fetch MCP - API Testing
   - mcp__fetch__fetch
-  # Supabase MCP - Database Operations
-  - mcp__supabase__execute_sql
-  - mcp__supabase__list_tables
-  - mcp__supabase__get_table
-  - mcp__supabase__list_projects
 slash-command-tools: hidden
 ---
 

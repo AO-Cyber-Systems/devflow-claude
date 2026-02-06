@@ -106,14 +106,6 @@ load '../helpers/test_helper'
   fi
 }
 
-@test "supabase.json is valid JSON" {
-  if [[ -f "$PLUGIN_ROOT/mcp-servers/config/supabase.json" ]]; then
-    jq -e '.' "$PLUGIN_ROOT/mcp-servers/config/supabase.json" >/dev/null 2>&1
-  else
-    skip "supabase.json not found"
-  fi
-}
-
 @test "ruby-lsp.json is valid JSON" {
   if [[ -f "$PLUGIN_ROOT/mcp-servers/config/ruby-lsp.json" ]]; then
     jq -e '.' "$PLUGIN_ROOT/mcp-servers/config/ruby-lsp.json" >/dev/null 2>&1

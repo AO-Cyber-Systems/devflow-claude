@@ -45,6 +45,12 @@ install_if_missing() {
   fi
 }
 
+# Ensure mise shims are on PATH for the rest of this script.
+# This guarantees pip3/gem/etc resolve to mise-managed runtimes,
+# not macOS system Python (3.9) or system Ruby (2.6).
+eval "$(mise activate bash 2>/dev/null)" || true
+export PATH="$HOME/.local/share/mise/shims:$PATH"
+
 # =============================================================================
 # PHASE 1: MISE TOOLS
 # =============================================================================
@@ -99,44 +105,75 @@ echo ""
 echo -e "${BLUE}Phase 2: Language Packages${NC}"
 echo ""
 
-# Python packages
-echo "Python packages:"
-pip_install() {
-  local pkg=$1
-  local cmd=$2
-  if command -v "$cmd" &>/dev/null; then
-    success "  $pkg"
-  else
-    info "  Installing $pkg..."
-    pip3 install --user "$pkg" 2>/dev/null && success "  $pkg installed" || error "  Failed: $pkg"
+# Verify mise-managed runtimes are active (not system Python/Ruby)
+verify_mise_runtime() {
+  local cmd=$1
+  local name=$2
+  local path
+  path=$(command -v "$cmd" 2>/dev/null || true)
+  if [[ -z "$path" ]]; then
+    error "$name not found - install it first: mise use -g $name@latest"
+    return 1
+  elif [[ "$path" == /usr/bin/* ]] || [[ "$path" == /Applications/* ]] || [[ "$path" == /Library/* ]]; then
+    warn "$name is using system version at $path"
+    warn "Installing mise-managed $name to avoid permission issues..."
+    if mise use -g "$name@latest" 2>/dev/null; then
+      eval "$(mise activate bash 2>/dev/null)" || true
+      success "$name now using mise-managed version"
+    else
+      error "Failed to install mise-managed $name"
+      return 1
+    fi
   fi
+  return 0
 }
 
-pip_install "pytest" "pytest"
-pip_install "black" "black"
-pip_install "mypy" "mypy"
-pip_install "uvicorn" "uvicorn"
+# Python packages (use mise-managed Python, no --user flag needed)
+echo "Python packages:"
+if verify_mise_runtime "python3" "python"; then
+  pip_install() {
+    local pkg=$1
+    local cmd=$2
+    if command -v "$cmd" &>/dev/null; then
+      success "  $pkg"
+    else
+      info "  Installing $pkg..."
+      pip3 install "$pkg" 2>/dev/null && success "  $pkg installed" || error "  Failed: $pkg"
+    fi
+  }
+
+  pip_install "pytest" "pytest"
+  pip_install "black" "black"
+  pip_install "mypy" "mypy"
+  pip_install "uvicorn" "uvicorn"
+else
+  warn "Skipping Python packages (no mise-managed Python available)"
+fi
 
 echo ""
 
-# Ruby gems
+# Ruby gems (use mise-managed Ruby, no sudo needed)
 echo "Ruby gems:"
-gem_install() {
-  local gem=$1
-  local cmd=$2
-  if command -v "$cmd" &>/dev/null || gem list -i "$gem" &>/dev/null; then
-    success "  $gem"
-  else
-    info "  Installing $gem..."
-    gem install "$gem" --no-document 2>/dev/null && success "  $gem installed" || error "  Failed: $gem"
-  fi
-}
+if verify_mise_runtime "ruby" "ruby"; then
+  gem_install() {
+    local gem_name=$1
+    local cmd=$2
+    if command -v "$cmd" &>/dev/null || gem list -i "$gem_name" &>/dev/null; then
+      success "  $gem_name"
+    else
+      info "  Installing $gem_name..."
+      gem install "$gem_name" --no-document 2>/dev/null && success "  $gem_name installed" || error "  Failed: $gem_name"
+    fi
+  }
 
-gem_install "bundler" "bundle"
-gem_install "rake" "rake"
-gem_install "rspec" "rspec"
-gem_install "rubocop" "rubocop"
-gem_install "solargraph" "solargraph"
+  gem_install "bundler" "bundle"
+  gem_install "rake" "rake"
+  gem_install "rspec" "rspec"
+  gem_install "rubocop" "rubocop"
+  gem_install "solargraph" "solargraph"
+else
+  warn "Skipping Ruby gems (no mise-managed Ruby available)"
+fi
 
 echo ""
 
@@ -190,13 +227,6 @@ if command -v claude &>/dev/null; then
   register_mcp "memory" "@anthropic-ai/mcp-server-memory"
   register_mcp "sequential-thinking" "@anthropic-ai/mcp-server-sequential-thinking"
 
-  # Supabase needs special handling (env vars)
-  if claude mcp list 2>/dev/null | grep -q "supabase"; then
-    success "  supabase (already registered)"
-  else
-    warn "  supabase - requires manual setup with SUPABASE_ACCESS_TOKEN"
-    echo "      Run: claude mcp add supabase -- npx @supabase/mcp-server-supabase"
-  fi
 else
   warn "Claude CLI not found - MCP servers installed but not registered"
   echo "    Run 'claude mcp add <name> -- npx <package>' to register manually"
@@ -272,7 +302,6 @@ check_manual() {
 }
 
 check_manual "docker" "docker" "Install Docker Desktop: https://docker.com/products/docker-desktop"
-check_manual "supabase" "supabase" "brew install supabase/tap/supabase"
 check_manual "stripe" "stripe" "brew install stripe/stripe-cli/stripe"
 check_manual "tree" "tree" "brew install tree"
 check_manual "make" "make" "xcode-select --install (macOS)"

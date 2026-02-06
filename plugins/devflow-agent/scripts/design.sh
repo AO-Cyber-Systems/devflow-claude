@@ -105,7 +105,7 @@ generate_template_fullstack() {
                            │ SQL
           ┌────────────────▼────────────────┐
           │          Database               │
-          │   (PostgreSQL / Supabase)       │
+          │         (PostgreSQL)            │
           └─────────────────────────────────┘
 \`\`\`
 
@@ -128,15 +128,15 @@ generate_template_fullstack() {
 |-------|------------|---------|
 | Framework | FastAPI | REST API |
 | ORM | SQLAlchemy | Database access |
-| Auth | Supabase Auth | Authentication |
+| Auth | JWT / OAuth | Authentication |
 | Validation | Pydantic | Request/response |
 | Testing | pytest | Unit, integration |
 
 ### Infrastructure
 | Component | Technology | Purpose |
 |-----------|------------|---------|
-| Database | Supabase (PostgreSQL) | Data persistence |
-| Storage | Supabase Storage | File storage |
+| Database | PostgreSQL | Data persistence |
+| Storage | S3 / Cloud Storage | File storage |
 | Hosting | Vercel / Railway | Deployment |
 | CI/CD | GitHub Actions | Automation |
 
@@ -178,7 +178,7 @@ Entity
 | DELETE | /api/entities/:id | Delete entity |
 
 ### Authentication
-- Method: JWT (Supabase Auth)
+- Method: JWT
 - Header: \`Authorization: Bearer <token>\`
 
 ### Error Handling
@@ -195,12 +195,12 @@ Entity
 ## Security
 
 ### Authentication
-- Supabase Auth with email/password
+- Email/password authentication
 - OAuth providers: Google, GitHub
 - Session management via JWT
 
 ### Authorization
-- Row Level Security (RLS) in Supabase
+- Row Level Security (RLS) in database
 - API middleware for permission checks
 
 ### Data Protection
@@ -281,7 +281,7 @@ project/
 <!-- Links to external docs, specs, etc. -->
 - [SvelteKit Docs](https://kit.svelte.dev)
 - [FastAPI Docs](https://fastapi.tiangolo.com)
-- [Supabase Docs](https://supabase.com/docs)
+- [PostgreSQL Docs](https://www.postgresql.org/docs/)
 EOF
 }
 

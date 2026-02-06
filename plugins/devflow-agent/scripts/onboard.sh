@@ -269,10 +269,6 @@ detect_tech_stack() {
   if file_exists "tailwind.config.js" || file_exists "tailwind.config.ts"; then
     tools+=("tailwind")
   fi
-  if file_exists "supabase/config.toml" || (file_exists ".env" && file_contains ".env" "SUPABASE"); then
-    tools+=("supabase")
-  fi
-
   # Output JSON (handle empty arrays)
   local languages_json="[]"
   if [[ ${#languages[@]} -gt 0 ]]; then

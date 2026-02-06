@@ -4,21 +4,20 @@ allowed-tools:
   - Bash(${CLAUDE_PLUGIN_ROOT}/scripts/install-deps.sh)
   # npm - only specific allowed packages
   - Bash(npm install -g pnpm)
-  - Bash(npm install -g supabase)
   - Bash(npm install -g typescript-language-server)
   - Bash(npm install -g svelte-language-server)
   - Bash(npm install -g @tailwindcss/language-server)
   - Bash(npm install -g yaml-language-server)
   - Bash(npm install -g vscode-json-languageserver)
-  # pip - only specific allowed packages
-  - Bash(pip3 install --user poetry)
-  - Bash(pip3 install --user pytest)
-  - Bash(pip3 install --user ruff)
-  - Bash(pip3 install --user black)
-  - Bash(pip3 install --user mypy)
-  - Bash(pip3 install --user uvicorn)
-  - Bash(pip3 install --user yq)
-  - Bash(pip3 install --user pyright)
+  # pip - only specific allowed packages (mise-managed Python, no --user needed)
+  - Bash(pip3 install poetry)
+  - Bash(pip3 install pytest)
+  - Bash(pip3 install ruff)
+  - Bash(pip3 install black)
+  - Bash(pip3 install mypy)
+  - Bash(pip3 install uvicorn)
+  - Bash(pip3 install yq)
+  - Bash(pip3 install pyright)
   # brew - only specific allowed packages
   - Bash(brew install ruff)
   - Bash(brew install black)
@@ -28,8 +27,6 @@ allowed-tools:
   - Bash(brew install ripgrep)
   - Bash(brew install fd)
   - Bash(brew install tree)
-  - Bash(brew install supabase/tap/supabase)
-  - Bash(brew tap supabase/tap)
 slash-command-tools: hidden
 ---
 
@@ -42,8 +39,8 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/install-deps.sh
 ```
 
 This installs via:
-- **npm**: pnpm, supabase (if brew unavailable)
-- **pip3 --user**: poetry, pytest, ruff, black, mypy, uvicorn, yq
-- **brew** (macOS): ruff, black, mypy, jq, yq, ripgrep, fd, tree, supabase
+- **npm**: pnpm
+- **pip3** (mise-managed): poetry, pytest, ruff, black, mypy, uvicorn, yq
+- **brew** (macOS): ruff, black, mypy, jq, yq, ripgrep, fd, tree
 
 Tools requiring sudo (node, python3, git, docker, etc.) will show install commands but won't be auto-installed.

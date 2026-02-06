@@ -228,8 +228,6 @@ You are the **orchestrator** in an autonomous development loop. Your role is to 
 - **Frontend**: npm run dev, npm run build, npm run check, npm run test
 - **Backend Python**: poetry run pytest, make test-unit, make lint
 - **Type checking**: npm run check, svelte-check, mypy, pyright
-- **Supabase**: supabase gen types, supabase db push
-
 ### Completion:
 $(if [[ -n "$COMPLETION_PROMISE" ]]; then
   echo "When ALL tasks are genuinely complete, output: <promise>$COMPLETION_PROMISE</promise>"

@@ -155,7 +155,6 @@ check_tool "make" "make --version" "_" "xcode-select --install" || true
 echo ""
 
 echo -e "${YELLOW}Project Tools:${NC}"
-check_tool "supabase" "supabase --version" "_" "brew install supabase/tap/supabase" || true
 check_tool "stripe" "stripe --version" "_" "brew install stripe/stripe-cli/stripe" || true
 echo ""
 

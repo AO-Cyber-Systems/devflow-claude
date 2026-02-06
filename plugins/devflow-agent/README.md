@@ -7,7 +7,7 @@ An unlimited iterative development loop plugin for Claude Code. Designed for aut
 - **Unlimited loops by default** - Runs until genuine task completion
 - **Task file tracking** - Auto-detects feature_list.json, prd.json, tasks.json
 - **Security allowlist** - Restricts bash commands to safe operations
-- **Tech stack aware** - Configured for Svelte 5, FastAPI, Supabase stacks
+- **Tech stack aware** - Configured for Svelte 5, FastAPI, Ruby stacks
 
 ## Installation
 
@@ -68,7 +68,7 @@ Shows:
 Installs missing tools via mise:
 - **mise**: node, pnpm, python, poetry, ruff, github-cli, jq, yq, ripgrep, fd
 - **pip**: pytest, black, mypy, uvicorn (not in mise)
-- **manual**: docker, supabase, stripe, tree, make
+- **manual**: docker, stripe, tree, make
 
 ### Install mise First
 ```bash
@@ -145,7 +145,7 @@ Commands are restricted to tools actually used in aocodex-v2, aosentry, and aocy
 | **Make** | make (all targets) |
 | **Git** | git, gh |
 | **Docker** | docker, docker-compose |
-| **Database** | supabase |
+| **Database** | (project-specific) |
 | **Payments** | stripe |
 | **Tool Manager** | mise |
 | **File Exploration** | ls, cat, head, tail, less, grep, find, wc, diff, tree, file, stat, mkdir, cp, mv, touch |
