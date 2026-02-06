@@ -236,11 +236,19 @@ if verify_mise_runtime "ruby" "ruby"; then
   gem_install() {
     local gem_name=$1
     local cmd=$2
-    if command -v "$cmd" &>/dev/null || gem list -i "$gem_name" &>/dev/null; then
+    # Check executable on PATH — not gem list, which can report gems as installed
+    # even when the executable isn't reachable (e.g., different gem path after reshim).
+    if command -v "$cmd" &>/dev/null; then
       success "  $gem_name"
     else
       info "  Installing $gem_name..."
-      gem install "$gem_name" --no-document 2>/dev/null && success "  $gem_name installed" || error "  Failed: $gem_name"
+      if gem install "$gem_name" --no-document 2>/dev/null; then
+        mise reshim 2>/dev/null || true
+        hash -r 2>/dev/null || true
+        success "  $gem_name installed"
+      else
+        error "  Failed: $gem_name"
+      fi
     fi
   }
 
@@ -335,14 +343,22 @@ fi
 echo ""
 echo "System LSP servers:"
 
-# Rust analyzer
+# Rust analyzer — a rustup component, not a standalone mise tool.
+# mise installs rust which includes rustup, but rust-analyzer must be
+# added as a component separately.
 if command -v rust-analyzer &>/dev/null; then
   success "  rust-analyzer"
 elif command -v rustup &>/dev/null; then
   info "  Installing rust-analyzer via rustup..."
-  rustup component add rust-analyzer 2>/dev/null && success "  rust-analyzer installed" || warn "  rust-analyzer failed"
+  if rustup component add rust-analyzer 2>/dev/null; then
+    mise reshim 2>/dev/null || true
+    hash -r 2>/dev/null || true
+    success "  rust-analyzer installed"
+  else
+    warn "  rust-analyzer: rustup component add failed"
+  fi
 else
-  warn "  rust-analyzer (rustup not available)"
+  warn "  rust-analyzer: rustup not found (install rust first: mise use -g rust@latest)"
 fi
 
 # gopls
