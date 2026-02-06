@@ -1,0 +1,21 @@
+{
+  "name": "devflow-claude",
+  "description": "DevFlow plugins for Claude Code - autonomous development agents and workflow tools by AO Cyber Systems",
+  "owner": {
+    "name": "AO Cyber Systems",
+    "email": "dev@aocyber.com"
+  },
+  "plugins": [
+    {
+      "name": "devflow-agent",
+      "description": "Autonomous agent loop for DevFlow - unlimited iterative task completion with TRD-driven workflows. Features subagent delegation, native Claude Code integration (Tasks, Plan Mode), and persistent agent memory.",
+      "version": "1.2.0",
+      "author": {
+        "name": "AO Cyber Systems"
+      },
+      "source": "./plugins/devflow-agent",
+      "category": "development",
+      "homepage": "https://github.com/AO-Cyber-Systems/devflow-claude/tree/main/plugins/devflow-agent"
+    }
+  ]
+}
