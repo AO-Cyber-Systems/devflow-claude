@@ -37,10 +37,28 @@ echo ""
 # CHECK FOR MISE
 # =============================================================================
 MISE_AVAILABLE=false
+MISE_SHIMS="$HOME/.local/share/mise/shims"
+
+# Add shims to PATH for this script so doctor checks mise-managed tools
+if [[ -d "$MISE_SHIMS" ]]; then
+  export PATH="$MISE_SHIMS:$PATH"
+fi
+
 if command -v mise &>/dev/null; then
   MISE_AVAILABLE=true
   MISE_VERSION=$(mise --version 2>/dev/null | head -1)
   echo -e "mise: ${GREEN}✓ $MISE_VERSION${NC}"
+
+  # Check if shims are on the shell's PATH (not just this script)
+  if echo "$PATH" | grep -q "mise/shims" || grep -q "mise/shims" "${HOME}/.zshrc" "${HOME}/.bashrc" "${HOME}/.bash_profile" "${HOME}/.profile" 2>/dev/null; then
+    echo -e "mise shims: ${GREEN}✓ on PATH${NC}"
+  else
+    echo -e "mise shims: ${YELLOW}✗ not on PATH${NC}"
+    echo -e "  ${YELLOW}Tools may resolve to system versions instead of mise-managed ones.${NC}"
+    echo -e "  Fix: add to your shell profile:"
+    echo "    export PATH=\"\$HOME/.local/share/mise/shims:\$PATH\""
+    echo -e "  Or run: ${GREEN}/devflow-agent:install${NC}"
+  fi
 else
   echo -e "mise: ${RED}✗ not installed${NC}"
   echo ""
@@ -55,10 +73,8 @@ else
     echo "  curl https://mise.run | sh"
   fi
   echo ""
-  echo "Then add to your shell:"
-  echo "  echo 'eval \"\$(mise activate bash)\"' >> ~/.bashrc"
-  echo "  # or for zsh:"
-  echo "  echo 'eval \"\$(mise activate zsh)\"' >> ~/.zshrc"
+  echo "Then add to your shell profile:"
+  echo "  export PATH=\"\$HOME/.local/share/mise/shims:\$PATH\""
   echo ""
 fi
 echo ""

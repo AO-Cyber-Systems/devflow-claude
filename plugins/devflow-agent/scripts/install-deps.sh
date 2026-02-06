@@ -45,16 +45,10 @@ install_if_missing() {
   fi
 }
 
-# Ensure mise shims are on PATH for the rest of this script.
-# This guarantees pip3/gem/etc resolve to mise-managed runtimes,
-# not macOS system Python (3.9) or system Ruby (2.6).
-eval "$(mise activate bash 2>/dev/null)" || true
-export PATH="$HOME/.local/share/mise/shims:$PATH"
-
 # =============================================================================
-# PHASE 1: MISE TOOLS
+# PHASE 0: MISE SETUP
 # =============================================================================
-echo -e "${BLUE}Phase 1: Core Tools (via mise)${NC}"
+echo -e "${BLUE}Phase 0: Mise Setup${NC}"
 echo ""
 
 if ! command -v mise &>/dev/null; then
@@ -73,13 +67,75 @@ if ! command -v mise &>/dev/null; then
       ;;
   esac
   echo ""
-  echo "Then activate it in your shell:"
-  echo "  eval \"\$(mise activate zsh)\"  # or bash"
+  echo "Then run this script again."
   echo ""
   exit 1
 fi
 
 success "mise: $(mise --version | head -1)"
+
+# --- Ensure mise shims are on PATH ---
+# mise has two modes: "activate" (hook-based, modifies PATH on cd) and
+# "shims" (static binaries at ~/.local/share/mise/shims).
+#
+# The activate mode only puts tools on PATH that are in the global config
+# AND only after a shell hook fires. This means:
+#   - Tools installed but not in global config won't be found
+#   - Non-interactive shells (like Claude Code's Bash tool) may not trigger hooks
+#
+# The shims directory always works: it contains a shim for every installed tool.
+# We add it to PATH for this script AND ensure it's in the user's shell profile
+# so Claude Code and other tools can find mise-managed runtimes.
+
+MISE_SHIMS="$HOME/.local/share/mise/shims"
+export PATH="$MISE_SHIMS:$PATH"
+
+# Detect the user's default shell and its config file
+detect_shell_config() {
+  local user_shell
+  user_shell=$(basename "${SHELL:-/bin/zsh}")
+  case "$user_shell" in
+    zsh)  echo "$HOME/.zshrc" ;;
+    bash)
+      # bash reads .bash_profile for login shells, .bashrc for non-login
+      if [[ -f "$HOME/.bash_profile" ]]; then
+        echo "$HOME/.bash_profile"
+      else
+        echo "$HOME/.bashrc"
+      fi
+      ;;
+    fish) echo "$HOME/.config/fish/config.fish" ;;
+    *)    echo "$HOME/.profile" ;;
+  esac
+}
+
+SHELL_CONFIG=$(detect_shell_config)
+
+# Add mise shims to shell profile if not already present
+if [[ -f "$SHELL_CONFIG" ]]; then
+  if ! grep -q 'mise/shims' "$SHELL_CONFIG" 2>/dev/null; then
+    info "Adding mise shims to $SHELL_CONFIG..."
+    {
+      echo ""
+      echo "# mise shims - ensures mise-managed tools are always on PATH"
+      echo "export PATH=\"\$HOME/.local/share/mise/shims:\$PATH\""
+    } >> "$SHELL_CONFIG"
+    success "mise shims added to $SHELL_CONFIG"
+    warn "Restart your shell or run: source $SHELL_CONFIG"
+  else
+    success "mise shims already in $SHELL_CONFIG"
+  fi
+else
+  warn "Shell config not found at $SHELL_CONFIG - add this manually:"
+  echo "  export PATH=\"\$HOME/.local/share/mise/shims:\$PATH\""
+fi
+
+echo ""
+
+# =============================================================================
+# PHASE 1: MISE TOOLS
+# =============================================================================
+echo -e "${BLUE}Phase 1: Core Tools (via mise)${NC}"
 echo ""
 
 # Core tools
@@ -97,6 +153,12 @@ install_if_missing "fd" "fd --version"
 install_if_missing "go" "go version"
 install_if_missing "rust" "rustc --version"
 
+# Reshim after installing tools so shims are up to date
+mise reshim 2>/dev/null || true
+# Re-export PATH to pick up any newly created shims
+export PATH="$MISE_SHIMS:$PATH"
+hash -r 2>/dev/null || true
+
 echo ""
 
 # =============================================================================
@@ -105,7 +167,7 @@ echo ""
 echo -e "${BLUE}Phase 2: Language Packages${NC}"
 echo ""
 
-# Verify mise-managed runtimes are active (not system Python/Ruby)
+# Verify a tool resolves to mise-managed version (not macOS system)
 verify_mise_runtime() {
   local cmd=$1
   local name=$2
@@ -118,7 +180,8 @@ verify_mise_runtime() {
     warn "$name is using system version at $path"
     warn "Installing mise-managed $name to avoid permission issues..."
     if mise use -g "$name@latest" 2>/dev/null; then
-      eval "$(mise activate bash 2>/dev/null)" || true
+      mise reshim 2>/dev/null || true
+      hash -r 2>/dev/null || true
       success "$name now using mise-managed version"
     else
       error "Failed to install mise-managed $name"
