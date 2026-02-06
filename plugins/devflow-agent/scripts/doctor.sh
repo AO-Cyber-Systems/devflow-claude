@@ -27,7 +27,14 @@ detect_os() {
 
 OS=$(detect_os)
 
-echo -e "${BLUE}DevFlow Agent - Dependency Doctor${NC}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_JSON="$(dirname "$SCRIPT_DIR")/.claude-plugin/plugin.json"
+PLUGIN_VERSION="unknown"
+if [[ -f "$PLUGIN_JSON" ]] && command -v jq &>/dev/null; then
+  PLUGIN_VERSION=$(jq -r '.version' "$PLUGIN_JSON" 2>/dev/null || echo "unknown")
+fi
+
+echo -e "${BLUE}DevFlow Agent - Dependency Doctor${NC} ${GREEN}v${PLUGIN_VERSION}${NC}"
 echo -e "${BLUE}===================================${NC}"
 echo ""
 echo -e "OS: ${GREEN}$OS${NC}"

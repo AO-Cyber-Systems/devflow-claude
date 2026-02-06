@@ -1,11 +1,16 @@
 ---
 description: Show DevFlow autonomous agent help
-allowed-tools: []
+allowed-tools:
+  - Bash(jq * ${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json)
 slash-command-tools: hidden
-disable-model-invocation: true
 ---
 
 # DevFlow Autonomous Agent
+
+First, show the version:
+```bash
+jq -r '"v" + .version' ${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json
+```
 
 An unlimited iterative development loop for Claude Code with full development lifecycle management.
 

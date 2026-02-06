@@ -8,6 +8,7 @@ allowed-tools:
   - Bash(jq * prd.json)
   - Bash(jq * tasks.json)
   - Bash(jq * .devflow/*.json)
+  - Bash(jq * ${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json)
   - Read
 slash-command-tools: hidden
 ---
@@ -18,7 +19,12 @@ Check the current status of the autonomous development loop.
 
 ## Steps
 
-1. Check if loop is active:
+1. Show plugin version:
+```bash
+jq -r '"DevFlow Agent v" + .version' ${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json
+```
+
+2. Check if loop is active:
 ```bash
 test -f .claude/devflow-agent.local.md && echo "Loop is ACTIVE" || echo "No active loop"
 ```
