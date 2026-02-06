@@ -33,15 +33,27 @@ install_if_missing() {
   local tool=$1
   local check_cmd=$2
 
+  # Check if tool is already in mise global config.
+  # We can't just check if the command exists — macOS ships restricted system
+  # versions (e.g., /usr/bin/python3 is Xcode's Python 3.9 which can't create
+  # venvs, /usr/bin/ruby is 2.6 which requires sudo for gem install).
+  # We must ensure the tool is in mise's global config so shims resolve to
+  # the mise-managed version.
+  if mise ls "$tool" 2>/dev/null | grep -q '\.config/mise'; then
+    success "$tool (mise-managed)"
+    return
+  fi
+
   if eval "$check_cmd" &>/dev/null; then
-    success "$tool (already installed)"
+    info "$tool found (not mise-managed) — adding to mise global..."
   else
     info "Installing $tool..."
-    if mise use -g "$tool@latest" 2>/dev/null; then
-      success "$tool installed"
-    else
-      error "Failed to install $tool"
-    fi
+  fi
+
+  if mise use -g "$tool@latest" 2>/dev/null; then
+    success "$tool installed"
+  else
+    error "Failed to install $tool"
   fi
 }
 
@@ -142,7 +154,6 @@ echo ""
 install_if_missing "node" "node --version"
 install_if_missing "pnpm" "pnpm --version"
 install_if_missing "python" "python3 --version"
-install_if_missing "poetry" "poetry --version"
 install_if_missing "ruby" "ruby --version"
 install_if_missing "ruff" "ruff --version"
 install_if_missing "github-cli" "gh --version"
@@ -204,6 +215,10 @@ if verify_mise_runtime "python3" "python"; then
       pip3 install "$pkg" 2>/dev/null && success "  $pkg installed" || error "  Failed: $pkg"
     fi
   }
+
+  # Poetry — installed via pip, not mise. The mise vfox-poetry plugin creates a
+  # venv that can't resolve libpython dylibs from mise's standalone Python builds.
+  pip_install "poetry" "poetry"
 
   pip_install "pytest" "pytest"
   pip_install "black" "black"

@@ -133,7 +133,7 @@ echo ""
 
 echo -e "${YELLOW}Python Tools:${NC}"
 check_tool "python3" "python3 --version" "python" "brew install python3" || true
-check_tool "poetry" "poetry --version" "poetry" "pip3 install --user poetry" || true
+check_tool "poetry" "poetry --version" "_" "pip3 install poetry" || true
 check_tool "pytest" "pytest --version" "_" "pip3 install --user pytest" || true
 check_tool "ruff" "ruff --version" "ruff" "pip3 install --user ruff" || true
 check_tool "black" "black --version" "_" "pip3 install --user black" || true
