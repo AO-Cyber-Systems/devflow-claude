@@ -1,0 +1,22 @@
+{
+  "name": "devflow-mcp-servers",
+  "version": "1.1.0",
+  "private": true,
+  "description": "Bundled MCP servers for DevFlow Agent plugin",
+  "dependencies": {
+    "@anthropic-ai/mcp-server-filesystem": "latest",
+    "@anthropic-ai/mcp-server-git": "latest",
+    "@anthropic-ai/mcp-server-fetch": "latest",
+    "@anthropic-ai/mcp-server-sequential-thinking": "latest",
+    "@playwright/mcp": "latest"
+  },
+  "optionalDependencies": {
+    "@anthropic-ai/mcp-server-memory": "latest"
+  },
+  "scripts": {
+    "postinstall": "echo 'MCP servers installed successfully'"
+  },
+  "notes": {
+    "memory-mcp": "Deprecated in favor of native subagent memory. Install if needed for legacy workflows."
+  }
+}

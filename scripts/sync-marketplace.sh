@@ -96,7 +96,7 @@ fi
 UPDATED_PLUGINS="[]"
 
 for plugin_json in "${PLUGIN_DIRS[@]}"; do
-  # Extract plugin directory name (e.g., "devflow-agent")
+  # Extract plugin directory name (e.g., "devflow")
   plugin_dir="$(basename "$(dirname "$(dirname "$plugin_json")")")"
 
   # Read source fields from plugin.json

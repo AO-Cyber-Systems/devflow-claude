@@ -1,0 +1,8 @@
+{
+  "name": "devflow",
+  "version": "1.5.0",
+  "description": "Autonomous agent loop for DevFlow - unlimited iterative task completion with TRD-driven workflows. Features subagent delegation, native Claude Code integration (Tasks, Plan Mode), and persistent agent memory. Optimized for Svelte 5, FastAPI, and Ruby stacks.",
+  "author": {
+    "name": "AO Cyber Systems"
+  }
+}

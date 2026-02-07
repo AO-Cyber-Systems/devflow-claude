@@ -67,7 +67,7 @@ Each phase can run independently or as part of the `full` pipeline.
 ### Files to Create/Modify
 
 1. `scripts/onboard.sh` - Main onboarding script with subcommands
-2. `commands/onboard.md` - Command registration for `/devflow-agent:onboard`
+2. `commands/onboard.md` - Command registration for `/devflow:onboard`
 
 ### Analysis Phase (`onboard analyze`)
 
