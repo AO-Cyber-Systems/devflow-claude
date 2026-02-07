@@ -25,7 +25,7 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/design.sh $ARGUMENTS
 
 ## Options
 
-- `--template <type>` - Template: fullstack, svelte, fastapi
+- `--template <type>` - Template: fullstack, svelte, fastapi, hybrid, capacitor, electron
 
 ## Examples
 
@@ -53,6 +53,15 @@ Frontend-focused template for SvelteKit applications.
 
 ### fastapi
 Backend-focused template for FastAPI REST APIs.
+
+### hybrid
+Monorepo template for SvelteKit frontend + FastAPI backend with API contract, CORS, and cross-stack testing.
+
+### capacitor
+Mobile template for Capacitor + SvelteKit with adapter-static, native plugin wrappers, and device testing.
+
+### electron
+Desktop template for Electron + electron-vite + Svelte with security model, IPC patterns, and auto-updates.
 
 ## Design Document Structure
 

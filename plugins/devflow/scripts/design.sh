@@ -35,7 +35,7 @@ COMMANDS:
   validate          Validate design document structure
 
 OPTIONS:
-  --template <t>    Template type: svelte, fastapi, fullstack (default)
+  --template <t>    Template type: fullstack (default), svelte, fastapi, hybrid, capacitor, electron
   -h, --help        Show this help
 
 EXAMPLES:
@@ -552,6 +552,367 @@ project/
 EOF
 }
 
+generate_template_hybrid() {
+  local project_name=$1
+  cat <<EOF
+# $project_name - Design Document
+
+## Metadata
+| Field | Value |
+|-------|-------|
+| Project | $project_name |
+| Version | 0.1.0 |
+| Status | Draft |
+| Created | $(date +%Y-%m-%d) |
+| Updated | $(date +%Y-%m-%d) |
+
+## Overview
+
+### Purpose
+<!-- What problem does this project solve? -->
+
+### Goals
+- Goal 1
+- Goal 2
+
+## Architecture
+
+### Monorepo Structure
+\`\`\`
+frontend/                 # SvelteKit app
+├── src/
+│   ├── routes/           # SvelteKit pages
+│   ├── lib/
+│   │   ├── api/          # Typed API client
+│   │   ├── components/   # Svelte components
+│   │   └── stores/       # Shared state
+│   └── app.html
+├── svelte.config.js
+└── package.json
+
+backend/                  # FastAPI app
+├── app/
+│   ├── main.py           # FastAPI entry + CORS
+│   ├── api/routes/       # Route handlers
+│   ├── models/           # Pydantic models
+│   ├── services/         # Business logic
+│   └── db/               # Database layer
+├── tests/
+└── pyproject.toml
+
+docker-compose.yml        # Orchestrates both services
+\`\`\`
+
+## Tech Stack
+
+| Layer | Technology | Purpose |
+|-------|------------|---------|
+| Frontend | SvelteKit 2 | Full-stack framework |
+| Backend | FastAPI | REST API |
+| Language | TypeScript + Python | Type safety |
+| Styling | Tailwind CSS | Utility-first CSS |
+| ORM | SQLAlchemy 2.0 | Database |
+| Validation | Zod + Pydantic v2 | Schemas |
+| Frontend Tests | Vitest | Unit tests |
+| Backend Tests | pytest | Unit + integration |
+| E2E | Playwright | End-to-end tests |
+
+## API Contract
+
+### Endpoints
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | /health | Health check |
+| POST | /auth/token | Get token |
+| GET | /api/users/me | Current user |
+
+### Cross-Stack Schema Alignment
+- Backend Pydantic models are source of truth
+- Frontend TypeScript types must match
+- Use consistent naming: \`ItemResponse\`, \`ItemCreate\`, \`ItemUpdate\`
+
+## Data Flow
+
+1. Frontend calls typed API client in \`frontend/src/lib/api/\`
+2. Backend validates with Pydantic, processes via services
+3. Backend returns structured JSON responses
+4. Frontend renders via Svelte components with rune state
+
+## Testing Strategy
+
+| Layer | Tool | Scope |
+|-------|------|-------|
+| Frontend unit | Vitest + @testing-library/svelte | Components, stores |
+| Backend unit | pytest + pytest-asyncio | Routes, services |
+| Backend integration | httpx.AsyncClient | API endpoints |
+| Full-stack E2E | Playwright | Critical user flows |
+
+## Implementation Plan
+
+### Phase 1: Setup
+- [ ] Monorepo structure (frontend/ + backend/)
+- [ ] Docker Compose for local dev
+- [ ] CORS configuration
+- [ ] Typed API client
+
+### Phase 2: Features
+- [ ] Authentication flow (JWT)
+- [ ] Core API endpoints
+- [ ] Frontend pages + components
+
+### Phase 3: Testing
+- [ ] Frontend unit tests
+- [ ] Backend unit + integration tests
+- [ ] E2E tests against full stack
+EOF
+}
+
+generate_template_capacitor() {
+  local project_name=$1
+  cat <<EOF
+# $project_name - Design Document
+
+## Metadata
+| Field | Value |
+|-------|-------|
+| Project | $project_name |
+| Version | 0.1.0 |
+| Status | Draft |
+| Created | $(date +%Y-%m-%d) |
+| Updated | $(date +%Y-%m-%d) |
+
+## Overview
+
+### Purpose
+<!-- What problem does this project solve? -->
+
+### Goals
+- Goal 1
+- Goal 2
+
+### Target Platforms
+- iOS (15+)
+- Android (API 24+)
+- Web (progressive enhancement)
+
+## Architecture
+
+### Project Structure
+\`\`\`
+src/                      # SvelteKit app (web layer)
+├── routes/
+├── lib/
+│   ├── native/           # Capacitor plugin wrappers
+│   ├── components/
+│   └── stores/
+└── app.html
+ios/                      # Xcode project (auto-generated)
+android/                  # Android Studio project (auto-generated)
+capacitor.config.ts       # Capacitor configuration
+svelte.config.js          # Must use adapter-static
+\`\`\`
+
+## Tech Stack
+
+| Layer | Technology | Purpose |
+|-------|------------|---------|
+| Framework | SvelteKit 2 | Web app framework |
+| Mobile | Capacitor | Native iOS/Android wrapper |
+| Language | TypeScript | Type safety |
+| Styling | Tailwind CSS | Utility-first CSS |
+| State | Svelte 5 runes | Reactive state |
+| Unit Tests | Vitest | Component + logic tests |
+| E2E (Web) | Playwright | Browser-based E2E |
+| E2E (Native) | WebdriverIO + Appium | Device-based E2E |
+
+## Native Features
+
+### Capacitor Plugins
+| Plugin | Purpose | Platforms |
+|--------|---------|-----------|
+| @capacitor/camera | Photo capture | iOS, Android |
+| @capacitor/filesystem | File storage | iOS, Android |
+| @capacitor/geolocation | Location | iOS, Android |
+| @capacitor/push-notifications | Push | iOS, Android |
+
+### Platform Detection
+\`\`\`typescript
+import { Capacitor } from '@capacitor/core';
+Capacitor.isNativePlatform()  // true on iOS/Android
+Capacitor.getPlatform()       // 'ios' | 'android' | 'web'
+\`\`\`
+
+## Configuration
+
+### SvelteKit (adapter-static required)
+- Output to \`build/\` directory
+- SPA fallback: \`index.html\`
+- SSR disabled: \`export const ssr = false\`
+
+### Capacitor
+- \`webDir: 'build'\` — points to SvelteKit output
+- \`androidScheme: 'https'\` — secure WebView
+
+## Testing Strategy
+
+| Layer | Tool | Scope |
+|-------|------|-------|
+| Unit | Vitest | Components, stores, utils |
+| Component | @testing-library/svelte | UI interactions |
+| Plugin mocks | Manual \`__mocks__/@capacitor/\` | Native API stubs |
+| E2E (web) | Playwright | Web UI flows |
+| E2E (native) | WebdriverIO + Appium | Device flows |
+
+## Implementation Plan
+
+### Phase 1: Setup
+- [ ] SvelteKit + adapter-static
+- [ ] Capacitor init + platforms
+- [ ] Base navigation + layout
+
+### Phase 2: Features
+- [ ] Native plugin wrappers in \`src/lib/native/\`
+- [ ] Core screens + components
+- [ ] Platform-specific UI adjustments
+
+### Phase 3: Testing & Distribution
+- [ ] Unit + component tests with plugin mocks
+- [ ] Playwright E2E for web layer
+- [ ] iOS TestFlight / Android internal testing
+EOF
+}
+
+generate_template_electron() {
+  local project_name=$1
+  cat <<EOF
+# $project_name - Design Document
+
+## Metadata
+| Field | Value |
+|-------|-------|
+| Project | $project_name |
+| Version | 0.1.0 |
+| Status | Draft |
+| Created | $(date +%Y-%m-%d) |
+| Updated | $(date +%Y-%m-%d) |
+
+## Overview
+
+### Purpose
+<!-- What problem does this project solve? -->
+
+### Goals
+- Goal 1
+- Goal 2
+
+### Target Platforms
+- macOS
+- Windows
+- Linux
+
+## Architecture
+
+### Process Model
+\`\`\`
+src/
+├── main/                 # Main process (Node.js)
+│   ├── index.ts          # App entry, window management
+│   └── ipc.ts            # IPC handler registration
+├── preload/              # Preload scripts (bridge)
+│   └── index.ts          # contextBridge API exposure
+└── renderer/             # Renderer process (Svelte)
+    ├── src/
+    │   ├── App.svelte
+    │   ├── lib/
+    │   └── routes/
+    └── index.html
+electron.vite.config.ts   # Unified build config
+electron-builder.yml      # Packaging config
+\`\`\`
+
+## Tech Stack
+
+| Layer | Technology | Purpose |
+|-------|------------|---------|
+| Runtime | Electron | Desktop framework |
+| Build | electron-vite | Dev server + bundling |
+| UI | Svelte 5 | Renderer UI framework |
+| Language | TypeScript | Type safety |
+| Styling | Tailwind CSS | Utility-first CSS |
+| Packaging | electron-builder | Distribution |
+| Updates | electron-updater | Auto-updates |
+| Unit Tests | Vitest | Main + renderer tests |
+| E2E | Playwright | Electron app testing |
+
+## Security Model
+
+### Requirements
+- \`contextIsolation: true\` (mandatory)
+- \`nodeIntegration: false\` (mandatory)
+- \`sandbox: true\` (recommended)
+- Minimal preload API surface via \`contextBridge\`
+
+### IPC Design
+| Channel | Direction | Purpose |
+|---------|-----------|---------|
+| dialog:openFile | Renderer → Main | File picker |
+| file:save | Renderer → Main | Save file |
+| update-available | Main → Renderer | Update notification |
+
+## Preload API
+
+\`\`\`typescript
+// Exposed to renderer via window.api
+interface API {
+  openFile(): Promise<string | null>;
+  saveFile(data: string): Promise<void>;
+  onUpdateAvailable(cb: () => void): void;
+}
+\`\`\`
+
+## Testing Strategy
+
+| Layer | Tool | Scope |
+|-------|------|-------|
+| Main process | Vitest (Node) | IPC handlers, business logic |
+| Renderer | Vitest (jsdom) | Svelte components, stores |
+| IPC | electron-mock-ipc | Main↔renderer communication |
+| E2E | Playwright (Electron) | Full app interaction |
+
+## Distribution
+
+### Targets
+| Platform | Format | Signing |
+|----------|--------|---------|
+| macOS | .dmg, .zip | Apple Developer ID |
+| Windows | .exe (NSIS) | Azure Trusted Signing |
+| Linux | .AppImage, .deb | N/A |
+
+### Auto-Updates
+- electron-updater checks on launch + periodically
+- GitHub Releases as update source
+- Background download, install on quit
+
+## Implementation Plan
+
+### Phase 1: Setup
+- [ ] electron-vite + Svelte scaffold
+- [ ] Security model (contextBridge, preload)
+- [ ] Basic window management
+
+### Phase 2: Features
+- [ ] IPC handlers for core functionality
+- [ ] Svelte UI components
+- [ ] File system operations
+
+### Phase 3: Distribution
+- [ ] electron-builder packaging
+- [ ] Code signing (macOS + Windows)
+- [ ] Auto-update integration
+- [ ] Unit + E2E tests
+EOF
+}
+
 # =============================================================================
 # COMMANDS
 # =============================================================================
@@ -600,6 +961,15 @@ cmd_init() {
       ;;
     fastapi)
       generate_template_fastapi "$project_name" > "$DESIGN_FILE"
+      ;;
+    hybrid)
+      generate_template_hybrid "$project_name" > "$DESIGN_FILE"
+      ;;
+    capacitor)
+      generate_template_capacitor "$project_name" > "$DESIGN_FILE"
+      ;;
+    electron)
+      generate_template_electron "$project_name" > "$DESIGN_FILE"
       ;;
     fullstack|*)
       generate_template_fullstack "$project_name" > "$DESIGN_FILE"
