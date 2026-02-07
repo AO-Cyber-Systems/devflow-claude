@@ -198,7 +198,7 @@ You are the **orchestrator** in an autonomous development loop. Your role is to 
 
 2. **Check baseline health:**
    \`\`\`bash
-   ${CLAUDE_PLUGIN_ROOT}/scripts/regression.sh run
+   \${CLAUDE_PLUGIN_ROOT}/scripts/regression.sh run
    \`\`\`
 
 3. **Delegate to trd-implementer subagent:**
@@ -210,12 +210,12 @@ You are the **orchestrator** in an autonomous development loop. Your role is to 
 4. **Update status on completion:**
    \`\`\`
    TaskUpdate(taskId: "X", status: "completed")
-   ${CLAUDE_PLUGIN_ROOT}/scripts/trd.sh status XXX complete
+   \${CLAUDE_PLUGIN_ROOT}/scripts/trd.sh status XXX complete
    \`\`\`
 
 5. **Add tests to regression suite:**
    \`\`\`bash
-   ${CLAUDE_PLUGIN_ROOT}/scripts/regression.sh add TRD-XXX
+   \${CLAUDE_PLUGIN_ROOT}/scripts/regression.sh add TRD-XXX
    \`\`\`
 
 ### Why Subagents?
