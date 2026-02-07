@@ -26,26 +26,34 @@ show_help() {
 DevFlow TRD Manager - Task Requirement Documents
 
 USAGE:
-  trd.sh <command> [args] [options]
+  trd.sh [options]              Auto-generate TRDs from design.md
+  trd.sh <command> [args]       Run a specific command
 
 COMMANDS:
-  create <name>     Create new TRD with auto-incremented ID
-  list              List all TRDs with status
-  view <id>         View TRD content
-  status <id> <s>   Update TRD status (pending/in_progress/complete/blocked)
-  template          Show TRD template
+  (default)           Generate TRDs from .devflow/design.md Implementation Plan
+  create <name>       Create new TRD with auto-incremented ID
+  list                List all TRDs with status
+  view <id>           View TRD content
+  status <id> <s>     Update TRD status (pending/in_progress/complete/blocked)
+  template            Show TRD template
 
-OPTIONS:
+GENERATE OPTIONS:
+  --dry-run            Preview TRDs without creating files
+  --force              Regenerate even if TRDs already exist
+
+CREATE OPTIONS:
   -p, --priority <n>   Set priority (1=critical, 2=high, 3=medium, 4=low)
   -e, --effort <s>     Set effort estimate (small/medium/large/xlarge)
   -h, --help           Show this help
 
 EXAMPLES:
-  trd.sh create "User authentication flow"
-  trd.sh create "API rate limiting" --priority 2 --effort medium
-  trd.sh list
-  trd.sh view 001
-  trd.sh status 001 complete
+  trd.sh                     # Generate TRDs from design doc
+  trd.sh --dry-run           # Preview what would be generated
+  trd.sh --force             # Regenerate TRDs (overwrites)
+  trd.sh create "Auth flow"  # Create a single TRD manually
+  trd.sh list                # List all TRDs
+  trd.sh view 001            # View TRD-001
+  trd.sh status 001 complete # Mark TRD-001 complete
 
 TRD IDs are auto-incremented: TRD-001, TRD-002, etc.
 HELP_EOF
@@ -209,6 +217,153 @@ EOF
 # =============================================================================
 # COMMANDS
 # =============================================================================
+
+cmd_generate() {
+  local dry_run=false
+  local force=false
+
+  # Parse flags
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+      --dry-run) dry_run=true; shift ;;
+      --force)   force=true; shift ;;
+      *)
+        echo -e "${RED}Error: Unknown option '$1'${NC}" >&2
+        echo "Usage: trd.sh [--dry-run] [--force]" >&2
+        exit 1
+        ;;
+    esac
+  done
+
+  local design_file="$DEVFLOW_DIR/design.md"
+
+  # Check design.md exists
+  if [[ ! -f "$design_file" ]]; then
+    echo -e "${RED}Error: $design_file not found${NC}" >&2
+    echo "Create one first with: /devflow:design" >&2
+    exit 1
+  fi
+
+  # Check if TRDs already exist (unless --force)
+  if [[ "$force" != true ]] && ls "$TRD_DIR"/TRD-*.md &>/dev/null 2>&1; then
+    echo -e "${YELLOW}TRDs already exist in $TRD_DIR/${NC}" >&2
+    echo "Use --force to regenerate, or manage individually with 'create/status' commands." >&2
+    exit 1
+  fi
+
+  # Parse Implementation Plan section
+  local in_section=false
+  local current_phase=0
+  local phase_name=""
+  local tasks=()       # task names
+  local priorities=()  # mapped priorities
+
+  while IFS= read -r line; do
+    # Detect start of Implementation Plan section
+    if [[ "$line" == "## Implementation Plan" ]]; then
+      in_section=true
+      continue
+    fi
+
+    # Stop at next h2 section
+    if [[ "$in_section" == true ]] && [[ "$line" =~ ^##\  ]] && [[ "$line" != "## Implementation Plan" ]]; then
+      break
+    fi
+
+    if [[ "$in_section" != true ]]; then
+      continue
+    fi
+
+    # Parse phase headers: ### Phase N: Name
+    if [[ "$line" =~ ^###\ Phase\ ([0-9]+):\ *(.*) ]]; then
+      current_phase="${BASH_REMATCH[1]}"
+      phase_name="${BASH_REMATCH[2]}"
+      continue
+    fi
+    # Also handle ### Phase N without colon (e.g. "### Phase 1")
+    if [[ "$line" =~ ^###\ Phase\ ([0-9]+)$ ]]; then
+      current_phase="${BASH_REMATCH[1]}"
+      phase_name=""
+      continue
+    fi
+
+    # Parse task lines: - [ ] Task name
+    if [[ "$line" =~ ^-\ \[\ \]\ +(.*) ]]; then
+      local task_name="${BASH_REMATCH[1]}"
+      tasks+=("$task_name")
+      # Map phase to priority: 1→1, 2→2, 3→3, 4+→4
+      local pri=$current_phase
+      if [[ $pri -gt 4 ]]; then
+        pri=4
+      fi
+      if [[ $pri -lt 1 ]]; then
+        pri=3  # default if no phase header found
+      fi
+      priorities+=("$pri")
+    fi
+  done < "$design_file"
+
+  if [[ ${#tasks[@]} -eq 0 ]]; then
+    echo -e "${YELLOW}No tasks found in Implementation Plan section${NC}" >&2
+    echo "Expected format in $design_file:" >&2
+    echo "  ## Implementation Plan" >&2
+    echo "  ### Phase 1: Foundation" >&2
+    echo "  - [ ] Task name here" >&2
+    exit 1
+  fi
+
+  # Dry-run: just print what would be created
+  if [[ "$dry_run" == true ]]; then
+    echo -e "${BLUE}Dry run — TRDs that would be created:${NC}"
+    echo ""
+    local preview_id
+    # Start from next available ID
+    local base_id
+    base_id=$(get_next_id)
+    base_id=$((10#$base_id))  # strip leading zeros for arithmetic
+
+    for i in "${!tasks[@]}"; do
+      preview_id=$(printf "%03d" $((base_id + i)))
+      local slug
+      slug=$(slugify "${tasks[$i]}")
+      echo -e "  TRD-${preview_id}-${slug}.md  (priority=${priorities[$i]}, effort=medium)"
+      echo -e "    ${CYAN}${tasks[$i]}${NC}"
+    done
+    echo ""
+    echo -e "Total: ${#tasks[@]} TRDs"
+    echo -e "Run without --dry-run to create them."
+    return 0
+  fi
+
+  # Create TRDs
+  ensure_dirs
+  local created=0
+
+  echo -e "${BLUE}Generating TRDs from design document...${NC}"
+  echo ""
+
+  for i in "${!tasks[@]}"; do
+    local id
+    id=$(get_next_id)
+    local name="${tasks[$i]}"
+    local pri="${priorities[$i]}"
+    local slug
+    slug=$(slugify "$name")
+    local filename="TRD-${id}-${slug}.md"
+    local filepath="$TRD_DIR/$filename"
+
+    generate_template "$id" "$name" "$pri" "medium" > "$filepath"
+    echo -e "  ${GREEN}Created${NC} $filepath  (priority=$pri)"
+    created=$((created + 1))
+  done
+
+  echo ""
+  echo -e "${GREEN}Generated $created TRDs from design document${NC}"
+  echo ""
+  echo -e "Next steps:"
+  echo -e "  1. Edit each TRD to fill in details"
+  echo -e "  2. Run ${BLUE}/devflow:features sync${NC} to update feature_list.json"
+}
 
 cmd_create() {
   local name=""
@@ -413,7 +568,8 @@ cmd_template() {
 # =============================================================================
 
 if [[ $# -eq 0 ]]; then
-  show_help
+  cmd_generate
+  exit 0
 fi
 
 COMMAND=$1
@@ -434,6 +590,10 @@ case $COMMAND in
     ;;
   template)
     cmd_template
+    ;;
+  --dry-run|--force)
+    # Flags for generate — re-parse all args
+    cmd_generate "$COMMAND" "$@"
     ;;
   -h|--help|help)
     show_help

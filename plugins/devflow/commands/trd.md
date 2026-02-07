@@ -14,10 +14,17 @@ Run the TRD manager script:
 ${CLAUDE_PLUGIN_ROOT}/scripts/trd.sh $ARGUMENTS
 ```
 
+## Default Behavior
+
+Running `/devflow:trd` with no arguments auto-generates TRDs from `.devflow/design.md`.
+It parses the `## Implementation Plan` section and creates a TRD for each `- [ ] Task` line,
+mapping phase numbers to priorities.
+
 ## Commands
 
 | Command | Description |
 |---------|-------------|
+| *(no args)* | Generate TRDs from design doc's Implementation Plan |
 | `create <name>` | Create new TRD with auto-incremented ID |
 | `list` | List all TRDs with status |
 | `view <id>` | View TRD content |
@@ -26,13 +33,27 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/trd.sh $ARGUMENTS
 
 ## Options
 
+### Generate options
+- `--dry-run` - Preview TRDs that would be created without writing files
+- `--force` - Regenerate even if TRDs already exist
+
+### Create options
 - `--priority <n>` - Set priority (1=critical, 2=high, 3=medium, 4=low)
 - `--effort <size>` - Set effort (small/medium/large/xlarge)
 
 ## Examples
 
 ```bash
-# Create a new TRD
+# Auto-generate TRDs from design doc (default)
+/devflow:trd
+
+# Preview what would be generated
+/devflow:trd --dry-run
+
+# Force regenerate (when TRDs already exist)
+/devflow:trd --force
+
+# Create a single TRD manually
 /devflow:trd create "User authentication flow"
 /devflow:trd create "API rate limiting" --priority 2 --effort medium
 
@@ -61,10 +82,11 @@ Each TRD includes:
 
 ## Workflow
 
-1. Create TRD: `/devflow:trd create "Feature name"`
-2. Edit TRD to fill in details
-3. Start work: `/devflow:trd status 001 in_progress`
-4. Implement following the TRD's technical approach
-5. Complete: `/devflow:trd status 001 complete`
-6. Sync features: `/devflow:features sync`
-7. Add to regression: `/devflow:regression add TRD-001`
+1. Design: `/devflow:design` to create design doc
+2. Generate TRDs: `/devflow:trd` to auto-create from design
+3. Edit each TRD to fill in details
+4. Start work: `/devflow:trd status 001 in_progress`
+5. Implement following the TRD's technical approach
+6. Complete: `/devflow:trd status 001 complete`
+7. Sync features: `/devflow:features sync`
+8. Add to regression: `/devflow:regression add TRD-001`
