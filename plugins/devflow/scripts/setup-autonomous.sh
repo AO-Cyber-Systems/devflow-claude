@@ -164,6 +164,7 @@ iteration: 1
 max_iterations: $MAX_ITERATIONS
 completion_promise: $COMPLETION_PROMISE_YAML
 task_file: $TASK_FILE_YAML
+current_phase: 1
 started_at: "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 use_subagents: true
 use_native_tasks: true
@@ -201,9 +202,9 @@ You are the **orchestrator** in an autonomous development loop. Your role is to 
    \${CLAUDE_PLUGIN_ROOT}/scripts/regression.sh run
    \`\`\`
 
-3. **Delegate to trd-implementer subagent:**
+3. **Delegate to trd-implementer subagent (with turn limit):**
    \`\`\`
-   Task(subagent_type: "trd-implementer"):
+   Task(subagent_type: "trd-implementer", max_turns: 30):
      Implement the TRD at .devflow/trds/TRD-XXX-name.md
    \`\`\`
 
@@ -217,6 +218,14 @@ You are the **orchestrator** in an autonomous development loop. Your role is to 
    \`\`\`bash
    \${CLAUDE_PLUGIN_ROOT}/scripts/regression.sh add TRD-XXX
    \`\`\`
+
+### Subagent Turn Limits
+- **ALWAYS set max_turns** when spawning subagents to prevent context exhaustion
+- \`trd-implementer\`: max_turns: 30 (small TRDs), 50 (medium), 75 (large/xlarge)
+- \`trd-designer\`: max_turns: 20
+- \`code-reviewer\`: max_turns: 15
+- \`debugger\`: max_turns: 25
+- If a subagent hits its turn limit without finishing, it returns what it has — you can spawn a follow-up agent to continue
 
 ### Why Subagents?
 - **Isolated context**: Each TRD gets fresh context, no bloat
@@ -234,6 +243,12 @@ $(if [[ -n "$COMPLETION_PROMISE" ]]; then
 else
   echo "Loop continues until all tasks in the task file have status 'complete' or 'done'."
 fi)
+
+### Phase-Based Workflow
+- Only work on TRDs matching the current phase (check feature_list.json phase field)
+- When all TRDs in the current phase are complete, the stop-hook will automatically advance to the next phase
+- Do not skip ahead to later phases — complete the current phase first
+- Current phase: 1
 
 ### Current State:
 $(if [[ -n "$TASK_FILE" ]] && [[ -f "$TASK_FILE" ]]; then

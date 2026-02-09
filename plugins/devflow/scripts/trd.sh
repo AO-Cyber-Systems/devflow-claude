@@ -97,6 +97,7 @@ generate_template() {
   local name=$2
   local priority=${3:-3}
   local effort=${4:-medium}
+  local phase=${5:-$priority}
   local slug
   slug=$(slugify "$name")
 
@@ -109,6 +110,7 @@ generate_template() {
 | ID | TRD-$id |
 | Status | pending |
 | Priority | $priority |
+| Phase | $phase |
 | Effort | $effort |
 | Created | $(date +%Y-%m-%d) |
 | Updated | $(date +%Y-%m-%d) |
@@ -257,6 +259,7 @@ cmd_generate() {
   local phase_name=""
   local tasks=()       # task names
   local priorities=()  # mapped priorities
+  local phases=()      # original phase numbers
 
   while IFS= read -r line; do
     # Detect start of Implementation Plan section
@@ -291,6 +294,7 @@ cmd_generate() {
     if [[ "$line" =~ ^-\ \[\ \]\ +(.*) ]]; then
       local task_name="${BASH_REMATCH[1]}"
       tasks+=("$task_name")
+      phases+=("$current_phase")
       # Map phase to priority: 1→1, 2→2, 3→3, 4+→4
       local pri=$current_phase
       if [[ $pri -gt 4 ]]; then
@@ -326,7 +330,7 @@ cmd_generate() {
       preview_id=$(printf "%03d" $((base_id + i)))
       local slug
       slug=$(slugify "${tasks[$i]}")
-      echo -e "  TRD-${preview_id}-${slug}.md  (priority=${priorities[$i]}, effort=medium)"
+      echo -e "  TRD-${preview_id}-${slug}.md  (priority=${priorities[$i]}, phase=${phases[$i]}, effort=medium)"
       echo -e "    ${CYAN}${tasks[$i]}${NC}"
     done
     echo ""
@@ -352,8 +356,12 @@ cmd_generate() {
     local filename="TRD-${id}-${slug}.md"
     local filepath="$TRD_DIR/$filename"
 
-    generate_template "$id" "$name" "$pri" "medium" > "$filepath"
-    echo -e "  ${GREEN}Created${NC} $filepath  (priority=$pri)"
+    local phase="${phases[$i]}"
+    if [[ "$phase" -lt 1 ]]; then
+      phase=1
+    fi
+    generate_template "$id" "$name" "$pri" "medium" "$phase" > "$filepath"
+    echo -e "  ${GREEN}Created${NC} $filepath  (priority=$pri, phase=$phase)"
     created=$((created + 1))
   done
 

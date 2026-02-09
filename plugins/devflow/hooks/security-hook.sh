@@ -60,6 +60,14 @@ ALLOWED_RUBY=(
   "^erb "
   "^irb"
   "^solargraph"
+  # bin/ stubs (standard Rails project binstubs)
+  "^bin/rails"
+  "^bin/rake"
+  "^bin/rspec"
+  "^bin/rubocop"
+  "^bin/bundle"
+  "^bin/setup"
+  "^bin/dev"
 )
 
 # --- Build & Dev (from package.json scripts) ---
@@ -322,6 +330,12 @@ ALLOWED_CALC=(
   "^bc "
 )
 
+# --- Test Runners ---
+ALLOWED_TEST=(
+  "^bats "
+  "^bats$"
+)
+
 # --- Combine all ---
 ALL_PATTERNS=(
   "${ALLOWED_NODE[@]}"
@@ -344,6 +358,7 @@ ALL_PATTERNS=(
   "${ALLOWED_PROCESS[@]}"
   "${ALLOWED_DEVFLOW[@]}"
   "${ALLOWED_CALC[@]}"
+  "${ALLOWED_TEST[@]}"
 )
 
 # =============================================================================
@@ -392,6 +407,6 @@ jq -n --arg cmd "$COMMAND" '{
   "hookSpecificOutput": {
     "hookEventName": "PreToolUse",
     "permissionDecision": "deny",
-    "permissionDecisionReason": ("Command not allowed: " + $cmd + "\n\nAllowed: npm/pnpm, python/poetry/pytest/ruff/black/mypy, ruby/bundle/gem/rake/rails/rspec/rubocop, vite/vitest/playwright/eslint/prettier, git/gh, docker, stripe, make, file ops (ls/cat/grep/find/rg/fd), jq/yq, curl")
+    "permissionDecisionReason": ("Command not allowed: " + $cmd + "\n\nAllowed: npm/pnpm, python/poetry/pytest/ruff/black/mypy, ruby/bundle/gem/rake/rails/rspec/rubocop (+ bin/ stubs), vite/vitest/playwright/eslint/prettier, git/gh, docker, stripe, make, file ops (ls/cat/grep/find/rg/fd), jq/yq, curl")
   }
 }'

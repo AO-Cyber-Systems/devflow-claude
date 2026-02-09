@@ -123,6 +123,31 @@ is_blocked() {
   [[ -z "$output" ]] || [[ $(echo "$output" | jq -r '.hookSpecificOutput.permissionDecision // "allow"') != "deny" ]]
 }
 
+@test "allows bin/rails routes" {
+  run run_security "bin/rails routes"
+  [[ -z "$output" ]] || [[ $(echo "$output" | jq -r '.hookSpecificOutput.permissionDecision // "allow"') != "deny" ]]
+}
+
+@test "allows bin/rake db:migrate" {
+  run run_security "bin/rake db:migrate"
+  [[ -z "$output" ]] || [[ $(echo "$output" | jq -r '.hookSpecificOutput.permissionDecision // "allow"') != "deny" ]]
+}
+
+@test "allows bin/rspec" {
+  run run_security "bin/rspec spec/"
+  [[ -z "$output" ]] || [[ $(echo "$output" | jq -r '.hookSpecificOutput.permissionDecision // "allow"') != "deny" ]]
+}
+
+@test "allows bin/dev" {
+  run run_security "bin/dev"
+  [[ -z "$output" ]] || [[ $(echo "$output" | jq -r '.hookSpecificOutput.permissionDecision // "allow"') != "deny" ]]
+}
+
+@test "allows bin/setup" {
+  run run_security "bin/setup"
+  [[ -z "$output" ]] || [[ $(echo "$output" | jq -r '.hookSpecificOutput.permissionDecision // "allow"') != "deny" ]]
+}
+
 # =============================================================================
 # ALLOWED COMMANDS - Git
 # =============================================================================

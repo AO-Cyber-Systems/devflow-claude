@@ -29,6 +29,7 @@ ITERATION=$(echo "$FRONTMATTER" | grep '^iteration:' | sed 's/iteration: *//' ||
 MAX_ITERATIONS=$(echo "$FRONTMATTER" | grep '^max_iterations:' | sed 's/max_iterations: *//' || echo "0")
 COMPLETION_PROMISE=$(echo "$FRONTMATTER" | grep '^completion_promise:' | sed 's/completion_promise: *//' | sed 's/^"\(.*\)"$/\1/' || echo "")
 TASK_FILE=$(echo "$FRONTMATTER" | grep '^task_file:' | sed 's/task_file: *//' | sed 's/^"\(.*\)"$/\1/' || echo "")
+CURRENT_PHASE=$(echo "$FRONTMATTER" | grep '^current_phase:' | sed 's/current_phase: *//' || echo "")
 
 # Validate iteration is numeric
 if [[ ! "$ITERATION" =~ ^[0-9]+$ ]]; then
@@ -104,13 +105,49 @@ fi
 
 # Check task file for completion (if specified)
 if [[ -n "$TASK_FILE" ]] && [[ -f "$TASK_FILE" ]]; then
-  # Check if all tasks are complete
-  INCOMPLETE=$(jq '[(.features // .tasks // .stories // [])[] | select(.status != "complete" and .status != "done")] | length' "$TASK_FILE" 2>/dev/null || echo "?")
 
-  if [[ "$INCOMPLETE" == "0" ]]; then
-    # ==========================================================================
-    # VERIFICATION GATE - Run before allowing completion
-    # ==========================================================================
+  # ==========================================================================
+  # PHASE-AWARE COMPLETION CHECK
+  # ==========================================================================
+  if [[ -n "$CURRENT_PHASE" ]] && [[ "$CURRENT_PHASE" =~ ^[0-9]+$ ]]; then
+    # Count incomplete tasks in CURRENT phase only
+    PHASE_INCOMPLETE=$(jq --arg phase "$CURRENT_PHASE" \
+      '[(.features // .tasks // .stories // [])[] | select((.phase // .priority | tostring) == $phase) | select(.status != "complete" and .status != "done")] | length' \
+      "$TASK_FILE" 2>/dev/null || echo "?")
+
+    if [[ "$PHASE_INCOMPLETE" == "0" ]]; then
+      # Current phase done — check if more phases exist
+      NEXT_PHASE=$((CURRENT_PHASE + 1))
+      NEXT_PHASE_COUNT=$(jq --arg phase "$NEXT_PHASE" \
+        '[(.features // .tasks // .stories // [])[] | select((.phase // .priority | tostring) == $phase)] | length' \
+        "$TASK_FILE" 2>/dev/null || echo "0")
+
+      if [[ "$NEXT_PHASE_COUNT" -gt 0 ]]; then
+        # ADVANCE PHASE — update state file and continue loop
+        TEMP_PHASE=$(mktemp)
+        if sed "s/^current_phase: .*/current_phase: $NEXT_PHASE/" "$STATE_FILE" > "$TEMP_PHASE"; then
+          mv "$TEMP_PHASE" "$STATE_FILE"
+        else
+          rm -f "$TEMP_PHASE"
+        fi
+        CURRENT_PHASE="$NEXT_PHASE"
+        echo "DevFlow: Phase $((NEXT_PHASE - 1)) complete! Advancing to Phase $NEXT_PHASE ($NEXT_PHASE_COUNT tasks)" >&2
+        # Fall through to "continue loop" logic below
+      else
+        # ALL phases done — run the verification gate
+        INCOMPLETE=0
+        ALL_PHASES_DONE=true
+      fi
+    fi
+  else
+    # No current_phase set — fall back to existing flat check for backwards compatibility
+    INCOMPLETE=$(jq '[(.features // .tasks // .stories // [])[] | select(.status != "complete" and .status != "done")] | length' "$TASK_FILE" 2>/dev/null || echo "?")
+  fi
+
+  # ==========================================================================
+  # VERIFICATION GATE — only when all phases/tasks are done
+  # ==========================================================================
+  if [[ "${ALL_PHASES_DONE:-}" == "true" ]] || [[ "${INCOMPLETE:-}" == "0" ]]; then
     VERIFICATION_PASSED=true
     VERIFICATION_MSG=""
 
@@ -221,7 +258,12 @@ else
   ITER_DISPLAY="$NEXT_ITERATION (max: $HARD_LIMIT)"
 fi
 
-SYSTEM_MSG="DevFlow iteration $ITER_DISPLAY$PROGRESS_MSG | $STOP_MSG"
+if [[ -n "$CURRENT_PHASE" ]] && [[ "$CURRENT_PHASE" =~ ^[0-9]+$ ]]; then
+  PHASE_MSG=" | Phase $CURRENT_PHASE"
+else
+  PHASE_MSG=""
+fi
+SYSTEM_MSG="DevFlow iteration $ITER_DISPLAY$PROGRESS_MSG$PHASE_MSG | $STOP_MSG"
 
 # Output JSON to block stop and feed prompt back
 jq -n \

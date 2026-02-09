@@ -139,6 +139,13 @@ EOF
       effort=$(extract_metadata "$file" "Effort")
       blocked_by=$(extract_blocked_by "$file")
 
+      # Extract phase (fallback to priority if not set)
+      local phase
+      phase=$(extract_metadata "$file" "Phase")
+      if [[ -z "$phase" ]]; then
+        phase="$priority"
+      fi
+
       # Convert status for task tracking
       local track_status="$status"
       if [[ "$status" == "complete" ]]; then
@@ -174,6 +181,7 @@ EOF
         --arg name "$name" \
         --arg status "$track_status" \
         --arg priority "$priority" \
+        --arg phase "$phase" \
         --arg effort "$effort" \
         --argjson verified "$verified" \
         --argjson deps "$deps_json" \
@@ -183,6 +191,7 @@ EOF
           name: $name,
           status: $status,
           priority: ($priority | tonumber? // 3),
+          phase: ($phase | tonumber? // 1),
           effort: $effort,
           dependencies: $deps,
           verification: {
