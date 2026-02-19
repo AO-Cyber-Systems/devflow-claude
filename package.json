@@ -1,7 +1,7 @@
 {
   "name": "devflow-cc",
   "version": "1.20.4",
-  "description": "A meta-prompting, context engineering and spec-driven development system for Claude Code, OpenCode and Gemini by TÂCHES.",
+  "description": "A meta-prompting, context engineering and spec-driven development system for Claude Code, OpenCode and Gemini by AO Cyber Systems.",
   "bin": {
     "devflow-cc": "bin/install.js"
   },
@@ -21,17 +21,18 @@
     "context-engineering",
     "spec-driven-development",
     "gemini",
-    "gemini-cli"
+    "gemini-cli",
+    "devflow"
   ],
-  "author": "TÂCHES",
+  "author": "AO Cyber Systems",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/glittercowboy/devflow.git"
+    "url": "git+https://github.com/AO-Cyber-Systems/devflow-claude.git"
   },
-  "homepage": "https://github.com/glittercowboy/devflow",
+  "homepage": "https://github.com/AO-Cyber-Systems/devflow-claude",
   "bugs": {
-    "url": "https://github.com/glittercowboy/devflow/issues"
+    "url": "https://github.com/AO-Cyber-Systems/devflow-claude/issues"
   },
   "engines": {
     "node": ">=16.7.0"
@@ -43,6 +44,6 @@
   "scripts": {
     "build:hooks": "node scripts/build-hooks.js",
     "prepublishOnly": "npm run build:hooks",
-    "test": "node --test devflow/bin/gsd-tools.test.js"
+    "test": "node --test devflow/bin/df-tools.test.cjs"
   }
 }

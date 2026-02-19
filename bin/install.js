@@ -128,16 +128,16 @@ function getGlobalDir(runtime, explicitDir = null) {
 }
 
 const banner = '\n' +
-  cyan + '   ██████╗ ███████╗██████╗\n' +
-  '  ██╔════╝ ██╔════╝██╔══██╗\n' +
-  '  ██║  ███╗███████╗██║  ██║\n' +
-  '  ██║   ██║╚════██║██║  ██║\n' +
-  '  ╚██████╔╝███████║██████╔╝\n' +
-  '   ╚═════╝ ╚══════╝╚═════╝' + reset + '\n' +
+  cyan + '  ██████╗ ███████╗██╗   ██╗███████╗██╗      ██████╗ ██╗    ██╗\n' +
+  '  ██╔══██╗██╔════╝██║   ██║██╔════╝██║     ██╔═══██╗██║    ██║\n' +
+  '  ██║  ██║█████╗  ██║   ██║█████╗  ██║     ██║   ██║██║ █╗ ██║\n' +
+  '  ██║  ██║██╔══╝  ╚██╗ ██╔╝██╔══╝  ██║     ██║   ██║██║███╗██║\n' +
+  '  ██████╔╝███████╗ ╚████╔╝ ██║     ███████╗╚██████╔╝╚███╔███╔╝\n' +
+  '  ╚═════╝ ╚══════╝  ╚═══╝  ╚═╝     ╚══════╝ ╚═════╝  ╚══╝╚══╝' + reset + '\n' +
   '\n' +
-  '  Get Shit Done ' + dim + 'v' + pkg.version + reset + '\n' +
+  '  DevFlow ' + dim + 'v' + pkg.version + reset + '\n' +
   '  A meta-prompting, context engineering and spec-driven\n' +
-  '  development system for Claude Code, OpenCode, and Gemini by TÂCHES.\n';
+  '  development system for Claude Code, OpenCode, and Gemini by AO Cyber Systems.\n';
 
 // Parse --config-dir argument
 function parseConfigDirArg() {
@@ -474,8 +474,8 @@ function convertClaudeToOpencodeFrontmatter(content) {
   convertedContent = convertedContent.replace(/\bAskUserQuestion\b/g, 'question');
   convertedContent = convertedContent.replace(/\bSlashCommand\b/g, 'skill');
   convertedContent = convertedContent.replace(/\bTodoWrite\b/g, 'todowrite');
-  // Replace /df:command with /gsd-command for opencode (flat command structure)
-  convertedContent = convertedContent.replace(/\/df:/g, '/gsd-');
+  // Replace /df:command with /df-command for opencode (flat command structure)
+  convertedContent = convertedContent.replace(/\/df:/g, '/df-');
   // Replace ~/.claude with ~/.config/opencode (OpenCode's correct config location)
   convertedContent = convertedContent.replace(/~\/\.claude\b/g, '~/.config/opencode');
   // Replace general-purpose subagent type with OpenCode's equivalent "general"
@@ -617,12 +617,12 @@ function convertClaudeToGeminiToml(content) {
 
 /**
  * Copy commands to a flat structure for OpenCode
- * OpenCode expects: command/gsd-help.md (invoked as /gsd-help)
- * Source structure: commands/gsd/help.md
- * 
- * @param {string} srcDir - Source directory (e.g., commands/gsd/)
+ * OpenCode expects: command/df-help.md (invoked as /df-help)
+ * Source structure: commands/df/help.md
+ *
+ * @param {string} srcDir - Source directory (e.g., commands/df/)
  * @param {string} destDir - Destination directory (e.g., command/)
- * @param {string} prefix - Prefix for filenames (e.g., 'gsd')
+ * @param {string} prefix - Prefix for filenames (e.g., 'df')
  * @param {string} pathPrefix - Path prefix for file references
  * @param {string} runtime - Target runtime ('claude' or 'opencode')
  */
@@ -631,7 +631,7 @@ function copyFlattenedCommands(srcDir, destDir, prefix, pathPrefix, runtime) {
     return;
   }
   
-  // Remove old gsd-*.md files before copying new ones
+  // Remove old df-*.md files before copying new ones
   if (fs.existsSync(destDir)) {
     for (const file of fs.readdirSync(destDir)) {
       if (file.startsWith(`${prefix}-`) && file.endsWith('.md')) {
@@ -649,10 +649,10 @@ function copyFlattenedCommands(srcDir, destDir, prefix, pathPrefix, runtime) {
     
     if (entry.isDirectory()) {
       // Recurse into subdirectories, adding to prefix
-      // e.g., commands/gsd/debug/start.md -> command/gsd-debug-start.md
+      // e.g., commands/df/debug/start.md -> command/df-debug-start.md
       copyFlattenedCommands(srcPath, destDir, `${prefix}-${entry.name}`, pathPrefix, runtime);
     } else if (entry.name.endsWith('.md')) {
-      // Flatten: help.md -> gsd-help.md
+      // Flatten: help.md -> df-help.md
       const baseName = entry.name.replace('.md', '');
       const destName = `${prefix}-${baseName}.md`;
       const destPath = path.join(destDir, destName);
@@ -732,8 +732,8 @@ function copyWithPathReplacement(srcDir, destDir, pathPrefix, runtime) {
  */
 function cleanupOrphanedFiles(configDir) {
   const orphanedFiles = [
-    'hooks/gsd-notify.sh',  // Removed in v1.6.x
-    'hooks/statusline.js',  // Renamed to gsd-statusline.js in v1.9.0
+    'hooks/gsd-notify.sh',  // Removed in v1.6.x (legacy GSD name)
+    'hooks/statusline.js',  // Renamed to df-statusline.js in v1.9.0
   ];
 
   for (const relPath of orphanedFiles) {
@@ -751,7 +751,7 @@ function cleanupOrphanedFiles(configDir) {
 function cleanupOrphanedHooks(settings) {
   const orphanedHookPatterns = [
     'df-notify.sh',  // Removed in v1.6.x
-    'hooks/statusline.js',  // Renamed to gsd-statusline.js in v1.9.0
+    'hooks/statusline.js',  // Renamed to df-statusline.js in v1.9.0
     'df-intel-index.js',  // Removed in v1.9.2
     'df-intel-session.js',  // Removed in v1.9.2
     'df-intel-prune.js',  // Removed in v1.9.2
@@ -796,7 +796,7 @@ function cleanupOrphanedHooks(settings) {
       /statusline\.js/,
       'df-statusline.js'
     );
-    console.log(`  ${green}✓${reset} Updated statusline path (statusline.js → gsd-statusline.js)`);
+    console.log(`  ${green}✓${reset} Updated statusline path (statusline.js → df-statusline.js)`);
   }
 
   return settings;
@@ -838,7 +838,7 @@ function uninstall(isGlobal, runtime = 'claude') {
 
   // 1. Remove DevFlow commands directory
   if (isOpencode) {
-    // OpenCode: remove command/gsd-*.md files
+    // OpenCode: remove command/df-*.md files
     const commandDir = path.join(targetDir, 'command');
     if (fs.existsSync(commandDir)) {
       const files = fs.readdirSync(commandDir);
@@ -851,24 +851,24 @@ function uninstall(isGlobal, runtime = 'claude') {
       console.log(`  ${green}✓${reset} Removed DevFlow commands from command/`);
     }
   } else {
-    // Claude Code & Gemini: remove commands/gsd/ directory
-    const gsdCommandsDir = path.join(targetDir, 'commands', 'gsd');
-    if (fs.existsSync(gsdCommandsDir)) {
-      fs.rmSync(gsdCommandsDir, { recursive: true });
+    // Claude Code & Gemini: remove commands/df/ directory
+    const dfCommandsDir = path.join(targetDir, 'commands', 'df');
+    if (fs.existsSync(dfCommandsDir)) {
+      fs.rmSync(dfCommandsDir, { recursive: true });
       removedCount++;
-      console.log(`  ${green}✓${reset} Removed commands/gsd/`);
+      console.log(`  ${green}✓${reset} Removed commands/df/`);
     }
   }
 
   // 2. Remove devflow directory
-  const gsdDir = path.join(targetDir, 'devflow');
-  if (fs.existsSync(gsdDir)) {
-    fs.rmSync(gsdDir, { recursive: true });
+  const dfDir = path.join(targetDir, 'devflow');
+  if (fs.existsSync(dfDir)) {
+    fs.rmSync(dfDir, { recursive: true });
     removedCount++;
     console.log(`  ${green}✓${reset} Removed devflow/`);
   }
 
-  // 3. Remove DevFlow agents (gsd-*.md files only)
+  // 3. Remove DevFlow agents (df-*.md files only)
   const agentsDir = path.join(targetDir, 'agents');
   if (fs.existsSync(agentsDir)) {
     const files = fs.readdirSync(agentsDir);
@@ -888,9 +888,9 @@ function uninstall(isGlobal, runtime = 'claude') {
   // 4. Remove DevFlow hooks
   const hooksDir = path.join(targetDir, 'hooks');
   if (fs.existsSync(hooksDir)) {
-    const gsdHooks = ['df-statusline.js', 'df-check-update.js', 'df-check-update.sh'];
+    const dfHooks = ['df-statusline.js', 'df-check-update.js', 'df-check-update.sh'];
     let hookCount = 0;
-    for (const hook of gsdHooks) {
+    for (const hook of dfHooks) {
       const hookPath = path.join(hooksDir, hook);
       if (fs.existsSync(hookPath)) {
         fs.unlinkSync(hookPath);
@@ -939,10 +939,10 @@ function uninstall(isGlobal, runtime = 'claude') {
       settings.hooks.SessionStart = settings.hooks.SessionStart.filter(entry => {
         if (entry.hooks && Array.isArray(entry.hooks)) {
           // Filter out DevFlow hooks
-          const hasGsdHook = entry.hooks.some(h =>
+          const hasDfHook = entry.hooks.some(h =>
             h.command && (h.command.includes('df-check-update') || h.command.includes('df-statusline'))
           );
-          return !hasGsdHook;
+          return !hasDfHook;
         }
         return true;
       });
@@ -1122,18 +1122,18 @@ function configureOpencodePermissions(isGlobal = true) {
   // Build the DevFlow path using the actual config directory
   // Use ~ shorthand if it's in the default location, otherwise use full path
   const defaultConfigDir = path.join(os.homedir(), '.config', 'opencode');
-  const gsdPath = opencodeConfigDir === defaultConfigDir
+  const dfPath = opencodeConfigDir === defaultConfigDir
     ? '~/.config/opencode/devflow/*'
     : `${opencodeConfigDir.replace(/\\/g, '/')}/devflow/*`;
-  
+
   let modified = false;
 
   // Configure read permission
   if (!config.permission.read || typeof config.permission.read !== 'object') {
     config.permission.read = {};
   }
-  if (config.permission.read[gsdPath] !== 'allow') {
-    config.permission.read[gsdPath] = 'allow';
+  if (config.permission.read[dfPath] !== 'allow') {
+    config.permission.read[dfPath] = 'allow';
     modified = true;
   }
 
@@ -1141,8 +1141,8 @@ function configureOpencodePermissions(isGlobal = true) {
   if (!config.permission.external_directory || typeof config.permission.external_directory !== 'object') {
     config.permission.external_directory = {};
   }
-  if (config.permission.external_directory[gsdPath] !== 'allow') {
-    config.permission.external_directory[gsdPath] = 'allow';
+  if (config.permission.external_directory[dfPath] !== 'allow') {
+    config.permission.external_directory[dfPath] = 'allow';
     modified = true;
   }
 
@@ -1232,19 +1232,19 @@ function generateManifest(dir, baseDir) {
  * Write file manifest after installation for future modification detection
  */
 function writeManifest(configDir) {
-  const gsdDir = path.join(configDir, 'devflow');
-  const commandsDir = path.join(configDir, 'commands', 'gsd');
+  const dfDir = path.join(configDir, 'devflow');
+  const commandsDir = path.join(configDir, 'commands', 'df');
   const agentsDir = path.join(configDir, 'agents');
   const manifest = { version: pkg.version, timestamp: new Date().toISOString(), files: {} };
 
-  const gsdHashes = generateManifest(gsdDir);
-  for (const [rel, hash] of Object.entries(gsdHashes)) {
+  const dfHashes = generateManifest(dfDir);
+  for (const [rel, hash] of Object.entries(dfHashes)) {
     manifest.files['devflow/' + rel] = hash;
   }
   if (fs.existsSync(commandsDir)) {
     const cmdHashes = generateManifest(commandsDir);
     for (const [rel, hash] of Object.entries(cmdHashes)) {
-      manifest.files['commands/gsd/' + rel] = hash;
+      manifest.files['commands/df/' + rel] = hash;
     }
   }
   if (fs.existsSync(agentsDir)) {
@@ -1261,7 +1261,7 @@ function writeManifest(configDir) {
 
 /**
  * Detect user-modified DevFlow files by comparing against install manifest.
- * Backs up modified files to gsd-local-patches/ for reapply after update.
+ * Backs up modified files to df-local-patches/ for reapply after update.
  */
 function saveLocalPatches(configDir) {
   const manifestPath = path.join(configDir, MANIFEST_NAME);
@@ -1370,27 +1370,27 @@ function install(isGlobal, runtime = 'claude') {
     const commandDir = path.join(targetDir, 'command');
     fs.mkdirSync(commandDir, { recursive: true });
     
-    // Copy commands/gsd/*.md as command/gsd-*.md (flatten structure)
-    const gsdSrc = path.join(src, 'commands', 'gsd');
-    copyFlattenedCommands(gsdSrc, commandDir, 'gsd', pathPrefix, runtime);
-    if (verifyInstalled(commandDir, 'command/gsd-*')) {
+    // Copy commands/df/*.md as command/df-*.md (flatten structure)
+    const dfSrc = path.join(src, 'commands', 'df');
+    copyFlattenedCommands(dfSrc, commandDir, 'df', pathPrefix, runtime);
+    if (verifyInstalled(commandDir, 'command/df-*')) {
       const count = fs.readdirSync(commandDir).filter(f => f.startsWith('df-')).length;
       console.log(`  ${green}✓${reset} Installed ${count} commands to command/`);
     } else {
-      failures.push('command/gsd-*');
+      failures.push('command/df-*');
     }
   } else {
     // Claude Code & Gemini: nested structure in commands/ directory
     const commandsDir = path.join(targetDir, 'commands');
     fs.mkdirSync(commandsDir, { recursive: true });
     
-    const gsdSrc = path.join(src, 'commands', 'gsd');
-    const gsdDest = path.join(commandsDir, 'gsd');
-    copyWithPathReplacement(gsdSrc, gsdDest, pathPrefix, runtime);
-    if (verifyInstalled(gsdDest, 'commands/gsd')) {
-      console.log(`  ${green}✓${reset} Installed commands/gsd`);
+    const dfSrc = path.join(src, 'commands', 'df');
+    const dfDest = path.join(commandsDir, 'df');
+    copyWithPathReplacement(dfSrc, dfDest, pathPrefix, runtime);
+    if (verifyInstalled(dfDest, 'commands/df')) {
+      console.log(`  ${green}✓${reset} Installed commands/df`);
     } else {
-      failures.push('commands/gsd');
+      failures.push('commands/df');
     }
   }
 
@@ -1410,7 +1410,7 @@ function install(isGlobal, runtime = 'claude') {
     const agentsDest = path.join(targetDir, 'agents');
     fs.mkdirSync(agentsDest, { recursive: true });
 
-    // Remove old DevFlow agents (gsd-*.md) before copying new ones
+    // Remove old DevFlow agents (df-*.md) before copying new ones
     if (fs.existsSync(agentsDest)) {
       for (const file of fs.readdirSync(agentsDest)) {
         if (file.startsWith('df-') && file.endsWith('.md')) {
@@ -1512,10 +1512,10 @@ function install(isGlobal, runtime = 'claude') {
   const settings = cleanupOrphanedHooks(readSettings(settingsPath));
   const statuslineCommand = isGlobal
     ? buildHookCommand(targetDir, 'df-statusline.js')
-    : 'node ' + dirName + '/hooks/gsd-statusline.js';
+    : 'node ' + dirName + '/hooks/df-statusline.js';
   const updateCheckCommand = isGlobal
     ? buildHookCommand(targetDir, 'df-check-update.js')
-    : 'node ' + dirName + '/hooks/gsd-check-update.js';
+    : 'node ' + dirName + '/hooks/df-check-update.js';
 
   // Enable experimental agents for Gemini CLI (required for custom sub-agents)
   if (isGemini) {
@@ -1537,11 +1537,11 @@ function install(isGlobal, runtime = 'claude') {
       settings.hooks.SessionStart = [];
     }
 
-    const hasGsdUpdateHook = settings.hooks.SessionStart.some(entry =>
+    const hasDfUpdateHook = settings.hooks.SessionStart.some(entry =>
       entry.hooks && entry.hooks.some(h => h.command && h.command.includes('df-check-update'))
     );
 
-    if (!hasGsdUpdateHook) {
+    if (!hasDfUpdateHook) {
       settings.hooks.SessionStart.push({
         hooks: [
           {
@@ -1590,11 +1590,9 @@ function finishInstall(settingsPath, settings, statuslineCommand, shouldInstallS
   if (runtime === 'opencode') program = 'OpenCode';
   if (runtime === 'gemini') program = 'Gemini';
 
-  const command = isOpencode ? '/gsd-help' : '/df:help';
+  const command = isOpencode ? '/df-help' : '/df:help';
   console.log(`
   ${green}Done!${reset} Launch ${program} and run ${cyan}${command}${reset}.
-
-  ${cyan}Join the community:${reset} https://discord.gg/5JJgD5svVS
 `);
 }
 
