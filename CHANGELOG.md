@@ -1,10 +1,25 @@
 # Changelog
 
-All notable changes to GSD will be documented in this file.
+All notable changes to DevFlow will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+
+## [1.20.4-devflow] - 2026-02-19
+
+### Changed
+- Forked from [GSD (Get Shit Done)](https://github.com/gsd-build/get-shit-done) v1.20.4
+- Rebranded to DevFlow by AO Cyber Systems
+- Command namespace: `/gsd:` → `/df:`
+- npm package: `get-shit-done-cc` → `devflow-cc`
+- Agent prefix: `gsd-` → `df-`
+- Skill directory: `get-shit-done/` → `devflow/`
+- Config paths: `~/.gsd/` → `~/.devflow/`
+
+---
+
+*History below is from the original GSD project.*
 
 ## [1.20.4] - 2026-02-17
 

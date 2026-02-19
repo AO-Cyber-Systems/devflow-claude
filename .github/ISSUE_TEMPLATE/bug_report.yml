@@ -10,7 +10,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: GSD Version
+      label: DevFlow Version
       description: "Run: npm list -g devflow-cc"
       placeholder: "e.g., 1.18.0"
     validations:

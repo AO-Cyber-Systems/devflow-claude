@@ -1,4 +1,4 @@
-# GSD User Guide
+# DevFlow User Guide
 
 A detailed reference for workflows, troubleshooting, and configuration. For quick-start setup, see the [README](../README.md).
 
@@ -159,7 +159,7 @@ A detailed reference for workflows, troubleshooting, and configuration. For quic
 | `/df:resume-work` | Restore full context from last session | Starting a new session |
 | `/df:pause-work` | Save context handoff | Stopping mid-phase |
 | `/df:help` | Show all commands | Quick reference |
-| `/df:update` | Update GSD with changelog preview | Check for new versions |
+| `/df:update` | Update DevFlow with changelog preview | Check for new versions |
 | `/df:join-discord` | Open Discord community invite | Questions or community |
 
 ### Phase Management
@@ -178,7 +178,7 @@ A detailed reference for workflows, troubleshooting, and configuration. For quic
 | Command | Purpose | When to Use |
 |---------|---------|-------------|
 | `/df:map-codebase` | Analyze existing codebase | Before `/df:new-project` on existing code |
-| `/df:quick` | Ad-hoc task with GSD guarantees | Bug fixes, small features, config changes |
+| `/df:quick` | Ad-hoc task with DevFlow guarantees | Bug fixes, small features, config changes |
 | `/df:debug [desc]` | Systematic debugging with persistent state | When something breaks |
 | `/df:add-todo [desc]` | Capture an idea for later | Think of something during a session |
 | `/df:check-todos` | List pending todos | Review captured ideas |
@@ -190,7 +190,7 @@ A detailed reference for workflows, troubleshooting, and configuration. For quic
 
 ## Configuration Reference
 
-GSD stores project settings in `.planning/config.json`. Configure during `/df:new-project` or update later with `/df:settings`.
+DevFlow stores project settings in `.planning/config.json`. Configure during `/df:new-project` or update later with `/df:settings`.
 
 ### Full config.json Schema
 
@@ -211,7 +211,7 @@ GSD stores project settings in `.planning/config.json`. Configure during `/df:ne
   "git": {
     "branching_strategy": "none",
     "phase_branch_template": "df/phase-{phase}-{slug}",
-    "milestone_branch_template": "gsd/{milestone}-{slug}"
+    "milestone_branch_template": "df/{milestone}-{slug}"
   }
 }
 ```
@@ -249,7 +249,7 @@ Disable these to speed up phases in familiar domains or when conserving tokens.
 |---------|---------|---------|------------------|
 | `git.branching_strategy` | `none`, `phase`, `milestone` | `none` | When and how branches are created |
 | `git.phase_branch_template` | Template string | `df/phase-{phase}-{slug}` | Branch name for phase strategy |
-| `git.milestone_branch_template` | Template string | `gsd/{milestone}-{slug}` | Branch name for milestone strategy |
+| `git.milestone_branch_template` | Template string | `df/{milestone}-{slug}` | Branch name for milestone strategy |
 
 **Branching strategies explained:**
 
@@ -370,7 +370,7 @@ You ran `/df:new-project` but `.planning/PROJECT.md` already exists. This is a s
 
 ### Context Degradation During Long Sessions
 
-Clear your context window between major commands: `/clear` in Claude Code. GSD is designed around fresh contexts -- every subagent gets a clean 200K window. If quality is dropping in the main session, clear and use `/df:resume-work` or `/df:progress` to restore state.
+Clear your context window between major commands: `/clear` in Claude Code. DevFlow is designed around fresh contexts -- every subagent gets a clean 200K window. If quality is dropping in the main session, clear and use `/df:resume-work` or `/df:progress` to restore state.
 
 ### Plans Seem Wrong or Misaligned
 
@@ -396,13 +396,13 @@ Switch to budget profile: `/df:set-profile budget`. Disable research and plan-ch
 
 Set `commit_docs: false` during `/df:new-project` or via `/df:settings`. Add `.planning/` to your `.gitignore`. Planning artifacts stay local and never touch git.
 
-### GSD Update Overwrote My Local Changes
+### DevFlow Update Overwrote My Local Changes
 
 Since v1.17, the installer backs up locally modified files to `df-local-patches/`. Run `/df:reapply-patches` to merge your changes back.
 
 ### Subagent Appears to Fail but Work Was Done
 
-A known workaround exists for a Claude Code classification bug. GSD's orchestrators (execute-phase, quick) spot-check actual output before reporting failure. If you see a failure message but commits were made, check `git log` -- the work may have succeeded.
+A known workaround exists for a Claude Code classification bug. DevFlow's orchestrators (execute-phase, quick) spot-check actual output before reporting failure. If you see a failure message but commits were made, check `git log` -- the work may have succeeded.
 
 ---
 
@@ -424,7 +424,7 @@ A known workaround exists for a Claude Code classification bug. GSD's orchestrat
 
 ## Project File Structure
 
-For reference, here is what GSD creates in your project:
+For reference, here is what DevFlow creates in your project:
 
 ```
 .planning/

@@ -1,17 +1,13 @@
 <div align="center">
 
-# GET SHIT DONE
+# DEVFLOW
 
-**A light-weight and powerful meta-prompting, context engineering and spec-driven development system for Claude Code, OpenCode, and Gemini CLI.**
+**A meta-prompting, context engineering and spec-driven development system for Claude Code, OpenCode, and Gemini CLI.**
 
 **Solves context rot — the quality degradation that happens as Claude fills its context window.**
 
 [![npm version](https://img.shields.io/npm/v/devflow-cc?style=for-the-badge&logo=npm&logoColor=white&color=CB3837)](https://www.npmjs.com/package/devflow-cc)
 [![npm downloads](https://img.shields.io/npm/dm/devflow-cc?style=for-the-badge&logo=npm&logoColor=white&color=CB3837)](https://www.npmjs.com/package/devflow-cc)
-[![Discord](https://img.shields.io/badge/Discord-Join-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/5JJgD5svVS)
-[![X (Twitter)](https://img.shields.io/badge/X-@gsd__foundation-000000?style=for-the-badge&logo=x&logoColor=white)](https://x.com/gsd_foundation)
-[![$GSD Token](https://img.shields.io/badge/$GSD-Dexscreener-1C1C1C?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSIxMiIgY3k9IjEyIiByPSIxMCIgZmlsbD0iIzAwRkYwMCIvPjwvc3ZnPg==&logoColor=00FF00)](https://dexscreener.com/solana/dwudwjvan7bzkw9zwlbyv6kspdlvhwzrqy6ebk8xzxkv)
-[![GitHub stars](https://img.shields.io/github/stars/glittercowboy/devflow?style=for-the-badge&logo=github&color=181717)](https://github.com/glittercowboy/devflow)
 [![License](https://img.shields.io/badge/license-MIT-blue?style=for-the-badge)](LICENSE)
 
 <br>
@@ -24,45 +20,17 @@ npx devflow-cc@latest
 
 <br>
 
-![GSD Install](assets/terminal.svg)
-
-<br>
-
-*"If you know clearly what you want, this WILL build it for you. No bs."*
-
-*"I've done SpecKit, OpenSpec and Taskmaster — this has produced the best results for me."*
-
-*"By far the most powerful addition to my Claude Code. Nothing over-engineered. Literally just gets shit done."*
-
-<br>
-
-**Trusted by engineers at Amazon, Google, Shopify, and Webflow.**
-
-[Why I Built This](#why-i-built-this) · [How It Works](#how-it-works) · [Commands](#commands) · [Why It Works](#why-it-works) · [User Guide](docs/USER-GUIDE.md)
+[How It Works](#how-it-works) · [Commands](#commands) · [Why It Works](#why-it-works) · [User Guide](docs/USER-GUIDE.md)
 
 </div>
 
 ---
 
-## Why I Built This
+## About
 
-I'm a solo developer. I don't write code — Claude Code does.
+DevFlow is a fork of [GSD (Get Shit Done)](https://github.com/gsd-build/get-shit-done) v1.20.4, rebranded and maintained by **AO Cyber Systems**. Full credit to the original GSD project and its creator for the architecture and workflow design.
 
-Other spec-driven development tools exist; BMAD, Speckit... But they all seem to make things way more complicated than they need to be (sprint ceremonies, story points, stakeholder syncs, retrospectives, Jira workflows) or lack real big picture understanding of what you're building. I'm not a 50-person software company. I don't want to play enterprise theater. I'm just a creative person trying to build great things that work.
-
-So I built GSD. The complexity is in the system, not in your workflow. Behind the scenes: context engineering, XML prompt formatting, subagent orchestration, state management. What you see: a few commands that just work.
-
-The system gives Claude everything it needs to do the work *and* verify it. I trust the workflow. It just does a good job.
-
-That's what this is. No enterprise roleplay bullshit. Just an incredibly effective system for building cool stuff consistently using Claude Code.
-
-— **TÂCHES**
-
----
-
-Vibecoding has a bad reputation. You describe what you want, AI generates code, and you get inconsistent garbage that falls apart at scale.
-
-GSD fixes that. It's the context engineering layer that makes Claude Code reliable. Describe your idea, let the system extract everything it needs to know, and let Claude Code get to work.
+The complexity is in the system, not in your workflow. Behind the scenes: context engineering, XML prompt formatting, subagent orchestration, state management. What you see: a few commands that just work.
 
 ---
 
@@ -86,7 +54,7 @@ Verify with `/df:help` inside your chosen runtime.
 
 ### Staying Updated
 
-GSD evolves fast. Update periodically:
+DevFlow evolves fast. Update periodically:
 
 ```bash
 npx devflow-cc@latest
@@ -121,8 +89,8 @@ Use `--claude`, `--opencode`, `--gemini`, or `--all` to skip the runtime prompt.
 Clone the repository and run the installer locally:
 
 ```bash
-git clone https://github.com/glittercowboy/devflow.git
-cd devflow
+git clone https://github.com/AO-Cyber-Systems/devflow-claude.git
+cd devflow-claude
 node bin/install.js --claude --local
 ```
 
@@ -132,14 +100,14 @@ Installs to `./.claude/` for testing modifications before contributing.
 
 ### Recommended: Skip Permissions Mode
 
-GSD is designed for frictionless automation. Run Claude Code with:
+DevFlow is designed for frictionless automation. Run Claude Code with:
 
 ```bash
 claude --dangerously-skip-permissions
 ```
 
 > [!TIP]
-> This is how GSD is intended to be used — stopping to approve `date` and `git commit` 50 times defeats the purpose.
+> This is how DevFlow is intended to be used — stopping to approve `date` and `git commit` 50 times defeats the purpose.
 
 <details>
 <summary><strong>Alternative: Granular Permissions</strong></summary>
@@ -349,7 +317,7 @@ Then `/df:new-milestone` starts the next version — same flow as `new-project` 
 
 **For ad-hoc tasks that don't need full planning.**
 
-Quick mode gives you GSD guarantees (atomic commits, state tracking) with a faster path:
+Quick mode gives you DevFlow guarantees (atomic commits, state tracking) with a faster path:
 
 - **Same agents** — Planner + executor, same quality
 - **Skips optional steps** — No research, no plan checker, no verifier
@@ -372,7 +340,7 @@ Use for: bug fixes, small features, config changes, one-off tasks.
 
 Claude Code is incredibly powerful *if* you give it the context it needs. Most people don't.
 
-GSD handles it for you:
+DevFlow handles it for you:
 
 | File | What it does |
 |------|--------------|
@@ -459,7 +427,7 @@ You're never locked in. The system adapts.
 | `/df:discuss-phase [N] [--auto]` | Capture implementation decisions before planning |
 | `/df:plan-phase [N] [--auto]` | Research + plan + verify for a phase |
 | `/df:execute-phase <N>` | Execute all plans in parallel waves, verify when complete |
-| `/df:verify-work [N]` | Manual user acceptance testing ¹ |
+| `/df:verify-work [N]` | Manual user acceptance testing |
 | `/df:audit-milestone` | Verify milestone achieved its definition of done |
 | `/df:complete-milestone` | Archive milestone, tag release |
 | `/df:new-milestone [name]` | Start next version: questions → research → requirements → roadmap |
@@ -470,8 +438,7 @@ You're never locked in. The system adapts.
 |---------|--------------|
 | `/df:progress` | Where am I? What's next? |
 | `/df:help` | Show all commands and usage guide |
-| `/df:update` | Update GSD with changelog preview |
-| `/df:join-discord` | Join the GSD Discord community |
+| `/df:update` | Update DevFlow with changelog preview |
 
 ### Brownfield
 
@@ -505,23 +472,21 @@ You're never locked in. The system adapts.
 | `/df:add-todo [desc]` | Capture idea for later |
 | `/df:check-todos` | List pending todos |
 | `/df:debug [desc]` | Systematic debugging with persistent state |
-| `/df:quick [--full]` | Execute ad-hoc task with GSD guarantees (`--full` adds plan-checking and verification) |
+| `/df:quick [--full]` | Execute ad-hoc task with DevFlow guarantees (`--full` adds plan-checking and verification) |
 | `/df:health [--repair]` | Validate `.planning/` directory integrity, auto-repair with `--repair` |
-
-<sup>¹ Contributed by reddit user OracleGreyBeard</sup>
 
 ---
 
 ## Configuration
 
-GSD stores project settings in `.planning/config.json`. Configure during `/df:new-project` or update later with `/df:settings`. For the full config schema, workflow toggles, git branching options, and per-agent model breakdown, see the [User Guide](docs/USER-GUIDE.md#configuration-reference).
+DevFlow stores project settings in `.planning/config.json`. Configure during `/df:new-project` or update later with `/df:settings`. For the full config schema, workflow toggles, git branching options, and per-agent model breakdown, see the [User Guide](docs/USER-GUIDE.md#configuration-reference).
 
 ### Core Settings
 
 | Setting | Options | Default | What it controls |
 |---------|---------|---------|------------------|
 | `mode` | `yolo`, `interactive` | `interactive` | Auto-approve vs confirm at each step |
-| `depth` | `quick`, `standard`, `comprehensive` | `standard` | Planning thoroughness (phases × plans) |
+| `depth` | `quick`, `standard`, `comprehensive` | `standard` | Planning thoroughness (phases x plans) |
 
 ### Model Profiles
 
@@ -564,20 +529,20 @@ Use `/df:settings` to toggle these, or override per-invocation:
 
 ### Git Branching
 
-Control how GSD handles branches during execution.
+Control how DevFlow handles branches during execution.
 
 | Setting | Options | Default | What it does |
 |---------|---------|---------|--------------|
 | `git.branching_strategy` | `none`, `phase`, `milestone` | `none` | Branch creation strategy |
 | `git.phase_branch_template` | string | `df/phase-{phase}-{slug}` | Template for phase branches |
-| `git.milestone_branch_template` | string | `gsd/{milestone}-{slug}` | Template for milestone branches |
+| `git.milestone_branch_template` | string | `df/{milestone}-{slug}` | Template for milestone branches |
 
 **Strategies:**
-- **`none`** — Commits to current branch (default GSD behavior)
+- **`none`** — Commits to current branch (default behavior)
 - **`phase`** — Creates a branch per phase, merges at phase completion
 - **`milestone`** — Creates one branch for entire milestone, merges at completion
 
-At milestone completion, GSD offers squash merge (recommended) or merge with history.
+At milestone completion, DevFlow offers squash merge (recommended) or merge with history.
 
 ---
 
@@ -585,7 +550,7 @@ At milestone completion, GSD offers squash merge (recommended) or merge with his
 
 ### Protecting Sensitive Files
 
-GSD's codebase mapping and analysis commands read files to understand your project. **Protect files containing secrets** by adding them to Claude Code's deny list:
+DevFlow's codebase mapping and analysis commands read files to understand your project. **Protect files containing secrets** by adding them to Claude Code's deny list:
 
 1. Open Claude Code settings (`.claude/settings.json` or global)
 2. Add sensitive file patterns to the deny list:
@@ -608,7 +573,7 @@ GSD's codebase mapping and analysis commands read files to understand your proje
 This prevents Claude from reading these files entirely, regardless of what commands you run.
 
 > [!IMPORTANT]
-> GSD includes built-in protections against committing secrets, but defense-in-depth is best practice. Deny read access to sensitive files as a first line of defense.
+> DevFlow includes built-in protections against committing secrets, but defense-in-depth is best practice. Deny read access to sensitive files as a first line of defense.
 
 ---
 
@@ -616,7 +581,7 @@ This prevents Claude from reading these files entirely, regardless of what comma
 
 **Commands not found after install?**
 - Restart Claude Code to reload slash commands
-- Verify files exist in `~/.claude/commands/gsd/` (global) or `./.claude/commands/gsd/` (local)
+- Verify files exist in `~/.claude/commands/df/` (global) or `./.claude/commands/df/` (local)
 
 **Commands not working as expected?**
 - Run `/df:help` to verify installation
@@ -637,7 +602,7 @@ This ensures absolute paths are used instead of `~` which may not expand correct
 
 ### Uninstalling
 
-To remove GSD completely:
+To remove DevFlow completely:
 
 ```bash
 # Global installs
@@ -649,32 +614,13 @@ npx devflow-cc --claude --local --uninstall
 npx devflow-cc --opencode --local --uninstall
 ```
 
-This removes all GSD commands, agents, hooks, and settings while preserving your other configurations.
+This removes all DevFlow commands, agents, hooks, and settings while preserving your other configurations.
 
 ---
 
-## Community Ports
+## Attribution
 
-OpenCode and Gemini CLI are now natively supported via `npx devflow-cc`.
-
-These community ports pioneered multi-runtime support:
-
-| Project | Platform | Description |
-|---------|----------|-------------|
-| [df-opencode](https://github.com/rokicool/df-opencode) | OpenCode | Original OpenCode adaptation |
-| df-gemini (archived) | Gemini CLI | Original Gemini adaptation by uberfuzzy |
-
----
-
-## Star History
-
-<a href="https://star-history.com/#glittercowboy/devflow&Date">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=glittercowboy/devflow&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=glittercowboy/devflow&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=glittercowboy/devflow&type=Date" />
- </picture>
-</a>
+DevFlow is a fork of [GSD (Get Shit Done)](https://github.com/gsd-build/get-shit-done) v1.20.4 by [TÂCHES](https://github.com/glittercowboy). The original project's architecture, workflow design, and agent system form the foundation of DevFlow. Released under the MIT License.
 
 ---
 
@@ -686,6 +632,6 @@ MIT License. See [LICENSE](LICENSE) for details.
 
 <div align="center">
 
-**Claude Code is powerful. GSD makes it reliable.**
+**Claude Code is powerful. DevFlow makes it reliable.**
 
 </div>

@@ -1,18 +1,18 @@
 ---
 name: df:join-discord
-description: Join the GSD Discord community
+description: Join the DevFlow community
 ---
 
 <objective>
-Display the Discord invite link for the GSD community server.
+Display the community link for DevFlow.
 </objective>
 
 <output>
-# Join the GSD Discord
+# DevFlow Community
 
-Connect with other GSD users, get help, share what you're building, and stay updated.
+Connect with other DevFlow users, get help, share what you're building, and stay updated.
 
-**Invite link:** https://discord.gg/5JJgD5svVS
+**GitHub:** https://github.com/AO-Cyber-Systems/devflow-claude
 
-Click the link or paste it into your browser to join.
+Open an issue or start a discussion on GitHub.
 </output>
