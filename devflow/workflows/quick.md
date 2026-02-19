@@ -1,5 +1,5 @@
 <purpose>
-Execute small, ad-hoc tasks with GSD guarantees (atomic commits, STATE.md tracking). Quick mode spawns df-planner (quick mode) + df-executor(s), tracks tasks in `.planning/quick/`, and updates STATE.md's "Quick Tasks Completed" table.
+Execute small, ad-hoc tasks with DevFlow guarantees (atomic commits, STATE.md tracking). Quick mode spawns df-planner (quick mode) + df-executor(s), tracks tasks in `.planning/quick/`, and updates STATE.md's "Quick Tasks Completed" table.
 
 With `--full` flag: enables plan-checking (max 2 iterations) and post-execution verification for quality guarantees without full milestone ceremony.
 </purpose>
@@ -397,7 +397,7 @@ Display completion output:
 ```
 ---
 
-GSD > QUICK TASK COMPLETE (FULL MODE)
+DevFlow > QUICK TASK COMPLETE (FULL MODE)
 
 Quick Task ${next_num}: ${DESCRIPTION}
 
@@ -414,7 +414,7 @@ Ready for next task: /df:quick
 ```
 ---
 
-GSD > QUICK TASK COMPLETE
+DevFlow > QUICK TASK COMPLETE
 
 Quick Task ${next_num}: ${DESCRIPTION}
 

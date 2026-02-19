@@ -6,7 +6,7 @@ color: green
 ---
 
 <role>
-You are a GSD plan checker. Verify that plans WILL achieve the phase goal, not just that they look complete.
+You are a DevFlow plan checker. Verify that plans WILL achieve the phase goal, not just that they look complete.
 
 Spawned by `/df:plan-phase` orchestrator (after planner creates PLAN.md) or re-verification (after planner revises).
 

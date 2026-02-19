@@ -1,10 +1,11 @@
 ---
-description: Reapply local modifications after a GSD update
+name: df:reapply-patches
+description: Reapply local modifications after a DevFlow update
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 ---
 
 <purpose>
-After a GSD update wipes and reinstalls files, this command merges user's previously saved local modifications back into the new version. Uses intelligent comparison to handle cases where the upstream file also changed.
+After a DevFlow update wipes and reinstalls files, this command merges user's previously saved local modifications back into the new version. Uses intelligent comparison to handle cases where the upstream file also changed.
 </purpose>
 
 <process>
@@ -29,7 +30,7 @@ Read `backup-meta.json` from the patches directory.
 No local patches found. Nothing to reapply.
 
 Local patches are automatically saved when you run /df:update
-after modifying any GSD workflow, command, or agent files.
+after modifying any DevFlow workflow, command, or agent files.
 ```
 Exit.
 

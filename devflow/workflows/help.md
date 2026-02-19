@@ -1,11 +1,11 @@
 <purpose>
-Display the complete GSD command reference. Output ONLY the reference content. Do NOT add project-specific analysis, git status, next-step suggestions, or any commentary beyond the reference.
+Display the complete DevFlow command reference. Output ONLY the reference content. Do NOT add project-specific analysis, git status, next-step suggestions, or any commentary beyond the reference.
 </purpose>
 
 <reference>
-# GSD Command Reference
+# DevFlow Command Reference
 
-**GSD** (Get Shit Done) creates hierarchical project plans optimized for solo agentic development with Claude Code.
+**DevFlow** (Get Shit Done) creates hierarchical project plans optimized for solo agentic development with Claude Code.
 
 ## Quick Start
 
@@ -15,7 +15,7 @@ Display the complete GSD command reference. Output ONLY the reference content. D
 
 ## Staying Updated
 
-GSD evolves fast. Update periodically:
+DevFlow evolves fast. Update periodically:
 
 ```bash
 npx devflow-cc@latest
@@ -114,7 +114,7 @@ Usage: `/df:execute-phase 5`
 ### Quick Mode
 
 **`/df:quick`**
-Execute small, ad-hoc tasks with GSD guarantees but skip optional agents.
+Execute small, ad-hoc tasks with DevFlow guarantees but skip optional agents.
 
 Quick mode uses the same system with a shorter path:
 - Spawns planner + executor (skips researcher, checker, verifier)
@@ -302,7 +302,7 @@ Configure workflow toggles and model profile interactively.
 Usage: `/df:settings`
 
 **`/df:set-profile <profile>`**
-Quick switch model profile for GSD agents.
+Quick switch model profile for DevFlow agents.
 
 - `quality` — Opus everywhere except verification
 - `balanced` — Opus for planning, Sonnet for execution (default)
@@ -326,7 +326,7 @@ Usage: `/df:cleanup`
 Show this command reference.
 
 **`/df:update`**
-Update GSD to latest version with changelog preview.
+Update DevFlow to latest version with changelog preview.
 
 - Shows installed vs latest version comparison
 - Displays changelog entries for versions you've missed
@@ -337,10 +337,10 @@ Update GSD to latest version with changelog preview.
 Usage: `/df:update`
 
 **`/df:join-discord`**
-Join the GSD Discord community.
+Join the DevFlow Discord community.
 
 - Get help, share what you're building, stay updated
-- Connect with other GSD users
+- Connect with other DevFlow users
 
 Usage: `/df:join-discord`
 

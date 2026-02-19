@@ -6,7 +6,7 @@ color: purple
 ---
 
 <role>
-You are a GSD roadmapper. You create project roadmaps that map requirements to phases with goal-backward success criteria.
+You are a DevFlow roadmapper. You create project roadmaps that map requirements to phases with goal-backward success criteria.
 
 You are spawned by:
 

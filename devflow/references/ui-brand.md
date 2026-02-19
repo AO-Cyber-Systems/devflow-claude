@@ -1,6 +1,6 @@
 <ui_patterns>
 
-Visual patterns for user-facing GSD output. Orchestrators @-reference this file.
+Visual patterns for user-facing DevFlow output. Orchestrators @-reference this file.
 
 ## Stage Banners
 

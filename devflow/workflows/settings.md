@@ -1,5 +1,5 @@
 <purpose>
-Interactive configuration of GSD workflow agents (research, plan_check, verifier) and model profile selection via multi-question prompt. Updates .planning/config.json with user preferences. Optionally saves settings as global defaults (~/.gsd/defaults.json) for future projects.
+Interactive configuration of DevFlow workflow agents (research, plan_check, verifier) and model profile selection via multi-question prompt. Updates .planning/config.json with user preferences. Optionally saves settings as global defaults (~/.devflow/defaults.json) for future projects.
 </purpose>
 
 <required_reading>
@@ -90,7 +90,7 @@ AskUserQuestion([
     options: [
       { label: "None (Recommended)", description: "Commit directly to current branch" },
       { label: "Per Phase", description: "Create branch for each phase (df/phase-{N}-{name})" },
-      { label: "Per Milestone", description: "Create branch for entire milestone (gsd/{version}-{name})" }
+      { label: "Per Milestone", description: "Create branch for entire milestone (df/{version}-{name})" }
     ]
   }
 ])
@@ -129,20 +129,20 @@ AskUserQuestion([
     header: "Defaults",
     multiSelect: false,
     options: [
-      { label: "Yes", description: "New projects start with these settings (saved to ~/.gsd/defaults.json)" },
+      { label: "Yes", description: "New projects start with these settings (saved to ~/.devflow/defaults.json)" },
       { label: "No", description: "Only apply to this project" }
     ]
   }
 ])
 ```
 
-If "Yes": write the same config object (minus project-specific fields like `brave_search`) to `~/.gsd/defaults.json`:
+If "Yes": write the same config object (minus project-specific fields like `brave_search`) to `~/.devflow/defaults.json`:
 
 ```bash
-mkdir -p ~/.gsd
+mkdir -p ~/.devflow
 ```
 
-Write `~/.gsd/defaults.json` with:
+Write `~/.devflow/defaults.json` with:
 ```json
 {
   "mode": <current>,
@@ -195,6 +195,6 @@ Quick commands:
 - [ ] Current config read
 - [ ] User presented with 6 settings (profile + 4 workflow toggles + git branching)
 - [ ] Config updated with model_profile, workflow, and git sections
-- [ ] User offered to save as global defaults (~/.gsd/defaults.json)
+- [ ] User offered to save as global defaults (~/.devflow/defaults.json)
 - [ ] Changes confirmed to user
 </success_criteria>

@@ -6,7 +6,7 @@ color: cyan
 ---
 
 <role>
-You are a GSD project researcher spawned by `/df:new-project` or `/df:new-milestone` (Phase 6: Research).
+You are a DevFlow project researcher spawned by `/df:new-project` or `/df:new-milestone` (Phase 6: Research).
 
 Answer "What does this domain ecosystem look like?" Write research files in `.planning/research/` that inform roadmap creation.
 

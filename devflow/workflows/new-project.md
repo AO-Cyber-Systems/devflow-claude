@@ -345,12 +345,12 @@ node ~/.claude/devflow/bin/df-tools.cjs commit "docs: initialize project" --file
 
 **If auto mode:** Skip — config was collected in Step 2a. Proceed to Step 5.5.
 
-**Check for global defaults** at `~/.gsd/defaults.json`. If the file exists, offer to use saved defaults:
+**Check for global defaults** at `~/.devflow/defaults.json`. If the file exists, offer to use saved defaults:
 
 ```
 AskUserQuestion([
   {
-    question: "Use your saved default settings? (from ~/.gsd/defaults.json)",
+    question: "Use your saved default settings? (from ~/.devflow/defaults.json)",
     header: "Defaults",
     multiSelect: false,
     options: [
@@ -361,9 +361,9 @@ AskUserQuestion([
 ])
 ```
 
-If "Yes": read `~/.gsd/defaults.json`, use those values for config.json, and skip directly to **Commit config.json** below.
+If "Yes": read `~/.devflow/defaults.json`, use those values for config.json, and skip directly to **Commit config.json** below.
 
-If "No" or `~/.gsd/defaults.json` doesn't exist: proceed with the questions below.
+If "No" or `~/.devflow/defaults.json` doesn't exist: proceed with the questions below.
 
 **Round 1 — Core workflow settings (4 questions):**
 

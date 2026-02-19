@@ -1,9 +1,9 @@
 ---
 name: df:help
-description: Show available GSD commands and usage guide
+description: Show available DevFlow commands and usage guide
 ---
 <objective>
-Display the complete GSD command reference.
+Display the complete DevFlow command reference.
 
 Output ONLY the reference content below. Do NOT add:
 - Project-specific analysis
@@ -17,6 +17,6 @@ Output ONLY the reference content below. Do NOT add:
 </execution_context>
 
 <process>
-Output the complete GSD command reference from @~/.claude/devflow/workflows/help.md.
+Output the complete DevFlow command reference from @~/.claude/devflow/workflows/help.md.
 Display the reference content directly — no additions or modifications.
 </process>
