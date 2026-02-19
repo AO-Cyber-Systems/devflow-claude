@@ -14,11 +14,11 @@ Detect whether GSD is installed locally or globally by checking both locations:
 ```bash
 # Check local first (takes priority)
 # Paths templated at install time for runtime compatibility
-if [ -f ./.claude/get-shit-done/VERSION ]; then
-  cat ./.claude/get-shit-done/VERSION
+if [ -f ./.claude/devflow/VERSION ]; then
+  cat ./.claude/devflow/VERSION
   echo "LOCAL"
-elif [ -f ~/.claude/get-shit-done/VERSION ]; then
-  cat ~/.claude/get-shit-done/VERSION
+elif [ -f ~/.claude/devflow/VERSION ]; then
+  cat ~/.claude/devflow/VERSION
   echo "GLOBAL"
 else
   echo "UNKNOWN"
@@ -48,14 +48,14 @@ Proceed to install step (treat as version 0.0.0 for comparison).
 Check npm for latest version:
 
 ```bash
-npm view get-shit-done-cc version 2>/dev/null
+npm view devflow-cc version 2>/dev/null
 ```
 
 **If npm check fails:**
 ```
 Couldn't check for updates (offline or npm unavailable).
 
-To update manually: `npx get-shit-done-cc --global`
+To update manually: `npx devflow-cc --global`
 ```
 
 Exit.
@@ -119,18 +119,18 @@ Exit.
 
 ⚠️  **Note:** The installer performs a clean install of GSD folders:
 - `commands/gsd/` will be wiped and replaced
-- `get-shit-done/` will be wiped and replaced
-- `agents/gsd-*` files will be replaced
+- `devflow/` will be wiped and replaced
+- `agents/df-*` files will be replaced
 
 (Paths are relative to your install location: `~/.claude/` for global, `./.claude/` for local)
 
 Your custom files in other locations are preserved:
 - Custom commands not in `commands/gsd/` ✓
-- Custom agents not prefixed with `gsd-` ✓
+- Custom agents not prefixed with `df-` ✓
 - Custom hooks ✓
 - Your CLAUDE.md files ✓
 
-If you've modified any GSD files directly, they'll be automatically backed up to `gsd-local-patches/` and can be reapplied with `/gsd:reapply-patches` after the update.
+If you've modified any GSD files directly, they'll be automatically backed up to `df-local-patches/` and can be reapplied with `/df:reapply-patches` after the update.
 ```
 
 Use AskUserQuestion:
@@ -147,12 +147,12 @@ Run the update using the install type detected in step 1:
 
 **If LOCAL install:**
 ```bash
-npx get-shit-done-cc --local
+npx devflow-cc --local
 ```
 
 **If GLOBAL install (or unknown):**
 ```bash
-npx get-shit-done-cc --global
+npx devflow-cc --global
 ```
 
 Capture output. If install fails, show error and exit.
@@ -161,12 +161,12 @@ Clear the update cache so statusline indicator disappears:
 
 **If LOCAL install:**
 ```bash
-rm -f ./.claude/cache/gsd-update-check.json
+rm -f ./.claude/cache/df-update-check.json
 ```
 
 **If GLOBAL install:**
 ```bash
-rm -f ~/.claude/cache/gsd-update-check.json
+rm -f ~/.claude/cache/df-update-check.json
 ```
 (Paths are templated at install time for runtime compatibility)
 </step>
@@ -181,7 +181,7 @@ Format completion message (changelog was already shown in confirmation step):
 
 ⚠️  Restart Claude Code to pick up the new commands.
 
-[View full changelog](https://github.com/glittercowboy/get-shit-done/blob/main/CHANGELOG.md)
+[View full changelog](https://github.com/glittercowboy/devflow/blob/main/CHANGELOG.md)
 ```
 </step>
 
@@ -189,13 +189,13 @@ Format completion message (changelog was already shown in confirmation step):
 <step name="check_local_patches">
 After update completes, check if the installer detected and backed up any locally modified files:
 
-Check for gsd-local-patches/backup-meta.json in the config directory.
+Check for df-local-patches/backup-meta.json in the config directory.
 
 **If patches found:**
 
 ```
 Local patches were backed up before the update.
-Run /gsd:reapply-patches to merge your modifications into the new version.
+Run /df:reapply-patches to merge your modifications into the new version.
 ```
 
 **If no patches:** Continue normally.

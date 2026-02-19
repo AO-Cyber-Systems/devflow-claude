@@ -1,5 +1,5 @@
 ---
-name: gsd:check-todos
+name: df:check-todos
 description: List pending todos and select one to work on
 argument-hint: [area filter]
 allowed-tools:
@@ -23,11 +23,11 @@ Routes to the check-todos workflow which handles:
 <execution_context>
 @.planning/STATE.md
 @.planning/ROADMAP.md
-@~/.claude/get-shit-done/workflows/check-todos.md
+@~/.claude/devflow/workflows/check-todos.md
 </execution_context>
 
 <process>
-**Follow the check-todos workflow** from `@~/.claude/get-shit-done/workflows/check-todos.md`.
+**Follow the check-todos workflow** from `@~/.claude/devflow/workflows/check-todos.md`.
 
 The workflow handles all logic including:
 1. Todo existence checking

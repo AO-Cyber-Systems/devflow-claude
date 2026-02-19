@@ -1,5 +1,5 @@
 ---
-name: gsd:discuss-phase
+name: df:discuss-phase
 description: Gather phase context through adaptive questioning before planning
 argument-hint: "<phase> [--auto]"
 allowed-tools:
@@ -25,8 +25,8 @@ Extract implementation decisions that downstream agents need — researcher and 
 </objective>
 
 <execution_context>
-@~/.claude/get-shit-done/workflows/discuss-phase.md
-@~/.claude/get-shit-done/templates/context.md
+@~/.claude/devflow/workflows/discuss-phase.md
+@~/.claude/devflow/templates/context.md
 </execution_context>
 
 <context>

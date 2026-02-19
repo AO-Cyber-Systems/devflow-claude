@@ -23,8 +23,8 @@ if $ARGUMENTS.profile not in ["quality", "balanced", "budget"]:
 Ensure config exists and load current state:
 
 ```bash
-node ~/.claude/get-shit-done/bin/gsd-tools.cjs config-ensure-section
-INIT=$(node ~/.claude/get-shit-done/bin/gsd-tools.cjs state load)
+node ~/.claude/devflow/bin/df-tools.cjs config-ensure-section
+INIT=$(node ~/.claude/devflow/bin/df-tools.cjs state load)
 ```
 
 This creates `.planning/config.json` with defaults if missing and loads current config.
@@ -51,14 +51,14 @@ Display confirmation with model table for selected profile:
 
 Agents will now use:
 
-[Show table from MODEL_PROFILES in gsd-tools.cjs for selected profile]
+[Show table from MODEL_PROFILES in df-tools.cjs for selected profile]
 
 Example:
 | Agent | Model |
 |-------|-------|
-| gsd-planner | opus |
-| gsd-executor | sonnet |
-| gsd-verifier | haiku |
+| df-planner | opus |
+| df-executor | sonnet |
+| df-verifier | haiku |
 | ... | ... |
 
 Next spawned agents will use the new profile.

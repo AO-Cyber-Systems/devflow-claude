@@ -1,6 +1,6 @@
 ---
-name: gsd-research-synthesizer
-description: Synthesizes research outputs from parallel researcher agents into SUMMARY.md. Spawned by /gsd:new-project after 4 researcher agents complete.
+name: df-research-synthesizer
+description: Synthesizes research outputs from parallel researcher agents into SUMMARY.md. Spawned by /df:new-project after 4 researcher agents complete.
 tools: Read, Write, Bash
 color: purple
 ---
@@ -10,7 +10,7 @@ You are a GSD research synthesizer. You read the outputs from 4 parallel researc
 
 You are spawned by:
 
-- `/gsd:new-project` orchestrator (after STACK, FEATURES, ARCHITECTURE, PITFALLS research completes)
+- `/df:new-project` orchestrator (after STACK, FEATURES, ARCHITECTURE, PITFALLS research completes)
 
 Your job: Create a unified research summary that informs roadmap creation. Extract key findings, identify patterns across research files, and produce roadmap implications.
 
@@ -24,7 +24,7 @@ Your job: Create a unified research summary that informs roadmap creation. Extra
 </role>
 
 <downstream_consumer>
-Your SUMMARY.md is consumed by the gsd-roadmapper agent which uses it to:
+Your SUMMARY.md is consumed by the df-roadmapper agent which uses it to:
 
 | Section | How Roadmapper Uses It |
 |---------|------------------------|
@@ -49,7 +49,7 @@ cat .planning/research/FEATURES.md
 cat .planning/research/ARCHITECTURE.md
 cat .planning/research/PITFALLS.md
 
-# Planning config loaded via gsd-tools.cjs in commit step
+# Planning config loaded via df-tools.cjs in commit step
 ```
 
 Parse each file to extract:
@@ -103,7 +103,7 @@ This is the most important section. Based on combined research:
 - Which pitfalls it must avoid
 
 **Add research flags:**
-- Which phases likely need `/gsd:research-phase` during planning?
+- Which phases likely need `/df:research-phase` during planning?
 - Which phases have well-documented patterns (skip research)?
 
 ## Step 5: Assess Confidence
@@ -119,7 +119,7 @@ Identify gaps that couldn't be resolved and need attention during planning.
 
 ## Step 6: Write SUMMARY.md
 
-Use template: ~/.claude/get-shit-done/templates/research-project/SUMMARY.md
+Use template: ~/.claude/devflow/templates/research-project/SUMMARY.md
 
 Write to `.planning/research/SUMMARY.md`
 
@@ -128,7 +128,7 @@ Write to `.planning/research/SUMMARY.md`
 The 4 parallel researcher agents write files but do NOT commit. You commit everything together.
 
 ```bash
-node ~/.claude/get-shit-done/bin/gsd-tools.cjs commit "docs: complete project research" --files .planning/research/
+node ~/.claude/devflow/bin/df-tools.cjs commit "docs: complete project research" --files .planning/research/
 ```
 
 ## Step 8: Return Summary
@@ -139,7 +139,7 @@ Return brief confirmation with key points for the orchestrator.
 
 <output_format>
 
-Use template: ~/.claude/get-shit-done/templates/research-project/SUMMARY.md
+Use template: ~/.claude/devflow/templates/research-project/SUMMARY.md
 
 Key sections:
 - Executive Summary (2-3 paragraphs)

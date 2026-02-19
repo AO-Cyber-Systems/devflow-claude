@@ -1,5 +1,5 @@
 ---
-name: gsd:help
+name: df:help
 description: Show available GSD commands and usage guide
 ---
 <objective>
@@ -13,10 +13,10 @@ Output ONLY the reference content below. Do NOT add:
 </objective>
 
 <execution_context>
-@~/.claude/get-shit-done/workflows/help.md
+@~/.claude/devflow/workflows/help.md
 </execution_context>
 
 <process>
-Output the complete GSD command reference from @~/.claude/get-shit-done/workflows/help.md.
+Output the complete GSD command reference from @~/.claude/devflow/workflows/help.md.
 Display the reference content directly — no additions or modifications.
 </process>

@@ -120,10 +120,10 @@ If found, delete them — phase is complete, handoffs are stale.
 
 <step name="update_roadmap_and_state">
 
-**Delegate ROADMAP.md and STATE.md updates to gsd-tools:**
+**Delegate ROADMAP.md and STATE.md updates to df-tools:**
 
 ```bash
-TRANSITION=$(node ~/.claude/get-shit-done/bin/gsd-tools.cjs phase complete "${current_phase}")
+TRANSITION=$(node ~/.claude/devflow/bin/df-tools.cjs phase complete "${current_phase}")
 ```
 
 The CLI handles:
@@ -233,12 +233,12 @@ After (Phase 2 shipped JWT auth, discovered rate limiting needed):
 
 <step name="update_current_position_after_transition">
 
-**Note:** Basic position updates (Current Phase, Status, Current Plan, Last Activity) were already handled by `gsd-tools phase complete` in the update_roadmap_and_state step.
+**Note:** Basic position updates (Current Phase, Status, Current Plan, Last Activity) were already handled by `df-tools phase complete` in the update_roadmap_and_state step.
 
 Verify the updates are correct by reading STATE.md. If the progress bar needs updating, use:
 
 ```bash
-PROGRESS=$(node ~/.claude/get-shit-done/bin/gsd-tools.cjs progress bar --raw)
+PROGRESS=$(node ~/.claude/devflow/bin/df-tools.cjs progress bar --raw)
 ```
 
 Update the progress bar line in STATE.md with the result.
@@ -337,7 +337,7 @@ Resume file: None
 
 **MANDATORY: Verify milestone status before presenting next steps.**
 
-**Use the transition result from `gsd-tools phase complete`:**
+**Use the transition result from `df-tools phase complete`:**
 
 The `is_last_phase` field from the phase complete result tells you directly:
 - `is_last_phase: false` → More phases remain → Go to **Route A**
@@ -347,7 +347,7 @@ The `next_phase` and `next_phase_name` fields give you the next phase details.
 
 If you need additional context, use:
 ```bash
-ROADMAP=$(node ~/.claude/get-shit-done/bin/gsd-tools.cjs roadmap analyze)
+ROADMAP=$(node ~/.claude/devflow/bin/df-tools.cjs roadmap analyze)
 ```
 
 This returns all phases with goals, disk status, and completion info.
@@ -378,7 +378,7 @@ Next: Phase [X+1] — [Name]
 ⚡ Auto-continuing: Plan Phase [X+1] in detail
 ```
 
-Exit skill and invoke SlashCommand("/gsd:plan-phase [X+1] --auto")
+Exit skill and invoke SlashCommand("/df:plan-phase [X+1] --auto")
 
 **If CONTEXT.md does NOT exist:**
 
@@ -390,7 +390,7 @@ Next: Phase [X+1] — [Name]
 ⚡ Auto-continuing: Discuss Phase [X+1] first
 ```
 
-Exit skill and invoke SlashCommand("/gsd:discuss-phase [X+1] --auto")
+Exit skill and invoke SlashCommand("/df:discuss-phase [X+1] --auto")
 
 </if>
 
@@ -407,15 +407,15 @@ Exit skill and invoke SlashCommand("/gsd:discuss-phase [X+1] --auto")
 
 **Phase [X+1]: [Name]** — [Goal from ROADMAP.md]
 
-`/gsd:discuss-phase [X+1]` — gather context and clarify approach
+`/df:discuss-phase [X+1]` — gather context and clarify approach
 
 <sub>`/clear` first → fresh context window</sub>
 
 ---
 
 **Also available:**
-- `/gsd:plan-phase [X+1]` — skip discussion, plan directly
-- `/gsd:research-phase [X+1]` — investigate unknowns
+- `/df:plan-phase [X+1]` — skip discussion, plan directly
+- `/df:research-phase [X+1]` — investigate unknowns
 
 ---
 ```
@@ -432,15 +432,15 @@ Exit skill and invoke SlashCommand("/gsd:discuss-phase [X+1] --auto")
 **Phase [X+1]: [Name]** — [Goal from ROADMAP.md]
 <sub>✓ Context gathered, ready to plan</sub>
 
-`/gsd:plan-phase [X+1]`
+`/df:plan-phase [X+1]`
 
 <sub>`/clear` first → fresh context window</sub>
 
 ---
 
 **Also available:**
-- `/gsd:discuss-phase [X+1]` — revisit context
-- `/gsd:research-phase [X+1]` — investigate unknowns
+- `/df:discuss-phase [X+1]` — revisit context
+- `/df:research-phase [X+1]` — investigate unknowns
 
 ---
 ```
@@ -453,7 +453,7 @@ Exit skill and invoke SlashCommand("/gsd:discuss-phase [X+1] --auto")
 
 **Clear auto-advance** — milestone boundary is the natural stopping point:
 ```bash
-node ~/.claude/get-shit-done/bin/gsd-tools.cjs config-set workflow.auto_advance false
+node ~/.claude/devflow/bin/df-tools.cjs config-set workflow.auto_advance false
 ```
 
 <if mode="yolo">
@@ -466,7 +466,7 @@ Phase {X} marked complete.
 ⚡ Auto-continuing: Complete milestone and archive
 ```
 
-Exit skill and invoke SlashCommand("/gsd:complete-milestone {version}")
+Exit skill and invoke SlashCommand("/df:complete-milestone {version}")
 
 </if>
 
@@ -483,7 +483,7 @@ Exit skill and invoke SlashCommand("/gsd:complete-milestone {version}")
 
 **Complete Milestone {version}** — archive and prepare for next
 
-`/gsd:complete-milestone {version}`
+`/df:complete-milestone {version}`
 
 <sub>`/clear` first → fresh context window</sub>
 

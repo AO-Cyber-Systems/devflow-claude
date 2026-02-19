@@ -10,7 +10,7 @@ Configuration options for `.planning/` directory behavior.
 },
 "git": {
   "branching_strategy": "none",
-  "phase_branch_template": "gsd/phase-{phase}-{slug}",
+  "phase_branch_template": "df/phase-{phase}-{slug}",
   "milestone_branch_template": "gsd/{milestone}-{slug}"
 }
 ```
@@ -20,7 +20,7 @@ Configuration options for `.planning/` directory behavior.
 | `commit_docs` | `true` | Whether to commit planning artifacts to git |
 | `search_gitignored` | `false` | Add `--no-ignore` to broad rg searches |
 | `git.branching_strategy` | `"none"` | Git branching approach: `"none"`, `"phase"`, or `"milestone"` |
-| `git.phase_branch_template` | `"gsd/phase-{phase}-{slug}"` | Branch template for phase strategy |
+| `git.phase_branch_template` | `"df/phase-{phase}-{slug}"` | Branch template for phase strategy |
 | `git.milestone_branch_template` | `"gsd/{milestone}-{slug}"` | Branch template for milestone strategy |
 </config_schema>
 
@@ -36,18 +36,18 @@ Configuration options for `.planning/` directory behavior.
 - User must add `.planning/` to `.gitignore`
 - Useful for: OSS contributions, client projects, keeping planning private
 
-**Using gsd-tools.cjs (preferred):**
+**Using df-tools.cjs (preferred):**
 
 ```bash
 # Commit with automatic commit_docs + gitignore checks:
-node ~/.claude/get-shit-done/bin/gsd-tools.cjs commit "docs: update state" --files .planning/STATE.md
+node ~/.claude/devflow/bin/df-tools.cjs commit "docs: update state" --files .planning/STATE.md
 
 # Load config via state load (returns JSON):
-INIT=$(node ~/.claude/get-shit-done/bin/gsd-tools.cjs state load)
+INIT=$(node ~/.claude/devflow/bin/df-tools.cjs state load)
 # commit_docs is available in the JSON output
 
 # Or use init commands which include commit_docs:
-INIT=$(node ~/.claude/get-shit-done/bin/gsd-tools.cjs init execute-phase "1")
+INIT=$(node ~/.claude/devflow/bin/df-tools.cjs init execute-phase "1")
 # commit_docs is included in all init command outputs
 ```
 
@@ -56,7 +56,7 @@ INIT=$(node ~/.claude/get-shit-done/bin/gsd-tools.cjs init execute-phase "1")
 **Commit via CLI (handles checks automatically):**
 
 ```bash
-node ~/.claude/get-shit-done/bin/gsd-tools.cjs commit "docs: update state" --files .planning/STATE.md
+node ~/.claude/devflow/bin/df-tools.cjs commit "docs: update state" --files .planning/STATE.md
 ```
 
 The CLI checks `commit_docs` config and gitignore status internally — no manual conditionals needed.
@@ -121,7 +121,7 @@ To use uncommitted mode:
 
 **When `git.branching_strategy: "phase"`:**
 - `execute-phase` creates/switches to a branch before execution
-- Branch name from `phase_branch_template` (e.g., `gsd/phase-03-authentication`)
+- Branch name from `phase_branch_template` (e.g., `df/phase-03-authentication`)
 - All plan commits go to that branch
 - User merges branches manually after phase completion
 - `complete-milestone` offers to merge all phase branches
@@ -144,13 +144,13 @@ To use uncommitted mode:
 
 Use `init execute-phase` which returns all config as JSON:
 ```bash
-INIT=$(node ~/.claude/get-shit-done/bin/gsd-tools.cjs init execute-phase "1")
+INIT=$(node ~/.claude/devflow/bin/df-tools.cjs init execute-phase "1")
 # JSON output includes: branching_strategy, phase_branch_template, milestone_branch_template
 ```
 
 Or use `state load` for the config values:
 ```bash
-INIT=$(node ~/.claude/get-shit-done/bin/gsd-tools.cjs state load)
+INIT=$(node ~/.claude/devflow/bin/df-tools.cjs state load)
 # Parse branching_strategy, phase_branch_template, milestone_branch_template from JSON
 ```
 

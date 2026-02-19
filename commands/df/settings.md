@@ -1,5 +1,5 @@
 ---
-name: gsd:settings
+name: df:settings
 description: Configure GSD workflow toggles and model profile
 allowed-tools:
   - Read
@@ -20,11 +20,11 @@ Routes to the settings workflow which handles:
 </objective>
 
 <execution_context>
-@~/.claude/get-shit-done/workflows/settings.md
+@~/.claude/devflow/workflows/settings.md
 </execution_context>
 
 <process>
-**Follow the settings workflow** from `@~/.claude/get-shit-done/workflows/settings.md`.
+**Follow the settings workflow** from `@~/.claude/devflow/workflows/settings.md`.
 
 The workflow handles all logic including:
 1. Config file creation with defaults if missing

@@ -1,5 +1,5 @@
 /**
- * GSD Tools Tests
+ * DevFlow Tools Tests
  */
 
 const { test, describe, beforeEach, afterEach } = require('node:test');
@@ -8,9 +8,9 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 
-const TOOLS_PATH = path.join(__dirname, 'gsd-tools.cjs');
+const TOOLS_PATH = path.join(__dirname, 'df-tools.cjs');
 
-// Helper to run gsd-tools command
+// Helper to run df-tools command
 function runGsdTools(args, cwd = process.cwd()) {
   try {
     const result = execSync(`node "${TOOLS_PATH}" ${args}`, {
@@ -30,7 +30,7 @@ function runGsdTools(args, cwd = process.cwd()) {
 
 // Create temp directory structure
 function createTempProject() {
-  const tmpDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'gsd-test-'));
+  const tmpDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'df-test-'));
   fs.mkdirSync(path.join(tmpDir, '.planning', 'phases'), { recursive: true });
   return tmpDir;
 }

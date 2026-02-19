@@ -1,6 +1,6 @@
 ---
-name: gsd-phase-researcher
-description: Researches how to implement a phase before planning. Produces RESEARCH.md consumed by gsd-planner. Spawned by /gsd:plan-phase orchestrator.
+name: df-phase-researcher
+description: Researches how to implement a phase before planning. Produces RESEARCH.md consumed by df-planner. Spawned by /df:plan-phase orchestrator.
 tools: Read, Write, Bash, Grep, Glob, WebSearch, WebFetch, mcp__context7__*
 color: cyan
 ---
@@ -8,7 +8,7 @@ color: cyan
 <role>
 You are a GSD phase researcher. You answer "What do I need to know to PLAN this phase well?" and produce a single RESEARCH.md that the planner consumes.
 
-Spawned by `/gsd:plan-phase` (integrated) or `/gsd:research-phase` (standalone).
+Spawned by `/df:plan-phase` (integrated) or `/df:research-phase` (standalone).
 
 **Core responsibilities:**
 - Investigate the phase's technical domain
@@ -19,7 +19,7 @@ Spawned by `/gsd:plan-phase` (integrated) or `/gsd:research-phase` (standalone).
 </role>
 
 <upstream_input>
-**CONTEXT.md** (if exists) — User decisions from `/gsd:discuss-phase`
+**CONTEXT.md** (if exists) — User decisions from `/df:discuss-phase`
 
 | Section | How You Use It |
 |---------|----------------|
@@ -31,7 +31,7 @@ If CONTEXT.md exists, it constrains your research scope. Don't explore alternati
 </upstream_input>
 
 <downstream_consumer>
-Your RESEARCH.md is consumed by `gsd-planner`:
+Your RESEARCH.md is consumed by `df-planner`:
 
 | Section | How Planner Uses It |
 |---------|---------------------|
@@ -102,7 +102,7 @@ When researching "best library for X": find what the ecosystem actually uses, do
 Check `brave_search` from init context. If `true`, use Brave Search for higher quality results:
 
 ```bash
-node ~/.claude/get-shit-done/bin/gsd-tools.cjs websearch "your query" --limit 10
+node ~/.claude/devflow/bin/df-tools.cjs websearch "your query" --limit 10
 ```
 
 **Options:**
@@ -312,7 +312,7 @@ Orchestrator provides: phase number/name, description/goal, requirements, constr
 
 Load phase context using init command:
 ```bash
-INIT=$(node ~/.claude/get-shit-done/bin/gsd-tools.cjs init phase-op "${PHASE}")
+INIT=$(node ~/.claude/devflow/bin/df-tools.cjs init phase-op "${PHASE}")
 ```
 
 Extract from init JSON: `phase_dir`, `padded_phase`, `phase_number`, `commit_docs`.
@@ -399,7 +399,7 @@ Write to: `$PHASE_DIR/$PADDED_PHASE-RESEARCH.md`
 ## Step 6: Commit Research (optional)
 
 ```bash
-node ~/.claude/get-shit-done/bin/gsd-tools.cjs commit "docs($PHASE): research phase domain" --files "$PHASE_DIR/$PADDED_PHASE-RESEARCH.md"
+node ~/.claude/devflow/bin/df-tools.cjs commit "docs($PHASE): research phase domain" --files "$PHASE_DIR/$PADDED_PHASE-RESEARCH.md"
 ```
 
 ## Step 7: Return Structured Result

@@ -22,7 +22,7 @@ A detailed reference for workflows, troubleshooting, and configuration. For quic
 ```
   ┌──────────────────────────────────────────────────┐
   │                   NEW PROJECT                    │
-  │  /gsd:new-project                                │
+  │  /df:new-project                                │
   │  Questions -> Research -> Requirements -> Roadmap│
   └─────────────────────────┬────────────────────────┘
                             │
@@ -30,19 +30,19 @@ A detailed reference for workflows, troubleshooting, and configuration. For quic
              │      FOR EACH PHASE:       │
              │                            │
              │  ┌────────────────────┐    │
-             │  │ /gsd:discuss-phase │    │  <- Lock in preferences
+             │  │ /df:discuss-phase │    │  <- Lock in preferences
              │  └──────────┬─────────┘    │
              │             │              │
              │  ┌──────────▼─────────┐    │
-             │  │ /gsd:plan-phase    │    │  <- Research + Plan + Verify
+             │  │ /df:plan-phase    │    │  <- Research + Plan + Verify
              │  └──────────┬─────────┘    │
              │             │              │
              │  ┌──────────▼─────────┐    │
-             │  │ /gsd:execute-phase │    │  <- Parallel execution
+             │  │ /df:execute-phase │    │  <- Parallel execution
              │  └──────────┬─────────┘    │
              │             │              │
              │  ┌──────────▼─────────┐    │
-             │  │ /gsd:verify-work   │    │  <- Manual UAT
+             │  │ /df:verify-work   │    │  <- Manual UAT
              │  └──────────┬─────────┘    │
              │             │              │
              │     Next Phase?────────────┘
@@ -50,8 +50,8 @@ A detailed reference for workflows, troubleshooting, and configuration. For quic
              └─────────────┼──────────────┘
                             │
             ┌───────────────▼──────────────┐
-            │  /gsd:audit-milestone        │
-            │  /gsd:complete-milestone     │
+            │  /df:audit-milestone        │
+            │  /df:complete-milestone     │
             └───────────────┬──────────────┘
                             │
                    Another milestone?
@@ -59,14 +59,14 @@ A detailed reference for workflows, troubleshooting, and configuration. For quic
                       Yes         No -> Done!
                        │
                ┌───────▼──────────────┐
-               │  /gsd:new-milestone  │
+               │  /df:new-milestone  │
                └──────────────────────┘
 ```
 
 ### Planning Agent Coordination
 
 ```
-  /gsd:plan-phase N
+  /df:plan-phase N
          │
          ├── Phase Researcher (x4 parallel)
          │     ├── Stack researcher
@@ -100,7 +100,7 @@ A detailed reference for workflows, troubleshooting, and configuration. For quic
 ### Execution Wave Coordination
 
 ```
-  /gsd:execute-phase N
+  /df:execute-phase N
          │
          ├── Analyze plan dependencies
          │
@@ -115,13 +115,13 @@ A detailed reference for workflows, troubleshooting, and configuration. For quic
                └── Check codebase against phase goals
                      │
                      ├── PASS -> VERIFICATION.md (success)
-                     └── FAIL -> Issues logged for /gsd:verify-work
+                     └── FAIL -> Issues logged for /df:verify-work
 ```
 
 ### Brownfield Workflow (Existing Codebase)
 
 ```
-  /gsd:map-codebase
+  /df:map-codebase
          │
          ├── Stack Mapper     -> codebase/STACK.md
          ├── Arch Mapper      -> codebase/ARCHITECTURE.md
@@ -129,7 +129,7 @@ A detailed reference for workflows, troubleshooting, and configuration. For quic
          └── Concern Mapper   -> codebase/CONCERNS.md
                 │
         ┌───────▼──────────┐
-        │ /gsd:new-project │  <- Questions focus on what you're ADDING
+        │ /df:new-project │  <- Questions focus on what you're ADDING
         └──────────────────┘
 ```
 
@@ -141,56 +141,56 @@ A detailed reference for workflows, troubleshooting, and configuration. For quic
 
 | Command | Purpose | When to Use |
 |---------|---------|-------------|
-| `/gsd:new-project` | Full project init: questions, research, requirements, roadmap | Start of a new project |
-| `/gsd:new-project --auto @idea.md` | Automated init from document | Have a PRD or idea doc ready |
-| `/gsd:discuss-phase [N]` | Capture implementation decisions | Before planning, to shape how it gets built |
-| `/gsd:plan-phase [N]` | Research + plan + verify | Before executing a phase |
-| `/gsd:execute-phase <N>` | Execute all plans in parallel waves | After planning is complete |
-| `/gsd:verify-work [N]` | Manual UAT with auto-diagnosis | After execution completes |
-| `/gsd:audit-milestone` | Verify milestone met its definition of done | Before completing milestone |
-| `/gsd:complete-milestone` | Archive milestone, tag release | All phases verified |
-| `/gsd:new-milestone [name]` | Start next version cycle | After completing a milestone |
+| `/df:new-project` | Full project init: questions, research, requirements, roadmap | Start of a new project |
+| `/df:new-project --auto @idea.md` | Automated init from document | Have a PRD or idea doc ready |
+| `/df:discuss-phase [N]` | Capture implementation decisions | Before planning, to shape how it gets built |
+| `/df:plan-phase [N]` | Research + plan + verify | Before executing a phase |
+| `/df:execute-phase <N>` | Execute all plans in parallel waves | After planning is complete |
+| `/df:verify-work [N]` | Manual UAT with auto-diagnosis | After execution completes |
+| `/df:audit-milestone` | Verify milestone met its definition of done | Before completing milestone |
+| `/df:complete-milestone` | Archive milestone, tag release | All phases verified |
+| `/df:new-milestone [name]` | Start next version cycle | After completing a milestone |
 
 ### Navigation
 
 | Command | Purpose | When to Use |
 |---------|---------|-------------|
-| `/gsd:progress` | Show status and next steps | Anytime -- "where am I?" |
-| `/gsd:resume-work` | Restore full context from last session | Starting a new session |
-| `/gsd:pause-work` | Save context handoff | Stopping mid-phase |
-| `/gsd:help` | Show all commands | Quick reference |
-| `/gsd:update` | Update GSD with changelog preview | Check for new versions |
-| `/gsd:join-discord` | Open Discord community invite | Questions or community |
+| `/df:progress` | Show status and next steps | Anytime -- "where am I?" |
+| `/df:resume-work` | Restore full context from last session | Starting a new session |
+| `/df:pause-work` | Save context handoff | Stopping mid-phase |
+| `/df:help` | Show all commands | Quick reference |
+| `/df:update` | Update GSD with changelog preview | Check for new versions |
+| `/df:join-discord` | Open Discord community invite | Questions or community |
 
 ### Phase Management
 
 | Command | Purpose | When to Use |
 |---------|---------|-------------|
-| `/gsd:add-phase` | Append new phase to roadmap | Scope grows after initial planning |
-| `/gsd:insert-phase [N]` | Insert urgent work (decimal numbering) | Urgent fix mid-milestone |
-| `/gsd:remove-phase [N]` | Remove future phase and renumber | Descoping a feature |
-| `/gsd:list-phase-assumptions [N]` | Preview Claude's intended approach | Before planning, to validate direction |
-| `/gsd:plan-milestone-gaps` | Create phases for audit gaps | After audit finds missing items |
-| `/gsd:research-phase [N]` | Deep ecosystem research only | Complex or unfamiliar domain |
+| `/df:add-phase` | Append new phase to roadmap | Scope grows after initial planning |
+| `/df:insert-phase [N]` | Insert urgent work (decimal numbering) | Urgent fix mid-milestone |
+| `/df:remove-phase [N]` | Remove future phase and renumber | Descoping a feature |
+| `/df:list-phase-assumptions [N]` | Preview Claude's intended approach | Before planning, to validate direction |
+| `/df:plan-milestone-gaps` | Create phases for audit gaps | After audit finds missing items |
+| `/df:research-phase [N]` | Deep ecosystem research only | Complex or unfamiliar domain |
 
 ### Brownfield & Utilities
 
 | Command | Purpose | When to Use |
 |---------|---------|-------------|
-| `/gsd:map-codebase` | Analyze existing codebase | Before `/gsd:new-project` on existing code |
-| `/gsd:quick` | Ad-hoc task with GSD guarantees | Bug fixes, small features, config changes |
-| `/gsd:debug [desc]` | Systematic debugging with persistent state | When something breaks |
-| `/gsd:add-todo [desc]` | Capture an idea for later | Think of something during a session |
-| `/gsd:check-todos` | List pending todos | Review captured ideas |
-| `/gsd:settings` | Configure workflow toggles and model profile | Change model, toggle agents |
-| `/gsd:set-profile <profile>` | Quick profile switch | Change cost/quality tradeoff |
-| `/gsd:reapply-patches` | Restore local modifications after update | After `/gsd:update` if you had local edits |
+| `/df:map-codebase` | Analyze existing codebase | Before `/df:new-project` on existing code |
+| `/df:quick` | Ad-hoc task with GSD guarantees | Bug fixes, small features, config changes |
+| `/df:debug [desc]` | Systematic debugging with persistent state | When something breaks |
+| `/df:add-todo [desc]` | Capture an idea for later | Think of something during a session |
+| `/df:check-todos` | List pending todos | Review captured ideas |
+| `/df:settings` | Configure workflow toggles and model profile | Change model, toggle agents |
+| `/df:set-profile <profile>` | Quick profile switch | Change cost/quality tradeoff |
+| `/df:reapply-patches` | Restore local modifications after update | After `/df:update` if you had local edits |
 
 ---
 
 ## Configuration Reference
 
-GSD stores project settings in `.planning/config.json`. Configure during `/gsd:new-project` or update later with `/gsd:settings`.
+GSD stores project settings in `.planning/config.json`. Configure during `/df:new-project` or update later with `/df:settings`.
 
 ### Full config.json Schema
 
@@ -210,7 +210,7 @@ GSD stores project settings in `.planning/config.json`. Configure during `/gsd:n
   },
   "git": {
     "branching_strategy": "none",
-    "phase_branch_template": "gsd/phase-{phase}-{slug}",
+    "phase_branch_template": "df/phase-{phase}-{slug}",
     "milestone_branch_template": "gsd/{milestone}-{slug}"
   }
 }
@@ -248,7 +248,7 @@ Disable these to speed up phases in familiar domains or when conserving tokens.
 | Setting | Options | Default | What it Controls |
 |---------|---------|---------|------------------|
 | `git.branching_strategy` | `none`, `phase`, `milestone` | `none` | When and how branches are created |
-| `git.phase_branch_template` | Template string | `gsd/phase-{phase}-{slug}` | Branch name for phase strategy |
+| `git.phase_branch_template` | Template string | `df/phase-{phase}-{slug}` | Branch name for phase strategy |
 | `git.milestone_branch_template` | Template string | `gsd/{milestone}-{slug}` | Branch name for milestone strategy |
 
 **Branching strategies explained:**
@@ -265,17 +265,17 @@ Disable these to speed up phases in familiar domains or when conserving tokens.
 
 | Agent | `quality` | `balanced` | `budget` |
 |-------|-----------|------------|----------|
-| gsd-planner | Opus | Opus | Sonnet |
-| gsd-roadmapper | Opus | Sonnet | Sonnet |
-| gsd-executor | Opus | Sonnet | Sonnet |
-| gsd-phase-researcher | Opus | Sonnet | Haiku |
-| gsd-project-researcher | Opus | Sonnet | Haiku |
-| gsd-research-synthesizer | Sonnet | Sonnet | Haiku |
-| gsd-debugger | Opus | Sonnet | Sonnet |
-| gsd-codebase-mapper | Sonnet | Haiku | Haiku |
-| gsd-verifier | Sonnet | Sonnet | Haiku |
-| gsd-plan-checker | Sonnet | Sonnet | Haiku |
-| gsd-integration-checker | Sonnet | Sonnet | Haiku |
+| df-planner | Opus | Opus | Sonnet |
+| df-roadmapper | Opus | Sonnet | Sonnet |
+| df-executor | Opus | Sonnet | Sonnet |
+| df-phase-researcher | Opus | Sonnet | Haiku |
+| df-project-researcher | Opus | Sonnet | Haiku |
+| df-research-synthesizer | Sonnet | Sonnet | Haiku |
+| df-debugger | Opus | Sonnet | Sonnet |
+| df-codebase-mapper | Sonnet | Haiku | Haiku |
+| df-verifier | Sonnet | Sonnet | Haiku |
+| df-plan-checker | Sonnet | Sonnet | Haiku |
+| df-integration-checker | Sonnet | Sonnet | Haiku |
 
 **Profile philosophy:**
 - **quality** -- Opus for all decision-making agents, Sonnet for read-only verification. Use when quota is available and the work is critical.
@@ -290,56 +290,56 @@ Disable these to speed up phases in familiar domains or when conserving tokens.
 
 ```bash
 claude --dangerously-skip-permissions
-/gsd:new-project            # Answer questions, configure, approve roadmap
+/df:new-project            # Answer questions, configure, approve roadmap
 /clear
-/gsd:discuss-phase 1        # Lock in your preferences
-/gsd:plan-phase 1           # Research + plan + verify
-/gsd:execute-phase 1        # Parallel execution
-/gsd:verify-work 1          # Manual UAT
+/df:discuss-phase 1        # Lock in your preferences
+/df:plan-phase 1           # Research + plan + verify
+/df:execute-phase 1        # Parallel execution
+/df:verify-work 1          # Manual UAT
 /clear
-/gsd:discuss-phase 2        # Repeat for each phase
+/df:discuss-phase 2        # Repeat for each phase
 ...
-/gsd:audit-milestone        # Check everything shipped
-/gsd:complete-milestone     # Archive, tag, done
+/df:audit-milestone        # Check everything shipped
+/df:complete-milestone     # Archive, tag, done
 ```
 
 ### New Project from Existing Document
 
 ```bash
-/gsd:new-project --auto @prd.md   # Auto-runs research/requirements/roadmap from your doc
+/df:new-project --auto @prd.md   # Auto-runs research/requirements/roadmap from your doc
 /clear
-/gsd:discuss-phase 1               # Normal flow from here
+/df:discuss-phase 1               # Normal flow from here
 ```
 
 ### Existing Codebase
 
 ```bash
-/gsd:map-codebase           # Analyze what exists (parallel agents)
-/gsd:new-project            # Questions focus on what you're ADDING
+/df:map-codebase           # Analyze what exists (parallel agents)
+/df:new-project            # Questions focus on what you're ADDING
 # (normal phase workflow from here)
 ```
 
 ### Quick Bug Fix
 
 ```bash
-/gsd:quick
+/df:quick
 > "Fix the login button not responding on mobile Safari"
 ```
 
 ### Resuming After a Break
 
 ```bash
-/gsd:progress               # See where you left off and what's next
+/df:progress               # See where you left off and what's next
 # or
-/gsd:resume-work            # Full context restoration from last session
+/df:resume-work            # Full context restoration from last session
 ```
 
 ### Preparing for Release
 
 ```bash
-/gsd:audit-milestone        # Check requirements coverage, detect stubs
-/gsd:plan-milestone-gaps    # If audit found gaps, create phases to close them
-/gsd:complete-milestone     # Archive, tag, done
+/df:audit-milestone        # Check requirements coverage, detect stubs
+/df:plan-milestone-gaps    # If audit found gaps, create phases to close them
+/df:complete-milestone     # Archive, tag, done
 ```
 
 ### Speed vs Quality Presets
@@ -353,11 +353,11 @@ claude --dangerously-skip-permissions
 ### Mid-Milestone Scope Changes
 
 ```bash
-/gsd:add-phase              # Append a new phase to the roadmap
+/df:add-phase              # Append a new phase to the roadmap
 # or
-/gsd:insert-phase 3         # Insert urgent work between phases 3 and 4
+/df:insert-phase 3         # Insert urgent work between phases 3 and 4
 # or
-/gsd:remove-phase 7         # Descope phase 7 and renumber
+/df:remove-phase 7         # Descope phase 7 and renumber
 ```
 
 ---
@@ -366,15 +366,15 @@ claude --dangerously-skip-permissions
 
 ### "Project already initialized"
 
-You ran `/gsd:new-project` but `.planning/PROJECT.md` already exists. This is a safety check. If you want to start over, delete the `.planning/` directory first.
+You ran `/df:new-project` but `.planning/PROJECT.md` already exists. This is a safety check. If you want to start over, delete the `.planning/` directory first.
 
 ### Context Degradation During Long Sessions
 
-Clear your context window between major commands: `/clear` in Claude Code. GSD is designed around fresh contexts -- every subagent gets a clean 200K window. If quality is dropping in the main session, clear and use `/gsd:resume-work` or `/gsd:progress` to restore state.
+Clear your context window between major commands: `/clear` in Claude Code. GSD is designed around fresh contexts -- every subagent gets a clean 200K window. If quality is dropping in the main session, clear and use `/df:resume-work` or `/df:progress` to restore state.
 
 ### Plans Seem Wrong or Misaligned
 
-Run `/gsd:discuss-phase [N]` before planning. Most plan quality issues come from Claude making assumptions that `CONTEXT.md` would have prevented. You can also run `/gsd:list-phase-assumptions [N]` to see what Claude intends to do before committing to a plan.
+Run `/df:discuss-phase [N]` before planning. Most plan quality issues come from Claude making assumptions that `CONTEXT.md` would have prevented. You can also run `/df:list-phase-assumptions [N]` to see what Claude intends to do before committing to a plan.
 
 ### Execution Fails or Produces Stubs
 
@@ -382,23 +382,23 @@ Check that the plan was not too ambitious. Plans should have 2-3 tasks maximum. 
 
 ### Lost Track of Where You Are
 
-Run `/gsd:progress`. It reads all state files and tells you exactly where you are and what to do next.
+Run `/df:progress`. It reads all state files and tells you exactly where you are and what to do next.
 
 ### Need to Change Something After Execution
 
-Do not re-run `/gsd:execute-phase`. Use `/gsd:quick` for targeted fixes, or `/gsd:verify-work` to systematically identify and fix issues through UAT.
+Do not re-run `/df:execute-phase`. Use `/df:quick` for targeted fixes, or `/df:verify-work` to systematically identify and fix issues through UAT.
 
 ### Model Costs Too High
 
-Switch to budget profile: `/gsd:set-profile budget`. Disable research and plan-check agents via `/gsd:settings` if the domain is familiar to you (or to Claude).
+Switch to budget profile: `/df:set-profile budget`. Disable research and plan-check agents via `/df:settings` if the domain is familiar to you (or to Claude).
 
 ### Working on a Sensitive/Private Project
 
-Set `commit_docs: false` during `/gsd:new-project` or via `/gsd:settings`. Add `.planning/` to your `.gitignore`. Planning artifacts stay local and never touch git.
+Set `commit_docs: false` during `/df:new-project` or via `/df:settings`. Add `.planning/` to your `.gitignore`. Planning artifacts stay local and never touch git.
 
 ### GSD Update Overwrote My Local Changes
 
-Since v1.17, the installer backs up locally modified files to `gsd-local-patches/`. Run `/gsd:reapply-patches` to merge your changes back.
+Since v1.17, the installer backs up locally modified files to `df-local-patches/`. Run `/df:reapply-patches` to merge your changes back.
 
 ### Subagent Appears to Fail but Work Was Done
 
@@ -410,15 +410,15 @@ A known workaround exists for a Claude Code classification bug. GSD's orchestrat
 
 | Problem | Solution |
 |---------|----------|
-| Lost context / new session | `/gsd:resume-work` or `/gsd:progress` |
+| Lost context / new session | `/df:resume-work` or `/df:progress` |
 | Phase went wrong | `git revert` the phase commits, then re-plan |
-| Need to change scope | `/gsd:add-phase`, `/gsd:insert-phase`, or `/gsd:remove-phase` |
-| Milestone audit found gaps | `/gsd:plan-milestone-gaps` |
-| Something broke | `/gsd:debug "description"` |
-| Quick targeted fix | `/gsd:quick` |
-| Plan doesn't match your vision | `/gsd:discuss-phase [N]` then re-plan |
-| Costs running high | `/gsd:set-profile budget` and `/gsd:settings` to toggle agents off |
-| Update broke local changes | `/gsd:reapply-patches` |
+| Need to change scope | `/df:add-phase`, `/df:insert-phase`, or `/df:remove-phase` |
+| Milestone audit found gaps | `/df:plan-milestone-gaps` |
+| Something broke | `/df:debug "description"` |
+| Quick targeted fix | `/df:quick` |
+| Plan doesn't match your vision | `/df:discuss-phase [N]` then re-plan |
+| Costs running high | `/df:set-profile budget` and `/df:settings` to toggle agents off |
+| Update broke local changes | `/df:reapply-patches` |
 
 ---
 
@@ -434,13 +434,13 @@ For reference, here is what GSD creates in your project:
   STATE.md                # Decisions, blockers, session memory
   config.json             # Workflow configuration
   MILESTONES.md           # Completed milestone archive
-  research/               # Domain research from /gsd:new-project
+  research/               # Domain research from /df:new-project
   todos/
     pending/              # Captured ideas awaiting work
     done/                 # Completed todos
   debug/                  # Active debug sessions
     resolved/             # Archived debug sessions
-  codebase/               # Brownfield codebase mapping (from /gsd:map-codebase)
+  codebase/               # Brownfield codebase mapping (from /df:map-codebase)
   phases/
     XX-phase-name/
       XX-YY-PLAN.md       # Atomic execution plans
