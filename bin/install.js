@@ -20,112 +20,7 @@ const pkg = require('../package.json');
 const args = process.argv.slice(2);
 const hasGlobal = args.includes('--global') || args.includes('-g');
 const hasLocal = args.includes('--local') || args.includes('-l');
-const hasOpencode = args.includes('--opencode');
-const hasClaude = args.includes('--claude');
-const hasGemini = args.includes('--gemini');
-const hasBoth = args.includes('--both'); // Legacy flag, keeps working
-const hasAll = args.includes('--all');
 const hasUninstall = args.includes('--uninstall') || args.includes('-u');
-
-// Runtime selection - can be set by flags or interactive prompt
-let selectedRuntimes = [];
-if (hasAll) {
-  selectedRuntimes = ['claude', 'opencode', 'gemini'];
-} else if (hasBoth) {
-  selectedRuntimes = ['claude', 'opencode'];
-} else {
-  if (hasOpencode) selectedRuntimes.push('opencode');
-  if (hasClaude) selectedRuntimes.push('claude');
-  if (hasGemini) selectedRuntimes.push('gemini');
-}
-
-// Helper to get directory name for a runtime (used for local/project installs)
-function getDirName(runtime) {
-  if (runtime === 'opencode') return '.opencode';
-  if (runtime === 'gemini') return '.gemini';
-  return '.claude';
-}
-
-/**
- * Get the config directory path relative to home directory for a runtime
- * Used for templating hooks that use path.join(homeDir, '<configDir>', ...)
- * @param {string} runtime - 'claude', 'opencode', or 'gemini'
- * @param {boolean} isGlobal - Whether this is a global install
- */
-function getConfigDirFromHome(runtime, isGlobal) {
-  if (!isGlobal) {
-    // Local installs use the same dir name pattern
-    return `'${getDirName(runtime)}'`;
-  }
-  // Global installs - OpenCode uses XDG path structure
-  if (runtime === 'opencode') {
-    // OpenCode: ~/.config/opencode -> '.config', 'opencode'
-    // Return as comma-separated for path.join() replacement
-    return "'.config', 'opencode'";
-  }
-  if (runtime === 'gemini') return "'.gemini'";
-  return "'.claude'";
-}
-
-/**
- * Get the global config directory for OpenCode
- * OpenCode follows XDG Base Directory spec and uses ~/.config/opencode/
- * Priority: OPENCODE_CONFIG_DIR > dirname(OPENCODE_CONFIG) > XDG_CONFIG_HOME/opencode > ~/.config/opencode
- */
-function getOpencodeGlobalDir() {
-  // 1. Explicit OPENCODE_CONFIG_DIR env var
-  if (process.env.OPENCODE_CONFIG_DIR) {
-    return expandTilde(process.env.OPENCODE_CONFIG_DIR);
-  }
-  
-  // 2. OPENCODE_CONFIG env var (use its directory)
-  if (process.env.OPENCODE_CONFIG) {
-    return path.dirname(expandTilde(process.env.OPENCODE_CONFIG));
-  }
-  
-  // 3. XDG_CONFIG_HOME/opencode
-  if (process.env.XDG_CONFIG_HOME) {
-    return path.join(expandTilde(process.env.XDG_CONFIG_HOME), 'opencode');
-  }
-  
-  // 4. Default: ~/.config/opencode (XDG default)
-  return path.join(os.homedir(), '.config', 'opencode');
-}
-
-/**
- * Get the global config directory for a runtime
- * @param {string} runtime - 'claude', 'opencode', or 'gemini'
- * @param {string|null} explicitDir - Explicit directory from --config-dir flag
- */
-function getGlobalDir(runtime, explicitDir = null) {
-  if (runtime === 'opencode') {
-    // For OpenCode, --config-dir overrides env vars
-    if (explicitDir) {
-      return expandTilde(explicitDir);
-    }
-    return getOpencodeGlobalDir();
-  }
-  
-  if (runtime === 'gemini') {
-    // Gemini: --config-dir > GEMINI_CONFIG_DIR > ~/.gemini
-    if (explicitDir) {
-      return expandTilde(explicitDir);
-    }
-    if (process.env.GEMINI_CONFIG_DIR) {
-      return expandTilde(process.env.GEMINI_CONFIG_DIR);
-    }
-    return path.join(os.homedir(), '.gemini');
-  }
-  
-  // Claude Code: --config-dir > CLAUDE_CONFIG_DIR > ~/.claude
-  if (explicitDir) {
-    return expandTilde(explicitDir);
-  }
-  if (process.env.CLAUDE_CONFIG_DIR) {
-    return expandTilde(process.env.CLAUDE_CONFIG_DIR);
-  }
-  return path.join(os.homedir(), '.claude');
-}
 
 const banner = '\n' +
   cyan + '  ██████╗ ███████╗██╗   ██╗███████╗██╗      ██████╗ ██╗    ██╗\n' +
@@ -137,7 +32,7 @@ const banner = '\n' +
   '\n' +
   '  DevFlow ' + dim + 'v' + pkg.version + reset + '\n' +
   '  A meta-prompting, context engineering and spec-driven\n' +
-  '  development system for Claude Code, OpenCode, and Gemini by AO Cyber Systems.\n';
+  '  development system for Claude Code by AO Cyber Systems.\n';
 
 // Parse --config-dir argument
 function parseConfigDirArg() {
@@ -171,7 +66,7 @@ console.log(banner);
 
 // Show help if requested
 if (hasHelp) {
-  console.log(`  ${yellow}Usage:${reset} npx devflow-cc [options]\n\n  ${yellow}Options:${reset}\n    ${cyan}-g, --global${reset}              Install globally (to config directory)\n    ${cyan}-l, --local${reset}               Install locally (to current directory)\n    ${cyan}--claude${reset}                  Install for Claude Code only\n    ${cyan}--opencode${reset}                Install for OpenCode only\n    ${cyan}--gemini${reset}                  Install for Gemini only\n    ${cyan}--all${reset}                     Install for all runtimes\n    ${cyan}-u, --uninstall${reset}           Uninstall DevFlow (remove all DevFlow files)\n    ${cyan}-c, --config-dir <path>${reset}   Specify custom config directory\n    ${cyan}-h, --help${reset}                Show this help message\n    ${cyan}--force-statusline${reset}        Replace existing statusline config\n\n  ${yellow}Examples:${reset}\n    ${dim}# Interactive install (prompts for runtime and location)${reset}\n    npx devflow-cc\n\n    ${dim}# Install for Claude Code globally${reset}\n    npx devflow-cc --claude --global\n\n    ${dim}# Install for Gemini globally${reset}\n    npx devflow-cc --gemini --global\n\n    ${dim}# Install for all runtimes globally${reset}\n    npx devflow-cc --all --global\n\n    ${dim}# Install to custom config directory${reset}\n    npx devflow-cc --claude --global --config-dir ~/.claude-bc\n\n    ${dim}# Install to current project only${reset}\n    npx devflow-cc --claude --local\n\n    ${dim}# Uninstall DevFlow from Claude Code globally${reset}\n    npx devflow-cc --claude --global --uninstall\n\n  ${yellow}Notes:${reset}\n    The --config-dir option is useful when you have multiple configurations.\n    It takes priority over CLAUDE_CONFIG_DIR / GEMINI_CONFIG_DIR environment variables.\n`);
+  console.log(`  ${yellow}Usage:${reset} npx devflow-cc [options]\n\n  ${yellow}Options:${reset}\n    ${cyan}-g, --global${reset}              Install globally (to ~/.claude)\n    ${cyan}-l, --local${reset}               Install locally (to ./.claude)\n    ${cyan}-u, --uninstall${reset}           Uninstall DevFlow (remove all DevFlow files)\n    ${cyan}-c, --config-dir <path>${reset}   Specify custom config directory\n    ${cyan}-h, --help${reset}                Show this help message\n    ${cyan}--force-statusline${reset}        Replace existing statusline config\n\n  ${yellow}Examples:${reset}\n    ${dim}# Interactive install (prompts for location)${reset}\n    npx devflow-cc\n\n    ${dim}# Install globally${reset}\n    npx devflow-cc --global\n\n    ${dim}# Install to custom config directory${reset}\n    npx devflow-cc --global --config-dir ~/.claude-bc\n\n    ${dim}# Install to current project only${reset}\n    npx devflow-cc --local\n\n    ${dim}# Uninstall DevFlow globally${reset}\n    npx devflow-cc --global --uninstall\n\n  ${yellow}Notes:${reset}\n    The --config-dir option is useful when you have multiple configurations.\n    It takes priority over the CLAUDE_CONFIG_DIR environment variable.\n`);
   process.exit(0);
 }
 
@@ -186,11 +81,22 @@ function expandTilde(filePath) {
 }
 
 /**
+ * Get the global config directory for Claude Code
+ */
+function getGlobalDir() {
+  if (explicitConfigDir) {
+    return expandTilde(explicitConfigDir);
+  }
+  if (process.env.CLAUDE_CONFIG_DIR) {
+    return expandTilde(process.env.CLAUDE_CONFIG_DIR);
+  }
+  return path.join(os.homedir(), '.claude');
+}
+
+/**
  * Build a hook command path using forward slashes for cross-platform compatibility.
- * On Windows, $HOME is not expanded by cmd.exe/PowerShell, so we use the actual path.
  */
 function buildHookCommand(configDir, hookName) {
-  // Use forward slashes for Node.js compatibility on all platforms
   const hooksPath = configDir.replace(/\\/g, '/') + '/hooks/' + hookName;
   return `node "${hooksPath}"`;
 }
@@ -216,474 +122,40 @@ function writeSettings(settingsPath, settings) {
   fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n');
 }
 
-// Cache for attribution settings (populated once per runtime during install)
-const attributionCache = new Map();
-
 /**
- * Get commit attribution setting for a runtime
- * @param {string} runtime - 'claude', 'opencode', or 'gemini'
+ * Get commit attribution setting
  * @returns {null|undefined|string} null = remove, undefined = keep default, string = custom
  */
-function getCommitAttribution(runtime) {
-  // Return cached value if available
-  if (attributionCache.has(runtime)) {
-    return attributionCache.get(runtime);
-  }
-
-  let result;
-
-  if (runtime === 'opencode') {
-    const config = readSettings(path.join(getGlobalDir('opencode', null), 'opencode.json'));
-    result = config.disable_ai_attribution === true ? null : undefined;
-  } else if (runtime === 'gemini') {
-    // Gemini: check gemini settings.json for attribution config
-    const settings = readSettings(path.join(getGlobalDir('gemini', explicitConfigDir), 'settings.json'));
-    if (!settings.attribution || settings.attribution.commit === undefined) {
-      result = undefined;
-    } else if (settings.attribution.commit === '') {
-      result = null;
-    } else {
-      result = settings.attribution.commit;
-    }
+function getCommitAttribution() {
+  const settings = readSettings(path.join(getGlobalDir(), 'settings.json'));
+  if (!settings.attribution || settings.attribution.commit === undefined) {
+    return undefined;
+  } else if (settings.attribution.commit === '') {
+    return null;
   } else {
-    // Claude Code
-    const settings = readSettings(path.join(getGlobalDir('claude', explicitConfigDir), 'settings.json'));
-    if (!settings.attribution || settings.attribution.commit === undefined) {
-      result = undefined;
-    } else if (settings.attribution.commit === '') {
-      result = null;
-    } else {
-      result = settings.attribution.commit;
-    }
+    return settings.attribution.commit;
   }
-
-  // Cache and return
-  attributionCache.set(runtime, result);
-  return result;
 }
 
 /**
  * Process Co-Authored-By lines based on attribution setting
- * @param {string} content - File content to process
- * @param {null|undefined|string} attribution - null=remove, undefined=keep, string=replace
- * @returns {string} Processed content
  */
 function processAttribution(content, attribution) {
   if (attribution === null) {
-    // Remove Co-Authored-By lines and the preceding blank line
     return content.replace(/(\r?\n){2}Co-Authored-By:.*$/gim, '');
   }
   if (attribution === undefined) {
     return content;
   }
-  // Replace with custom attribution (escape $ to prevent backreference injection)
   const safeAttribution = attribution.replace(/\$/g, '$$$$');
   return content.replace(/Co-Authored-By:.*$/gim, `Co-Authored-By: ${safeAttribution}`);
 }
 
 /**
- * Convert Claude Code frontmatter to opencode format
- * - Converts 'allowed-tools:' array to 'permission:' object
- * @param {string} content - Markdown file content with YAML frontmatter
- * @returns {string} - Content with converted frontmatter
- */
-// Color name to hex mapping for opencode compatibility
-const colorNameToHex = {
-  cyan: '#00FFFF',
-  red: '#FF0000',
-  green: '#00FF00',
-  blue: '#0000FF',
-  yellow: '#FFFF00',
-  magenta: '#FF00FF',
-  orange: '#FFA500',
-  purple: '#800080',
-  pink: '#FFC0CB',
-  white: '#FFFFFF',
-  black: '#000000',
-  gray: '#808080',
-  grey: '#808080',
-};
-
-// Tool name mapping from Claude Code to OpenCode
-// OpenCode uses lowercase tool names; special mappings for renamed tools
-const claudeToOpencodeTools = {
-  AskUserQuestion: 'question',
-  SlashCommand: 'skill',
-  TodoWrite: 'todowrite',
-  WebFetch: 'webfetch',
-  WebSearch: 'websearch',  // Plugin/MCP - keep for compatibility
-};
-
-// Tool name mapping from Claude Code to Gemini CLI
-// Gemini CLI uses snake_case built-in tool names
-const claudeToGeminiTools = {
-  Read: 'read_file',
-  Write: 'write_file',
-  Edit: 'replace',
-  Bash: 'run_shell_command',
-  Glob: 'glob',
-  Grep: 'search_file_content',
-  WebSearch: 'google_web_search',
-  WebFetch: 'web_fetch',
-  TodoWrite: 'write_todos',
-  AskUserQuestion: 'ask_user',
-};
-
-/**
- * Convert a Claude Code tool name to OpenCode format
- * - Applies special mappings (AskUserQuestion -> question, etc.)
- * - Converts to lowercase (except MCP tools which keep their format)
- */
-function convertToolName(claudeTool) {
-  // Check for special mapping first
-  if (claudeToOpencodeTools[claudeTool]) {
-    return claudeToOpencodeTools[claudeTool];
-  }
-  // MCP tools (mcp__*) keep their format
-  if (claudeTool.startsWith('mcp__')) {
-    return claudeTool;
-  }
-  // Default: convert to lowercase
-  return claudeTool.toLowerCase();
-}
-
-/**
- * Convert a Claude Code tool name to Gemini CLI format
- * - Applies Claude→Gemini mapping (Read→read_file, Bash→run_shell_command, etc.)
- * - Filters out MCP tools (mcp__*) — they are auto-discovered at runtime in Gemini
- * - Filters out Task — agents are auto-registered as tools in Gemini
- * @returns {string|null} Gemini tool name, or null if tool should be excluded
- */
-function convertGeminiToolName(claudeTool) {
-  // MCP tools: exclude — auto-discovered from mcpServers config at runtime
-  if (claudeTool.startsWith('mcp__')) {
-    return null;
-  }
-  // Task: exclude — agents are auto-registered as callable tools
-  if (claudeTool === 'Task') {
-    return null;
-  }
-  // Check for explicit mapping
-  if (claudeToGeminiTools[claudeTool]) {
-    return claudeToGeminiTools[claudeTool];
-  }
-  // Default: lowercase
-  return claudeTool.toLowerCase();
-}
-
-/**
- * Strip HTML <sub> tags for Gemini CLI output
- * Terminals don't support subscript — Gemini renders these as raw HTML.
- * Converts <sub>text</sub> to italic *(text)* for readable terminal output.
- */
-function stripSubTags(content) {
-  return content.replace(/<sub>(.*?)<\/sub>/g, '*($1)*');
-}
-
-/**
- * Convert Claude Code agent frontmatter to Gemini CLI format
- * Gemini agents use .md files with YAML frontmatter, same as Claude,
- * but with different field names and formats:
- * - tools: must be a YAML array (not comma-separated string)
- * - tool names: must use Gemini built-in names (read_file, not Read)
- * - color: must be removed (causes validation error)
- * - mcp__* tools: must be excluded (auto-discovered at runtime)
- */
-function convertClaudeToGeminiAgent(content) {
-  if (!content.startsWith('---')) return content;
-
-  const endIndex = content.indexOf('---', 3);
-  if (endIndex === -1) return content;
-
-  const frontmatter = content.substring(3, endIndex).trim();
-  const body = content.substring(endIndex + 3);
-
-  const lines = frontmatter.split('\n');
-  const newLines = [];
-  let inAllowedTools = false;
-  const tools = [];
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-
-    // Convert allowed-tools YAML array to tools list
-    if (trimmed.startsWith('allowed-tools:')) {
-      inAllowedTools = true;
-      continue;
-    }
-
-    // Handle inline tools: field (comma-separated string)
-    if (trimmed.startsWith('tools:')) {
-      const toolsValue = trimmed.substring(6).trim();
-      if (toolsValue) {
-        const parsed = toolsValue.split(',').map(t => t.trim()).filter(t => t);
-        for (const t of parsed) {
-          const mapped = convertGeminiToolName(t);
-          if (mapped) tools.push(mapped);
-        }
-      } else {
-        // tools: with no value means YAML array follows
-        inAllowedTools = true;
-      }
-      continue;
-    }
-
-    // Strip color field (not supported by Gemini CLI, causes validation error)
-    if (trimmed.startsWith('color:')) continue;
-
-    // Collect allowed-tools/tools array items
-    if (inAllowedTools) {
-      if (trimmed.startsWith('- ')) {
-        const mapped = convertGeminiToolName(trimmed.substring(2).trim());
-        if (mapped) tools.push(mapped);
-        continue;
-      } else if (trimmed && !trimmed.startsWith('-')) {
-        inAllowedTools = false;
-      }
-    }
-
-    if (!inAllowedTools) {
-      newLines.push(line);
-    }
-  }
-
-  // Add tools as YAML array (Gemini requires array format)
-  if (tools.length > 0) {
-    newLines.push('tools:');
-    for (const tool of tools) {
-      newLines.push(`  - ${tool}`);
-    }
-  }
-
-  const newFrontmatter = newLines.join('\n').trim();
-
-  // Escape ${VAR} patterns in agent body for Gemini CLI compatibility.
-  // Gemini's templateString() treats all ${word} patterns as template variables
-  // and throws "Template validation failed: Missing required input parameters"
-  // when they can't be resolved. DevFlow agents use ${PHASE}, ${PLAN}, etc. as
-  // shell variables in bash code blocks — convert to $VAR (no braces) which
-  // is equivalent bash and invisible to Gemini's /\$\{(\w+)\}/g regex.
-  const escapedBody = body.replace(/\$\{(\w+)\}/g, '$$$1');
-
-  return `---\n${newFrontmatter}\n---${stripSubTags(escapedBody)}`;
-}
-
-function convertClaudeToOpencodeFrontmatter(content) {
-  // Replace tool name references in content (applies to all files)
-  let convertedContent = content;
-  convertedContent = convertedContent.replace(/\bAskUserQuestion\b/g, 'question');
-  convertedContent = convertedContent.replace(/\bSlashCommand\b/g, 'skill');
-  convertedContent = convertedContent.replace(/\bTodoWrite\b/g, 'todowrite');
-  // Replace /df:command with /df-command for opencode (flat command structure)
-  convertedContent = convertedContent.replace(/\/df:/g, '/df-');
-  // Replace ~/.claude with ~/.config/opencode (OpenCode's correct config location)
-  convertedContent = convertedContent.replace(/~\/\.claude\b/g, '~/.config/opencode');
-  // Replace general-purpose subagent type with OpenCode's equivalent "general"
-  convertedContent = convertedContent.replace(/subagent_type="general-purpose"/g, 'subagent_type="general"');
-
-  // Check if content has frontmatter
-  if (!convertedContent.startsWith('---')) {
-    return convertedContent;
-  }
-
-  // Find the end of frontmatter
-  const endIndex = convertedContent.indexOf('---', 3);
-  if (endIndex === -1) {
-    return convertedContent;
-  }
-
-  const frontmatter = convertedContent.substring(3, endIndex).trim();
-  const body = convertedContent.substring(endIndex + 3);
-
-  // Parse frontmatter line by line (simple YAML parsing)
-  const lines = frontmatter.split('\n');
-  const newLines = [];
-  let inAllowedTools = false;
-  const allowedTools = [];
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-
-    // Detect start of allowed-tools array
-    if (trimmed.startsWith('allowed-tools:')) {
-      inAllowedTools = true;
-      continue;
-    }
-
-    // Detect inline tools: field (comma-separated string)
-    if (trimmed.startsWith('tools:')) {
-      const toolsValue = trimmed.substring(6).trim();
-      if (toolsValue) {
-        // Parse comma-separated tools
-        const tools = toolsValue.split(',').map(t => t.trim()).filter(t => t);
-        allowedTools.push(...tools);
-      }
-      continue;
-    }
-
-    // Remove name: field - opencode uses filename for command name
-    if (trimmed.startsWith('name:')) {
-      continue;
-    }
-
-    // Convert color names to hex for opencode
-    if (trimmed.startsWith('color:')) {
-      const colorValue = trimmed.substring(6).trim().toLowerCase();
-      const hexColor = colorNameToHex[colorValue];
-      if (hexColor) {
-        newLines.push(`color: "${hexColor}"`);
-      } else if (colorValue.startsWith('#')) {
-        // Validate hex color format (#RGB or #RRGGBB)
-        if (/^#[0-9a-f]{3}$|^#[0-9a-f]{6}$/i.test(colorValue)) {
-          // Already hex and valid, keep as is
-          newLines.push(line);
-        }
-        // Skip invalid hex colors
-      }
-      // Skip unknown color names
-      continue;
-    }
-
-    // Collect allowed-tools items
-    if (inAllowedTools) {
-      if (trimmed.startsWith('- ')) {
-        allowedTools.push(trimmed.substring(2).trim());
-        continue;
-      } else if (trimmed && !trimmed.startsWith('-')) {
-        // End of array, new field started
-        inAllowedTools = false;
-      }
-    }
-
-    // Keep other fields (including name: which opencode ignores)
-    if (!inAllowedTools) {
-      newLines.push(line);
-    }
-  }
-
-  // Add tools object if we had allowed-tools or tools
-  if (allowedTools.length > 0) {
-    newLines.push('tools:');
-    for (const tool of allowedTools) {
-      newLines.push(`  ${convertToolName(tool)}: true`);
-    }
-  }
-
-  // Rebuild frontmatter (body already has tool names converted)
-  const newFrontmatter = newLines.join('\n').trim();
-  return `---\n${newFrontmatter}\n---${body}`;
-}
-
-/**
- * Convert Claude Code markdown command to Gemini TOML format
- * @param {string} content - Markdown file content with YAML frontmatter
- * @returns {string} - TOML content
- */
-function convertClaudeToGeminiToml(content) {
-  // Check if content has frontmatter
-  if (!content.startsWith('---')) {
-    return `prompt = ${JSON.stringify(content)}\n`;
-  }
-
-  const endIndex = content.indexOf('---', 3);
-  if (endIndex === -1) {
-    return `prompt = ${JSON.stringify(content)}\n`;
-  }
-
-  const frontmatter = content.substring(3, endIndex).trim();
-  const body = content.substring(endIndex + 3).trim();
-  
-  // Extract description from frontmatter
-  let description = '';
-  const lines = frontmatter.split('\n');
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (trimmed.startsWith('description:')) {
-      description = trimmed.substring(12).trim();
-      break;
-    }
-  }
-
-  // Construct TOML
-  let toml = '';
-  if (description) {
-    toml += `description = ${JSON.stringify(description)}\n`;
-  }
-  
-  toml += `prompt = ${JSON.stringify(body)}\n`;
-  
-  return toml;
-}
-
-/**
- * Copy commands to a flat structure for OpenCode
- * OpenCode expects: command/df-help.md (invoked as /df-help)
- * Source structure: commands/df/help.md
- *
- * @param {string} srcDir - Source directory (e.g., commands/df/)
- * @param {string} destDir - Destination directory (e.g., command/)
- * @param {string} prefix - Prefix for filenames (e.g., 'df')
- * @param {string} pathPrefix - Path prefix for file references
- * @param {string} runtime - Target runtime ('claude' or 'opencode')
- */
-function copyFlattenedCommands(srcDir, destDir, prefix, pathPrefix, runtime) {
-  if (!fs.existsSync(srcDir)) {
-    return;
-  }
-  
-  // Remove old df-*.md files before copying new ones
-  if (fs.existsSync(destDir)) {
-    for (const file of fs.readdirSync(destDir)) {
-      if (file.startsWith(`${prefix}-`) && file.endsWith('.md')) {
-        fs.unlinkSync(path.join(destDir, file));
-      }
-    }
-  } else {
-    fs.mkdirSync(destDir, { recursive: true });
-  }
-  
-  const entries = fs.readdirSync(srcDir, { withFileTypes: true });
-  
-  for (const entry of entries) {
-    const srcPath = path.join(srcDir, entry.name);
-    
-    if (entry.isDirectory()) {
-      // Recurse into subdirectories, adding to prefix
-      // e.g., commands/df/debug/start.md -> command/df-debug-start.md
-      copyFlattenedCommands(srcPath, destDir, `${prefix}-${entry.name}`, pathPrefix, runtime);
-    } else if (entry.name.endsWith('.md')) {
-      // Flatten: help.md -> df-help.md
-      const baseName = entry.name.replace('.md', '');
-      const destName = `${prefix}-${baseName}.md`;
-      const destPath = path.join(destDir, destName);
-
-      let content = fs.readFileSync(srcPath, 'utf8');
-      const globalClaudeRegex = /~\/\.claude\//g;
-      const localClaudeRegex = /\.\/\.claude\//g;
-      const opencodeDirRegex = /~\/\.opencode\//g;
-      content = content.replace(globalClaudeRegex, pathPrefix);
-      content = content.replace(localClaudeRegex, `./${getDirName(runtime)}/`);
-      content = content.replace(opencodeDirRegex, pathPrefix);
-      content = processAttribution(content, getCommitAttribution(runtime));
-      content = convertClaudeToOpencodeFrontmatter(content);
-
-      fs.writeFileSync(destPath, content);
-    }
-  }
-}
-
-/**
  * Recursively copy directory, replacing paths in .md files
  * Deletes existing destDir first to remove orphaned files from previous versions
- * @param {string} srcDir - Source directory
- * @param {string} destDir - Destination directory
- * @param {string} pathPrefix - Path prefix for file references
- * @param {string} runtime - Target runtime ('claude', 'opencode', 'gemini')
  */
-function copyWithPathReplacement(srcDir, destDir, pathPrefix, runtime) {
-  const isOpencode = runtime === 'opencode';
-  const dirName = getDirName(runtime);
-
+function copyWithPathReplacement(srcDir, destDir, pathPrefix) {
   // Clean install: remove existing destination to prevent orphaned files
   if (fs.existsSync(destDir)) {
     fs.rmSync(destDir, { recursive: true });
@@ -691,38 +163,86 @@ function copyWithPathReplacement(srcDir, destDir, pathPrefix, runtime) {
   fs.mkdirSync(destDir, { recursive: true });
 
   const entries = fs.readdirSync(srcDir, { withFileTypes: true });
+  const attribution = getCommitAttribution();
 
   for (const entry of entries) {
     const srcPath = path.join(srcDir, entry.name);
     const destPath = path.join(destDir, entry.name);
 
     if (entry.isDirectory()) {
-      copyWithPathReplacement(srcPath, destPath, pathPrefix, runtime);
+      copyWithPathReplacement(srcPath, destPath, pathPrefix);
     } else if (entry.name.endsWith('.md')) {
-      // Replace ~/.claude/ and ./.claude/ with runtime-appropriate paths
       let content = fs.readFileSync(srcPath, 'utf8');
       const globalClaudeRegex = /~\/\.claude\//g;
       const localClaudeRegex = /\.\/\.claude\//g;
       content = content.replace(globalClaudeRegex, pathPrefix);
-      content = content.replace(localClaudeRegex, `./${dirName}/`);
-      content = processAttribution(content, getCommitAttribution(runtime));
-
-      // Convert frontmatter for opencode compatibility
-      if (isOpencode) {
-        content = convertClaudeToOpencodeFrontmatter(content);
-        fs.writeFileSync(destPath, content);
-      } else if (runtime === 'gemini') {
-        // Convert to TOML for Gemini (strip <sub> tags — terminals can't render subscript)
-        content = stripSubTags(content);
-        const tomlContent = convertClaudeToGeminiToml(content);
-        // Replace extension with .toml
-        const tomlPath = destPath.replace(/\.md$/, '.toml');
-        fs.writeFileSync(tomlPath, tomlContent);
-      } else {
-        fs.writeFileSync(destPath, content);
-      }
+      content = content.replace(localClaudeRegex, `./.claude/`);
+      content = processAttribution(content, attribution);
+      fs.writeFileSync(destPath, content);
     } else {
       fs.copyFileSync(srcPath, destPath);
+    }
+  }
+}
+
+/**
+ * Copy skills directory to destination
+ * Source: skills/df-<name>/SKILL.md
+ * Dest: <targetDir>/skills/df-<name>/SKILL.md
+ */
+function copySkills(srcDir, destDir, pathPrefix) {
+  if (!fs.existsSync(srcDir)) return;
+
+  // Remove old skills/df-* directories before copying new ones
+  if (fs.existsSync(destDir)) {
+    for (const entry of fs.readdirSync(destDir, { withFileTypes: true })) {
+      if (entry.isDirectory() && entry.name.startsWith('df-')) {
+        fs.rmSync(path.join(destDir, entry.name), { recursive: true });
+      }
+    }
+  } else {
+    fs.mkdirSync(destDir, { recursive: true });
+  }
+
+  // Also remove legacy commands/df/ if it exists (migration from pre-skills era)
+  const legacyCommandsDir = path.join(path.dirname(destDir), 'commands', 'df');
+  if (fs.existsSync(legacyCommandsDir)) {
+    fs.rmSync(legacyCommandsDir, { recursive: true });
+    console.log(`  ${green}✓${reset} Removed legacy commands/df/ (migrated to skills/)`);
+  }
+
+  const attribution = getCommitAttribution();
+  const entries = fs.readdirSync(srcDir, { withFileTypes: true });
+
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !entry.name.startsWith('df-')) continue;
+
+    const skillSrcDir = path.join(srcDir, entry.name);
+    const skillDestDir = path.join(destDir, entry.name);
+    fs.mkdirSync(skillDestDir, { recursive: true });
+
+    // Copy SKILL.md with path replacement
+    const skillFile = path.join(skillSrcDir, 'SKILL.md');
+    if (fs.existsSync(skillFile)) {
+      let content = fs.readFileSync(skillFile, 'utf8');
+      const globalClaudeRegex = /~\/\.claude\//g;
+      const localClaudeRegex = /\.\/\.claude\//g;
+      content = content.replace(globalClaudeRegex, pathPrefix);
+      content = content.replace(localClaudeRegex, `./.claude/`);
+      content = processAttribution(content, attribution);
+      fs.writeFileSync(path.join(skillDestDir, 'SKILL.md'), content);
+    }
+
+    // Copy any other files in the skill directory
+    for (const subEntry of fs.readdirSync(skillSrcDir, { withFileTypes: true })) {
+      if (subEntry.name === 'SKILL.md') continue;
+      const subSrc = path.join(skillSrcDir, subEntry.name);
+      const subDest = path.join(skillDestDir, subEntry.name);
+      if (subEntry.isDirectory()) {
+        copyWithPathReplacement(subSrc, subDest, pathPrefix);
+      } else {
+        fs.copyFileSync(subSrc, subDest);
+      }
     }
   }
 }
@@ -759,24 +279,21 @@ function cleanupOrphanedHooks(settings) {
 
   let cleanedHooks = false;
 
-  // Check all hook event types (Stop, SessionStart, etc.)
   if (settings.hooks) {
     for (const eventType of Object.keys(settings.hooks)) {
       const hookEntries = settings.hooks[eventType];
       if (Array.isArray(hookEntries)) {
-        // Filter out entries that contain orphaned hooks
         const filtered = hookEntries.filter(entry => {
           if (entry.hooks && Array.isArray(entry.hooks)) {
-            // Check if any hook in this entry matches orphaned patterns
             const hasOrphaned = entry.hooks.some(h =>
               h.command && orphanedHookPatterns.some(pattern => h.command.includes(pattern))
             );
             if (hasOrphaned) {
               cleanedHooks = true;
-              return false;  // Remove this entry
+              return false;
             }
           }
-          return true;  // Keep this entry
+          return true;
         });
         settings.hooks[eventType] = filtered;
       }
@@ -791,73 +308,60 @@ function cleanupOrphanedHooks(settings) {
   if (settings.statusLine && settings.statusLine.command &&
       settings.statusLine.command.includes('statusline.js') &&
       !settings.statusLine.command.includes('df-statusline.js')) {
-    // Replace old path with new path
     settings.statusLine.command = settings.statusLine.command.replace(
       /statusline\.js/,
       'df-statusline.js'
     );
-    console.log(`  ${green}✓${reset} Updated statusline path (statusline.js → df-statusline.js)`);
+    console.log(`  ${green}✓${reset} Updated statusline path (statusline.js -> df-statusline.js)`);
   }
 
   return settings;
 }
 
 /**
- * Uninstall DevFlow from the specified directory for a specific runtime
- * Removes only DevFlow-specific files/directories, preserves user content
- * @param {boolean} isGlobal - Whether to uninstall from global or local
- * @param {string} runtime - Target runtime ('claude', 'opencode', 'gemini')
+ * Uninstall DevFlow from the specified directory
  */
-function uninstall(isGlobal, runtime = 'claude') {
-  const isOpencode = runtime === 'opencode';
-  const dirName = getDirName(runtime);
-
-  // Get the target directory based on runtime and install type
+function uninstall(isGlobal) {
   const targetDir = isGlobal
-    ? getGlobalDir(runtime, explicitConfigDir)
-    : path.join(process.cwd(), dirName);
+    ? getGlobalDir()
+    : path.join(process.cwd(), '.claude');
 
   const locationLabel = isGlobal
     ? targetDir.replace(os.homedir(), '~')
     : targetDir.replace(process.cwd(), '.');
 
-  let runtimeLabel = 'Claude Code';
-  if (runtime === 'opencode') runtimeLabel = 'OpenCode';
-  if (runtime === 'gemini') runtimeLabel = 'Gemini';
+  console.log(`  Uninstalling DevFlow from ${cyan}Claude Code${reset} at ${cyan}${locationLabel}${reset}\n`);
 
-  console.log(`  Uninstalling DevFlow from ${cyan}${runtimeLabel}${reset} at ${cyan}${locationLabel}${reset}\n`);
-
-  // Check if target directory exists
   if (!fs.existsSync(targetDir)) {
-    console.log(`  ${yellow}⚠${reset} Directory does not exist: ${locationLabel}`);
+    console.log(`  ${yellow}Warning${reset} Directory does not exist: ${locationLabel}`);
     console.log(`  Nothing to uninstall.\n`);
     return;
   }
 
   let removedCount = 0;
 
-  // 1. Remove DevFlow commands directory
-  if (isOpencode) {
-    // OpenCode: remove command/df-*.md files
-    const commandDir = path.join(targetDir, 'command');
-    if (fs.existsSync(commandDir)) {
-      const files = fs.readdirSync(commandDir);
-      for (const file of files) {
-        if (file.startsWith('df-') && file.endsWith('.md')) {
-          fs.unlinkSync(path.join(commandDir, file));
-          removedCount++;
-        }
+  // 1. Remove DevFlow skills (skills/df-* directories)
+  const skillsDir = path.join(targetDir, 'skills');
+  if (fs.existsSync(skillsDir)) {
+    let skillCount = 0;
+    for (const entry of fs.readdirSync(skillsDir, { withFileTypes: true })) {
+      if (entry.isDirectory() && entry.name.startsWith('df-')) {
+        fs.rmSync(path.join(skillsDir, entry.name), { recursive: true });
+        skillCount++;
       }
-      console.log(`  ${green}✓${reset} Removed DevFlow commands from command/`);
     }
-  } else {
-    // Claude Code & Gemini: remove commands/df/ directory
-    const dfCommandsDir = path.join(targetDir, 'commands', 'df');
-    if (fs.existsSync(dfCommandsDir)) {
-      fs.rmSync(dfCommandsDir, { recursive: true });
+    if (skillCount > 0) {
       removedCount++;
-      console.log(`  ${green}✓${reset} Removed commands/df/`);
+      console.log(`  ${green}✓${reset} Removed ${skillCount} DevFlow skills`);
     }
+  }
+
+  // 1b. Also remove legacy commands/df/ if it exists
+  const dfCommandsDir = path.join(targetDir, 'commands', 'df');
+  if (fs.existsSync(dfCommandsDir)) {
+    fs.rmSync(dfCommandsDir, { recursive: true });
+    removedCount++;
+    console.log(`  ${green}✓${reset} Removed legacy commands/df/`);
   }
 
   // 2. Remove devflow directory
@@ -908,7 +412,6 @@ function uninstall(isGlobal, runtime = 'claude') {
   if (fs.existsSync(pkgJsonPath)) {
     try {
       const content = fs.readFileSync(pkgJsonPath, 'utf8').trim();
-      // Only remove if it's our minimal CommonJS marker
       if (content === '{"type":"commonjs"}') {
         fs.unlinkSync(pkgJsonPath);
         removedCount++;
@@ -925,7 +428,6 @@ function uninstall(isGlobal, runtime = 'claude') {
     let settings = readSettings(settingsPath);
     let settingsModified = false;
 
-    // Remove DevFlow statusline if it references our hook
     if (settings.statusLine && settings.statusLine.command &&
         settings.statusLine.command.includes('df-statusline')) {
       delete settings.statusLine;
@@ -933,12 +435,10 @@ function uninstall(isGlobal, runtime = 'claude') {
       console.log(`  ${green}✓${reset} Removed DevFlow statusline from settings`);
     }
 
-    // Remove DevFlow hooks from SessionStart
     if (settings.hooks && settings.hooks.SessionStart) {
       const before = settings.hooks.SessionStart.length;
       settings.hooks.SessionStart = settings.hooks.SessionStart.filter(entry => {
         if (entry.hooks && Array.isArray(entry.hooks)) {
-          // Filter out DevFlow hooks
           const hasDfHook = entry.hooks.some(h =>
             h.command && (h.command.includes('df-check-update') || h.command.includes('df-statusline'))
           );
@@ -950,11 +450,9 @@ function uninstall(isGlobal, runtime = 'claude') {
         settingsModified = true;
         console.log(`  ${green}✓${reset} Removed DevFlow hooks from settings`);
       }
-      // Clean up empty array
       if (settings.hooks.SessionStart.length === 0) {
         delete settings.hooks.SessionStart;
       }
-      // Clean up empty hooks object
       if (Object.keys(settings.hooks).length === 0) {
         delete settings.hooks;
       }
@@ -966,193 +464,14 @@ function uninstall(isGlobal, runtime = 'claude') {
     }
   }
 
-  // 6. For OpenCode, clean up permissions from opencode.json
-  if (isOpencode) {
-    // For local uninstalls, clean up ./.opencode/opencode.json
-    // For global uninstalls, clean up ~/.config/opencode/opencode.json
-    const opencodeConfigDir = isGlobal
-      ? getOpencodeGlobalDir()
-      : path.join(process.cwd(), '.opencode');
-    const configPath = path.join(opencodeConfigDir, 'opencode.json');
-    if (fs.existsSync(configPath)) {
-      try {
-        const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-        let modified = false;
-
-        // Remove DevFlow permission entries
-        if (config.permission) {
-          for (const permType of ['read', 'external_directory']) {
-            if (config.permission[permType]) {
-              const keys = Object.keys(config.permission[permType]);
-              for (const key of keys) {
-                if (key.includes('devflow')) {
-                  delete config.permission[permType][key];
-                  modified = true;
-                }
-              }
-              // Clean up empty objects
-              if (Object.keys(config.permission[permType]).length === 0) {
-                delete config.permission[permType];
-              }
-            }
-          }
-          if (Object.keys(config.permission).length === 0) {
-            delete config.permission;
-          }
-        }
-
-        if (modified) {
-          fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
-          removedCount++;
-          console.log(`  ${green}✓${reset} Removed DevFlow permissions from opencode.json`);
-        }
-      } catch (e) {
-        // Ignore JSON parse errors
-      }
-    }
-  }
-
   if (removedCount === 0) {
-    console.log(`  ${yellow}⚠${reset} No DevFlow files found to remove.`);
+    console.log(`  ${yellow}Warning${reset} No DevFlow files found to remove.`);
   }
 
   console.log(`
-  ${green}Done!${reset} DevFlow has been uninstalled from ${runtimeLabel}.
+  ${green}Done!${reset} DevFlow has been uninstalled from Claude Code.
   Your other files and settings have been preserved.
 `);
-}
-
-/**
- * Parse JSONC (JSON with Comments) by stripping comments and trailing commas.
- * OpenCode supports JSONC format via jsonc-parser, so users may have comments.
- * This is a lightweight inline parser to avoid adding dependencies.
- */
-function parseJsonc(content) {
-  // Strip BOM if present
-  if (content.charCodeAt(0) === 0xFEFF) {
-    content = content.slice(1);
-  }
-
-  // Remove single-line and block comments while preserving strings
-  let result = '';
-  let inString = false;
-  let i = 0;
-  while (i < content.length) {
-    const char = content[i];
-    const next = content[i + 1];
-
-    if (inString) {
-      result += char;
-      // Handle escape sequences
-      if (char === '\\' && i + 1 < content.length) {
-        result += next;
-        i += 2;
-        continue;
-      }
-      if (char === '"') {
-        inString = false;
-      }
-      i++;
-    } else {
-      if (char === '"') {
-        inString = true;
-        result += char;
-        i++;
-      } else if (char === '/' && next === '/') {
-        // Skip single-line comment until end of line
-        while (i < content.length && content[i] !== '\n') {
-          i++;
-        }
-      } else if (char === '/' && next === '*') {
-        // Skip block comment
-        i += 2;
-        while (i < content.length - 1 && !(content[i] === '*' && content[i + 1] === '/')) {
-          i++;
-        }
-        i += 2; // Skip closing */
-      } else {
-        result += char;
-        i++;
-      }
-    }
-  }
-
-  // Remove trailing commas before } or ]
-  result = result.replace(/,(\s*[}\]])/g, '$1');
-
-  return JSON.parse(result);
-}
-
-/**
- * Configure OpenCode permissions to allow reading DevFlow reference docs
- * This prevents permission prompts when DevFlow accesses the devflow directory
- * @param {boolean} isGlobal - Whether this is a global or local install
- */
-function configureOpencodePermissions(isGlobal = true) {
-  // For local installs, use ./.opencode/opencode.json
-  // For global installs, use ~/.config/opencode/opencode.json
-  const opencodeConfigDir = isGlobal
-    ? getOpencodeGlobalDir()
-    : path.join(process.cwd(), '.opencode');
-  const configPath = path.join(opencodeConfigDir, 'opencode.json');
-
-  // Ensure config directory exists
-  fs.mkdirSync(opencodeConfigDir, { recursive: true });
-
-  // Read existing config or create empty object
-  let config = {};
-  if (fs.existsSync(configPath)) {
-    try {
-      const content = fs.readFileSync(configPath, 'utf8');
-      config = parseJsonc(content);
-    } catch (e) {
-      // Cannot parse - DO NOT overwrite user's config
-      console.log(`  ${yellow}⚠${reset} Could not parse opencode.json - skipping permission config`);
-      console.log(`    ${dim}Reason: ${e.message}${reset}`);
-      console.log(`    ${dim}Your config was NOT modified. Fix the syntax manually if needed.${reset}`);
-      return;
-    }
-  }
-
-  // Ensure permission structure exists
-  if (!config.permission) {
-    config.permission = {};
-  }
-
-  // Build the DevFlow path using the actual config directory
-  // Use ~ shorthand if it's in the default location, otherwise use full path
-  const defaultConfigDir = path.join(os.homedir(), '.config', 'opencode');
-  const dfPath = opencodeConfigDir === defaultConfigDir
-    ? '~/.config/opencode/devflow/*'
-    : `${opencodeConfigDir.replace(/\\/g, '/')}/devflow/*`;
-
-  let modified = false;
-
-  // Configure read permission
-  if (!config.permission.read || typeof config.permission.read !== 'object') {
-    config.permission.read = {};
-  }
-  if (config.permission.read[dfPath] !== 'allow') {
-    config.permission.read[dfPath] = 'allow';
-    modified = true;
-  }
-
-  // Configure external_directory permission (the safety guard for paths outside project)
-  if (!config.permission.external_directory || typeof config.permission.external_directory !== 'object') {
-    config.permission.external_directory = {};
-  }
-  if (config.permission.external_directory[dfPath] !== 'allow') {
-    config.permission.external_directory[dfPath] = 'allow';
-    modified = true;
-  }
-
-  if (!modified) {
-    return; // Already configured
-  }
-
-  // Write config back
-  fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
-  console.log(`  ${green}✓${reset} Configured read permission for DevFlow docs`);
 }
 
 /**
@@ -1160,17 +479,17 @@ function configureOpencodePermissions(isGlobal = true) {
  */
 function verifyInstalled(dirPath, description) {
   if (!fs.existsSync(dirPath)) {
-    console.error(`  ${yellow}✗${reset} Failed to install ${description}: directory not created`);
+    console.error(`  ${yellow}x${reset} Failed to install ${description}: directory not created`);
     return false;
   }
   try {
     const entries = fs.readdirSync(dirPath);
     if (entries.length === 0) {
-      console.error(`  ${yellow}✗${reset} Failed to install ${description}: directory is empty`);
+      console.error(`  ${yellow}x${reset} Failed to install ${description}: directory is empty`);
       return false;
     }
   } catch (e) {
-    console.error(`  ${yellow}✗${reset} Failed to install ${description}: ${e.message}`);
+    console.error(`  ${yellow}x${reset} Failed to install ${description}: ${e.message}`);
     return false;
   }
   return true;
@@ -1181,17 +500,11 @@ function verifyInstalled(dirPath, description) {
  */
 function verifyFileInstalled(filePath, description) {
   if (!fs.existsSync(filePath)) {
-    console.error(`  ${yellow}✗${reset} Failed to install ${description}: file not created`);
+    console.error(`  ${yellow}x${reset} Failed to install ${description}: file not created`);
     return false;
   }
   return true;
 }
-
-/**
- * Install to the specified directory for a specific runtime
- * @param {boolean} isGlobal - Whether to install globally or locally
- * @param {string} runtime - Target runtime ('claude', 'opencode', 'gemini')
- */
 
 // ──────────────────────────────────────────────────────
 // Local Patch Persistence
@@ -1233,7 +546,7 @@ function generateManifest(dir, baseDir) {
  */
 function writeManifest(configDir) {
   const dfDir = path.join(configDir, 'devflow');
-  const commandsDir = path.join(configDir, 'commands', 'df');
+  const skillsDir = path.join(configDir, 'skills');
   const agentsDir = path.join(configDir, 'agents');
   const manifest = { version: pkg.version, timestamp: new Date().toISOString(), files: {} };
 
@@ -1241,10 +554,10 @@ function writeManifest(configDir) {
   for (const [rel, hash] of Object.entries(dfHashes)) {
     manifest.files['devflow/' + rel] = hash;
   }
-  if (fs.existsSync(commandsDir)) {
-    const cmdHashes = generateManifest(commandsDir);
-    for (const [rel, hash] of Object.entries(cmdHashes)) {
-      manifest.files['commands/df/' + rel] = hash;
+  if (fs.existsSync(skillsDir)) {
+    const skillHashes = generateManifest(skillsDir);
+    for (const [rel, hash] of Object.entries(skillHashes)) {
+      manifest.files['skills/' + rel] = hash;
     }
   }
   if (fs.existsSync(agentsDir)) {
@@ -1326,33 +639,23 @@ function reportLocalPatches(configDir) {
   return meta.files || [];
 }
 
-function install(isGlobal, runtime = 'claude') {
-  const isOpencode = runtime === 'opencode';
-  const isGemini = runtime === 'gemini';
-  const dirName = getDirName(runtime);
+function install(isGlobal) {
   const src = path.join(__dirname, '..');
 
-  // Get the target directory based on runtime and install type
   const targetDir = isGlobal
-    ? getGlobalDir(runtime, explicitConfigDir)
-    : path.join(process.cwd(), dirName);
+    ? getGlobalDir()
+    : path.join(process.cwd(), '.claude');
 
   const locationLabel = isGlobal
     ? targetDir.replace(os.homedir(), '~')
     : targetDir.replace(process.cwd(), '.');
 
   // Path prefix for file references in markdown content
-  // For global installs: use full path
-  // For local installs: use relative
   const pathPrefix = isGlobal
     ? `${targetDir.replace(/\\/g, '/')}/`
-    : `./${dirName}/`;
+    : `./.claude/`;
 
-  let runtimeLabel = 'Claude Code';
-  if (isOpencode) runtimeLabel = 'OpenCode';
-  if (isGemini) runtimeLabel = 'Gemini';
-
-  console.log(`  Installing for ${cyan}${runtimeLabel}${reset} to ${cyan}${locationLabel}${reset}\n`);
+  console.log(`  Installing for ${cyan}Claude Code${reset} to ${cyan}${locationLabel}${reset}\n`);
 
   // Track installation failures
   const failures = [];
@@ -1363,42 +666,24 @@ function install(isGlobal, runtime = 'claude') {
   // Clean up orphaned files from previous versions
   cleanupOrphanedFiles(targetDir);
 
-  // OpenCode uses 'command/' (singular) with flat structure
-  // Claude Code & Gemini use 'commands/' (plural) with nested structure
-  if (isOpencode) {
-    // OpenCode: flat structure in command/ directory
-    const commandDir = path.join(targetDir, 'command');
-    fs.mkdirSync(commandDir, { recursive: true });
-    
-    // Copy commands/df/*.md as command/df-*.md (flatten structure)
-    const dfSrc = path.join(src, 'commands', 'df');
-    copyFlattenedCommands(dfSrc, commandDir, 'df', pathPrefix, runtime);
-    if (verifyInstalled(commandDir, 'command/df-*')) {
-      const count = fs.readdirSync(commandDir).filter(f => f.startsWith('df-')).length;
-      console.log(`  ${green}✓${reset} Installed ${count} commands to command/`);
-    } else {
-      failures.push('command/df-*');
-    }
+  // Deploy skills (skills/df-*/SKILL.md)
+  const skillsSrc = path.join(src, 'skills');
+  const skillsDest = path.join(targetDir, 'skills');
+  copySkills(skillsSrc, skillsDest, pathPrefix);
+  if (verifyInstalled(skillsDest, 'skills')) {
+    const count = fs.readdirSync(skillsDest).filter(f => {
+      return fs.statSync(path.join(skillsDest, f)).isDirectory() && f.startsWith('df-');
+    }).length;
+    console.log(`  ${green}✓${reset} Installed ${count} skills`);
   } else {
-    // Claude Code & Gemini: nested structure in commands/ directory
-    const commandsDir = path.join(targetDir, 'commands');
-    fs.mkdirSync(commandsDir, { recursive: true });
-    
-    const dfSrc = path.join(src, 'commands', 'df');
-    const dfDest = path.join(commandsDir, 'df');
-    copyWithPathReplacement(dfSrc, dfDest, pathPrefix, runtime);
-    if (verifyInstalled(dfDest, 'commands/df')) {
-      console.log(`  ${green}✓${reset} Installed commands/df`);
-    } else {
-      failures.push('commands/df');
-    }
+    failures.push('skills');
   }
 
-  // Copy devflow skill with path replacement
-  const skillSrc = path.join(src, 'devflow');
-  const skillDest = path.join(targetDir, 'devflow');
-  copyWithPathReplacement(skillSrc, skillDest, pathPrefix, runtime);
-  if (verifyInstalled(skillDest, 'devflow')) {
+  // Copy devflow directory with path replacement
+  const devflowSrc = path.join(src, 'devflow');
+  const devflowDest = path.join(targetDir, 'devflow');
+  copyWithPathReplacement(devflowSrc, devflowDest, pathPrefix);
+  if (verifyInstalled(devflowDest, 'devflow')) {
     console.log(`  ${green}✓${reset} Installed devflow`);
   } else {
     failures.push('devflow');
@@ -1420,20 +705,14 @@ function install(isGlobal, runtime = 'claude') {
     }
 
     // Copy new agents
+    const attribution = getCommitAttribution();
     const agentEntries = fs.readdirSync(agentsSrc, { withFileTypes: true });
     for (const entry of agentEntries) {
       if (entry.isFile() && entry.name.endsWith('.md')) {
         let content = fs.readFileSync(path.join(agentsSrc, entry.name), 'utf8');
-        // Always replace ~/.claude/ as it is the source of truth in the repo
         const dirRegex = /~\/\.claude\//g;
         content = content.replace(dirRegex, pathPrefix);
-        content = processAttribution(content, getCommitAttribution(runtime));
-        // Convert frontmatter for runtime compatibility
-        if (isOpencode) {
-          content = convertClaudeToOpencodeFrontmatter(content);
-        } else if (isGemini) {
-          content = convertClaudeToGeminiAgent(content);
-        }
+        content = processAttribution(content, attribution);
         fs.writeFileSync(path.join(agentsDest, entry.name), content);
       }
     }
@@ -1466,25 +745,21 @@ function install(isGlobal, runtime = 'claude') {
   }
 
   // Write package.json to force CommonJS mode for DevFlow scripts
-  // Prevents "require is not defined" errors when project has "type": "module"
-  // Node.js walks up looking for package.json - this stops inheritance from project
   const pkgJsonDest = path.join(targetDir, 'package.json');
   fs.writeFileSync(pkgJsonDest, '{"type":"commonjs"}\n');
   console.log(`  ${green}✓${reset} Wrote package.json (CommonJS mode)`);
 
   // Copy hooks from dist/ (bundled with dependencies)
-  // Template paths for the target runtime (replaces '.claude' with correct config dir)
   const hooksSrc = path.join(src, 'hooks', 'dist');
   if (fs.existsSync(hooksSrc)) {
     const hooksDest = path.join(targetDir, 'hooks');
     fs.mkdirSync(hooksDest, { recursive: true });
     const hookEntries = fs.readdirSync(hooksSrc);
-    const configDirReplacement = getConfigDirFromHome(runtime, isGlobal);
+    const configDirReplacement = isGlobal ? "'.claude'" : "'.claude'";
     for (const entry of hookEntries) {
       const srcFile = path.join(hooksSrc, entry);
       if (fs.statSync(srcFile).isFile()) {
         const destFile = path.join(hooksDest, entry);
-        // Template .js files to replace '.claude' with runtime-specific config dir
         if (entry.endsWith('.js')) {
           let content = fs.readFileSync(srcFile, 'utf8');
           content = content.replace(/'\.claude'/g, configDirReplacement);
@@ -1507,51 +782,37 @@ function install(isGlobal, runtime = 'claude') {
   }
 
   // Configure statusline and hooks in settings.json
-  // Gemini shares same hook system as Claude Code for now
   const settingsPath = path.join(targetDir, 'settings.json');
   const settings = cleanupOrphanedHooks(readSettings(settingsPath));
   const statuslineCommand = isGlobal
     ? buildHookCommand(targetDir, 'df-statusline.js')
-    : 'node ' + dirName + '/hooks/df-statusline.js';
+    : 'node .claude/hooks/df-statusline.js';
   const updateCheckCommand = isGlobal
     ? buildHookCommand(targetDir, 'df-check-update.js')
-    : 'node ' + dirName + '/hooks/df-check-update.js';
+    : 'node .claude/hooks/df-check-update.js';
 
-  // Enable experimental agents for Gemini CLI (required for custom sub-agents)
-  if (isGemini) {
-    if (!settings.experimental) {
-      settings.experimental = {};
-    }
-    if (!settings.experimental.enableAgents) {
-      settings.experimental.enableAgents = true;
-      console.log(`  ${green}✓${reset} Enabled experimental agents`);
-    }
+  // Configure SessionStart hook for update checking
+  if (!settings.hooks) {
+    settings.hooks = {};
+  }
+  if (!settings.hooks.SessionStart) {
+    settings.hooks.SessionStart = [];
   }
 
-  // Configure SessionStart hook for update checking (skip for opencode)
-  if (!isOpencode) {
-    if (!settings.hooks) {
-      settings.hooks = {};
-    }
-    if (!settings.hooks.SessionStart) {
-      settings.hooks.SessionStart = [];
-    }
+  const hasDfUpdateHook = settings.hooks.SessionStart.some(entry =>
+    entry.hooks && entry.hooks.some(h => h.command && h.command.includes('df-check-update'))
+  );
 
-    const hasDfUpdateHook = settings.hooks.SessionStart.some(entry =>
-      entry.hooks && entry.hooks.some(h => h.command && h.command.includes('df-check-update'))
-    );
-
-    if (!hasDfUpdateHook) {
-      settings.hooks.SessionStart.push({
-        hooks: [
-          {
-            type: 'command',
-            command: updateCheckCommand
-          }
-        ]
-      });
-      console.log(`  ${green}✓${reset} Configured update check hook`);
-    }
+  if (!hasDfUpdateHook) {
+    settings.hooks.SessionStart.push({
+      hooks: [
+        {
+          type: 'command',
+          command: updateCheckCommand
+        }
+      ]
+    });
+    console.log(`  ${green}✓${reset} Configured update check hook`);
   }
 
   // Write file manifest for future modification detection
@@ -1561,16 +822,14 @@ function install(isGlobal, runtime = 'claude') {
   // Report any backed-up local patches
   reportLocalPatches(targetDir);
 
-  return { settingsPath, settings, statuslineCommand, runtime };
+  return { settingsPath, settings, statuslineCommand };
 }
 
 /**
  * Apply statusline config, then print completion message
  */
-function finishInstall(settingsPath, settings, statuslineCommand, shouldInstallStatusline, runtime = 'claude', isGlobal = true) {
-  const isOpencode = runtime === 'opencode';
-
-  if (shouldInstallStatusline && !isOpencode) {
+function finishInstall(settingsPath, settings, statuslineCommand, shouldInstallStatusline) {
+  if (shouldInstallStatusline) {
     settings.statusLine = {
       type: 'command',
       command: statuslineCommand
@@ -1578,21 +837,10 @@ function finishInstall(settingsPath, settings, statuslineCommand, shouldInstallS
     console.log(`  ${green}✓${reset} Configured statusline`);
   }
 
-  // Always write settings
   writeSettings(settingsPath, settings);
 
-  // Configure OpenCode permissions
-  if (isOpencode) {
-    configureOpencodePermissions(isGlobal);
-  }
-
-  let program = 'Claude Code';
-  if (runtime === 'opencode') program = 'OpenCode';
-  if (runtime === 'gemini') program = 'Gemini';
-
-  const command = isOpencode ? '/df-help' : '/df:help';
   console.log(`
-  ${green}Done!${reset} Launch ${program} and run ${cyan}${command}${reset}.
+  ${green}Done!${reset} Launch Claude Code and run ${cyan}/df:help${reset}.
 `);
 }
 
@@ -1613,7 +861,7 @@ function handleStatusline(settings, isInteractive, callback) {
   }
 
   if (!isInteractive) {
-    console.log(`  ${yellow}⚠${reset} Skipping statusline (already configured)`);
+    console.log(`  ${yellow}Warning${reset} Skipping statusline (already configured)`);
     console.log(`    Use ${cyan}--force-statusline${reset} to replace\n`);
     callback(false);
     return;
@@ -1627,14 +875,14 @@ function handleStatusline(settings, isInteractive, callback) {
   });
 
   console.log(`
-  ${yellow}⚠${reset} Existing statusline detected\n
+  ${yellow}Warning${reset} Existing statusline detected\n
   Your current statusline:
     ${dim}command: ${existingCmd}${reset}
 
   DevFlow includes a statusline showing:
-    • Model name
-    • Current task (from todo list)
-    • Context window usage (color-coded)
+    - Model name
+    - Current task (from todo list)
+    - Context window usage (color-coded)
 
   ${cyan}1${reset}) Keep existing
   ${cyan}2${reset}) Replace with DevFlow statusline
@@ -1648,53 +896,12 @@ function handleStatusline(settings, isInteractive, callback) {
 }
 
 /**
- * Prompt for runtime selection
- */
-function promptRuntime(callback) {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout
-  });
-
-  let answered = false;
-
-  rl.on('close', () => {
-    if (!answered) {
-      answered = true;
-      console.log(`\n  ${yellow}Installation cancelled${reset}\n`);
-      process.exit(0);
-    }
-  });
-
-  console.log(`  ${yellow}Which runtime(s) would you like to install for?${reset}\n\n  ${cyan}1${reset}) Claude Code ${dim}(~/.claude)${reset}
-  ${cyan}2${reset}) OpenCode    ${dim}(~/.config/opencode)${reset} - open source, free models
-  ${cyan}3${reset}) Gemini      ${dim}(~/.gemini)${reset}
-  ${cyan}4${reset}) All
-`);
-
-  rl.question(`  Choice ${dim}[1]${reset}: `, (answer) => {
-    answered = true;
-    rl.close();
-    const choice = answer.trim() || '1';
-    if (choice === '4') {
-      callback(['claude', 'opencode', 'gemini']);
-    } else if (choice === '3') {
-      callback(['gemini']);
-    } else if (choice === '2') {
-      callback(['opencode']);
-    } else {
-      callback(['claude']);
-    }
-  });
-}
-
-/**
  * Prompt for install location
  */
-function promptLocation(runtimes) {
+function promptLocation() {
   if (!process.stdin.isTTY) {
     console.log(`  ${yellow}Non-interactive terminal detected, defaulting to global install${reset}\n`);
-    installAllRuntimes(runtimes, true, false);
+    runInstall(true, false);
     return;
   }
 
@@ -1713,15 +920,10 @@ function promptLocation(runtimes) {
     }
   });
 
-  const pathExamples = runtimes.map(r => {
-    const globalPath = getGlobalDir(r, explicitConfigDir);
-    return globalPath.replace(os.homedir(), '~');
-  }).join(', ');
+  const globalPath = getGlobalDir().replace(os.homedir(), '~');
 
-  const localExamples = runtimes.map(r => `./${getDirName(r)}`).join(', ');
-
-  console.log(`  ${yellow}Where would you like to install?${reset}\n\n  ${cyan}1${reset}) Global ${dim}(${pathExamples})${reset} - available in all projects
-  ${cyan}2${reset}) Local  ${dim}(${localExamples})${reset} - this project only
+  console.log(`  ${yellow}Where would you like to install?${reset}\n\n  ${cyan}1${reset}) Global ${dim}(${globalPath})${reset} - available in all projects
+  ${cyan}2${reset}) Local  ${dim}(./.claude)${reset} - this project only
 `);
 
   rl.question(`  Choice ${dim}[1]${reset}: `, (answer) => {
@@ -1729,50 +931,19 @@ function promptLocation(runtimes) {
     rl.close();
     const choice = answer.trim() || '1';
     const isGlobal = choice !== '2';
-    installAllRuntimes(runtimes, isGlobal, true);
+    runInstall(isGlobal, true);
   });
 }
 
 /**
- * Install DevFlow for all selected runtimes
+ * Run the install and handle statusline prompt
  */
-function installAllRuntimes(runtimes, isGlobal, isInteractive) {
-  const results = [];
+function runInstall(isGlobal, isInteractive) {
+  const result = install(isGlobal);
 
-  for (const runtime of runtimes) {
-    const result = install(isGlobal, runtime);
-    results.push(result);
-  }
-
-  // Handle statusline for Claude & Gemini (OpenCode uses themes)
-  const claudeResult = results.find(r => r.runtime === 'claude');
-  const geminiResult = results.find(r => r.runtime === 'gemini');
-
-  // Logic: if both are present, ask once if interactive? Or ask for each?
-  // Simpler: Ask once and apply to both if applicable.
-  
-  if (claudeResult || geminiResult) {
-    // Use whichever settings exist to check for existing statusline
-    const primaryResult = claudeResult || geminiResult;
-    
-    handleStatusline(primaryResult.settings, isInteractive, (shouldInstallStatusline) => {
-      if (claudeResult) {
-        finishInstall(claudeResult.settingsPath, claudeResult.settings, claudeResult.statuslineCommand, shouldInstallStatusline, 'claude', isGlobal);
-      }
-      if (geminiResult) {
-         finishInstall(geminiResult.settingsPath, geminiResult.settings, geminiResult.statuslineCommand, shouldInstallStatusline, 'gemini', isGlobal);
-      }
-
-      const opencodeResult = results.find(r => r.runtime === 'opencode');
-      if (opencodeResult) {
-        finishInstall(opencodeResult.settingsPath, opencodeResult.settings, opencodeResult.statuslineCommand, false, 'opencode', isGlobal);
-      }
-    });
-  } else {
-    // Only OpenCode
-    const opencodeResult = results[0];
-    finishInstall(opencodeResult.settingsPath, opencodeResult.settings, opencodeResult.statuslineCommand, false, 'opencode', isGlobal);
-  }
+  handleStatusline(result.settings, isInteractive, (shouldInstallStatusline) => {
+    finishInstall(result.settingsPath, result.settings, result.statuslineCommand, shouldInstallStatusline);
+  });
 }
 
 // Main logic
@@ -1787,27 +958,15 @@ if (hasGlobal && hasLocal) {
     console.error(`  ${yellow}--uninstall requires --global or --local${reset}`);
     process.exit(1);
   }
-  const runtimes = selectedRuntimes.length > 0 ? selectedRuntimes : ['claude'];
-  for (const runtime of runtimes) {
-    uninstall(hasGlobal, runtime);
-  }
-} else if (selectedRuntimes.length > 0) {
-  if (!hasGlobal && !hasLocal) {
-    promptLocation(selectedRuntimes);
-  } else {
-    installAllRuntimes(selectedRuntimes, hasGlobal, false);
-  }
+  uninstall(hasGlobal);
 } else if (hasGlobal || hasLocal) {
-  // Default to Claude if no runtime specified but location is
-  installAllRuntimes(['claude'], hasGlobal, false);
+  runInstall(hasGlobal, false);
 } else {
   // Interactive
   if (!process.stdin.isTTY) {
-    console.log(`  ${yellow}Non-interactive terminal detected, defaulting to Claude Code global install${reset}\n`);
-    installAllRuntimes(['claude'], true, false);
+    console.log(`  ${yellow}Non-interactive terminal detected, defaulting to global install${reset}\n`);
+    runInstall(true, false);
   } else {
-    promptRuntime((runtimes) => {
-      promptLocation(runtimes);
-    });
+    promptLocation();
   }
 }
