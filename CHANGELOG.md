@@ -6,6 +6,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- Terminology rename: **Phase → Objective**, **Plan (noun) → Job**
+  - New hierarchy: Milestone → Objective → Job → Task
+  - "Objective" replaces "Phase" — outcome-oriented, not sequential
+  - "Job" replaces "Plan" (the document/work package) — separates work from planning activity
+  - "plan" as a verb is preserved everywhere (planning, planner, /df:plan-objective)
+  - `.planning/` directory unchanged (generic activity name)
+  - All CLI commands, config keys, JSON output keys, file names updated
+  - PLAN.md → JOB.md, .planning/phases/ → .planning/objectives/
+
 ## [1.20.4-devflow] - 2026-02-19
 
 ### Changed

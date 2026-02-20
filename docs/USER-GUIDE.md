@@ -30,15 +30,15 @@ A detailed reference for workflows, troubleshooting, and configuration. For quic
              │      FOR EACH PHASE:       │
              │                            │
              │  ┌────────────────────┐    │
-             │  │ /df:discuss-phase │    │  <- Lock in preferences
+             │  │ /df:discuss-objective │    │  <- Lock in preferences
              │  └──────────┬─────────┘    │
              │             │              │
              │  ┌──────────▼─────────┐    │
-             │  │ /df:plan-phase    │    │  <- Research + Plan + Verify
+             │  │ /df:plan-objective    │    │  <- Research + Plan + Verify
              │  └──────────┬─────────┘    │
              │             │              │
              │  ┌──────────▼─────────┐    │
-             │  │ /df:execute-phase │    │  <- Parallel execution
+             │  │ /df:execute-objective │    │  <- Parallel execution
              │  └──────────┬─────────┘    │
              │             │              │
              │  ┌──────────▼─────────┐    │
@@ -66,7 +66,7 @@ A detailed reference for workflows, troubleshooting, and configuration. For quic
 ### Planning Agent Coordination
 
 ```
-  /df:plan-phase N
+  /df:plan-objective N
          │
          ├── Phase Researcher (x4 parallel)
          │     ├── Stack researcher
@@ -100,7 +100,7 @@ A detailed reference for workflows, troubleshooting, and configuration. For quic
 ### Execution Wave Coordination
 
 ```
-  /df:execute-phase N
+  /df:execute-objective N
          │
          ├── Analyze plan dependencies
          │
@@ -112,7 +112,7 @@ A detailed reference for workflows, troubleshooting, and configuration. For quic
          │     └── Executor C (fresh 200K context) -> commit
          │
          └── Verifier
-               └── Check codebase against phase goals
+               └── Check codebase against objective goals
                      │
                      ├── PASS -> VERIFICATION.md (success)
                      └── FAIL -> Issues logged for /df:verify-work
@@ -143,12 +143,12 @@ A detailed reference for workflows, troubleshooting, and configuration. For quic
 |---------|---------|-------------|
 | `/df:new-project` | Full project init: questions, research, requirements, roadmap | Start of a new project |
 | `/df:new-project --auto @idea.md` | Automated init from document | Have a PRD or idea doc ready |
-| `/df:discuss-phase [N]` | Capture implementation decisions | Before planning, to shape how it gets built |
-| `/df:plan-phase [N]` | Research + plan + verify | Before executing a phase |
-| `/df:execute-phase <N>` | Execute all plans in parallel waves | After planning is complete |
+| `/df:discuss-objective [N]` | Capture implementation decisions | Before planning, to shape how it gets built |
+| `/df:plan-objective [N]` | Research + plan + verify | Before executing a objective |
+| `/df:execute-objective <N>` | Execute all jobs in parallel waves | After planning is complete |
 | `/df:verify-work [N]` | Manual UAT with auto-diagnosis | After execution completes |
 | `/df:audit-milestone` | Verify milestone met its definition of done | Before completing milestone |
-| `/df:complete-milestone` | Archive milestone, tag release | All phases verified |
+| `/df:complete-milestone` | Archive milestone, tag release | All objectives verified |
 | `/df:new-milestone [name]` | Start next version cycle | After completing a milestone |
 
 ### Navigation
@@ -157,21 +157,21 @@ A detailed reference for workflows, troubleshooting, and configuration. For quic
 |---------|---------|-------------|
 | `/df:progress` | Show status and next steps | Anytime -- "where am I?" |
 | `/df:resume-work` | Restore full context from last session | Starting a new session |
-| `/df:pause-work` | Save context handoff | Stopping mid-phase |
+| `/df:pause-work` | Save context handoff | Stopping mid-objective |
 | `/df:help` | Show all commands | Quick reference |
 | `/df:update` | Update DevFlow with changelog preview | Check for new versions |
 | `/df:join-discord` | Open Discord community invite | Questions or community |
 
-### Phase Management
+### Objective Management
 
 | Command | Purpose | When to Use |
 |---------|---------|-------------|
-| `/df:add-phase` | Append new phase to roadmap | Scope grows after initial planning |
-| `/df:insert-phase [N]` | Insert urgent work (decimal numbering) | Urgent fix mid-milestone |
-| `/df:remove-phase [N]` | Remove future phase and renumber | Descoping a feature |
-| `/df:list-phase-assumptions [N]` | Preview Claude's intended approach | Before planning, to validate direction |
-| `/df:plan-milestone-gaps` | Create phases for audit gaps | After audit finds missing items |
-| `/df:research-phase [N]` | Deep ecosystem research only | Complex or unfamiliar domain |
+| `/df:add-objective` | Append new objective to roadmap | Scope grows after initial planning |
+| `/df:insert-objective [N]` | Insert urgent work (decimal numbering) | Urgent fix mid-milestone |
+| `/df:remove-objective [N]` | Remove future objective and renumber | Descoping a feature |
+| `/df:list-objective-assumptions [N]` | Preview Claude's intended approach | Before planning, to validate direction |
+| `/df:plan-milestone-gaps` | Create objectives for audit gaps | After audit finds missing items |
+| `/df:research-objective [N]` | Deep ecosystem research only | Complex or unfamiliar domain |
 
 ### Brownfield & Utilities
 
@@ -205,12 +205,12 @@ DevFlow stores project settings in `.planning/config.json`. Configure during `/d
   },
   "workflow": {
     "research": true,
-    "plan_check": true,
+    "job_check": true,
     "verifier": true
   },
   "git": {
     "branching_strategy": "none",
-    "phase_branch_template": "df/phase-{phase}-{slug}",
+    "objective_branch_template": "df/objective-{objective}-{slug}",
     "milestone_branch_template": "df/{milestone}-{slug}"
   }
 }
@@ -221,7 +221,7 @@ DevFlow stores project settings in `.planning/config.json`. Configure during `/d
 | Setting | Options | Default | What it Controls |
 |---------|---------|---------|------------------|
 | `mode` | `interactive`, `yolo` | `interactive` | `yolo` auto-approves decisions; `interactive` confirms at each step |
-| `depth` | `quick`, `standard`, `comprehensive` | `standard` | Planning thoroughness: 3-5, 5-8, or 8-12 phases |
+| `depth` | `quick`, `standard`, `comprehensive` | `standard` | Planning thoroughness: 3-5, 5-8, or 8-12 objectives |
 | `model_profile` | `quality`, `balanced`, `budget` | `balanced` | Model tier for each agent (see table below) |
 
 ### Planning Settings
@@ -238,17 +238,17 @@ DevFlow stores project settings in `.planning/config.json`. Configure during `/d
 | Setting | Options | Default | What it Controls |
 |---------|---------|---------|------------------|
 | `workflow.research` | `true`, `false` | `true` | Domain investigation before planning |
-| `workflow.plan_check` | `true`, `false` | `true` | Plan verification loop (up to 3 iterations) |
-| `workflow.verifier` | `true`, `false` | `true` | Post-execution verification against phase goals |
+| `workflow.job_check` | `true`, `false` | `true` | Plan verification loop (up to 3 iterations) |
+| `workflow.verifier` | `true`, `false` | `true` | Post-execution verification against objective goals |
 
-Disable these to speed up phases in familiar domains or when conserving tokens.
+Disable these to speed up objectives in familiar domains or when conserving tokens.
 
 ### Git Branching
 
 | Setting | Options | Default | What it Controls |
 |---------|---------|---------|------------------|
-| `git.branching_strategy` | `none`, `phase`, `milestone` | `none` | When and how branches are created |
-| `git.phase_branch_template` | Template string | `df/phase-{phase}-{slug}` | Branch name for phase strategy |
+| `git.branching_strategy` | `none`, `objective`, `milestone` | `none` | When and how branches are created |
+| `git.objective_branch_template` | Template string | `df/objective-{objective}-{slug}` | Branch name for objective strategy |
 | `git.milestone_branch_template` | Template string | `df/{milestone}-{slug}` | Branch name for milestone strategy |
 
 **Branching strategies explained:**
@@ -256,10 +256,10 @@ Disable these to speed up phases in familiar domains or when conserving tokens.
 | Strategy | Creates Branch | Scope | Best For |
 |----------|---------------|-------|----------|
 | `none` | Never | N/A | Solo development, simple projects |
-| `phase` | At each `execute-phase` | One phase per branch | Code review per phase, granular rollback |
-| `milestone` | At first `execute-phase` | All phases share one branch | Release branches, PR per version |
+| `objective` | At each `execute-objective` | One objective per branch | Code review per objective, granular rollback |
+| `milestone` | At first `execute-objective` | All objectives share one branch | Release branches, PR per version |
 
-**Template variables:** `{phase}` = zero-padded number (e.g., "03"), `{slug}` = lowercase hyphenated name, `{milestone}` = version (e.g., "v1.0").
+**Template variables:** `{objective}` = zero-padded number (e.g., "03"), `{slug}` = lowercase hyphenated name, `{milestone}` = version (e.g., "v1.0").
 
 ### Model Profiles (Per-Agent Breakdown)
 
@@ -268,7 +268,7 @@ Disable these to speed up phases in familiar domains or when conserving tokens.
 | df-planner | Opus | Opus | Sonnet |
 | df-roadmapper | Opus | Sonnet | Sonnet |
 | df-executor | Opus | Sonnet | Sonnet |
-| df-phase-researcher | Opus | Sonnet | Haiku |
+| df-objective-researcher | Opus | Sonnet | Haiku |
 | df-project-researcher | Opus | Sonnet | Haiku |
 | df-research-synthesizer | Sonnet | Sonnet | Haiku |
 | df-debugger | Opus | Sonnet | Sonnet |
@@ -280,7 +280,7 @@ Disable these to speed up phases in familiar domains or when conserving tokens.
 **Profile philosophy:**
 - **quality** -- Opus for all decision-making agents, Sonnet for read-only verification. Use when quota is available and the work is critical.
 - **balanced** -- Opus only for planning (where architecture decisions happen), Sonnet for everything else. The default for good reason.
-- **budget** -- Sonnet for anything that writes code, Haiku for research and verification. Use for high-volume work or less critical phases.
+- **budget** -- Sonnet for anything that writes code, Haiku for research and verification. Use for high-volume work or less critical objectives.
 
 ---
 
@@ -292,12 +292,12 @@ Disable these to speed up phases in familiar domains or when conserving tokens.
 claude --dangerously-skip-permissions
 /df:new-project            # Answer questions, configure, approve roadmap
 /clear
-/df:discuss-phase 1        # Lock in your preferences
-/df:plan-phase 1           # Research + plan + verify
-/df:execute-phase 1        # Parallel execution
+/df:discuss-objective 1        # Lock in your preferences
+/df:plan-objective 1           # Research + plan + verify
+/df:execute-objective 1        # Parallel execution
 /df:verify-work 1          # Manual UAT
 /clear
-/df:discuss-phase 2        # Repeat for each phase
+/df:discuss-objective 2        # Repeat for each objective
 ...
 /df:audit-milestone        # Check everything shipped
 /df:complete-milestone     # Archive, tag, done
@@ -308,7 +308,7 @@ claude --dangerously-skip-permissions
 ```bash
 /df:new-project --auto @prd.md   # Auto-runs research/requirements/roadmap from your doc
 /clear
-/df:discuss-phase 1               # Normal flow from here
+/df:discuss-objective 1               # Normal flow from here
 ```
 
 ### Existing Codebase
@@ -316,7 +316,7 @@ claude --dangerously-skip-permissions
 ```bash
 /df:map-codebase           # Analyze what exists (parallel agents)
 /df:new-project            # Questions focus on what you're ADDING
-# (normal phase workflow from here)
+# (normal objective workflow from here)
 ```
 
 ### Quick Bug Fix
@@ -338,7 +338,7 @@ claude --dangerously-skip-permissions
 
 ```bash
 /df:audit-milestone        # Check requirements coverage, detect stubs
-/df:plan-milestone-gaps    # If audit found gaps, create phases to close them
+/df:plan-milestone-gaps    # If audit found gaps, create objectives to close them
 /df:complete-milestone     # Archive, tag, done
 ```
 
@@ -353,11 +353,11 @@ claude --dangerously-skip-permissions
 ### Mid-Milestone Scope Changes
 
 ```bash
-/df:add-phase              # Append a new phase to the roadmap
+/df:add-objective              # Append a new objective to the roadmap
 # or
-/df:insert-phase 3         # Insert urgent work between phases 3 and 4
+/df:insert-objective 3         # Insert urgent work between objectives 3 and 4
 # or
-/df:remove-phase 7         # Descope phase 7 and renumber
+/df:remove-objective 7         # Descope objective 7 and renumber
 ```
 
 ---
@@ -374,7 +374,7 @@ Clear your context window between major commands: `/clear` in Claude Code. DevFl
 
 ### Plans Seem Wrong or Misaligned
 
-Run `/df:discuss-phase [N]` before planning. Most plan quality issues come from Claude making assumptions that `CONTEXT.md` would have prevented. You can also run `/df:list-phase-assumptions [N]` to see what Claude intends to do before committing to a plan.
+Run `/df:discuss-objective [N]` before planning. Most plan quality issues come from Claude making assumptions that `CONTEXT.md` would have prevented. You can also run `/df:list-objective-assumptions [N]` to see what Claude intends to do before committing to a plan.
 
 ### Execution Fails or Produces Stubs
 
@@ -386,7 +386,7 @@ Run `/df:progress`. It reads all state files and tells you exactly where you are
 
 ### Need to Change Something After Execution
 
-Do not re-run `/df:execute-phase`. Use `/df:quick` for targeted fixes, or `/df:verify-work` to systematically identify and fix issues through UAT.
+Do not re-run `/df:execute-objective`. Use `/df:quick` for targeted fixes, or `/df:verify-work` to systematically identify and fix issues through UAT.
 
 ### Model Costs Too High
 
@@ -402,7 +402,7 @@ Since v1.17, the installer backs up locally modified files to `df-local-patches/
 
 ### Subagent Appears to Fail but Work Was Done
 
-A known workaround exists for a Claude Code classification bug. DevFlow's orchestrators (execute-phase, quick) spot-check actual output before reporting failure. If you see a failure message but commits were made, check `git log` -- the work may have succeeded.
+A known workaround exists for a Claude Code classification bug. DevFlow's orchestrators (execute-objective, quick) spot-check actual output before reporting failure. If you see a failure message but commits were made, check `git log` -- the work may have succeeded.
 
 ---
 
@@ -411,12 +411,12 @@ A known workaround exists for a Claude Code classification bug. DevFlow's orches
 | Problem | Solution |
 |---------|----------|
 | Lost context / new session | `/df:resume-work` or `/df:progress` |
-| Phase went wrong | `git revert` the phase commits, then re-plan |
-| Need to change scope | `/df:add-phase`, `/df:insert-phase`, or `/df:remove-phase` |
+| Phase went wrong | `git revert` the objective commits, then re-plan |
+| Need to change scope | `/df:add-objective`, `/df:insert-objective`, or `/df:remove-objective` |
 | Milestone audit found gaps | `/df:plan-milestone-gaps` |
 | Something broke | `/df:debug "description"` |
 | Quick targeted fix | `/df:quick` |
-| Plan doesn't match your vision | `/df:discuss-phase [N]` then re-plan |
+| Plan doesn't match your vision | `/df:discuss-objective [N]` then re-plan |
 | Costs running high | `/df:set-profile budget` and `/df:settings` to toggle agents off |
 | Update broke local changes | `/df:reapply-patches` |
 
@@ -441,9 +441,9 @@ For reference, here is what DevFlow creates in your project:
   debug/                  # Active debug sessions
     resolved/             # Archived debug sessions
   codebase/               # Brownfield codebase mapping (from /df:map-codebase)
-  phases/
-    XX-phase-name/
-      XX-YY-PLAN.md       # Atomic execution plans
+  objectives/
+    XX-objective-name/
+      XX-YY-JOB.md       # Atomic execution plans
       XX-YY-SUMMARY.md    # Execution outcomes and decisions
       CONTEXT.md          # Your implementation preferences
       RESEARCH.md         # Ecosystem research findings
