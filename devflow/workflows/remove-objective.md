@@ -32,12 +32,12 @@ Load objective operation context:
 INIT=$(node ~/.claude/devflow/bin/df-tools.cjs init objective-op "${target}")
 ```
 
-Extract: `phase_found`, `phase_dir`, `phase_number`, `commit_docs`, `roadmap_exists`.
+Extract: `objective_found`, `objective_dir`, `objective_number`, `commit_docs`, `roadmap_exists`.
 
 Also read STATE.md and ROADMAP.md content for parsing current position.
 </step>
 
-<step name="validate_future_phase">
+<step name="validate_future_objective">
 Verify the objective is a future objective (not started):
 
 1. Compare target objective to current objective from STATE.md

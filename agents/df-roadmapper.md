@@ -81,7 +81,7 @@ If a requirement fits multiple objectives → assign to ONE (usually the first t
 
 </philosophy>
 
-<goal_backward_phases>
+<goal_backward_objectives>
 
 ## Deriving Objective Success Criteria
 
@@ -144,7 +144,7 @@ Options:
 2. Remove criterion 4 (defer password reset to v2)
 ```
 
-</goal_backward_phases>
+</goal_backward_objectives>
 
 <phase_identification>
 

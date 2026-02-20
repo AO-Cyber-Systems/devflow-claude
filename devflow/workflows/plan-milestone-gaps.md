@@ -65,8 +65,8 @@ Gap: Flow "View dashboard" broken at data fetch
 Find highest existing objective:
 ```bash
 # Get sorted objective list, extract last one
-PHASES=$(node ~/.claude/devflow/bin/df-tools.cjs objectives list)
-HIGHEST=$(echo "$PHASES" | jq -r '.directories[-1]')
+OBJECTIVES=$(node ~/.claude/devflow/bin/df-tools.cjs objectives list)
+HIGHEST=$(echo "$OBJECTIVES" | jq -r '.directories[-1]')
 ```
 
 New objectives continue from there:
@@ -184,7 +184,7 @@ node ~/.claude/devflow/bin/df-tools.cjs commit "docs(roadmap): add gap closure o
 
 </process>
 
-<gap_to_phase_mapping>
+<gap_to_objective_mapping>
 
 ## How Gaps Become Tasks
 
@@ -219,8 +219,8 @@ tasks:
 **Integration gap → Tasks:**
 ```yaml
 gap:
-  from_phase: 1
-  to_phase: 3
+  from_objective: 1
+  to_objective: 3
   connection: "Auth token → API calls"
   reason: "Dashboard API calls don't include auth header"
   missing:
@@ -257,7 +257,7 @@ becomes:
 # Flow gaps often overlap with other gap types
 ```
 
-</gap_to_phase_mapping>
+</gap_to_objective_mapping>
 
 <success_criteria>
 - [ ] MILESTONE-AUDIT.md loaded and gaps parsed

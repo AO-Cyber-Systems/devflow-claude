@@ -18,7 +18,7 @@ Resolve model for:
 @~/.claude/devflow/references/objective-argument-parsing.md
 
 ```bash
-PHASE_INFO=$(node ~/.claude/devflow/bin/df-tools.cjs roadmap get-objective "${OBJECTIVE}")
+OBJECTIVE_INFO=$(node ~/.claude/devflow/bin/df-tools.cjs roadmap get-objective "${OBJECTIVE}")
 ```
 
 If `found` is false: Error and exit.
@@ -34,8 +34,8 @@ If exists: Offer update/view/skip options.
 ## Step 3: Gather Objective Context
 
 ```bash
-# Objective section from roadmap (already loaded in PHASE_INFO)
-echo "$PHASE_INFO" | jq -r '.section'
+# Objective section from roadmap (already loaded in OBJECTIVE_INFO)
+echo "$OBJECTIVE_INFO" | jq -r '.section'
 cat .planning/REQUIREMENTS.md 2>/dev/null
 cat .planning/objectives/${OBJECTIVE}-*/*-CONTEXT.md 2>/dev/null
 # Decisions from state-snapshot (structured JSON)

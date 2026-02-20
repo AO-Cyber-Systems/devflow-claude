@@ -218,7 +218,7 @@ Based on research, suggested objective structure:
 ## Gaps to Address
 
 - [Areas where research was inconclusive]
-- [Topics needing phase-specific research later]
+- [Topics needing objective-specific research later]
 ```
 
 ## STACK.md
@@ -405,7 +405,7 @@ Mistakes that cause rewrites or major issues.
 **What goes wrong:** [description]
 **Prevention:** [how to avoid]
 
-## Phase-Specific Warnings
+## Objective-Specific Warnings
 
 | Objective Topic | Likely Pitfall | Mitigation |
 |-------------|---------------|------------|
@@ -570,7 +570,7 @@ In `.planning/research/`:
 
 ### Open Questions
 
-[Gaps that couldn't be resolved, need phase-specific research later]
+[Gaps that couldn't be resolved, need objective-specific research later]
 ```
 
 ## Research Blocked

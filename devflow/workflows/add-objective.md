@@ -40,7 +40,7 @@ Run /df:new-project to initialize.
 Exit.
 </step>
 
-<step name="add_phase">
+<step name="add_objective">
 **Delegate the objective addition to df-tools:**
 
 ```bash
@@ -54,7 +54,7 @@ The CLI handles:
 - Creating the objective directory (`.planning/objectives/{NN}-{slug}/`)
 - Inserting the objective entry into ROADMAP.md with Goal, Depends on, and Plans sections
 
-Extract from result: `phase_number`, `padded`, `name`, `slug`, `directory`.
+Extract from result: `objective_number`, `padded`, `name`, `slug`, `directory`.
 </step>
 
 <step name="update_project_state">

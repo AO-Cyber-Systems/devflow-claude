@@ -746,14 +746,14 @@ Triggered by `--gaps` flag. Creates plans to address verification or UAT failure
 
 **1. Find gap sources:**
 
-Use init context (from load_project_state) which provides `phase_dir`:
+Use init context (from load_project_state) which provides `objective_dir`:
 
 ```bash
 # Check for VERIFICATION.md (code verification gaps)
-ls "$phase_dir"/*-VERIFICATION.md 2>/dev/null
+ls "$objective_dir"/*-VERIFICATION.md 2>/dev/null
 
 # Check for UAT.md with diagnosed status (user testing gaps)
-grep -l "status: diagnosed" "$phase_dir"/*-UAT.md 2>/dev/null
+grep -l "status: diagnosed" "$objective_dir"/*-UAT.md 2>/dev/null
 ```
 
 **2. Parse gaps:** Each gap has: truth (failed behavior), reason, artifacts (files with issues), missing (things to add/fix).
@@ -899,7 +899,7 @@ Load planning context:
 INIT=$(node ~/.claude/devflow/bin/df-tools.cjs init plan-objective "${OBJECTIVE}")
 ```
 
-Extract from init JSON: `planner_model`, `researcher_model`, `checker_model`, `commit_docs`, `research_enabled`, `phase_dir`, `phase_number`, `has_research`, `has_context`.
+Extract from init JSON: `planner_model`, `researcher_model`, `checker_model`, `commit_docs`, `research_enabled`, `objective_dir`, `objective_number`, `has_research`, `has_context`.
 
 Also read STATE.md for position, decisions, blockers:
 ```bash
@@ -932,7 +932,7 @@ If exists, load relevant documents by objective type:
 **Note:** STACK.md provides validation commands (test/lint/build) used to populate `<validation_gates>`. PATTERNS.md provides code examples executors can mimic.
 </step>
 
-<step name="identify_phase">
+<step name="identify_objective">
 ```bash
 cat .planning/ROADMAP.md
 ls .planning/objectives/
@@ -988,13 +988,13 @@ For objectives not selected, retain from digest:
 **From STATE.md:** Decisions → constrain approach. Pending todos → candidates.
 </step>
 
-<step name="gather_phase_context">
-Use `phase_dir` from init context (already loaded in load_project_state).
+<step name="gather_objective_context">
+Use `objective_dir` from init context (already loaded in load_project_state).
 
 ```bash
-cat "$phase_dir"/*-CONTEXT.md 2>/dev/null   # From /df:discuss-objective
-cat "$phase_dir"/*-RESEARCH.md 2>/dev/null   # From /df:research-objective
-cat "$phase_dir"/*-DISCOVERY.md 2>/dev/null  # From mandatory discovery
+cat "$objective_dir"/*-CONTEXT.md 2>/dev/null   # From /df:discuss-objective
+cat "$objective_dir"/*-RESEARCH.md 2>/dev/null   # From /df:research-objective
+cat "$objective_dir"/*-DISCOVERY.md 2>/dev/null  # From mandatory discovery
 ```
 
 **If CONTEXT.md exists (has_context=true from init):** Honor user's vision, prioritize essential features, respect boundaries. Locked decisions — do not revisit.
@@ -1060,7 +1060,7 @@ Verify each job fits context budget: 2-3 tasks, ~50% target. Split if necessary.
 Present breakdown with wave structure. Wait for confirmation in interactive mode. Auto-approve in yolo mode.
 </step>
 
-<step name="write_phase_prompt">
+<step name="write_objective_prompt">
 Use template structure for each JOB.md.
 
 **ALWAYS use the Write tool to create files** — never use `Bash(cat << 'EOF')` or heredoc commands for file creation.
@@ -1207,7 +1207,7 @@ Objective planning complete when:
 - [ ] Prior decisions, issues, concerns synthesized
 - [ ] Dependency graph built (needs/creates for each task)
 - [ ] Tasks grouped into plans by wave, not by sequence
-- [ ] PLAN file(s) exist with XML structure
+- [ ] JOB file(s) exist with XML structure
 - [ ] Each job: depends_on, files_modified, autonomous, must_haves in frontmatter
 - [ ] Each job: user_setup declared if external services involved
 - [ ] Each job: Objective, context, tasks, verification, success criteria, output
@@ -1218,7 +1218,7 @@ Objective planning complete when:
 - [ ] Each task: Type, Files (if auto), Action, Verify, Done
 - [ ] Checkpoints properly structured
 - [ ] Wave structure maximizes parallelism
-- [ ] PLAN file(s) committed to git
+- [ ] JOB file(s) committed to git
 - [ ] User knows next steps and wave structure
 
 ## Gap Closure Mode
@@ -1228,9 +1228,9 @@ Planning complete when:
 - [ ] Existing SUMMARYs read for context
 - [ ] Gaps clustered into focused plans
 - [ ] Job numbers sequential after existing
-- [ ] PLAN file(s) exist with gap_closure: true
+- [ ] JOB file(s) exist with gap_closure: true
 - [ ] Each job: tasks derived from gap.missing items
-- [ ] PLAN file(s) committed to git
+- [ ] JOB file(s) committed to git
 - [ ] User knows to run `/df:execute-objective {X}` next
 
 </success_criteria>

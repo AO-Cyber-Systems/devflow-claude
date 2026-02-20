@@ -18,7 +18,7 @@ Load execution context (uses `init execute-objective` for full context, includin
 INIT=$(node ~/.claude/devflow/bin/df-tools.cjs init execute-objective "${OBJECTIVE}" --include state,config)
 ```
 
-Extract from init JSON: `executor_model`, `commit_docs`, `phase_dir`, `phase_number`, `plans`, `summaries`, `incomplete_plans`.
+Extract from init JSON: `executor_model`, `commit_docs`, `objective_dir`, `objective_number`, `jobs`, `summaries`, `incomplete_jobs`.
 
 **File contents (from --include):** `state_content`, `config_content`. Access with:
 ```bash
@@ -36,7 +36,7 @@ ls .planning/objectives/XX-name/*-JOB.md 2>/dev/null | sort
 ls .planning/objectives/XX-name/*-SUMMARY.md 2>/dev/null | sort
 ```
 
-Find first PLAN without matching SUMMARY. Decimal objectives supported (`01.1-hotfix/`):
+Find first JOB without matching SUMMARY. Decimal objectives supported (`01.1-hotfix/`):
 
 ```bash
 OBJECTIVE=$(echo "$JOB_PATH" | grep -oE '[0-9]+(\.[0-9]+)?-[0-9]+')
@@ -126,7 +126,7 @@ cat .planning/objectives/XX-name/{objective}-{job}-JOB.md
 This IS the execution instructions. Follow exactly. If job references CONTEXT.md: honor user's vision throughout.
 </step>
 
-<step name="previous_phase_check">
+<step name="previous_objective_check">
 ```bash
 node ~/.claude/devflow/bin/df-tools.cjs objectives list --type summaries --raw
 # Extract the second-to-last summary from the JSON result
@@ -368,7 +368,7 @@ Update session info using df-tools:
 
 ```bash
 node ~/.claude/devflow/bin/df-tools.cjs state record-session \
-  --stopped-at "Completed ${OBJECTIVE}-${PLAN}-JOB.md" \
+  --stopped-at "Completed ${OBJECTIVE}-${JOB}-JOB.md" \
   --resume-file "None"
 ```
 
@@ -383,7 +383,7 @@ If SUMMARY "Issues Encountered" ≠ "None": yolo → log and continue. Interacti
 ```bash
 node ~/.claude/devflow/bin/df-tools.cjs roadmap update-job-progress "${OBJECTIVE}"
 ```
-Counts PLAN vs SUMMARY files on disk. Updates progress table row with correct count and status (`In Progress` or `Complete` with date).
+Counts JOB vs SUMMARY files on disk. Updates progress table row with correct count and status (`In Progress` or `Complete` with date).
 </step>
 
 <step name="update_requirements">
@@ -429,9 +429,9 @@ ls -1 .planning/objectives/[current-objective-dir]/*-SUMMARY.md 2>/dev/null | wc
 
 | Condition | Route | Action |
 |-----------|-------|--------|
-| summaries < plans | **A: More plans** | Find next PLAN without SUMMARY. Yolo: auto-continue. Interactive: show next job, suggest `/df:execute-objective {objective}` + `/df:verify-work`. STOP here. |
-| summaries = plans, current < highest objective | **B: Objective done** | Show completion, suggest `/df:plan-objective {Z+1}` + `/df:verify-work {Z}` + `/df:discuss-objective {Z+1}` |
-| summaries = plans, current = highest objective | **C: Milestone done** | Show banner, suggest `/df:complete-milestone` + `/df:verify-work` + `/df:add-objective` |
+| summaries < jobs | **A: More jobs** | Find next JOB without SUMMARY. Yolo: auto-continue. Interactive: show next job, suggest `/df:execute-objective {objective}` + `/df:verify-work`. STOP here. |
+| summaries = jobs, current < highest objective | **B: Objective done** | Show completion, suggest `/df:plan-objective {Z+1}` + `/df:verify-work {Z}` + `/df:discuss-objective {Z+1}` |
+| summaries = jobs, current = highest objective | **C: Milestone done** | Show banner, suggest `/df:complete-milestone` + `/df:verify-work` + `/df:add-objective` |
 
 All routes: `/clear` first for fresh context.
 </step>

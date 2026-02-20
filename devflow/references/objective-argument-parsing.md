@@ -14,14 +14,14 @@ From `$ARGUMENTS`:
 The `find-objective` command handles normalization and validation in one step:
 
 ```bash
-PHASE_INFO=$(node ~/.claude/devflow/bin/df-tools.cjs find-objective "${OBJECTIVE}")
+OBJECTIVE_INFO=$(node ~/.claude/devflow/bin/df-tools.cjs find-objective "${OBJECTIVE}")
 ```
 
 Returns JSON with:
 - `found`: true/false
 - `directory`: Full path to objective directory
-- `phase_number`: Normalized number (e.g., "06", "06.1")
-- `phase_name`: Name portion (e.g., "foundation")
+- `objective_number`: Normalized number (e.g., "06", "06.1")
+- `objective_name`: Name portion (e.g., "foundation")
 - `plans`: Array of JOB.md files
 - `summaries`: Array of SUMMARY.md files
 
@@ -45,8 +45,8 @@ fi
 Use `roadmap get-objective` to validate objective exists:
 
 ```bash
-PHASE_CHECK=$(node ~/.claude/devflow/bin/df-tools.cjs roadmap get-objective "${OBJECTIVE}")
-if [ "$(echo "$PHASE_CHECK" | jq -r '.found')" = "false" ]; then
+OBJECTIVE_CHECK=$(node ~/.claude/devflow/bin/df-tools.cjs roadmap get-objective "${OBJECTIVE}")
+if [ "$(echo "$OBJECTIVE_CHECK" | jq -r '.found')" = "false" ]; then
   echo "ERROR: Objective ${OBJECTIVE} not found in roadmap"
   exit 1
 fi
@@ -57,5 +57,5 @@ fi
 Use `find-objective` for directory lookup:
 
 ```bash
-PHASE_DIR=$(node ~/.claude/devflow/bin/df-tools.cjs find-objective "${OBJECTIVE}" --raw)
+OBJECTIVE_DIR=$(node ~/.claude/devflow/bin/df-tools.cjs find-objective "${OBJECTIVE}" --raw)
 ```

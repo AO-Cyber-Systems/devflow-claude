@@ -9,7 +9,7 @@ Template for spawning df-planner agent. The agent contains all planning expertis
 ```markdown
 <planning_context>
 
-**Objective:** {phase_number}
+**Objective:** {objective_number}
 **Mode:** {standard | gap_closure}
 
 **Project State:**
@@ -22,14 +22,14 @@ Template for spawning df-planner agent. The agent contains all planning expertis
 @.planning/REQUIREMENTS.md
 
 **Objective Context (if exists):**
-@.planning/objectives/{phase_dir}/{phase_num}-CONTEXT.md
+@.planning/objectives/{objective_dir}/{phase_num}-CONTEXT.md
 
 **Research (if exists):**
-@.planning/objectives/{phase_dir}/{phase_num}-RESEARCH.md
+@.planning/objectives/{objective_dir}/{phase_num}-RESEARCH.md
 
 **Gap Closure (if --gaps mode):**
-@.planning/objectives/{phase_dir}/{phase_num}-VERIFICATION.md
-@.planning/objectives/{phase_dir}/{phase_num}-UAT.md
+@.planning/objectives/{objective_dir}/{phase_num}-VERIFICATION.md
+@.planning/objectives/{objective_dir}/{phase_num}-UAT.md
 
 </planning_context>
 
@@ -59,8 +59,8 @@ Before returning PLANNING COMPLETE:
 
 | Placeholder | Source | Example |
 |-------------|--------|---------|
-| `{phase_number}` | From roadmap/arguments | `5` or `2.1` |
-| `{phase_dir}` | Objective directory name | `05-user-profiles` |
+| `{objective_number}` | From roadmap/arguments | `5` or `2.1` |
+| `{objective_dir}` | Objective directory name | `05-user-profiles` |
 | `{objective}` | Objective prefix | `05` |
 | `{standard \| gap_closure}` | Mode flag | `standard` |
 
@@ -94,12 +94,12 @@ For checkpoints, spawn fresh agent with:
 
 ```markdown
 <objective>
-Continue planning for Objective {phase_number}: {phase_name}
+Continue planning for Objective {objective_number}: {objective_name}
 </objective>
 
 <prior_state>
-Objective directory: @.planning/objectives/{phase_dir}/
-Existing jobs: @.planning/objectives/{phase_dir}/*-JOB.md
+Objective directory: @.planning/objectives/{objective_dir}/
+Existing jobs: @.planning/objectives/{objective_dir}/*-JOB.md
 </prior_state>
 
 <checkpoint_response>

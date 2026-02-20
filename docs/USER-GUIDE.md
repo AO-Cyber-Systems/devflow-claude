@@ -45,7 +45,7 @@ A detailed reference for workflows, troubleshooting, and configuration. For quic
              │  │ /df:verify-work   │    │  <- Manual UAT
              │  └──────────┬─────────┘    │
              │             │              │
-             │     Next Phase?────────────┘
+             │     Next Objective?────────────┘
              │             │ No
              └─────────────┼──────────────┘
                             │
@@ -68,7 +68,7 @@ A detailed reference for workflows, troubleshooting, and configuration. For quic
 ```
   /df:plan-objective N
          │
-         ├── Phase Researcher (x4 parallel)
+         ├── Objective Researcher (x4 parallel)
          │     ├── Stack researcher
          │     ├── Features researcher
          │     ├── Architecture researcher
@@ -92,7 +92,7 @@ A detailed reference for workflows, troubleshooting, and configuration. For quic
          │                              │   └───┘  (loop, up to 3x)
          │                              │
          │                        ┌─────▼──────┐
-         │                        │ PLAN files │
+         │                        │ JOB files  │
          │                        └────────────┘
          └── Done
 ```
@@ -430,7 +430,7 @@ For reference, here is what DevFlow creates in your project:
 .planning/
   PROJECT.md              # Project vision and context (always loaded)
   REQUIREMENTS.md         # Scoped v1/v2 requirements with IDs
-  ROADMAP.md              # Phase breakdown with status tracking
+  ROADMAP.md              # Objective breakdown with status tracking
   STATE.md                # Decisions, blockers, session memory
   config.json             # Workflow configuration
   MILESTONES.md           # Completed milestone archive

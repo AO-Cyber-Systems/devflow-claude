@@ -40,7 +40,7 @@ Normalize objective input in step 1 before any directory lookups.
 INIT=$(node ~/.claude/devflow/bin/df-tools.cjs init objective-op "$ARGUMENTS")
 ```
 
-Extract from init JSON: `phase_dir`, `phase_number`, `phase_name`, `phase_found`, `commit_docs`, `has_research`.
+Extract from init JSON: `objective_dir`, `objective_number`, `objective_name`, `objective_found`, `commit_docs`, `has_research`.
 
 Resolve researcher model:
 ```bash
@@ -50,10 +50,10 @@ RESEARCHER_MODEL=$(node ~/.claude/devflow/bin/df-tools.cjs resolve-model df-obje
 ## 1. Validate Objective
 
 ```bash
-PHASE_INFO=$(node ~/.claude/devflow/bin/df-tools.cjs roadmap get-objective "${phase_number}")
+OBJECTIVE_INFO=$(node ~/.claude/devflow/bin/df-tools.cjs roadmap get-objective "${objective_number}")
 ```
 
-**If `found` is false:** Error and exit. **If `found` is true:** Extract `phase_number`, `phase_name`, `goal` from JSON.
+**If `found` is false:** Error and exit. **If `found` is true:** Extract `objective_number`, `objective_name`, `goal` from JSON.
 
 ## 2. Check Existing Research
 
@@ -68,8 +68,8 @@ ls .planning/objectives/${OBJECTIVE}-*/RESEARCH.md 2>/dev/null
 ## 3. Gather Objective Context
 
 ```bash
-# Objective section already loaded in PHASE_INFO
-echo "$PHASE_INFO" | jq -r '.section'
+# Objective section already loaded in OBJECTIVE_INFO
+echo "$OBJECTIVE_INFO" | jq -r '.section'
 cat .planning/REQUIREMENTS.md 2>/dev/null
 cat .planning/objectives/${OBJECTIVE}-*/*-CONTEXT.md 2>/dev/null
 grep -A30 "### Decisions Made" .planning/STATE.md 2>/dev/null
@@ -100,7 +100,7 @@ For this objective, discover:
 </key_insight>
 
 <objective>
-Research implementation approach for Objective {phase_number}: {phase_name}
+Research implementation approach for Objective {objective_number}: {objective_name}
 Mode: ecosystem
 </objective>
 
@@ -157,7 +157,7 @@ Task(
 
 ```markdown
 <objective>
-Continue research for Objective {phase_number}: {phase_name}
+Continue research for Objective {objective_number}: {objective_name}
 </objective>
 
 <prior_state>

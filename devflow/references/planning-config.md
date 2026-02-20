@@ -159,8 +159,8 @@ INIT=$(node ~/.claude/devflow/bin/df-tools.cjs state load)
 ```bash
 # For objective strategy
 if [ "$BRANCHING_STRATEGY" = "objective" ]; then
-  PHASE_SLUG=$(echo "$PHASE_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | sed 's/^-//;s/-$//')
-  BRANCH_NAME=$(echo "$PHASE_BRANCH_TEMPLATE" | sed "s/{objective}/$PADDED_PHASE/g" | sed "s/{slug}/$PHASE_SLUG/g")
+  OBJECTIVE_SLUG=$(echo "$OBJECTIVE_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | sed 's/^-//;s/-$//')
+  BRANCH_NAME=$(echo "$OBJECTIVE_BRANCH_TEMPLATE" | sed "s/{objective}/$PADDED_OBJECTIVE/g" | sed "s/{slug}/$OBJECTIVE_SLUG/g")
   git checkout -b "$BRANCH_NAME" 2>/dev/null || git checkout "$BRANCH_NAME"
 fi
 

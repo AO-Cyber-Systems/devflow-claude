@@ -1,5 +1,5 @@
 ---
-name: df:list-phase-assumptions
+name: df:list-objective-assumptions
 description: |
   Surface Claude's assumptions about an objective approach before planning.
   Specialized diagnostic tool for reviewing AI assumptions.

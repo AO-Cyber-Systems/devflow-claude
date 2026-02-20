@@ -43,9 +43,9 @@ docs: initialize [project-name] ([N] objectives)
 [One-liner from PROJECT.md]
 
 Objectives:
-1. [phase-name]: [goal]
-2. [phase-name]: [goal]
-3. [phase-name]: [goal]
+1. [objective-name]: [goal]
+2. [objective-name]: [goal]
+3. [objective-name]: [goal]
 ```
 
 What to commit:
@@ -140,7 +140,7 @@ node ~/.claude/devflow/bin/df-tools.cjs commit "docs({objective}-{job}): complet
 ## Handoff (WIP)
 
 ```
-wip: [phase-name] paused at task [X]/[Y]
+wip: [objective-name] paused at task [X]/[Y]
 
 Current: [task name]
 [If blocked:] Blocked: [reason]
@@ -149,7 +149,7 @@ Current: [task name]
 What to commit:
 
 ```bash
-node ~/.claude/devflow/bin/df-tools.cjs commit "wip: [phase-name] paused at task [X]/[Y]" --files .planning/
+node ~/.claude/devflow/bin/df-tools.cjs commit "wip: [objective-name] paused at task [X]/[Y]" --files .planning/
 ```
 
 </format>

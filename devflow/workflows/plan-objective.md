@@ -26,7 +26,7 @@ else
 fi
 ```
 
-Parse JSON for: `researcher_model`, `planner_model`, `checker_model`, `research_enabled`, `job_checker_enabled`, `commit_docs`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `phase_slug`, `padded_phase`, `has_research`, `has_context`, `has_plans`, `plan_count`, `planning_exists`, `roadmap_exists`.
+Parse JSON for: `researcher_model`, `planner_model`, `checker_model`, `research_enabled`, `job_checker_enabled`, `commit_docs`, `objective_found`, `objective_dir`, `objective_number`, `objective_name`, `objective_slug`, `padded_objective`, `has_research`, `has_context`, `has_jobs`, `job_count`, `planning_exists`, `roadmap_exists`.
 
 **File contents (from --include):** `state_content`, `roadmap_content`, `requirements_content`, `context_content`, `research_content`, `verification_content`, `uat_content`. These are null if files don't exist.
 
@@ -38,20 +38,20 @@ Extract from $ARGUMENTS: objective number (integer or decimal like `2.1`), flags
 
 **If no objective number:** Detect next unplanned objective from roadmap.
 
-**If `phase_found` is false:** Validate objective exists in ROADMAP.md. If valid, create the directory using `phase_slug` and `padded_phase` from init:
+**If `objective_found` is false:** Validate objective exists in ROADMAP.md. If valid, create the directory using `objective_slug` and `padded_objective` from init:
 ```bash
-mkdir -p ".planning/objectives/${padded_phase}-${phase_slug}"
+mkdir -p ".planning/objectives/${padded_objective}-${objective_slug}"
 ```
 
-**Existing artifacts from init:** `has_research`, `has_plans`, `plan_count`.
+**Existing artifacts from init:** `has_research`, `has_jobs`, `job_count`.
 
 ## 3. Validate Objective
 
 ```bash
-PHASE_INFO=$(node ~/.claude/devflow/bin/df-tools.cjs roadmap get-objective "${OBJECTIVE}")
+OBJECTIVE_INFO=$(node ~/.claude/devflow/bin/df-tools.cjs roadmap get-objective "${OBJECTIVE}")
 ```
 
-**If `found` is false:** Error with available objectives. **If `found` is true:** Extract `phase_number`, `phase_name`, `goal` from JSON.
+**If `found` is false:** Error with available objectives. **If `found` is true:** Extract `objective_number`, `objective_name`, `goal` from JSON.
 
 ## 4. Load CONTEXT.md
 
@@ -59,7 +59,7 @@ Use `context_content` from init JSON (already loaded via `--include context`).
 
 **CRITICAL:** Use `context_content` from INIT — pass to researcher, planner, checker, and revision agents.
 
-If `context_content` is not null, display: `Using objective context from: ${PHASE_DIR}/*-CONTEXT.md`
+If `context_content` is not null, display: `Using objective context from: ${objective_dir}/*-CONTEXT.md`
 
 **If `context_content` is null (no CONTEXT.md exists):**
 
@@ -94,7 +94,7 @@ Display banner:
 ```
 TaskCreate(
   subject="Research Objective {X}",
-  description="Researching implementation approach for Objective {phase_number}: {phase_name}",
+  description="Researching implementation approach for Objective {objective_number}: {objective_name}",
   activeForm="Researching Objective {X}"
 )
 ```
@@ -112,7 +112,7 @@ Evaluate research complexity:
 PHASE_DESC=$(node ~/.claude/devflow/bin/df-tools.cjs roadmap get-objective "${OBJECTIVE}" | jq -r '.section')
 # Use requirements_content from INIT (already loaded via --include requirements)
 REQUIREMENTS=$(echo "$INIT" | jq -r '.requirements_content // empty' | grep -A100 "## Requirements" | head -50)
-PHASE_REQ_IDS=$(echo "$INIT" | jq -r '.roadmap_content // empty' | grep -i "Requirements:" | head -1 | sed 's/.*Requirements:\*\*\s*//' | sed 's/[\[\]]//g' | tr ',' '\n' | sed 's/^ *//;s/ *$//' | grep -v '^$' | tr '\n' ',' | sed 's/,$//')
+OBJECTIVE_REQ_IDS=$(echo "$INIT" | jq -r '.roadmap_content // empty' | grep -i "Requirements:" | head -1 | sed 's/.*Requirements:\*\*\s*//' | sed 's/[\[\]]//g' | tr ',' '\n' | sed 's/^ *//;s/ *$//' | grep -v '^$' | tr '\n' ',' | sed 's/,$//')
 STATE_SNAP=$(node ~/.claude/devflow/bin/df-tools.cjs state-snapshot)
 # Extract decisions from state-snapshot JSON: jq '.decisions[] | "\(.objective): \(.summary) - \(.rationale)"'
 ```
@@ -121,8 +121,8 @@ Research prompt:
 
 ```markdown
 <objective>
-Research how to implement Objective {phase_number}: {phase_name}
-Answer: "What do I need to know to PLAN this objective well?"
+Research how to implement Objective {objective_number}: {objective_name}
+Answer: "What do I need to know to plan this objective well?"
 </objective>
 
 <phase_context>
@@ -136,13 +136,13 @@ IMPORTANT: If CONTEXT.md exists below, it contains user decisions from /df:discu
 
 <additional_context>
 **Objective description:** {phase_description}
-**Objective requirement IDs (MUST address):** {phase_req_ids}
+**Objective requirement IDs (MUST address):** {objective_req_ids}
 **Requirements:** {requirements}
 **Prior decisions:** {decisions}
 </additional_context>
 
 <output>
-Write to: {phase_dir}/{phase_num}-RESEARCH.md
+Write to: {objective_dir}/{phase_num}-RESEARCH.md
 </output>
 ```
 
@@ -168,7 +168,7 @@ TaskUpdate(taskId=research_task_id, status="completed")
 ## 6. Check Existing Jobs
 
 ```bash
-ls "${PHASE_DIR}"/*-JOB.md 2>/dev/null
+ls "${OBJECTIVE_DIR}"/*-JOB.md 2>/dev/null
 ```
 
 **If exists:** Offer: 1) Add more plans, 2) View existing, 3) Replan from scratch.
@@ -203,7 +203,7 @@ Display banner:
 ```
 TaskCreate(
   subject="Plan Objective {X}",
-  description="Creating executable plans for Objective {phase_number}: {phase_name}",
+  description="Creating executable plans for Objective {objective_number}: {objective_name}",
   activeForm="Planning Objective {X}"
 )
 ```
@@ -216,12 +216,12 @@ Planner prompt:
 
 ```markdown
 <planning_context>
-**Objective:** {phase_number}
+**Objective:** {objective_number}
 **Mode:** {standard | gap_closure}
 
 **Project State:** {state_content}
 **Roadmap:** {roadmap_content}
-**Objective requirement IDs (every ID MUST appear in a job's `requirements` field):** {phase_req_ids}
+**Objective requirement IDs (every ID MUST appear in a job's `requirements` field):** {objective_req_ids}
 **Requirements:** {requirements_content}
 
 **Objective Context:**
@@ -295,18 +295,18 @@ TaskCreate(
 ```
 
 ```bash
-PLANS_CONTENT=$(cat "${PHASE_DIR}"/*-JOB.md 2>/dev/null)
+PLANS_CONTENT=$(cat "${OBJECTIVE_DIR}"/*-JOB.md 2>/dev/null)
 ```
 
 Checker prompt:
 
 ```markdown
 <verification_context>
-**Objective:** {phase_number}
+**Objective:** {objective_number}
 **Objective Goal:** {goal from ROADMAP}
 
 **Plans to verify:** {plans_content}
-**Objective requirement IDs (MUST ALL be covered):** {phase_req_ids}
+**Objective requirement IDs (MUST ALL be covered):** {objective_req_ids}
 **Requirements:** {requirements_content}
 
 **Objective Context:**
@@ -361,14 +361,14 @@ TaskUpdate(taskId=plan_task_id, description="Revision iteration {N}/3 — addres
 If `iteration_count == 3` (final attempt): upgrade planner model to opus regardless of profile. The repeated failures suggest subtlety that needs stronger reasoning. Log: `Model override: df-planner {planner_model} → opus (reason: 3rd revision attempt)`
 
 ```bash
-PLANS_CONTENT=$(cat "${PHASE_DIR}"/*-JOB.md 2>/dev/null)
+PLANS_CONTENT=$(cat "${OBJECTIVE_DIR}"/*-JOB.md 2>/dev/null)
 ```
 
 Revision prompt:
 
 ```markdown
 <revision_context>
-**Objective:** {phase_number}
+**Objective:** {objective_number}
 **Mode:** revision
 
 **Existing jobs:** {plans_content}

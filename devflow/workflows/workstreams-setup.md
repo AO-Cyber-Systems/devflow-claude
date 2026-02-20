@@ -181,7 +181,7 @@ Write `.planning/workstreams.json` in the main worktree:
     {
       "id": "ws-{slug}",
       "name": "{objective name}",
-      "objectives": [{phase_number}],
+      "objectives": [{objective_number}],
       "branch": "df/ws-{slug}",
       "worktree_path": "{path}",
       "status": "pending",
@@ -190,7 +190,7 @@ Write `.planning/workstreams.json` in the main worktree:
       "merge_order": {index}
     }
   ],
-  "join_phases": [{join_phase_numbers}],
+  "join_objectives": [{join_objective_numbers}],
   "completed_workstreams": []
 }
 ```

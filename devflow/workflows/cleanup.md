@@ -42,7 +42,7 @@ Stop here.
 
 </step>
 
-<step name="determine_phase_membership">
+<step name="determine_objective_membership">
 
 For each completed milestone without a `-objectives` archive, read the archived ROADMAP snapshot to determine which objectives belong to it:
 
@@ -99,7 +99,7 @@ If "Cancel": Stop.
 
 </step>
 
-<step name="archive_phases">
+<step name="archive_objectives">
 
 For each milestone, move objective directories:
 

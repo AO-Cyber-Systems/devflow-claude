@@ -34,7 +34,7 @@ Validate first argument is an integer.
 Load objective operation context:
 
 ```bash
-INIT=$(node ~/.claude/devflow/bin/df-tools.cjs init objective-op "${after_phase}")
+INIT=$(node ~/.claude/devflow/bin/df-tools.cjs init objective-op "${after_objective}")
 ```
 
 Check `roadmap_exists` from init JSON. If false:
@@ -44,11 +44,11 @@ ERROR: No roadmap found (.planning/ROADMAP.md)
 Exit.
 </step>
 
-<step name="insert_phase">
+<step name="insert_objective">
 **Delegate the objective insertion to df-tools:**
 
 ```bash
-RESULT=$(node ~/.claude/devflow/bin/df-tools.cjs objective insert "${after_phase}" "${description}")
+RESULT=$(node ~/.claude/devflow/bin/df-tools.cjs objective insert "${after_objective}" "${description}")
 ```
 
 The CLI handles:
@@ -58,7 +58,7 @@ The CLI handles:
 - Creating the objective directory (`.planning/objectives/{N.M}-{slug}/`)
 - Inserting the objective entry into ROADMAP.md after the target objective with (INSERTED) marker
 
-Extract from result: `phase_number`, `after_phase`, `name`, `slug`, `directory`.
+Extract from result: `objective_number`, `after_objective`, `name`, `slug`, `directory`.
 </step>
 
 <step name="update_project_state">
@@ -67,7 +67,7 @@ Update STATE.md to reflect the inserted objective:
 1. Read `.planning/STATE.md`
 2. Under "## Accumulated Context" → "### Roadmap Evolution" add entry:
    ```
-   - Objective {decimal_phase} inserted after Objective {after_phase}: {description} (URGENT)
+   - Objective {decimal_objective} inserted after Objective {after_objective}: {description} (URGENT)
    ```
 
 If "Roadmap Evolution" section doesn't exist, create it.
@@ -77,7 +77,7 @@ If "Roadmap Evolution" section doesn't exist, create it.
 Present completion summary:
 
 ```
-Objective {decimal_phase} inserted after Objective {after_phase}:
+Objective {decimal_objective} inserted after Objective {after_objective}:
 - Description: {description}
 - Directory: .planning/objectives/{decimal-objective}-{slug}/
 - Status: Not planned yet
@@ -90,9 +90,9 @@ Project state updated: .planning/STATE.md
 
 ## Next Up
 
-**Objective {decimal_phase}: {description}** -- urgent insertion
+**Objective {decimal_objective}: {description}** -- urgent insertion
 
-`/df:plan-objective {decimal_phase}`
+`/df:plan-objective {decimal_objective}`
 
 <sub>`/clear` first -> fresh context window</sub>
 

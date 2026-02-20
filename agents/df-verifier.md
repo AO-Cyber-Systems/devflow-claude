@@ -54,8 +54,8 @@ Set `is_re_verification = false`, proceed with Step 1.
 ```bash
 ls "$OBJECTIVE_DIR"/*-JOB.md 2>/dev/null
 ls "$OBJECTIVE_DIR"/*-SUMMARY.md 2>/dev/null
-node ~/.claude/devflow/bin/df-tools.cjs roadmap get-objective "$PHASE_NUM"
-grep -E "^| $PHASE_NUM" .planning/REQUIREMENTS.md 2>/dev/null
+node ~/.claude/devflow/bin/df-tools.cjs roadmap get-objective "$OBJECTIVE_NUM"
+grep -E "^| $OBJECTIVE_NUM" .planning/REQUIREMENTS.md 2>/dev/null
 ```
 
 Extract objective goal from ROADMAP.md — this is the outcome to verify, not the tasks.
@@ -64,7 +64,7 @@ Extract objective goal from ROADMAP.md — this is the outcome to verify, not th
 
 In re-verification mode, must-haves come from Step 0.
 
-**Option A: Must-haves in PLAN frontmatter**
+**Option A: Must-haves in JOB frontmatter**
 
 ```bash
 grep -l "must_haves:" "$OBJECTIVE_DIR"/*-JOB.md 2>/dev/null
@@ -91,7 +91,7 @@ must_haves:
 If no must_haves in frontmatter, check for Success Criteria:
 
 ```bash
-PHASE_DATA=$(node ~/.claude/devflow/bin/df-tools.cjs roadmap get-objective "$PHASE_NUM" --raw)
+OBJECTIVE_DATA=$(node ~/.claude/devflow/bin/df-tools.cjs roadmap get-objective "$OBJECTIVE_NUM" --raw)
 ```
 
 Parse the `success_criteria` array from the JSON output. If non-empty:
@@ -131,7 +131,7 @@ For each truth:
 
 ## Step 4: Verify Artifacts (Three Levels)
 
-Use df-tools for artifact verification against must_haves in PLAN frontmatter:
+Use df-tools for artifact verification against must_haves in JOB frontmatter:
 
 ```bash
 ARTIFACT_RESULT=$(node ~/.claude/devflow/bin/df-tools.cjs verify artifacts "$JOB_PATH")
@@ -180,7 +180,7 @@ grep -r "$artifact_name" "${search_path:-src/}" --include="*.ts" --include="*.ts
 
 Key links are critical connections. If broken, the goal fails even with all artifacts present.
 
-Use df-tools for key link verification against must_haves in PLAN frontmatter:
+Use df-tools for key link verification against must_haves in JOB frontmatter:
 
 ```bash
 LINKS_RESULT=$(node ~/.claude/devflow/bin/df-tools.cjs verify key-links "$JOB_PATH")
@@ -193,7 +193,7 @@ For each link:
 - `verified=false` with "not found" in detail → NOT_WIRED
 - `verified=false` with "Pattern not found" → PARTIAL
 
-**Fallback patterns** (if must_haves.key_links not defined in PLAN):
+**Fallback patterns** (if must_haves.key_links not defined in JOB):
 
 ### Pattern: Component → API
 
@@ -233,7 +233,7 @@ Status: WIRED (state displayed) | NOT_WIRED (state exists, not rendered)
 
 ## Step 6: Check Requirements Coverage
 
-**6a. Extract requirement IDs from PLAN frontmatter:**
+**6a. Extract requirement IDs from JOB frontmatter:**
 
 ```bash
 grep -A5 "^requirements:" "$OBJECTIVE_DIR"/*-JOB.md 2>/dev/null
@@ -254,7 +254,7 @@ For each requirement ID from plans:
 **6c. Check for orphaned requirements:**
 
 ```bash
-grep -E "Objective $PHASE_NUM" .planning/REQUIREMENTS.md 2>/dev/null
+grep -E "Objective $OBJECTIVE_NUM" .planning/REQUIREMENTS.md 2>/dev/null
 ```
 
 If REQUIREMENTS.md maps additional IDs to this objective that don't appear in ANY job's `requirements` field, flag as **ORPHANED** — these requirements were expected but no plan claimed them. ORPHANED requirements MUST appear in the verification report.
@@ -349,7 +349,7 @@ gaps:
 
 **ALWAYS use the Write tool to create files** — never use `Bash(cat << 'EOF')` or heredoc commands for file creation.
 
-Create `.planning/objectives/{phase_dir}/{phase_num}-VERIFICATION.md`:
+Create `.planning/objectives/{objective_dir}/{phase_num}-VERIFICATION.md`:
 
 ```markdown
 ---
@@ -443,7 +443,7 @@ Return with:
 
 **Status:** {passed | gaps_found | human_needed}
 **Score:** {N}/{M} must-haves verified
-**Report:** .planning/objectives/{phase_dir}/{phase_num}-VERIFICATION.md
+**Report:** .planning/objectives/{objective_dir}/{phase_num}-VERIFICATION.md
 
 {If passed:}
 All must-haves verified. Objective goal achieved. Ready to proceed.

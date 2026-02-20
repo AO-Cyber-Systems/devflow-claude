@@ -6,7 +6,7 @@ Key difference from discuss-objective: This is ANALYSIS of what Claude thinks, n
 
 <process>
 
-<step name="validate_phase" priority="first">
+<step name="validate_objective" priority="first">
 Objective number: $ARGUMENTS (required)
 
 **If argument missing:**
@@ -46,10 +46,10 @@ Parse objective details from roadmap:
 - Objective description/goal
 - Any scope details mentioned
 
-Continue to analyze_phase.
+Continue to analyze_objective.
 </step>
 
-<step name="analyze_phase">
+<step name="analyze_objective">
 Based on roadmap description and project context, identify assumptions across five areas:
 
 **1. Technical Approach:**
@@ -92,7 +92,7 @@ Be honest about uncertainty. Mark assumptions with confidence levels:
 Present assumptions in a clear, scannable format:
 
 ```
-## My Assumptions for Objective ${OBJECTIVE}: ${PHASE_NAME}
+## My Assumptions for Objective ${OBJECTIVE}: ${OBJECTIVE_NAME}
 
 ### Technical Approach
 [List assumptions about how to implement]
@@ -163,7 +163,7 @@ Wait for user selection.
 
 If "Discuss context": Note that CONTEXT.md will incorporate any corrections discussed here
 If "Plan this objective": Proceed knowing assumptions are understood
-If "Re-examine": Return to analyze_phase with updated understanding
+If "Re-examine": Return to analyze_objective with updated understanding
 </step>
 
 </process>

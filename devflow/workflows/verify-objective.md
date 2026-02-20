@@ -28,28 +28,28 @@ Then verify each level against the actual codebase.
 Load objective operation context:
 
 ```bash
-INIT=$(node ~/.claude/devflow/bin/df-tools.cjs init objective-op "${PHASE_ARG}")
+INIT=$(node ~/.claude/devflow/bin/df-tools.cjs init objective-op "${OBJECTIVE_ARG}")
 ```
 
-Extract from init JSON: `phase_dir`, `phase_number`, `phase_name`, `has_plans`, `plan_count`.
+Extract from init JSON: `objective_dir`, `objective_number`, `objective_name`, `has_jobs`, `job_count`.
 
 Then load objective details and list plans/summaries:
 ```bash
-node ~/.claude/devflow/bin/df-tools.cjs roadmap get-objective "${phase_number}"
-grep -E "^| ${phase_number}" .planning/REQUIREMENTS.md 2>/dev/null
-ls "$phase_dir"/*-SUMMARY.md "$phase_dir"/*-JOB.md 2>/dev/null
+node ~/.claude/devflow/bin/df-tools.cjs roadmap get-objective "${objective_number}"
+grep -E "^| ${objective_number}" .planning/REQUIREMENTS.md 2>/dev/null
+ls "$objective_dir"/*-SUMMARY.md "$objective_dir"/*-JOB.md 2>/dev/null
 ```
 
 Extract **objective goal** from ROADMAP.md (the outcome to verify, not tasks) and **requirements** from REQUIREMENTS.md if it exists.
 </step>
 
 <step name="establish_must_haves">
-**Option A: Must-haves in PLAN frontmatter**
+**Option A: Must-haves in JOB frontmatter**
 
-Use df-tools to extract must_haves from each PLAN:
+Use df-tools to extract must_haves from each JOB:
 
 ```bash
-for plan in "$OBJECTIVE_DIR"/*-JOB.md; do
+for jobfile in "$OBJECTIVE_DIR"/*-JOB.md; do
   MUST_HAVES=$(node ~/.claude/devflow/bin/df-tools.cjs frontmatter get "$job" --field must_haves)
   echo "=== $job ===" && echo "$MUST_HAVES"
 done
@@ -64,7 +64,7 @@ Aggregate all must_haves across plans for objective-level verification.
 If no must_haves in frontmatter (MUST_HAVES returns error or empty), check for Success Criteria:
 
 ```bash
-PHASE_DATA=$(node ~/.claude/devflow/bin/df-tools.cjs roadmap get-objective "${phase_number}" --raw)
+OBJECTIVE_DATA=$(node ~/.claude/devflow/bin/df-tools.cjs roadmap get-objective "${objective_number}" --raw)
 ```
 
 Parse the `success_criteria` array from the JSON output. If non-empty:
@@ -73,7 +73,7 @@ Parse the `success_criteria` array from the JSON output. If non-empty:
 3. Derive **key links** (critical wiring where stubs hide)
 4. Document the must-haves before proceeding
 
-Success Criteria from ROADMAP.md are the contract — they override PLAN-level must_haves when both exist.
+Success Criteria from ROADMAP.md are the contract — they override JOB-level must_haves when both exist.
 
 **Option C: Derive from objective goal (fallback)**
 
@@ -96,10 +96,10 @@ For each truth: identify supporting artifacts → check artifact status → chec
 </step>
 
 <step name="verify_artifacts">
-Use df-tools for artifact verification against must_haves in each PLAN:
+Use df-tools for artifact verification against must_haves in each JOB:
 
 ```bash
-for plan in "$OBJECTIVE_DIR"/*-JOB.md; do
+for jobfile in "$OBJECTIVE_DIR"/*-JOB.md; do
   ARTIFACT_RESULT=$(node ~/.claude/devflow/bin/df-tools.cjs verify artifacts "$job")
   echo "=== $job ===" && echo "$ARTIFACT_RESULT"
 done
@@ -128,10 +128,10 @@ WIRED = imported AND used. ORPHANED = exists but not imported/used.
 </step>
 
 <step name="verify_wiring">
-Use df-tools for key link verification against must_haves in each PLAN:
+Use df-tools for key link verification against must_haves in each JOB:
 
 ```bash
-for plan in "$OBJECTIVE_DIR"/*-JOB.md; do
+for jobfile in "$OBJECTIVE_DIR"/*-JOB.md; do
   LINKS_RESULT=$(node ~/.claude/devflow/bin/df-tools.cjs verify key-links "$job")
   echo "=== $job ===" && echo "$LINKS_RESULT"
 done
@@ -159,7 +159,7 @@ Record status and evidence for each key link.
 <step name="verify_requirements">
 If REQUIREMENTS.md exists:
 ```bash
-grep -E "Objective ${PHASE_NUM}" .planning/REQUIREMENTS.md 2>/dev/null
+grep -E "Objective ${OBJECTIVE_NUM}" .planning/REQUIREMENTS.md 2>/dev/null
 ```
 
 For each requirement: parse description → identify supporting truths/artifacts → status: ✓ SATISFIED / ✗ BLOCKED / ? NEEDS HUMAN.
@@ -208,7 +208,7 @@ If gaps_found:
 
 <step name="create_report">
 ```bash
-REPORT_PATH="$OBJECTIVE_DIR/${PHASE_NUM}-VERIFICATION.md"
+REPORT_PATH="$OBJECTIVE_DIR/${OBJECTIVE_NUM}-VERIFICATION.md"
 ```
 
 Fill template sections: frontmatter (objective/timestamp/status/score), goal achievement, artifact table, wiring table, requirements coverage, anti-patterns, human verification, gaps summary, fix plans (if gaps_found), metadata.

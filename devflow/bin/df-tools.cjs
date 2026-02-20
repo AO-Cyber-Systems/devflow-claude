@@ -39,7 +39,7 @@
  * Roadmap Operations:
  *   roadmap get-objective <objective>          Extract objective section from ROADMAP.md
  *   roadmap analyze                    Full roadmap parse with disk status
- *   roadmap update-job-progress <N>   Update progress table row from disk (PLAN vs SUMMARY counts)
+ *   roadmap update-job-progress <N>   Update progress table row from disk (JOB vs SUMMARY counts)
  *
  * Requirements Operations:
  *   requirements mark-complete <ids>   Mark requirement IDs as complete in REQUIREMENTS.md
@@ -1465,7 +1465,7 @@ function cmdFindObjective(cwd, objective, raw) {
   const objectivesDir = path.join(cwd, '.planning', 'objectives');
   const normalized = normalizeObjectiveName(objective);
 
-  const notFound = { found: false, directory: null, objective_number: null, objective_name: null, plans: [], summaries: [] };
+  const notFound = { found: false, directory: null, objective_number: null, objective_name: null, jobs: [], summaries: [] };
 
   try {
     const entries = fs.readdirSync(objectivesDir, { withFileTypes: true });
@@ -1491,7 +1491,7 @@ function cmdFindObjective(cwd, objective, raw) {
       directory: path.join('.planning', 'objectives', match),
       objective_number: objectiveNumber,
       objective_name: objectiveName,
-      plans,
+      jobs: plans,
       summaries,
     };
 
@@ -1881,7 +1881,7 @@ function cmdObjectiveJobIndex(cwd, objective, raw) {
   }
 
   if (!objectiveDir) {
-    output({ objective: normalized, error: 'Objective not found', plans: [], waves: {}, incomplete: [], has_checkpoints: false }, raw);
+    output({ objective: normalized, error: 'Objective not found', jobs: [], waves: {}, incomplete: [], has_checkpoints: false }, raw);
     return;
   }
 
@@ -1956,7 +1956,7 @@ function cmdObjectiveJobIndex(cwd, objective, raw) {
 
   const result = {
     objective: normalized,
-    plans,
+    jobs: plans,
     waves,
     incomplete,
     has_checkpoints: hasCheckpoints,
@@ -2663,8 +2663,8 @@ function cmdRoadmapAnalyze(cwd, raw) {
     total_summaries: totalSummaries,
     progress_percent: totalJobs > 0 ? Math.round((totalSummaries / totalJobs) * 100) : 0,
     current_objective: currentObjective ? currentObjective.number : null,
-    next_phase: nextObjective ? nextObjective.number : null,
-    missing_phase_details: missingDetails.length > 0 ? missingDetails : null,
+    next_objective: nextObjective ? nextObjective.number : null,
+    missing_objective_details: missingDetails.length > 0 ? missingDetails : null,
   };
 
   output(result, raw);
@@ -3078,7 +3078,7 @@ function cmdRoadmapUpdateJobProgress(cwd, objectiveNum, raw) {
     error(`Objective ${objectiveNum} not found`);
   }
 
-  const jobCount = objectiveInfo.plans.length;
+  const jobCount = objectiveInfo.jobs.length;
   const summaryCount = objectiveInfo.summaries.length;
 
   if (jobCount === 0) {
@@ -3228,7 +3228,7 @@ function cmdObjectiveComplete(cwd, objectiveNum, raw) {
     error(`Objective ${objectiveNum} not found`);
   }
 
-  const jobCount = objectiveInfo.plans.length;
+  const jobCount = objectiveInfo.jobs.length;
   const summaryCount = objectiveInfo.summaries.length;
 
   // Update ROADMAP.md: mark objective complete
@@ -3368,8 +3368,8 @@ function cmdObjectiveComplete(cwd, objectiveNum, raw) {
   const result = {
     completed_objective: objectiveNum,
     objective_name: objectiveInfo.objective_name,
-    plans_executed: `${summaryCount}/${jobCount}`,
-    next_phase: nextObjectiveNum,
+    jobs_executed: `${summaryCount}/${jobCount}`,
+    next_objective: nextObjectiveNum,
     next_objective_name: nextObjectiveName,
     is_last_objective: isLastObjective,
     date: today,
@@ -3501,7 +3501,7 @@ function cmdMilestoneComplete(cwd, version, options, raw) {
     name: milestoneName,
     date: today,
     objectives: objectiveCount,
-    plans: totalJobs,
+    jobs: totalJobs,
     tasks: totalTasks,
     accomplishments,
     archived: {
@@ -3916,7 +3916,7 @@ function cmdProgressRender(cwd, format, raw) {
       else if (summaries > 0) status = 'In Progress';
       else status = 'Planned';
 
-      objectives.push({ number: objectiveNum, name: objectiveName, plans, summaries, status });
+      objectives.push({ number: objectiveNum, name: objectiveName, jobs: plans, summaries, status });
     }
   } catch {}
 
@@ -3932,7 +3932,7 @@ function cmdProgressRender(cwd, format, raw) {
     out += `| Objective | Name | Plans | Status |\n`;
     out += `|-------|------|-------|--------|\n`;
     for (const p of objectives) {
-      out += `| ${p.number} | ${p.name} | ${p.summaries}/${p.plans} | ${p.status} |\n`;
+      out += `| ${p.number} | ${p.name} | ${p.summaries}/${p.jobs} | ${p.status} |\n`;
     }
     output({ rendered: out }, raw, out);
   } else if (format === 'bar') {
@@ -4130,7 +4130,7 @@ function searchObjectiveInDir(baseDir, relBase, normalized) {
       objective_number: objectiveNumber,
       objective_name: objectiveName,
       objective_slug: objectiveName ? objectiveName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') : null,
-      plans,
+      jobs: plans,
       summaries,
       incomplete_jobs: incompleteJobs,
       has_research: hasResearch,
@@ -4272,10 +4272,10 @@ function cmdInitExecuteObjective(cwd, objective, includes, raw) {
     objective_slug: objectiveInfo?.objective_slug || null,
 
     // Plan inventory
-    plans: objectiveInfo?.plans || [],
+    jobs: objectiveInfo?.jobs || [],
     summaries: objectiveInfo?.summaries || [],
     incomplete_jobs: objectiveInfo?.incomplete_jobs || [],
-    job_count: objectiveInfo?.plans?.length || 0,
+    job_count: objectiveInfo?.jobs?.length || 0,
     incomplete_count: objectiveInfo?.incomplete_jobs?.length || 0,
 
     // Branch name (pre-computed)
@@ -4344,8 +4344,8 @@ function cmdInitPlanObjective(cwd, objective, includes, raw) {
     // Existing artifacts
     has_research: objectiveInfo?.has_research || false,
     has_context: objectiveInfo?.has_context || false,
-    has_plans: (objectiveInfo?.plans?.length || 0) > 0,
-    job_count: objectiveInfo?.plans?.length || 0,
+    has_jobs: (objectiveInfo?.jobs?.length || 0) > 0,
+    job_count: objectiveInfo?.jobs?.length || 0,
 
     // Environment
     planning_exists: pathExistsInternal(cwd, '.planning'),
@@ -4613,7 +4613,7 @@ function cmdInitObjectiveOp(cwd, objective, raw) {
         objective_number: roadmapObjective.objective_number,
         objective_name: objectiveName,
         objective_slug: objectiveName ? objectiveName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') : null,
-        plans: [],
+        jobs: [],
         summaries: [],
         incomplete_jobs: [],
         has_research: false,
@@ -4639,9 +4639,9 @@ function cmdInitObjectiveOp(cwd, objective, raw) {
     // Existing artifacts
     has_research: objectiveInfo?.has_research || false,
     has_context: objectiveInfo?.has_context || false,
-    has_plans: (objectiveInfo?.plans?.length || 0) > 0,
+    has_jobs: (objectiveInfo?.jobs?.length || 0) > 0,
     has_verification: objectiveInfo?.has_verification || false,
-    job_count: objectiveInfo?.plans?.length || 0,
+    job_count: objectiveInfo?.jobs?.length || 0,
 
     // File existence
     roadmap_exists: pathExistsInternal(cwd, '.planning/ROADMAP.md'),
@@ -4754,7 +4754,7 @@ function cmdInitMilestoneOp(cwd, raw) {
     // Objective counts
     objective_count: objectiveCount,
     completed_objectives: completedPhases,
-    all_phases_complete: objectiveCount > 0 && objectiveCount === completedPhases,
+    all_objectives_complete: objectiveCount > 0 && objectiveCount === completedPhases,
 
     // Archive
     archived_milestones: archivedMilestones,
@@ -4885,7 +4885,7 @@ function cmdInitProgress(cwd, includes, raw) {
 
     // Current state
     current_objective: currentObjective,
-    next_phase: nextObjective,
+    next_objective: nextObjective,
     paused_at: pausedAt,
     has_work_in_progress: !!currentObjective,
 
@@ -5022,7 +5022,7 @@ function cmdWorkstreamsAnalyze(cwd, raw) {
 
   output({
     workstream_groups: workstreamGroups,
-    join_phases: joinPhases,
+    join_objectives: joinPhases,
     parallelism_possible: parallelismPossible,
     max_concurrent: workstreamGroups.length,
     completed_objectives: [...completedSet],
@@ -5216,7 +5216,7 @@ function cmdWorkstreamsReconcile(cwd, raw) {
           const summaryCount = objectiveFiles.filter(f => f.endsWith('-SUMMARY.md') || f === 'SUMMARY.md').length;
           reconciledPhases.push({
             objective: objectiveNum,
-            plans: jobCount,
+            jobs: jobCount,
             summaries: summaryCount,
             complete: summaryCount >= jobCount && jobCount > 0,
           });
@@ -5264,7 +5264,7 @@ function cmdWorkstreamsReconcile(cwd, raw) {
         const today = new Date().toISOString().split('T')[0];
         roadmapContent = roadmapContent.replace(
           tablePattern,
-          `$1${rp.summaries}/${rp.plans}$2Complete | ${today} |`
+          `$1${rp.summaries}/${rp.jobs}$2Complete | ${today} |`
         );
       }
     }
@@ -5276,8 +5276,8 @@ function cmdWorkstreamsReconcile(cwd, raw) {
   // (handled during git merge — checkboxes from each branch are already merged)
 
   // Determine next objective (join objective)
-  const nextObjective = wsData.join_phases && wsData.join_phases.length > 0
-    ? wsData.join_phases[0]
+  const nextObjective = wsData.join_objectives && wsData.join_objectives.length > 0
+    ? wsData.join_objectives[0]
     : null;
 
   // Regenerate STATE.md for join objective
@@ -5302,7 +5302,7 @@ function cmdWorkstreamsReconcile(cwd, raw) {
 
   // Count total completed
   const allPhasesDone = reconciledPhases.filter(rp => rp.complete).length;
-  const totalJobs = reconciledPhases.reduce((s, rp) => s + rp.plans, 0);
+  const totalJobs = reconciledPhases.reduce((s, rp) => s + rp.jobs, 0);
   const totalSummaries = reconciledPhases.reduce((s, rp) => s + rp.summaries, 0);
 
   const today = new Date().toISOString().split('T')[0];
@@ -5364,10 +5364,10 @@ Resume file: None
 
   output({
     success: true,
-    reconciled_phases: reconciledPhases,
+    reconciled_objectives: reconciledPhases,
     decisions_merged: allDecisions.length,
     blockers_merged: allBlockers.length,
-    next_phase: nextObjective,
+    next_objective: nextObjective,
     next_objective_name: joinPhaseName,
     state_regenerated: true,
     roadmap_updated: true,

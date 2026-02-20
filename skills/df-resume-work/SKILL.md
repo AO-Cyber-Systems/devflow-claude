@@ -19,7 +19,7 @@ Routes to the resume-project workflow which handles:
 
 - STATE.md loading (or reconstruction if missing)
 - Checkpoint detection (.continue-here files)
-- Incomplete work detection (PLAN without SUMMARY)
+- Incomplete work detection (JOB without SUMMARY)
 - Status presentation
 - Context-aware next action routing
   </objective>

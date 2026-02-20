@@ -94,18 +94,18 @@ For each objective's exports, verify they're imported and used.
 ```bash
 check_export_used() {
   local export_name="$1"
-  local source_phase="$2"
+  local source_objective="$2"
   local search_path="${3:-src/}"
 
   # Find imports
   local imports=$(grep -r "import.*$export_name" "$search_path" \
     --include="*.ts" --include="*.tsx" 2>/dev/null | \
-    grep -v "$source_phase" | wc -l)
+    grep -v "$source_objective" | wc -l)
 
   # Find usage (not just import)
   local uses=$(grep -r "$export_name" "$search_path" \
     --include="*.ts" --include="*.tsx" 2>/dev/null | \
-    grep -v "import" | grep -v "$source_phase" | wc -l)
+    grep -v "import" | grep -v "$source_objective" | wc -l)
 
   if [ "$imports" -gt 0 ] && [ "$uses" -gt 0 ]; then
     echo "CONNECTED ($imports imports, $uses uses)"

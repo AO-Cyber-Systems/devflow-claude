@@ -344,17 +344,17 @@ After all verification dimensions pass, assess overall confidence for one-pass e
 
 Load objective operation context:
 ```bash
-INIT=$(node ~/.claude/devflow/bin/df-tools.cjs init objective-op "${PHASE_ARG}")
+INIT=$(node ~/.claude/devflow/bin/df-tools.cjs init objective-op "${OBJECTIVE_ARG}")
 ```
 
-Extract from init JSON: `phase_dir`, `phase_number`, `has_plans`, `plan_count`.
+Extract from init JSON: `objective_dir`, `objective_number`, `has_jobs`, `job_count`.
 
 Orchestrator provides CONTEXT.md content in the verification prompt. If provided, parse for locked decisions, discretion areas, deferred ideas.
 
 ```bash
-ls "$phase_dir"/*-JOB.md 2>/dev/null
-node ~/.claude/devflow/bin/df-tools.cjs roadmap get-objective "$phase_number"
-ls "$phase_dir"/*-BRIEF.md 2>/dev/null
+ls "$objective_dir"/*-JOB.md 2>/dev/null
+node ~/.claude/devflow/bin/df-tools.cjs roadmap get-objective "$objective_number"
+ls "$objective_dir"/*-BRIEF.md 2>/dev/null
 ```
 
 **Extract:** Objective goal, requirements (decompose goal), locked decisions, deferred ideas.

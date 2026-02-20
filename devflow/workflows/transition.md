@@ -45,7 +45,7 @@ ls .planning/objectives/XX-current/*-SUMMARY.md 2>/dev/null | sort
 
 **Verification logic:**
 
-- Count PLAN files
+- Count JOB files
 - Count SUMMARY files
 - If counts match: all jobs complete
 - If counts don't match: incomplete
@@ -123,7 +123,7 @@ If found, delete them — objective is complete, handoffs are stale.
 **Delegate ROADMAP.md and STATE.md updates to df-tools:**
 
 ```bash
-TRANSITION=$(node ~/.claude/devflow/bin/df-tools.cjs objective complete "${current_phase}")
+TRANSITION=$(node ~/.claude/devflow/bin/df-tools.cjs objective complete "${current_objective}")
 ```
 
 The CLI handles:
@@ -133,7 +133,7 @@ The CLI handles:
 - Advancing STATE.md to next objective (Current Objective, Status → Ready to plan, Current Job → Not started)
 - Detecting if this is the last objective in the milestone
 
-Extract from result: `completed_phase`, `plans_executed`, `next_phase`, `next_phase_name`, `is_last_phase`.
+Extract from result: `completed_objective`, `jobs_executed`, `next_objective`, `next_objective_name`, `is_last_objective`.
 
 </step>
 
@@ -333,7 +333,7 @@ Resume file: None
 
 </step>
 
-<step name="offer_next_phase">
+<step name="offer_next_objective">
 
 **MANDATORY: Check for workstream context first, then verify milestone status.**
 
@@ -347,11 +347,11 @@ If the file exists, parse it. Check if the completing objective is the LAST obje
 
 **Use the transition result from `df-tools objective complete`:**
 
-The `is_last_phase` field from the objective complete result tells you directly:
-- `is_last_phase: false` → More objectives remain → Go to **Route A**
-- `is_last_phase: true` → Milestone complete → Go to **Route B**
+The `is_last_objective` field from the objective complete result tells you directly:
+- `is_last_objective: false` → More objectives remain → Go to **Route A**
+- `is_last_objective: true` → Milestone complete → Go to **Route B**
 
-The `next_phase` and `next_phase_name` fields give you the next objective details.
+The `next_objective` and `next_objective_name` fields give you the next objective details.
 
 If you need additional context, use:
 ```bash

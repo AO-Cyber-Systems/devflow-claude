@@ -126,12 +126,12 @@ RECONCILE=$(node ~/.claude/devflow/bin/df-tools.cjs workstreams reconcile)
 ```
 
 This command:
-- Updates ROADMAP.md progress from disk (counts actual PLAN vs SUMMARY files)
+- Updates ROADMAP.md progress from disk (counts actual JOB vs SUMMARY files)
 - Regenerates STATE.md pointing to the join objective
 - Merges accumulated context (decisions, blockers) from all workstream STATE.md files
 - Updates workstreams.json (moves active to completed_workstreams)
 
-Parse the result for `next_phase` and `next_phase_name`.
+Parse the result for `next_objective` and `next_objective_name`.
 
 </step>
 
@@ -184,7 +184,7 @@ node ~/.claude/devflow/bin/df-tools.cjs commit "docs: merge workstreams, advance
 ### State Reconciled
 
 - ROADMAP.md: Progress updated from disk
-- STATE.md: Regenerated for Objective {join_phase}
+- STATE.md: Regenerated for Objective {join_objective}
 - Worktrees: Cleaned up
 - Branches: Deleted
 
@@ -192,11 +192,11 @@ node ~/.claude/devflow/bin/df-tools.cjs commit "docs: merge workstreams, advance
 
 ## ▶ Next Up
 
-**Objective {join_phase}: {name}** — the join point
+**Objective {join_objective}: {name}** — the join point
 
 All workstream dependencies are satisfied. Ready to plan:
 
-`/df:plan-objective {join_phase}`
+`/df:plan-objective {join_objective}`
 
 <sub>`/clear` first → fresh context window</sub>
 ```

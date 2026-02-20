@@ -65,10 +65,10 @@ Look for incomplete work that needs attention:
 # Check for continue-here files (mid-plan resumption)
 ls .planning/objectives/*/.continue-here*.md 2>/dev/null
 
-# Check for plans without summaries (incomplete execution)
-for plan in .planning/objectives/*/*-JOB.md; do
-  summary="${plan/PLAN/SUMMARY}"
-  [ ! -f "$summary" ] && echo "Incomplete: $job"
+# Check for jobs without summaries (incomplete execution)
+for jobfile in .planning/objectives/*/*-JOB.md; do
+  summary="${jobfile/JOB/SUMMARY}"
+  [ ! -f "$summary" ] && echo "Incomplete: $jobfile"
 done 2>/dev/null
 
 # Check for interrupted agents (use has_interrupted_agent and interrupted_agent_id from init)
@@ -81,9 +81,9 @@ fi
 
 - This is a mid-plan resumption point
 - Read the file for specific resumption context
-- Flag: "Found mid-plan checkpoint"
+- Flag: "Found mid-job checkpoint"
 
-**If PLAN without SUMMARY exists:**
+**If JOB without SUMMARY exists:**
 
 - Execution was started but not completed
 - Flag: "Found incomplete job execution"
@@ -148,8 +148,8 @@ Based on project state, determine the most logical next action:
 → Primary: Resume from checkpoint
 → Option: Start fresh on current job
 
-**If incomplete plan (PLAN without SUMMARY):**
-→ Primary: Complete the incomplete plan
+**If incomplete job (JOB without SUMMARY):**
+→ Primary: Complete the incomplete job
 → Option: Abandon and move on
 
 **If objective in progress, all jobs complete:**

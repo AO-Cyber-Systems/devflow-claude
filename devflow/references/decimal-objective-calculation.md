@@ -13,7 +13,7 @@ Output:
 ```json
 {
   "found": true,
-  "base_phase": "06",
+  "base_objective": "06",
   "next": "06.1",
   "existing": []
 }
@@ -23,7 +23,7 @@ With existing decimals:
 ```json
 {
   "found": true,
-  "base_phase": "06",
+  "base_objective": "06",
   "next": "06.3",
   "existing": ["06.1", "06.2"]
 }
@@ -32,14 +32,14 @@ With existing decimals:
 ## Extract Values
 
 ```bash
-DECIMAL_INFO=$(node ~/.claude/devflow/bin/df-tools.cjs objective next-decimal "${AFTER_PHASE}")
-DECIMAL_PHASE=$(echo "$DECIMAL_INFO" | jq -r '.next')
-BASE_PHASE=$(echo "$DECIMAL_INFO" | jq -r '.base_phase')
+DECIMAL_INFO=$(node ~/.claude/devflow/bin/df-tools.cjs objective next-decimal "${AFTER_OBJECTIVE}")
+DECIMAL_OBJECTIVE=$(echo "$DECIMAL_INFO" | jq -r '.next')
+BASE_OBJECTIVE=$(echo "$DECIMAL_INFO" | jq -r '.base_objective')
 ```
 
 Or with --raw flag:
 ```bash
-DECIMAL_PHASE=$(node ~/.claude/devflow/bin/df-tools.cjs objective next-decimal "${AFTER_PHASE}" --raw)
+DECIMAL_OBJECTIVE=$(node ~/.claude/devflow/bin/df-tools.cjs objective next-decimal "${AFTER_OBJECTIVE}" --raw)
 # Returns just: 06.1
 ```
 
@@ -58,7 +58,7 @@ Decimal objective directories use the full decimal number:
 
 ```bash
 SLUG=$(node ~/.claude/devflow/bin/df-tools.cjs generate-slug "$DESCRIPTION" --raw)
-PHASE_DIR=".planning/objectives/${DECIMAL_PHASE}-${SLUG}"
+OBJECTIVE_DIR=".planning/objectives/${DECIMAL_OBJECTIVE}-${SLUG}"
 mkdir -p "$OBJECTIVE_DIR"
 ```
 

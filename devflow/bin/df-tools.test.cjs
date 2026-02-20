@@ -363,7 +363,7 @@ describe('objectives list command', () => {
     assert.deepStrictEqual(
       output.files.sort(),
       ['01-01-JOB.md', '01-02-JOB.md'],
-      'should list only PLAN files'
+      'should list only JOB files'
     );
   });
 
@@ -665,7 +665,7 @@ describe('objective-job-index command', () => {
 
     const output = JSON.parse(result.output);
     assert.strictEqual(output.objective, '03', 'objective number correct');
-    assert.deepStrictEqual(output.plans, [], 'plans should be empty');
+    assert.deepStrictEqual(output.jobs, [], 'jobs should be empty');
     assert.deepStrictEqual(output.waves, {}, 'waves should be empty');
     assert.deepStrictEqual(output.incomplete, [], 'incomplete should be empty');
     assert.strictEqual(output.has_checkpoints, false, 'no checkpoints');
@@ -693,14 +693,14 @@ files-modified: [prisma/schema.prisma, src/lib/db.ts]
     assert.ok(result.success, `Command failed: ${result.error}`);
 
     const output = JSON.parse(result.output);
-    assert.strictEqual(output.plans.length, 1, 'should have 1 job');
-    assert.strictEqual(output.plans[0].id, '03-01', 'job id correct');
-    assert.strictEqual(output.plans[0].wave, 1, 'wave extracted');
-    assert.strictEqual(output.plans[0].autonomous, true, 'autonomous extracted');
-    assert.strictEqual(output.plans[0].objective, 'Set up database schema', 'objective extracted');
-    assert.deepStrictEqual(output.plans[0].files_modified, ['prisma/schema.prisma', 'src/lib/db.ts'], 'files extracted');
-    assert.strictEqual(output.plans[0].task_count, 2, 'task count correct');
-    assert.strictEqual(output.plans[0].has_summary, false, 'no summary yet');
+    assert.strictEqual(output.jobs.length, 1, 'should have 1 job');
+    assert.strictEqual(output.jobs[0].id, '03-01', 'job id correct');
+    assert.strictEqual(output.jobs[0].wave, 1, 'wave extracted');
+    assert.strictEqual(output.jobs[0].autonomous, true, 'autonomous extracted');
+    assert.strictEqual(output.jobs[0].objective, 'Set up database schema', 'objective extracted');
+    assert.deepStrictEqual(output.jobs[0].files_modified, ['prisma/schema.prisma', 'src/lib/db.ts'], 'files extracted');
+    assert.strictEqual(output.jobs[0].task_count, 2, 'task count correct');
+    assert.strictEqual(output.jobs[0].has_summary, false, 'no summary yet');
   });
 
   test('groups multiple jobs by wave', () => {
@@ -747,7 +747,7 @@ objective: API routes
     assert.ok(result.success, `Command failed: ${result.error}`);
 
     const output = JSON.parse(result.output);
-    assert.strictEqual(output.plans.length, 3, 'should have 3 jobs');
+    assert.strictEqual(output.jobs.length, 3, 'should have 3 jobs');
     assert.deepStrictEqual(output.waves['1'], ['03-01', '03-02'], 'wave 1 has 2 jobs');
     assert.deepStrictEqual(output.waves['2'], ['03-03'], 'wave 2 has 1 job');
   });
@@ -767,8 +767,8 @@ objective: API routes
     assert.ok(result.success, `Command failed: ${result.error}`);
 
     const output = JSON.parse(result.output);
-    assert.strictEqual(output.plans[0].has_summary, true, 'first job has summary');
-    assert.strictEqual(output.plans[1].has_summary, false, 'second job has no summary');
+    assert.strictEqual(output.jobs[0].has_summary, true, 'first job has summary');
+    assert.strictEqual(output.jobs[1].has_summary, false, 'second job has no summary');
     assert.deepStrictEqual(output.incomplete, ['03-02'], 'incomplete list correct');
   });
 
@@ -793,7 +793,7 @@ objective: Manual review needed
 
     const output = JSON.parse(result.output);
     assert.strictEqual(output.has_checkpoints, true, 'should detect checkpoint');
-    assert.strictEqual(output.plans[0].autonomous, false, 'job marked non-autonomous');
+    assert.strictEqual(output.jobs[0].autonomous, false, 'job marked non-autonomous');
   });
 
   test('objective not found returns error', () => {
@@ -1710,8 +1710,8 @@ describe('objective complete command', () => {
 
     const output = JSON.parse(result.output);
     assert.strictEqual(output.completed_objective, '1');
-    assert.strictEqual(output.plans_executed, '1/1');
-    assert.strictEqual(output.next_phase, '02');
+    assert.strictEqual(output.jobs_executed, '1/1');
+    assert.strictEqual(output.next_objective, '02');
     assert.strictEqual(output.is_last_objective, false);
 
     // Verify STATE.md updated
@@ -1746,7 +1746,7 @@ describe('objective complete command', () => {
 
     const output = JSON.parse(result.output);
     assert.strictEqual(output.is_last_objective, true, 'should detect last phase');
-    assert.strictEqual(output.next_phase, null, 'no next objective');
+    assert.strictEqual(output.next_objective, null, 'no next objective');
 
     const state = fs.readFileSync(path.join(tmpDir, '.planning', 'STATE.md'), 'utf-8');
     assert.ok(state.includes('Milestone complete'), 'status should be milestone complete');
@@ -2411,10 +2411,10 @@ describe('workstreams analyze command', () => {
     assert.deepStrictEqual(names, ['Auth', 'Content'], 'should identify Auth and Content');
 
     // Verify join objectives
-    assert.strictEqual(output.join_phases.length, 1, 'should have 1 join objective');
-    assert.strictEqual(output.join_phases[0].objective, '4', 'join objective should be 4');
+    assert.strictEqual(output.join_objectives.length, 1, 'should have 1 join objective');
+    assert.strictEqual(output.join_objectives[0].objective, '4', 'join objective should be 4');
     assert.deepStrictEqual(
-      output.join_phases[0].waits_for.sort(),
+      output.join_objectives[0].waits_for.sort(),
       ['2', '3'],
       'join objective waits for objectives 2 and 3'
     );
@@ -2534,7 +2534,7 @@ describe('workstreams provision command', () => {
             depends_on_completed: [1],
           },
         ],
-        join_phases: [4],
+        join_objectives: [4],
       })
     );
 
@@ -2663,7 +2663,7 @@ describe('workstreams reconcile command', () => {
           { id: 'ws-auth', name: 'Auth', objectives: [2], status: 'merged' },
           { id: 'ws-content', name: 'Content', objectives: [3], status: 'merged' },
         ],
-        join_phases: [4],
+        join_objectives: [4],
         completed_workstreams: [],
       })
     );
@@ -2673,8 +2673,8 @@ describe('workstreams reconcile command', () => {
 
     const output = JSON.parse(result.output);
     assert.strictEqual(output.success, true);
-    assert.strictEqual(output.reconciled_phases.length, 2, 'should reconcile 2 objectives');
-    assert.strictEqual(output.next_phase, 4, 'next objective should be join objective 4');
+    assert.strictEqual(output.reconciled_objectives.length, 2, 'should reconcile 2 objectives');
+    assert.strictEqual(output.next_objective, 4, 'next objective should be join objective 4');
     assert.strictEqual(output.state_regenerated, true);
 
     // Verify STATE.md regenerated

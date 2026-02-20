@@ -23,7 +23,7 @@ else
 fi
 ```
 
-Extract from init JSON: `project_exists`, `roadmap_exists`, `state_exists`, `objectives`, `current_phase`, `next_phase`, `milestone_version`, `completed_count`, `phase_count`, `paused_at`.
+Extract from init JSON: `project_exists`, `roadmap_exists`, `state_exists`, `objectives`, `current_objective`, `next_objective`, `milestone_version`, `completed_count`, `objective_count`, `paused_at`.
 
 **File contents (from --include):** `state_content`, `roadmap_content`, `project_content`, `config_content`. These are null if files don't exist.
 
@@ -89,7 +89,7 @@ Use this instead of manually reading/parsing ROADMAP.md.
 <step name="position">
 **Parse current position from init context and roadmap analysis:**
 
-- Use `current_phase` and `next_phase` from roadmap analyze
+- Use `current_objective` and `next_objective` from roadmap analyze
 - Use objective-level `has_context` and `has_research` flags from analyze
 - Note `paused_at` if work was paused (from init context)
 - Count pending todos: use `init todos` or `list-todos`
@@ -117,8 +117,8 @@ Present:
 - [Objective X, Plan Z]: [what was accomplished - 1 line from summary-extract]
 
 ## Current Position
-Objective [N] of [total]: [phase-name]
-Plan [M] of [phase-total]: [status]
+Objective [N] of [total]: [objective-name]
+Job [M] of [objective-total]: [status]
 CONTEXT: [✓ if has_context | - if not]
 
 ## Key Decisions Made
@@ -173,9 +173,9 @@ Track:
 | Condition | Meaning | Action |
 |-----------|---------|--------|
 | uat_with_gaps > 0 | UAT gaps need fix plans | Go to **Route E** |
-| summaries < plans | Unexecuted jobs exist | Go to **Route A** |
-| summaries = plans AND plans > 0 | Objective complete | Go to Step 3 |
-| plans = 0 | Objective not yet planned | Go to **Route B** |
+| summaries < jobs | Unexecuted jobs exist | Go to **Route A** |
+| summaries = jobs AND jobs > 0 | Objective complete | Go to Step 3 |
+| jobs = 0 | Objective not yet planned | Go to **Route B** |
 
 ---
 

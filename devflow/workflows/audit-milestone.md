@@ -14,7 +14,7 @@ Read all files referenced by the invoking prompt's execution_context before star
 INIT=$(node ~/.claude/devflow/bin/df-tools.cjs init milestone-op)
 ```
 
-Extract from init JSON: `milestone_version`, `milestone_name`, `phase_count`, `completed_phases`, `commit_docs`.
+Extract from init JSON: `milestone_version`, `milestone_name`, `objective_count`, `completed_objectives`, `commit_docs`.
 
 Resolve integration checker model:
 ```bash

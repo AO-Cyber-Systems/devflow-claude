@@ -22,7 +22,7 @@ Load execution context:
 INIT=$(node ~/.claude/devflow/bin/df-tools.cjs init execute-objective "${OBJECTIVE}")
 ```
 
-Extract from init JSON: `executor_model`, `commit_docs`, `phase_dir`, `plans`, `incomplete_plans`.
+Extract from init JSON: `executor_model`, `commit_docs`, `objective_dir`, `jobs`, `incomplete_jobs`.
 
 Also read STATE.md for position, decisions, blockers:
 ```bash
@@ -419,12 +419,12 @@ done
 
 # Update session info
 node ~/.claude/devflow/bin/df-tools.cjs state record-session \
-  --stopped-at "Completed ${OBJECTIVE}-${PLAN}-JOB.md"
+  --stopped-at "Completed ${OBJECTIVE}-${JOB}-JOB.md"
 ```
 
 ```bash
 # Update ROADMAP.md progress for this objective (job counts, status)
-node ~/.claude/devflow/bin/df-tools.cjs roadmap update-job-progress "${PHASE_NUMBER}"
+node ~/.claude/devflow/bin/df-tools.cjs roadmap update-job-progress "${OBJECTIVE_NUMBER}"
 
 # Mark completed requirements from JOB.md frontmatter
 # Extract the `requirements` array from the job's frontmatter, then mark each complete
@@ -439,7 +439,7 @@ node ~/.claude/devflow/bin/df-tools.cjs requirements mark-complete ${REQ_IDS}
 - `state record-metric`: Appends to Performance Metrics table
 - `state add-decision`: Adds to Decisions section, removes placeholders
 - `state record-session`: Updates Last session timestamp and Stopped At fields
-- `roadmap update-job-progress`: Updates ROADMAP.md progress table row with PLAN vs SUMMARY counts
+- `roadmap update-job-progress`: Updates ROADMAP.md progress table row with JOB vs SUMMARY counts
 - `requirements mark-complete`: Checks off requirement checkboxes and updates traceability table in REQUIREMENTS.md
 
 **Extract decisions from SUMMARY.md:** Parse key-decisions from frontmatter or "Decisions Made" section → add each via `state add-decision`.
@@ -460,7 +460,7 @@ Separate from per-task commits — captures execution results only.
 
 <completion_format>
 ```markdown
-## PLAN COMPLETE
+## JOB COMPLETE
 
 **Plan:** {objective}-{job}
 **Tasks:** {completed}/{total}

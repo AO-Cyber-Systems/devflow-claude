@@ -114,9 +114,9 @@ Objective number from argument (required).
 INIT=$(node ~/.claude/devflow/bin/df-tools.cjs init objective-op "${OBJECTIVE}")
 ```
 
-Parse JSON for: `commit_docs`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `phase_slug`, `padded_phase`, `has_research`, `has_context`, `has_plans`, `has_verification`, `plan_count`, `roadmap_exists`, `planning_exists`.
+Parse JSON for: `commit_docs`, `objective_found`, `objective_dir`, `objective_number`, `objective_name`, `objective_slug`, `padded_objective`, `has_research`, `has_context`, `has_jobs`, `has_verification`, `job_count`, `roadmap_exists`, `planning_exists`.
 
-**If `phase_found` is false:**
+**If `objective_found` is false:**
 ```
 Objective [X] not found in roadmap.
 
@@ -124,14 +124,14 @@ Use /df:progress to see available objectives.
 ```
 Exit workflow.
 
-**If `phase_found` is true:** Continue to check_existing.
+**If `objective_found` is true:** Continue to check_existing.
 </step>
 
 <step name="check_existing">
 Check if CONTEXT.md already exists using `has_context` from init.
 
 ```bash
-ls ${phase_dir}/*-CONTEXT.md 2>/dev/null
+ls ${objective_dir}/*-CONTEXT.md 2>/dev/null
 ```
 
 **If exists:**
@@ -143,30 +143,30 @@ Use AskUserQuestion:
   - "View it" — Show me what's there
   - "Skip" — Use existing context as-is
 
-If "Update": Load existing, continue to analyze_phase
+If "Update": Load existing, continue to analyze_objective
 If "View": Display CONTEXT.md, then offer update/skip
 If "Skip": Exit workflow
 
 **If doesn't exist:**
 
-Check `has_plans` and `plan_count` from init. **If `has_plans` is true:**
+Check `has_jobs` and `job_count` from init. **If `has_jobs` is true:**
 
 Use AskUserQuestion:
 - header: "Plans exist"
-- question: "Objective [X] already has {plan_count} plan(s) created without user context. Your decisions here won't affect existing jobs unless you replan."
+- question: "Objective [X] already has {job_count} plan(s) created without user context. Your decisions here won't affect existing jobs unless you replan."
 - options:
   - "Continue and replan after" — Capture context, then run /df:plan-objective {X} to replan
   - "View existing jobs" — Show plans before deciding
   - "Cancel" — Skip discuss-objective
 
-If "Continue and replan after": Continue to analyze_phase.
+If "Continue and replan after": Continue to analyze_objective.
 If "View existing jobs": Display job files, then offer "Continue" / "Cancel".
 If "Cancel": Exit workflow.
 
-**If `has_plans` is false:** Continue to analyze_phase.
+**If `has_jobs` is false:** Continue to analyze_objective.
 </step>
 
-<step name="analyze_phase">
+<step name="analyze_objective">
 Analyze the objective to identify gray areas worth discussing.
 
 **Read the objective description from ROADMAP.md and determine:**
@@ -297,14 +297,14 @@ Create CONTEXT.md capturing decisions made.
 
 **Find or create objective directory:**
 
-Use values from init: `phase_dir`, `phase_slug`, `padded_phase`.
+Use values from init: `objective_dir`, `objective_slug`, `padded_objective`.
 
-If `phase_dir` is null (objective exists in roadmap but no directory):
+If `objective_dir` is null (objective exists in roadmap but no directory):
 ```bash
-mkdir -p ".planning/objectives/${padded_phase}-${phase_slug}"
+mkdir -p ".planning/objectives/${padded_objective}-${objective_slug}"
 ```
 
-**File location:** `${phase_dir}/${padded_phase}-CONTEXT.md`
+**File location:** `${objective_dir}/${padded_objective}-CONTEXT.md`
 
 **Structure the content by what was discussed:**
 
@@ -367,7 +367,7 @@ Write file.
 Present summary and next steps:
 
 ```
-Created: .planning/objectives/${PADDED_PHASE}-${SLUG}/${PADDED_PHASE}-CONTEXT.md
+Created: .planning/objectives/${PADDED_OBJECTIVE}-${SLUG}/${PADDED_OBJECTIVE}-CONTEXT.md
 
 ## Decisions Captured
 
@@ -405,10 +405,10 @@ Created: .planning/objectives/${PADDED_PHASE}-${SLUG}/${PADDED_PHASE}-CONTEXT.md
 Commit objective context (uses `commit_docs` from init internally):
 
 ```bash
-node ~/.claude/devflow/bin/df-tools.cjs commit "docs(${padded_phase}): capture objective context" --files "${phase_dir}/${padded_phase}-CONTEXT.md"
+node ~/.claude/devflow/bin/df-tools.cjs commit "docs(${padded_objective}): capture objective context" --files "${objective_dir}/${padded_objective}-CONTEXT.md"
 ```
 
-Confirm: "Committed: docs(${padded_phase}): capture objective context"
+Confirm: "Committed: docs(${padded_objective}): capture objective context"
 </step>
 
 <step name="update_state">
@@ -417,7 +417,7 @@ Update STATE.md with session info:
 ```bash
 node ~/.claude/devflow/bin/df-tools.cjs state record-session \
   --stopped-at "Objective ${OBJECTIVE} context gathered" \
-  --resume-file "${phase_dir}/${padded_phase}-CONTEXT.md"
+  --resume-file "${objective_dir}/${padded_objective}-CONTEXT.md"
 ```
 
 Commit STATE.md:
@@ -446,7 +446,7 @@ node ~/.claude/devflow/bin/df-tools.cjs config-set workflow.auto_advance true
 Display banner:
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- DF ► AUTO-ADVANCING TO PLAN
+ DF ► AUTO-ADVANCING TO JOB PLANNING
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Context captured. Spawning plan-objective...

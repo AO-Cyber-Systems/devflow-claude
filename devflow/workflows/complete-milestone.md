@@ -65,7 +65,7 @@ Includes:
 - Objective 3: Core Features (3/3 jobs complete)
 - Objective 4: Polish (1/1 job complete)
 
-Total: {phase_count} objectives, {total_plans} plans, all complete
+Total: {objective_count} objectives, {total_jobs} jobs, all complete
 Requirements: {N}/{M} v1 requirements checked off
 ```
 
@@ -477,8 +477,8 @@ Extract `branching_strategy`, `objective_branch_template`, `milestone_branch_tem
 **For "objective" strategy:**
 
 ```bash
-BRANCH_PREFIX=$(echo "$PHASE_BRANCH_TEMPLATE" | sed 's/{.*//')
-PHASE_BRANCHES=$(git branch --list "${BRANCH_PREFIX}*" 2>/dev/null | sed 's/^\*//' | tr -d ' ')
+BRANCH_PREFIX=$(echo "$OBJECTIVE_BRANCH_TEMPLATE" | sed 's/{.*//')
+OBJECTIVE_BRANCHES=$(git branch --list "${BRANCH_PREFIX}*" 2>/dev/null | sed 's/^\*//' | tr -d ' ')
 ```
 
 **For "milestone" strategy:**
@@ -513,7 +513,7 @@ CURRENT_BRANCH=$(git branch --show-current)
 git checkout main
 
 if [ "$BRANCHING_STRATEGY" = "objective" ]; then
-  for branch in $PHASE_BRANCHES; do
+  for branch in $OBJECTIVE_BRANCHES; do
     git merge --squash "$branch"
     # Strip .planning/ from staging if commit_docs is false
     if [ "$COMMIT_DOCS" = "false" ]; then
@@ -542,7 +542,7 @@ CURRENT_BRANCH=$(git branch --show-current)
 git checkout main
 
 if [ "$BRANCHING_STRATEGY" = "objective" ]; then
-  for branch in $PHASE_BRANCHES; do
+  for branch in $OBJECTIVE_BRANCHES; do
     git merge --no-ff --no-commit "$branch"
     # Strip .planning/ from staging if commit_docs is false
     if [ "$COMMIT_DOCS" = "false" ]; then
@@ -568,7 +568,7 @@ git checkout "$CURRENT_BRANCH"
 
 ```bash
 if [ "$BRANCHING_STRATEGY" = "objective" ]; then
-  for branch in $PHASE_BRANCHES; do
+  for branch in $OBJECTIVE_BRANCHES; do
     git branch -d "$branch" 2>/dev/null || git branch -D "$branch"
   done
 fi

@@ -24,10 +24,10 @@ No Pass/Fail buttons. No severity questions. Just: "Here's what should happen. D
 If $ARGUMENTS contains an objective number, load context:
 
 ```bash
-INIT=$(node ~/.claude/devflow/bin/df-tools.cjs init verify-work "${PHASE_ARG}")
+INIT=$(node ~/.claude/devflow/bin/df-tools.cjs init verify-work "${OBJECTIVE_ARG}")
 ```
 
-Parse JSON for: `planner_model`, `checker_model`, `commit_docs`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `has_verification`.
+Parse JSON for: `planner_model`, `checker_model`, `commit_docs`, `objective_found`, `objective_dir`, `objective_number`, `objective_name`, `has_verification`.
 </step>
 
 <step name="check_active_session">
@@ -80,10 +80,10 @@ Continue to `create_uat_file`.
 <step name="find_summaries">
 **Find what to test:**
 
-Use `phase_dir` from init (or run init if not already done).
+Use `objective_dir` from init (or run init if not already done).
 
 ```bash
-ls "$phase_dir"/*-SUMMARY.md 2>/dev/null
+ls "$objective_dir"/*-SUMMARY.md 2>/dev/null
 ```
 
 Read each SUMMARY.md to extract testable deliverables.
@@ -388,11 +388,11 @@ Task(
   prompt="""
 <planning_context>
 
-**Objective:** {phase_number}
+**Objective:** {objective_number}
 **Mode:** gap_closure
 
 **UAT with diagnoses:**
-@.planning/objectives/{phase_dir}/{phase_num}-UAT.md
+@.planning/objectives/{objective_dir}/{phase_num}-UAT.md
 
 **Project State:**
 @.planning/STATE.md
@@ -439,11 +439,11 @@ Task(
   prompt="""
 <verification_context>
 
-**Objective:** {phase_number}
+**Objective:** {objective_number}
 **Objective Goal:** Close diagnosed gaps from UAT
 
 **Plans to verify:**
-@.planning/objectives/{phase_dir}/*-JOB.md
+@.planning/objectives/{objective_dir}/*-JOB.md
 
 </verification_context>
 
@@ -478,11 +478,11 @@ Task(
   prompt="""
 <revision_context>
 
-**Objective:** {phase_number}
+**Objective:** {objective_number}
 **Mode:** revision
 
 **Existing jobs:**
-@.planning/objectives/{phase_dir}/*-JOB.md
+@.planning/objectives/{objective_dir}/*-JOB.md
 
 **Checker issues:**
 {structured_issues_from_checker}

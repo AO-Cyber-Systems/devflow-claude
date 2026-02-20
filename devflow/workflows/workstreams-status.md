@@ -55,7 +55,7 @@ ls {worktree_path}/.planning/objectives/*-SUMMARY.md 2>/dev/null | wc -l
 
 4. **Determine status:**
    - `pending` — No plans created yet
-   - `planning` — PLAN files exist, no SUMMARY
+   - `planning` — JOB files exist, no SUMMARY
    - `in_progress` — Some SUMMARY files exist
    - `complete` — All jobs have summaries
 

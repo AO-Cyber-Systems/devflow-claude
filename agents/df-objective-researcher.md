@@ -315,11 +315,11 @@ Load objective context using init command:
 INIT=$(node ~/.claude/devflow/bin/df-tools.cjs init objective-op "${OBJECTIVE}")
 ```
 
-Extract from init JSON: `phase_dir`, `padded_phase`, `phase_number`, `commit_docs`.
+Extract from init JSON: `objective_dir`, `padded_objective`, `objective_number`, `commit_docs`.
 
 Then read CONTEXT.md if exists:
 ```bash
-cat "$phase_dir"/*-CONTEXT.md 2>/dev/null
+cat "$objective_dir"/*-CONTEXT.md 2>/dev/null
 ```
 
 **If CONTEXT.md exists**, it constrains research:
@@ -392,14 +392,14 @@ For each domain: Context7 first → Official docs → WebSearch → Cross-verify
 
 This section is REQUIRED when IDs are provided. The planner uses it to map requirements to plans.
 
-Write to: `$OBJECTIVE_DIR/$PADDED_PHASE-RESEARCH.md`
+Write to: `$OBJECTIVE_DIR/$PADDED_OBJECTIVE-RESEARCH.md`
 
 ⚠️ `commit_docs` controls git only, NOT file writing. Always write first.
 
 ## Step 6: Commit Research (optional)
 
 ```bash
-node ~/.claude/devflow/bin/df-tools.cjs commit "docs($OBJECTIVE): research objective domain" --files "$OBJECTIVE_DIR/$PADDED_PHASE-RESEARCH.md"
+node ~/.claude/devflow/bin/df-tools.cjs commit "docs($OBJECTIVE): research objective domain" --files "$OBJECTIVE_DIR/$PADDED_OBJECTIVE-RESEARCH.md"
 ```
 
 ## Step 7: Return Structured Result
@@ -413,14 +413,14 @@ node ~/.claude/devflow/bin/df-tools.cjs commit "docs($OBJECTIVE): research objec
 ```markdown
 ## RESEARCH COMPLETE
 
-**Objective:** {phase_number} - {phase_name}
+**Objective:** {objective_number} - {objective_name}
 **Confidence:** [HIGH/MEDIUM/LOW]
 
 ### Key Findings
 [3-5 bullet points of most important discoveries]
 
 ### File Created
-`$OBJECTIVE_DIR/$PADDED_PHASE-RESEARCH.md`
+`$OBJECTIVE_DIR/$PADDED_OBJECTIVE-RESEARCH.md`
 
 ### Confidence Assessment
 | Area | Level | Reason |
@@ -441,7 +441,7 @@ Research complete. Planner can now create JOB.md files.
 ```markdown
 ## RESEARCH BLOCKED
 
-**Objective:** {phase_number} - {phase_name}
+**Objective:** {objective_number} - {objective_name}
 **Blocked by:** [what's preventing progress]
 
 ### Attempted
