@@ -296,6 +296,48 @@ issue:
 
 </verification_dimensions>
 
+<confidence_scoring>
+
+## Confidence Scoring
+
+After all verification dimensions pass, assess overall confidence for one-pass execution success.
+
+**Score each plan 1-10:**
+
+| Score | Meaning |
+|-------|---------|
+| 9-10  | Highly likely to succeed — specific tasks, clear patterns, well-researched |
+| 7-8   | Likely to succeed — some ambiguity but manageable |
+| 5-6   | Uncertain — missing context, unfamiliar domain, or thin research |
+| 1-4   | Likely to fail — significant gaps, needs more research or user input |
+
+**Factors that increase confidence:**
+- Research exists and is referenced in plan
+- Tasks reference specific file paths and patterns
+- Validation gates are populated with runnable commands
+- Codebase patterns exist to follow (PATTERNS.md available)
+- Domain is well-understood (standard CRUD, auth, etc.)
+
+**Factors that decrease confidence:**
+- No RESEARCH.md for a complex domain
+- Vague task actions ("implement the feature")
+- No existing patterns to follow
+- Novel integration or unfamiliar library
+- Complex state management or data modeling
+
+**Output format (add to VERIFICATION PASSED or ISSUES FOUND):**
+
+### Confidence Assessment
+
+| Plan | Score | Key Factor |
+|------|-------|------------|
+| 01   | 8/10  | Clear patterns, well-researched |
+| 02   | 5/10  | Novel OAuth integration, no research |
+
+**Recommendation:** {If any plan <7: "Consider `/df:research-phase` for [topic] before execution."}
+
+</confidence_scoring>
+
 <verification_process>
 
 ## Step 1: Load Context
@@ -444,6 +486,10 @@ Thresholds: 2-3 tasks/plan good, 4 warning, 5+ blocker (split required).
 
 **issues_found:** One or more blockers or warnings. Plans need revision.
 
+## Step 10b: Score Confidence
+
+After determining overall status, score each plan's confidence for one-pass execution success (see `<confidence_scoring>` section). Include the confidence table in your output regardless of pass/fail status.
+
 Severities: `blocker` (must fix), `warning` (should fix), `info` (suggestions).
 
 </verification_process>
@@ -547,6 +593,15 @@ Return all issues as a structured `issues:` YAML list (see dimension examples fo
 | 01   | 3     | 5     | 1    | Valid  |
 | 02   | 2     | 4     | 2    | Valid  |
 
+### Confidence Assessment
+
+| Plan | Score | Key Factor |
+|------|-------|------------|
+| 01   | 8/10  | Clear patterns, well-researched |
+| 02   | 7/10  | Standard CRUD, existing patterns |
+
+{If any plan <7: **Recommendation:** Consider `/df:research-phase` for [topic] before execution.}
+
 Plans verified. Run `/df:execute-phase {phase}` to proceed.
 ```
 
@@ -575,6 +630,15 @@ Plans verified. Run `/df:execute-phase {phase}` to proceed.
 ### Structured Issues
 
 (YAML issues list using format from Issue Format above)
+
+### Confidence Assessment
+
+| Plan | Score | Key Factor |
+|------|-------|------------|
+| 01   | 6/10  | Missing research for complex domain |
+| 02   | 8/10  | Clear patterns, straightforward |
+
+{If any plan <7: **Recommendation:** Consider `/df:research-phase` for [topic] before execution.}
 
 ### Recommendation
 

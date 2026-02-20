@@ -541,6 +541,16 @@ Display spawning indicator:
   → Pitfalls research
 ```
 
+**Progress tracking (if available):**
+
+Create tasks for each research domain and downstream agents:
+```
+TaskCreate(subject="Research: Stack", description="Investigating standard stack for [domain]", activeForm="Researching stack")
+TaskCreate(subject="Research: Features", description="Identifying table stakes and differentiators", activeForm="Researching features")
+TaskCreate(subject="Research: Architecture", description="Analyzing system structure patterns", activeForm="Researching architecture")
+TaskCreate(subject="Research: Pitfalls", description="Finding common mistakes and prevention strategies", activeForm="Researching pitfalls")
+```
+
 Spawn 4 parallel df-project-researcher agents with rich context:
 
 ```
@@ -705,7 +715,26 @@ Use template: ~/.claude/devflow/templates/research-project/PITFALLS.md
 ", subagent_type="general-purpose", model="{researcher_model}", description="Pitfalls research")
 ```
 
-After all 4 agents complete, spawn synthesizer to create SUMMARY.md:
+After all 4 agents complete:
+
+**Update progress (if available):** Mark all 4 research tasks as completed:
+```
+TaskUpdate(taskId=stack_task_id, status="completed")
+TaskUpdate(taskId=features_task_id, status="completed")
+TaskUpdate(taskId=architecture_task_id, status="completed")
+TaskUpdate(taskId=pitfalls_task_id, status="completed")
+```
+
+**Progress tracking (if available):**
+```
+TaskCreate(subject="Synthesize research", description="Combining 4 research outputs into SUMMARY.md", activeForm="Synthesizing research")
+```
+
+**Model optimization for synthesizer:**
+
+Calculate total research output size. If all 4 research files combined are < 3000 words: use haiku for synthesis (simple aggregation task). Otherwise: use `synthesizer_model` from profile. Log override if applied: `Model override: df-research-synthesizer {synthesizer_model} → haiku (reason: small research output)`
+
+Spawn synthesizer to create SUMMARY.md:
 
 ```
 Task(prompt="
@@ -727,6 +756,11 @@ Use template: ~/.claude/devflow/templates/research-project/SUMMARY.md
 Commit after writing.
 </output>
 ", subagent_type="df-research-synthesizer", model="{synthesizer_model}", description="Synthesize research")
+```
+
+**Update progress (if available):**
+```
+TaskUpdate(taskId=synthesizer_task_id, status="completed")
 ```
 
 Display research complete banner and key findings:
@@ -902,6 +936,11 @@ Display stage banner:
 ◆ Spawning roadmapper...
 ```
 
+**Progress tracking (if available):**
+```
+TaskCreate(subject="Create roadmap", description="Deriving phases from requirements, mapping coverage, defining success criteria", activeForm="Creating roadmap")
+```
+
 Spawn df-roadmapper agent with context:
 
 ```
@@ -934,6 +973,11 @@ Create roadmap:
 Write files first, then return. This ensures artifacts persist even if context is lost.
 </instructions>
 ", subagent_type="df-roadmapper", model="{roadmapper_model}", description="Create roadmap")
+```
+
+**Update progress (if available):**
+```
+TaskUpdate(taskId=roadmap_task_id, status="completed")
 ```
 
 **Handle roadmapper return:**

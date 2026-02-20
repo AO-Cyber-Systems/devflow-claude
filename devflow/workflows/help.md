@@ -158,6 +158,38 @@ Remove a future phase and renumber subsequent phases.
 Usage: `/df:remove-phase 17`
 Result: Phase 17 deleted, phases 18-20 become 17-19
 
+### Parallel Workstreams
+
+**`/df:workstreams setup`**
+Create parallel worktrees for independent phases.
+
+- Analyzes ROADMAP.md dependency graph for non-linear dependencies
+- Creates git worktree + branch for each independent phase group
+- Provisions `.planning/` context per worktree (filtered state, marker)
+- Each worktree runs normal DevFlow commands in its own Claude session
+
+Usage: `/df:workstreams setup`
+
+**`/df:workstreams status`**
+Check progress across all active workstreams.
+
+- Reads each worktree's STATE.md and git branch activity
+- Shows completion status per workstream
+- Indicates when join phase is ready
+
+Usage: `/df:workstreams status`
+
+**`/df:workstreams merge`**
+Merge completed workstreams back to main.
+
+- Squash-merges each workstream branch
+- Auto-reconciles `.planning/` conflicts
+- Regenerates ROADMAP.md progress and STATE.md
+- Cleans up worktrees and branches
+- Advances to the join phase
+
+Usage: `/df:workstreams merge`
+
 ### Milestone Management
 
 **`/df:new-milestone <name>`**
@@ -449,6 +481,15 @@ Example config:
 /df:insert-phase 5 "Critical security fix"
 /df:plan-phase 5.1
 /df:execute-phase 5.1
+```
+
+**Running independent phases in parallel:**
+
+```
+/df:workstreams setup     # Analyze deps, create worktrees
+# Open terminals in each worktree, run plan-phase + execute-phase
+/df:workstreams status    # Check progress
+/df:workstreams merge     # Merge when done, advance to join phase
 ```
 
 **Completing a milestone:**

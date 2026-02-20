@@ -335,7 +335,15 @@ Resume file: None
 
 <step name="offer_next_phase">
 
-**MANDATORY: Verify milestone status before presenting next steps.**
+**MANDATORY: Check for workstream context first, then verify milestone status.**
+
+**Check for workstream context:**
+
+```bash
+cat .planning/workstream-marker.json 2>/dev/null
+```
+
+If the file exists, parse it. Check if the completing phase is the LAST phase in this workstream's `phases` array. If so → **Route C: Workstream Complete**. Otherwise → normal routing below (advance within this workstream).
 
 **Use the transition result from `df-tools phase complete`:**
 
@@ -351,6 +359,36 @@ ROADMAP=$(node ~/.claude/devflow/bin/df-tools.cjs roadmap analyze)
 ```
 
 This returns all phases with goals, disk status, and completion info.
+
+---
+
+**Route C: Workstream complete (only when workstream-marker.json exists)**
+
+The completing phase is the last phase in this workstream's scope.
+
+```
+## ✓ Workstream Complete
+
+**{workstream name}** — all phases done ({phases list}).
+
+This workstream worktree has completed its scope.
+
+---
+
+## ▶ Next Steps
+
+Return to the **main worktree** and check status:
+
+```bash
+cd {main_worktree_path}
+```
+
+Then run:
+- `/df:workstreams status` — see all workstream progress
+- `/df:workstreams merge` — merge when all workstreams are done
+```
+
+Do NOT offer to plan the next sequential phase — this worktree only owns its assigned phases. The join phase will be planned from the main worktree after merge.
 
 ---
 

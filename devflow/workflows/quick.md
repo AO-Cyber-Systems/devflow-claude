@@ -83,6 +83,16 @@ Store `$QUICK_DIR` for use in orchestration.
 
 **Step 5: Spawn planner (quick mode)**
 
+**Progress tracking (if available):**
+
+```
+TaskCreate(
+  subject="Quick Task: ${DESCRIPTION}",
+  description="Planning and executing quick task: ${DESCRIPTION}",
+  activeForm="Executing quick task"
+)
+```
+
 **If `$FULL_MODE`:** Use `quick-full` mode with stricter constraints.
 
 **If NOT `$FULL_MODE`:** Use standard `quick` mode.
@@ -389,6 +399,11 @@ node ~/.claude/devflow/bin/df-tools.cjs commit "docs(quick-${next_num}): ${DESCR
 Get final commit hash:
 ```bash
 commit_hash=$(git rev-parse --short HEAD)
+```
+
+**Update progress (if available):**
+```
+TaskUpdate(taskId=quick_task_id, status="completed")
 ```
 
 Display completion output:

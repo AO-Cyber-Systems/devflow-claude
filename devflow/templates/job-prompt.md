@@ -37,6 +37,20 @@ Purpose: [Why this matters for the project]
 Output: [What artifacts will be created]
 </objective>
 
+<file_tree>
+<!-- Optional: Include when plan creates 2+ new files -->
+Files created/modified by this plan:
+```
+src/
+├── middleware/
+│   └── auth.ts          ← CREATE
+├── lib/
+│   └── jwt.ts           ← CREATE
+└── app/api/auth/
+    └── login/route.ts   ← MODIFY
+```
+</file_tree>
+
 <execution_context>
 @~/.claude/devflow/workflows/execute-plan.md
 @~/.claude/devflow/templates/summary.md
@@ -58,12 +72,28 @@ Output: [What artifacts will be created]
 @src/path/to/relevant.ts
 </context>
 
+<research_context>
+<!-- Optional: Include when RESEARCH.md exists and is relevant to this plan's scope -->
+[Key findings from RESEARCH.md relevant to THIS plan's scope]
+- Libraries: [specific libraries and versions to use]
+- Gotchas: [critical pitfalls from research]
+- Patterns: [recommended approaches from research]
+</research_context>
+
+<gotchas>
+<!-- Optional: Include when plan touches areas with known issues -->
+- [Warning about this plan's specific domain/libraries]
+- [Anti-pattern to avoid during these tasks]
+- [Known issue from CONCERNS.md relevant to files in this plan]
+</gotchas>
+
 <tasks>
 
 <task type="auto">
   <name>Task 1: [Action-oriented name]</name>
   <files>path/to/file.ext, another/file.ext</files>
-  <action>[Specific implementation - what to do, how to do it, what to avoid and WHY]</action>
+  <action>[Specific implementation - what to do, how to do it, what to avoid and WHY]
+  <!-- Complex tasks may include pseudocode with # PATTERN:, # GOTCHA:, # CRITICAL: markers --></action>
   <verify>[Command or check to prove it worked]</verify>
   <done>[Measurable acceptance criteria]</done>
 </task>
@@ -96,6 +126,13 @@ Output: [What artifacts will be created]
 </task>
 
 </tasks>
+
+<validation_gates>
+<!-- Optional: Populated from STACK.md commands. Run after all tasks complete. -->
+<lint>[e.g., npm run lint]</lint>
+<test>[e.g., npm test]</test>
+<build>[e.g., npm run build]</build>
+</validation_gates>
 
 <verification>
 Before declaring plan complete:
@@ -132,6 +169,7 @@ After completion, create `.planning/phases/XX-name/{phase}-{plan}-SUMMARY.md`
 | `autonomous` | Yes | `true` if no checkpoints, `false` if has checkpoints |
 | `requirements` | Yes | **MUST** list requirement IDs from ROADMAP. Every roadmap requirement MUST appear in at least one plan. |
 | `user_setup` | No | Array of human-required setup items (external services) |
+| `validation_gates` | No | Runnable lint/test/build commands from STACK.md |
 | `must_haves` | Yes | Goal-backward verification criteria (see below) |
 
 **Wave is pre-computed:** Wave numbers are assigned during `/df:plan-phase`. Execute-phase reads `wave` directly from frontmatter and groups plans by wave number. No runtime dependency analysis needed.
@@ -314,11 +352,31 @@ Purpose: Self-contained user management that can run parallel to other features.
 Output: User model, API endpoints, and UI components.
 </objective>
 
+<file_tree>
+Files created/modified by this plan:
+```
+src/features/user/
+├── model.ts         ← CREATE (User type)
+├── api.ts           ← CREATE (CRUD endpoints)
+└── UserList.tsx     ← CREATE (UI component)
+```
+</file_tree>
+
 <context>
 @.planning/PROJECT.md
 @.planning/ROADMAP.md
 @.planning/STATE.md
 </context>
+
+<research_context>
+- Libraries: Prisma 5.x for ORM, zod 3.x for validation
+- Patterns: Use repository pattern per ARCHITECTURE.md
+</research_context>
+
+<gotchas>
+- Prisma client must be instantiated as singleton (see src/lib/prisma.ts)
+- User email has unique constraint — handle duplicate registration gracefully
+</gotchas>
 
 <tasks>
 <task type="auto">
@@ -337,6 +395,12 @@ Output: User model, API endpoints, and UI components.
   <done>All CRUD operations work</done>
 </task>
 </tasks>
+
+<validation_gates>
+<lint>npm run lint</lint>
+<test>npm test</test>
+<build>npm run build</build>
+</validation_gates>
 
 <verification>
 - [ ] npm run build succeeds
@@ -466,6 +530,10 @@ files_modified: [...]
 - Only reference prior SUMMARYs when genuinely needed
 - Group checkpoints with related auto tasks in same plan
 - 2-3 tasks per plan, ~50% context max
+- Include `<file_tree>` when the plan creates 2+ new files. Use `← CREATE` for new files, `← MODIFY` for existing files. Skip for plans that only modify existing files.
+- Include `<research_context>` when RESEARCH.md exists and is relevant to the plan's scope. Only include findings that directly affect THIS plan's tasks — not the entire research document.
+- Include `<gotchas>` when the plan touches areas flagged in CONCERNS.md, uses libraries with known quirks from RESEARCH.md, or involves patterns that commonly go wrong.
+- Include `<validation_gates>` populated from STACK.md with runnable lint/test/build commands. These are plan-level — run after all tasks complete.
 
 ---
 

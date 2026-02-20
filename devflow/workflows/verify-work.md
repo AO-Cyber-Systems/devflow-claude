@@ -119,6 +119,18 @@ mkdir -p "$PHASE_DIR"
 
 Build test list from extracted deliverables.
 
+**Progress tracking (if available):**
+
+Create a progress task for each test/deliverable upfront:
+```
+For each test (1..N):
+  TaskCreate(
+    subject="Test {n}/{total}: {test_name}",
+    description="UAT: {expected_behavior}",
+    activeForm="Testing {test_name}"
+  )
+```
+
 Create file:
 
 ```markdown
@@ -249,6 +261,11 @@ Append to Gaps section (structured YAML for plan-phase --gaps):
 
 **After any response:**
 
+**Update progress (if available):**
+```
+TaskUpdate(taskId=test_task_id, status="completed")
+```
+
 Update Summary counts.
 Update frontmatter.updated timestamp.
 
@@ -324,6 +341,15 @@ All tests passed. Ready to continue.
 
 <step name="diagnose_issues">
 **Diagnose root causes before planning fixes:**
+
+**Progress tracking (if available):**
+```
+TaskCreate(
+  subject="Diagnose {N} UAT issues",
+  description="Spawning parallel debug agents to investigate root causes",
+  activeForm="Diagnosing UAT issues"
+)
+```
 
 ```
 ---

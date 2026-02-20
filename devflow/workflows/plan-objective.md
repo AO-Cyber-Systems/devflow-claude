@@ -90,6 +90,22 @@ Display banner:
 ◆ Spawning researcher...
 ```
 
+**Progress tracking (if available):**
+```
+TaskCreate(
+  subject="Research Phase {X}",
+  description="Researching implementation approach for Phase {phase_number}: {phase_name}",
+  activeForm="Researching Phase {X}"
+)
+```
+
+**Complexity assessment for model selection:**
+
+Evaluate research complexity:
+- If `--gaps` mode (gap-closure research): well-scoped domain → consider downgrading researcher to sonnet
+- If phase has > 10 requirements or spans multiple subsystems: keep profile model (or upgrade)
+- Standard phases: use `researcher_model` from profile
+
 ### Spawn df-phase-researcher
 
 ```bash
@@ -141,6 +157,11 @@ Task(
 
 ### Handle Researcher Return
 
+**Update progress (if available):**
+```
+TaskUpdate(taskId=research_task_id, status="completed")
+```
+
 - **`## RESEARCH COMPLETE`:** Display confirmation, continue to step 6
 - **`## RESEARCH BLOCKED`:** Display blocker, offer: 1) Provide context, 2) Skip research, 3) Abort
 
@@ -177,6 +198,19 @@ Display banner:
 
 ◆ Spawning planner...
 ```
+
+**Progress tracking (if available):**
+```
+TaskCreate(
+  subject="Plan Phase {X}",
+  description="Creating executable plans for Phase {phase_number}: {phase_name}",
+  activeForm="Planning Phase {X}"
+)
+```
+
+**Model selection for gap-closure mode:**
+
+If `--gaps` flag is set: gap-closure plans are scoped and diagnosed — downgrade planner to sonnet (unless user has a model_override for df-planner in config.json). Log: `Model override: df-planner {planner_model} → sonnet (reason: gap-closure mode)`
 
 Planner prompt:
 
@@ -231,6 +265,11 @@ Task(
 
 ## 9. Handle Planner Return
 
+**Update progress (if available):**
+```
+TaskUpdate(taskId=plan_task_id, status="completed")
+```
+
 - **`## PLANNING COMPLETE`:** Display plan count. If `--skip-verify` or `plan_checker_enabled` is false (from init): skip to step 13. Otherwise: step 10.
 - **`## CHECKPOINT REACHED`:** Present to user, get response, spawn continuation (step 12)
 - **`## PLANNING INCONCLUSIVE`:** Show attempts, offer: Add context / Retry / Manual
@@ -244,6 +283,15 @@ Display banner:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ◆ Spawning plan checker...
+```
+
+**Progress tracking (if available):**
+```
+TaskCreate(
+  subject="Verify Phase {X} plans",
+  description="Checking plans against phase goal and requirements",
+  activeForm="Verifying Phase {X} plans"
+)
 ```
 
 ```bash
@@ -287,7 +335,12 @@ Task(
 
 ## 11. Handle Checker Return
 
-- **`## VERIFICATION PASSED`:** Display confirmation, proceed to step 13.
+**Update progress (if available):**
+```
+TaskUpdate(taskId=checker_task_id, status="completed")
+```
+
+- **`## VERIFICATION PASSED`:** Display confirmation. If checker output contains low-confidence plans (score <7 in Confidence Assessment table), display a note: `Note: Plan(s) {NN} scored below 7/10 confidence. Consider /df:research-phase for [topic] before execution.` Don't block — just inform. Proceed to step 13.
 - **`## ISSUES FOUND`:** Display issues, check iteration count, proceed to step 12.
 
 ## 12. Revision Loop (Max 3 Iterations)
@@ -297,6 +350,15 @@ Track `iteration_count` (starts at 1 after initial plan + check).
 **If iteration_count < 3:**
 
 Display: `Sending back to planner for revision... (iteration {N}/3)`
+
+**Update progress (if available):**
+```
+TaskUpdate(taskId=plan_task_id, description="Revision iteration {N}/3 — addressing checker issues")
+```
+
+**Model upgrade on 3rd iteration:**
+
+If `iteration_count == 3` (final attempt): upgrade planner model to opus regardless of profile. The repeated failures suggest subtlety that needs stronger reasoning. Log: `Model override: df-planner {planner_model} → opus (reason: 3rd revision attempt)`
 
 ```bash
 PLANS_CONTENT=$(cat "${PHASE_DIR}"/*-PLAN.md 2>/dev/null)
@@ -415,6 +477,7 @@ Output this markdown directly (not as a code block):
 
 Research: {Completed | Used existing | Skipped}
 Verification: {Passed | Passed with override | Skipped}
+Confidence: {Display confidence scores if checker ran, e.g., "01: 8/10, 02: 7/10" | "N/A" if checker skipped}
 
 ───────────────────────────────────────────────────────────────
 

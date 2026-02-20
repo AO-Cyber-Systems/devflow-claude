@@ -73,6 +73,17 @@ This runs in parallel - all gaps investigated simultaneously.
 </step>
 
 <step name="spawn_agents">
+**Progress tracking (if available):**
+
+For each gap, create a progress task:
+```
+TaskCreate(
+  subject="Diagnose: {truth_short}",
+  description="Investigating root cause of: {truth}",
+  activeForm="Diagnosing {truth_short}"
+)
+```
+
 **Spawn debug agents in parallel:**
 
 For each gap, fill the debug-subagent-prompt template and spawn:
@@ -126,6 +137,11 @@ Parse each return to extract:
 - files: Files involved
 - debug_path: Path to debug session file
 - suggested_fix: Hint for gap closure plan
+
+**Update progress (if available):** For each completed diagnosis:
+```
+TaskUpdate(taskId=gap_task_id, status="completed", description="Root cause: {root_cause}")
+```
 
 If agent returns `## INVESTIGATION INCONCLUSIVE`:
 - root_cause: "Investigation inconclusive - manual review needed"

@@ -94,7 +94,30 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
    - Bad: "Executing terrain generation plan"
    - Good: "Procedural terrain generator using Perlin noise — creates height maps, biome zones, and collision meshes. Required before vehicle physics can interact with ground."
 
-2. **Spawn executor agents:**
+2. **Create progress tasks (if available):**
+
+   For each plan in the wave:
+   ```
+   TaskCreate(
+     subject="Execute {plan_id}: {plan_name}",
+     description="Executing plan {plan_number}: {plan_objective}",
+     activeForm="Executing {plan_id}"
+   )
+   ```
+
+3. **Assess plan complexity for model selection:**
+
+   For each plan in the wave, evaluate complexity:
+   - Read `task_count` and `files_modified` from plan index
+   - **Simple** (task_count <= 2, files_modified <= 3): use sonnet — straightforward implementation
+   - **Standard** (task_count 3-5): use `executor_model` from profile — normal execution
+   - **Complex** (task_count > 5 or files_modified > 8): use opus — benefits from stronger context management
+
+   Log any overrides: `Model override: df-executor {executor_model} → {override} for {plan_id} (reason: {simple|complex} plan)`
+
+   Safety rule: never downgrade executor below sonnet.
+
+4. **Spawn executor agents:**
 
    Pass paths only — executors read files themselves with their fresh 200k context.
    This keeps orchestrator context lean (~10-15%).
@@ -102,7 +125,7 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
    ```
    Task(
      subagent_type="df-executor",
-     model="{executor_model}",
+     model="{resolved_executor_model}",
      prompt="
        <objective>
        Execute plan {plan_number} of phase {phase_number}-{phase_name}.
@@ -134,9 +157,45 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
    )
    ```
 
-3. **Wait for all agents in wave to complete.**
+5. **Wait for all agents in wave to complete.**
 
-4. **Report completion — spot-check claims first:**
+   **Background execution (when `PARALLELIZATION=true` AND wave has 2+ plans):**
+
+   Spawn each executor with `run_in_background=true` to enable true parallel execution:
+   ```
+   task_ids = []
+   for each plan in wave:
+     result = Task(
+       subagent_type="df-executor",
+       model="{resolved_executor_model}",
+       prompt="...",
+       run_in_background=true
+     )
+     task_ids.append(result.task_id)
+   ```
+
+   While waiting for background agents:
+   - Pre-read next wave's plan objectives (if next wave exists) to prepare context
+   - Update TaskList progress periodically
+
+   Poll for completion:
+   ```
+   for each task_id in task_ids:
+     result = TaskOutput(task_id=task_id, block=true, timeout=600000)
+   ```
+
+   Collect all results, then proceed to spot-check.
+
+   **Sequential execution (when `PARALLELIZATION=false` OR wave has 1 plan):**
+
+   Use standard blocking Task() calls (existing behavior).
+
+6. **Report completion — spot-check claims first:**
+
+   **Update progress (if available):** For each completed plan:
+   ```
+   TaskUpdate(taskId=plan_task_id, status="completed")
+   ```
 
    For each SUMMARY.md:
    - Verify first 2 files from `key-files.created` exist on disk
@@ -161,15 +220,15 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
    - Bad: "Wave 2 complete. Proceeding to Wave 3."
    - Good: "Terrain system complete — 3 biome types, height-based texturing, physics collision meshes. Vehicle physics (Wave 3) can now reference ground surfaces."
 
-5. **Handle failures:**
+7. **Handle failures:**
 
    **Known Claude Code bug (classifyHandoffIfNeeded):** If an agent reports "failed" with error containing `classifyHandoffIfNeeded is not defined`, this is a Claude Code runtime bug — not a DevFlow or agent issue. The error fires in the completion handler AFTER all tool calls finish. In this case: run the same spot-checks as step 4 (SUMMARY.md exists, git commits present, no Self-Check: FAILED). If spot-checks PASS → treat as **successful**. If spot-checks FAIL → treat as real failure below.
 
    For real failures: report which plan failed → ask "Continue?" or "Stop?" → if continue, dependent plans may also fail. If stop, partial completion report.
 
-6. **Execute checkpoint plans between waves** — see `<checkpoint_handling>`.
+8. **Execute checkpoint plans between waves** — see `<checkpoint_handling>`.
 
-7. **Proceed to next wave.**
+9. **Proceed to next wave.**
 </step>
 
 <step name="checkpoint_handling">
@@ -212,6 +271,8 @@ When executor returns a checkpoint AND `AUTO_CFG` is `"true"`:
 8. Repeat until plan completes or user stops
 
 **Why fresh agent, not resume:** Resume relies on internal serialization that breaks with parallel tool calls. Fresh agents with explicit state are more reliable.
+
+**Future consideration:** For simple plans (single auto task + checkpoint, no parallel tool calls), agent resume may be viable. Before considering resume, verify the agent did NOT use parallel tool calls during execution. See `@~/.claude/devflow/references/checkpoints.md` "Resume vs Fresh Agent Decision" section for the full decision framework.
 
 **Checkpoints in parallel waves:** Agent pauses and returns while other parallel agents may complete. Present checkpoint, spawn continuation, wait for all before next wave.
 </step>
@@ -292,6 +353,15 @@ node ~/.claude/devflow/bin/df-tools.cjs commit "docs(phase-${PARENT_PHASE}): res
 <step name="verify_phase_goal">
 Verify phase achieved its GOAL, not just completed tasks.
 
+**Progress tracking (if available):**
+```
+TaskCreate(
+  subject="Verify Phase {X} goals",
+  description="Checking phase goal achievement against must-haves and requirements",
+  activeForm="Verifying Phase {X}"
+)
+```
+
 ```bash
 PHASE_REQ_IDS=$(node ~/.claude/devflow/bin/df-tools.cjs roadmap get-phase "${PHASE_NUMBER}" | jq -r '.section' | grep -i "Requirements:" | sed 's/.*Requirements:\*\*\s*//' | sed 's/[\[\]]//g')
 ```
@@ -322,15 +392,22 @@ grep "^status:" "$PHASE_DIR"/*-VERIFICATION.md | cut -d: -f2 | tr -d ' '
 | `gaps_found` | Present gap summary, offer `/df:plan-phase {phase} --gaps` |
 
 **If human_needed:**
+
+Display items from VERIFICATION.md `human_verification` section, then for each item use AskUserQuestion:
 ```
-## ✓ Phase {X}: {Name} — Human Verification Required
-
-All automated checks passed. {N} items need human testing:
-
-{From VERIFICATION.md human_verification section}
-
-"approved" → continue | Report issues → gap closure
+AskUserQuestion(
+  header: "Verify",
+  question: "{item description from VERIFICATION.md}",
+  multiSelect: false,
+  options: [
+    { label: "Verified", description: "This works correctly" },
+    { label: "Issue found", description: "Something isn't right — I'll describe" },
+    { label: "Can't test now", description: "Skip this item for now" }
+  ]
+)
 ```
+
+If "Issue found": follow up with freeform "Describe the issue:" prompt. Collect all responses and route accordingly: all verified → continue. Any issues → gap closure path.
 
 **If gaps_found:**
 ```
