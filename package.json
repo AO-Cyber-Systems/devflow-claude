@@ -7,7 +7,7 @@
   },
   "files": [
     "bin",
-    "commands",
+    "skills",
     "devflow",
     "agents",
     "hooks/dist",
