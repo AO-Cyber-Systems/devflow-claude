@@ -27,8 +27,8 @@ Template for `.planning/research/PITFALLS.md` — common mistakes to avoid in th
 **Warning signs:**
 [How to detect this early before it becomes a problem]
 
-**Phase to address:**
-[Which roadmap phase should prevent this]
+**Objective to address:**
+[Which roadmap objective should prevent this]
 
 ---
 
@@ -46,8 +46,8 @@ Template for `.planning/research/PITFALLS.md` — common mistakes to avoid in th
 **Warning signs:**
 [How to detect this early before it becomes a problem]
 
-**Phase to address:**
-[Which roadmap phase should prevent this]
+**Objective to address:**
+[Which roadmap objective should prevent this]
 
 ---
 
@@ -65,8 +65,8 @@ Template for `.planning/research/PITFALLS.md` — common mistakes to avoid in th
 **Warning signs:**
 [How to detect this early before it becomes a problem]
 
-**Phase to address:**
-[Which roadmap phase should prevent this]
+**Objective to address:**
+[Which roadmap objective should prevent this]
 
 ---
 
@@ -141,15 +141,15 @@ When pitfalls occur despite prevention, how to recover.
 | [pitfall] | LOW/MEDIUM/HIGH | [what to do] |
 | [pitfall] | LOW/MEDIUM/HIGH | [what to do] |
 
-## Pitfall-to-Phase Mapping
+## Pitfall-to-Objective Mapping
 
-How roadmap phases should address these pitfalls.
+How roadmap objectives should address these pitfalls.
 
-| Pitfall | Prevention Phase | Verification |
+| Pitfall | Prevention Objective | Verification |
 |---------|------------------|--------------|
-| [pitfall] | Phase [X] | [how to verify prevention worked] |
-| [pitfall] | Phase [X] | [how to verify prevention worked] |
-| [pitfall] | Phase [X] | [how to verify prevention worked] |
+| [pitfall] | Objective [X] | [how to verify prevention worked] |
+| [pitfall] | Objective [X] | [how to verify prevention worked] |
+| [pitfall] | Objective [X] | [how to verify prevention worked] |
 
 ## Sources
 
@@ -170,7 +170,7 @@ How roadmap phases should address these pitfalls.
 **Critical Pitfalls:**
 - Focus on domain-specific issues, not generic mistakes
 - Include warning signs — early detection prevents disasters
-- Link to specific phases — makes pitfalls actionable
+- Link to specific objectives — makes pitfalls actionable
 
 **Technical Debt:**
 - Be realistic — some shortcuts are acceptable
@@ -192,9 +192,9 @@ How roadmap phases should address these pitfalls.
 - Common in demos vs. production
 - Prevents "it works on my machine" issues
 
-**Pitfall-to-Phase Mapping:**
+**Pitfall-to-Objective Mapping:**
 - Critical for roadmap creation
-- Each pitfall should map to a phase that prevents it
-- Informs phase ordering and success criteria
+- Each pitfall should map to an objective that prevents it
+- Informs objective ordering and success criteria
 
 </guidelines>

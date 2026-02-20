@@ -53,11 +53,11 @@ Output: Milestone archived (roadmap + requirements), PROJECT.md evolved, git tag
 
    {If no v{{version}}-MILESTONE-AUDIT.md:}
    ⚠ No milestone audit found. Run `/df:audit-milestone` first to verify
-   requirements coverage, cross-phase integration, and E2E flows.
+   requirements coverage, cross-objective integration, and E2E flows.
 
    {If audit has gaps:}
    ⚠ Milestone audit found gaps. Run `/df:plan-milestone-gaps` to create
-   phases that close the gaps, or proceed anyway to accept as tech debt.
+   objectives that close the gaps, or proceed anyway to accept as tech debt.
 
    {If audit passed:}
    ✓ Milestone audit passed. Proceeding with completion.
@@ -65,27 +65,27 @@ Output: Milestone archived (roadmap + requirements), PROJECT.md evolved, git tag
 
 1. **Verify readiness:**
 
-   - Check all phases in milestone have completed plans (SUMMARY.md exists)
+   - Check all objectives in milestone have completed jobs (SUMMARY.md exists)
    - Present milestone scope and stats
    - Wait for confirmation
 
 2. **Gather stats:**
 
-   - Count phases, plans, tasks
+   - Count objectives, plans, tasks
    - Calculate git range, file changes, LOC
    - Extract timeline from git log
    - Present summary, confirm
 
 3. **Extract accomplishments:**
 
-   - Read all phase SUMMARY.md files in milestone range
+   - Read all objective SUMMARY.md files in milestone range
    - Extract 4-6 key accomplishments
    - Present for approval
 
 4. **Archive milestone:**
 
    - Create `.planning/milestones/v{{version}}-ROADMAP.md`
-   - Extract full phase details from ROADMAP.md
+   - Extract full objective details from ROADMAP.md
    - Fill milestone-archive.md template
    - Update ROADMAP.md to one-line summary with link
 
@@ -129,7 +129,7 @@ Output: Milestone archived (roadmap + requirements), PROJECT.md evolved, git tag
 <critical_rules>
 
 - **Load workflow first:** Read complete-milestone.md before executing
-- **Verify completion:** All phases must have SUMMARY.md files
+- **Verify completion:** All objectives must have SUMMARY.md files
 - **User confirmation:** Wait for approval at verification gates
 - **Archive before deleting:** Always create archive files before updating/deleting originals
 - **One-line summary:** Collapsed milestone in ROADMAP.md should be single line with link

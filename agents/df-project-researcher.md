@@ -6,7 +6,7 @@ color: cyan
 ---
 
 <role>
-You are a DevFlow project researcher spawned by `/df:new-project` or `/df:new-milestone` (Phase 6: Research).
+You are a DevFlow project researcher spawned by `/df:new-project` or `/df:new-milestone` (Objective 6: Research).
 
 Answer "What does this domain ecosystem look like?" Write research files in `.planning/research/` that inform roadmap creation.
 
@@ -14,11 +14,11 @@ Your files feed the roadmap:
 
 | File | How Roadmap Uses It |
 |------|---------------------|
-| `SUMMARY.md` | Phase structure recommendations, ordering rationale |
+| `SUMMARY.md` | Objective structure recommendations, ordering rationale |
 | `STACK.md` | Technology decisions for the project |
-| `FEATURES.md` | What to build in each phase |
+| `FEATURES.md` | What to build in each objective |
 | `ARCHITECTURE.md` | System structure, component boundaries |
-| `PITFALLS.md` | What phases need deeper research flags |
+| `PITFALLS.md` | What objectives need deeper research flags |
 
 **Be comprehensive but opinionated.** "Use X because Y" not "Options are X, Y, Z."
 </role>
@@ -190,21 +190,21 @@ All files → `.planning/research/`
 
 ## Implications for Roadmap
 
-Based on research, suggested phase structure:
+Based on research, suggested objective structure:
 
-1. **[Phase name]** - [rationale]
+1. **[Objective name]** - [rationale]
    - Addresses: [features from FEATURES.md]
    - Avoids: [pitfall from PITFALLS.md]
 
-2. **[Phase name]** - [rationale]
+2. **[Objective name]** - [rationale]
    ...
 
-**Phase ordering rationale:**
+**Objective ordering rationale:**
 - [Why this order based on dependencies]
 
-**Research flags for phases:**
-- Phase [X]: Likely needs deeper research (reason)
-- Phase [Y]: Standard patterns, unlikely to need research
+**Research flags for objectives:**
+- Objective [X]: Likely needs deeper research (reason)
+- Objective [Y]: Standard patterns, unlikely to need research
 
 ## Confidence Assessment
 
@@ -407,7 +407,7 @@ Mistakes that cause rewrites or major issues.
 
 ## Phase-Specific Warnings
 
-| Phase Topic | Likely Pitfall | Mitigation |
+| Objective Topic | Likely Pitfall | Mitigation |
 |-------------|---------------|------------|
 | [topic] | [pitfall] | [approach] |
 
@@ -566,7 +566,7 @@ In `.planning/research/`:
 
 ### Roadmap Implications
 
-[Key recommendations for phase structure]
+[Key recommendations for objective structure]
 
 ### Open Questions
 

@@ -1,7 +1,7 @@
 ---
 name: df:pause-work
 description: |
-  Create context handoff when pausing work mid-phase.
+  Create context handoff when pausing work mid-objective.
   Use when the user needs to stop working and wants to save context for later resumption.
   Triggers on: "I need to stop", "save context", "pausing for now", "let's pause", "I'm done for today", "save my progress"
 allowed-tools:
@@ -14,7 +14,7 @@ allowed-tools:
 Create `.continue-here.md` handoff file to preserve complete work state across sessions.
 
 Routes to the pause-work workflow which handles:
-- Current phase detection from recent files
+- Current objective detection from recent files
 - Complete state gathering (position, completed work, remaining work, decisions, blockers)
 - Handoff file creation with all context sections
 - Git commit as WIP
@@ -30,7 +30,7 @@ Routes to the pause-work workflow which handles:
 **Follow the pause-work workflow** from `@~/.claude/devflow/workflows/pause-work.md`.
 
 The workflow handles all logic including:
-1. Phase directory detection
+1. Objective directory detection
 2. State gathering with user clarifications
 3. Handoff file writing with timestamp
 4. Git commit

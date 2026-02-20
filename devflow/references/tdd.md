@@ -3,13 +3,13 @@ TDD is about design quality, not coverage metrics. The red-green-refactor cycle 
 
 **Principle:** If you can describe the behavior as `expect(fn(input)).toBe(output)` before writing `fn`, TDD improves the result.
 
-**Key insight:** TDD work is fundamentally heavier than standard tasks—it requires 2-3 execution cycles (RED → GREEN → REFACTOR), each with file reads, test runs, and potential debugging. TDD features get dedicated plans to ensure full context is available throughout the cycle.
+**Key insight:** TDD work is fundamentally heavier than standard tasks—it requires 2-3 execution cycles (RED → GREEN → REFACTOR), each with file reads, test runs, and potential debugging. TDD features get dedicated jobs to ensure full context is available throughout the cycle.
 </overview>
 
 <when_to_use_tdd>
 ## When TDD Improves Quality
 
-**TDD candidates (create a TDD plan):**
+**TDD candidates (create a TDD job):**
 - Business logic with defined inputs/outputs
 - API endpoints with request/response contracts
 - Data transformations, parsing, formatting
@@ -18,7 +18,7 @@ TDD is about design quality, not coverage metrics. The red-green-refactor cycle 
 - State machines and workflows
 - Utility functions with clear specifications
 
-**Skip TDD (use standard plan with `type="auto"` tasks):**
+**Skip TDD (use standard job with `type="auto"` tasks):**
 - UI layout, styling, visual components
 - Configuration changes
 - Glue code connecting existing components
@@ -27,19 +27,19 @@ TDD is about design quality, not coverage metrics. The red-green-refactor cycle 
 - Exploratory prototyping
 
 **Heuristic:** Can you write `expect(fn(input)).toBe(output)` before writing `fn`?
-→ Yes: Create a TDD plan
-→ No: Use standard plan, add tests after if needed
+→ Yes: Create a TDD job
+→ No: Use standard job, add tests after if needed
 </when_to_use_tdd>
 
 <tdd_plan_structure>
 ## TDD Plan Structure
 
-Each TDD plan implements **one feature** through the full RED-GREEN-REFACTOR cycle.
+Each TDD job implements **one feature** through the full RED-GREEN-REFACTOR cycle.
 
 ```markdown
 ---
-phase: XX-name
-plan: NN
+objective: XX-name
+job: NN
 type: tdd
 ---
 
@@ -85,7 +85,7 @@ After completion, create SUMMARY.md with:
 </output>
 ```
 
-**One feature per TDD plan.** If features are trivial enough to batch, they're trivial enough to skip TDD—use a standard plan and add tests after.
+**One feature per TDD job.** If features are trivial enough to batch, they're trivial enough to skip TDD—use a standard job and add tests after.
 </tdd_plan_structure>
 
 <execution_flow>
@@ -96,20 +96,20 @@ After completion, create SUMMARY.md with:
 2. Write test describing expected behavior (from `<behavior>` element)
 3. Run test - it MUST fail
 4. If test passes: feature exists or test is wrong. Investigate.
-5. Commit: `test({phase}-{plan}): add failing test for [feature]`
+5. Commit: `test({objective}-{job}): add failing test for [feature]`
 
 **GREEN - Implement to pass:**
 1. Write minimal code to make test pass
 2. No cleverness, no optimization - just make it work
 3. Run test - it MUST pass
-4. Commit: `feat({phase}-{plan}): implement [feature]`
+4. Commit: `feat({objective}-{job}): implement [feature]`
 
 **REFACTOR (if needed):**
 1. Clean up implementation if obvious improvements exist
 2. Run tests - MUST still pass
-3. Only commit if changes made: `refactor({phase}-{plan}): clean up [feature]`
+3. Only commit if changes made: `refactor({objective}-{job}): clean up [feature]`
 
-**Result:** Each TDD plan produces 2-3 atomic commits.
+**Result:** Each TDD job produces 2-3 atomic commits.
 </execution_flow>
 
 <test_quality>
@@ -136,7 +136,7 @@ After completion, create SUMMARY.md with:
 <framework_setup>
 ## Test Framework Setup (If None Exists)
 
-When executing a TDD plan but no test framework is configured, set it up as part of the RED phase:
+When executing a TDD job but no test framework is configured, set it up as part of the RED objective:
 
 **1. Detect project type:**
 ```bash
@@ -182,23 +182,23 @@ Follow project conventions for test location:
 - `__tests__/` directory
 - `tests/` directory at root
 
-Framework setup is a one-time cost included in the first TDD plan's RED phase.
+Framework setup is a one-time cost included in the first TDD job's RED objective.
 </framework_setup>
 
 <error_handling>
 ## Error Handling
 
-**Test doesn't fail in RED phase:**
+**Test doesn't fail in RED objective:**
 - Feature may already exist - investigate
 - Test may be wrong (not testing what you think)
 - Fix before proceeding
 
-**Test doesn't pass in GREEN phase:**
+**Test doesn't pass in GREEN objective:**
 - Debug implementation
 - Don't skip to refactor
 - Keep iterating until green
 
-**Tests fail in REFACTOR phase:**
+**Tests fail in REFACTOR objective:**
 - Undo refactor
 - Commit was premature
 - Refactor in smaller steps
@@ -212,7 +212,7 @@ Framework setup is a one-time cost included in the first TDD plan's RED phase.
 <commit_pattern>
 ## Commit Pattern for TDD Plans
 
-TDD plans produce 2-3 atomic commits (one per phase):
+TDD jobs produce 2-3 atomic commits (one per objective):
 
 ```
 test(08-02): add failing test for email validation
@@ -234,11 +234,11 @@ refactor(08-02): extract regex to constant (optional)
 - Tests still pass
 ```
 
-**Comparison with standard plans:**
-- Standard plans: 1 commit per task, 2-4 commits per plan
-- TDD plans: 2-3 commits for single feature
+**Comparison with standard jobs:**
+- Standard plans: 1 commit per task, 2-4 commits per job
+- TDD jobs: 2-3 commits for single feature
 
-Both follow same format: `{type}({phase}-{plan}): {description}`
+Both follow same format: `{type}({objective}-{job}): {description}`
 
 **Benefits:**
 - Each commit independently revertable
@@ -250,14 +250,14 @@ Both follow same format: `{type}({phase}-{plan}): {description}`
 <context_budget>
 ## Context Budget
 
-TDD plans target **~40% context usage** (lower than standard plans' ~50%).
+TDD jobs target **~40% context usage** (lower than standard jobs' ~50%).
 
 Why lower:
-- RED phase: write test, run test, potentially debug why it didn't fail
-- GREEN phase: implement, run test, potentially iterate on failures
-- REFACTOR phase: modify code, run tests, verify no regressions
+- RED objective: write test, run test, potentially debug why it didn't fail
+- GREEN objective: implement, run test, potentially iterate on failures
+- REFACTOR objective: modify code, run tests, verify no regressions
 
-Each phase involves reading files, running commands, analyzing output. The back-and-forth is inherently heavier than linear task execution.
+Each objective involves reading files, running commands, analyzing output. The back-and-forth is inherently heavier than linear task execution.
 
 Single feature focus ensures full quality throughout the cycle.
 </context_budget>

@@ -1,7 +1,7 @@
 ---
-name: df:insert-phase
+name: df:insert-objective
 description: |
-  Insert urgent work as decimal phase (e.g., 72.1) between existing phases.
+  Insert urgent work as decimal objective (e.g., 72.1) between existing objectives.
   Structural roadmap change — use only when explicitly requested.
 argument-hint: <after> <description>
 disable-model-invocation: true
@@ -12,15 +12,15 @@ allowed-tools:
 ---
 
 <objective>
-Insert a decimal phase for urgent work discovered mid-milestone that must be completed between existing integer phases.
+Insert a decimal objective for urgent work discovered mid-milestone that must be completed between existing integer objectives.
 
-Uses decimal numbering (72.1, 72.2, etc.) to preserve the logical sequence of planned phases while accommodating urgent insertions.
+Uses decimal numbering (72.1, 72.2, etc.) to preserve the logical sequence of planned objectives while accommodating urgent insertions.
 
 Purpose: Handle urgent work discovered during execution without renumbering entire roadmap.
 </objective>
 
 <execution_context>
-@~/.claude/devflow/workflows/insert-phase.md
+@~/.claude/devflow/workflows/insert-objective.md
 </execution_context>
 
 <context>
@@ -31,6 +31,6 @@ Arguments: $ARGUMENTS (format: <after-phase-number> <description>)
 </context>
 
 <process>
-Execute the insert-phase workflow from @~/.claude/devflow/workflows/insert-phase.md end-to-end.
-Preserve all validation gates (argument parsing, phase verification, decimal calculation, roadmap updates).
+Execute the insert-objective workflow from @~/.claude/devflow/workflows/insert-objective.md end-to-end.
+Preserve all validation gates (argument parsing, objective verification, decimal calculation, roadmap updates).
 </process>

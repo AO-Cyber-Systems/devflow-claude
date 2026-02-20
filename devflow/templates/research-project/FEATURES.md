@@ -135,9 +135,9 @@ Features to defer until product-market fit is established.
 - Example: "Real-time everything" often creates complexity without value
 
 **Feature Dependencies:**
-- Critical for roadmap phase ordering
-- If A requires B, B must be in an earlier phase
-- Conflicts inform what NOT to combine in same phase
+- Critical for roadmap objective ordering
+- If A requires B, B must be in an earlier objective
+- Conflicts inform what NOT to combine in same objective
 
 **MVP Definition:**
 - Be ruthless about what's truly minimum

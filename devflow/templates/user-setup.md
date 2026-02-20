@@ -1,6 +1,6 @@
 # User Setup Template
 
-Template for `.planning/phases/XX-name/{phase}-USER-SETUP.md` - human-required configuration that Claude cannot automate.
+Template for `.planning/objectives/XX-name/{objective}-USER-SETUP.md` - human-required configuration that Claude cannot automate.
 
 **Purpose:** Document setup tasks that literally require human action - account creation, dashboard configuration, secret retrieval. Claude automates everything possible; this file captures only what remains.
 
@@ -9,10 +9,10 @@ Template for `.planning/phases/XX-name/{phase}-USER-SETUP.md` - human-required c
 ## File Template
 
 ```markdown
-# Phase {X}: User Setup Required
+# Objective {X}: User Setup Required
 
 **Generated:** [YYYY-MM-DD]
-**Phase:** {phase-name}
+**Objective:** {phase-name}
 **Status:** Incomplete
 
 Complete these items for the integration to function. Claude automated everything possible; these items require human access to external dashboards/accounts.
@@ -61,19 +61,19 @@ Expected results:
 
 ## When to Generate
 
-Generate `{phase}-USER-SETUP.md` when plan frontmatter contains `user_setup` field.
+Generate `{objective}-USER-SETUP.md` when plan frontmatter contains `user_setup` field.
 
-**Trigger:** `user_setup` exists in PLAN.md frontmatter and has items.
+**Trigger:** `user_setup` exists in JOB.md frontmatter and has items.
 
-**Location:** Same directory as PLAN.md and SUMMARY.md.
+**Location:** Same directory as JOB.md and SUMMARY.md.
 
-**Timing:** Generated during execute-plan.md after tasks complete, before SUMMARY.md creation.
+**Timing:** Generated during execute-job.md after tasks complete, before SUMMARY.md creation.
 
 ---
 
 ## Frontmatter Schema
 
-In PLAN.md, `user_setup` declares human-required configuration:
+In JOB.md, `user_setup` declares human-required configuration:
 
 ```yaml
 user_setup:
@@ -118,10 +118,10 @@ user_setup:
 
 <stripe_example>
 ```markdown
-# Phase 10: User Setup Required
+# Objective 10: User Setup Required
 
 **Generated:** 2025-01-14
-**Phase:** 10-monetization
+**Objective:** 10-monetization
 **Status:** Incomplete
 
 Complete these items for Stripe integration to function.
@@ -193,10 +193,10 @@ Expected: Build passes, webhook returns 400 (signature validation working).
 
 <supabase_example>
 ```markdown
-# Phase 2: User Setup Required
+# Objective 2: User Setup Required
 
 **Generated:** 2025-01-14
-**Phase:** 02-authentication
+**Objective:** 02-authentication
 **Status:** Incomplete
 
 Complete these items for Supabase Auth to function.
@@ -247,10 +247,10 @@ npx supabase status
 
 <sendgrid_example>
 ```markdown
-# Phase 5: User Setup Required
+# Objective 5: User Setup Required
 
 **Generated:** 2025-01-14
-**Phase:** 05-notifications
+**Objective:** 05-notifications
 **Status:** Incomplete
 
 Complete these items for SendGrid email to function.
@@ -306,6 +306,6 @@ curl -X POST http://localhost:3000/api/test-email \
 
 **Never include:** Actual secret values. Steps Claude can automate (package installs, code changes).
 
-**Naming:** `{phase}-USER-SETUP.md` matches the phase number pattern.
+**Naming:** `{objective}-USER-SETUP.md` matches the objective number pattern.
 **Status tracking:** User marks checkboxes and updates status line when complete.
-**Searchability:** `grep -r "USER-SETUP" .planning/` finds all phases with user requirements.
+**Searchability:** `grep -r "USER-SETUP" .planning/` finds all objectives with user requirements.

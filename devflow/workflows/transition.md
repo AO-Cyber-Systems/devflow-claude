@@ -5,16 +5,16 @@
 1. `.planning/STATE.md`
 2. `.planning/PROJECT.md`
 3. `.planning/ROADMAP.md`
-4. Current phase's plan files (`*-PLAN.md`)
-5. Current phase's summary files (`*-SUMMARY.md`)
+4. Current objective's job files (`*-JOB.md`)
+5. Current objective's summary files (`*-SUMMARY.md`)
 
 </required_reading>
 
 <purpose>
 
-Mark current phase complete and advance to next. This is the natural point where progress tracking and PROJECT.md evolution happen.
+Mark current objective complete and advance to next. This is the natural point where progress tracking and PROJECT.md evolution happen.
 
-"Planning next phase" = "current phase is done"
+"Planning next objective" = "current objective is done"
 
 </purpose>
 
@@ -29,25 +29,25 @@ cat .planning/STATE.md 2>/dev/null
 cat .planning/PROJECT.md 2>/dev/null
 ```
 
-Parse current position to verify we're transitioning the right phase.
+Parse current position to verify we're transitioning the right objective.
 Note accumulated context that may need updating after transition.
 
 </step>
 
 <step name="verify_completion">
 
-Check current phase has all plan summaries:
+Check current objective has all plan summaries:
 
 ```bash
-ls .planning/phases/XX-current/*-PLAN.md 2>/dev/null | sort
-ls .planning/phases/XX-current/*-SUMMARY.md 2>/dev/null | sort
+ls .planning/objectives/XX-current/*-JOB.md 2>/dev/null | sort
+ls .planning/objectives/XX-current/*-SUMMARY.md 2>/dev/null | sort
 ```
 
 **Verification logic:**
 
 - Count PLAN files
 - Count SUMMARY files
-- If counts match: all plans complete
+- If counts match: all jobs complete
 - If counts don't match: incomplete
 
 <config-check>
@@ -58,13 +58,13 @@ cat .planning/config.json 2>/dev/null
 
 </config-check>
 
-**If all plans complete:**
+**If all jobs complete:**
 
 <if mode="yolo">
 
 ```
-⚡ Auto-approved: Transition Phase [X] → Phase [X+1]
-Phase [X] complete — all [Y] plans finished.
+⚡ Auto-approved: Transition Objective [X] → Objective [X+1]
+Objective [X] complete — all [Y] plans finished.
 
 Proceeding to mark done and advance...
 ```
@@ -75,7 +75,7 @@ Proceed directly to cleanup_handoff step.
 
 <if mode="interactive" OR="custom with gates.confirm_transition true">
 
-Ask: "Phase [X] complete — all [Y] plans finished. Ready to mark done and move to Phase [X+1]?"
+Ask: "Objective [X] complete — all [Y] plans finished. Ready to mark done and move to Objective [X+1]?"
 
 Wait for confirmation before proceeding.
 
@@ -84,21 +84,21 @@ Wait for confirmation before proceeding.
 **If plans incomplete:**
 
 **SAFETY RAIL: always_confirm_destructive applies here.**
-Skipping incomplete plans is destructive — ALWAYS prompt regardless of mode.
+Skipping incomplete jobs is destructive — ALWAYS prompt regardless of mode.
 
 Present:
 
 ```
-Phase [X] has incomplete plans:
-- {phase}-01-SUMMARY.md ✓ Complete
-- {phase}-02-SUMMARY.md ✗ Missing
-- {phase}-03-SUMMARY.md ✗ Missing
+Objective [X] has incomplete jobs:
+- {objective}-01-SUMMARY.md ✓ Complete
+- {objective}-02-SUMMARY.md ✗ Missing
+- {objective}-03-SUMMARY.md ✗ Missing
 
 ⚠️ Safety rail: Skipping plans requires confirmation (destructive action)
 
 Options:
-1. Continue current phase (execute remaining plans)
-2. Mark complete anyway (skip remaining plans)
+1. Continue current objective (execute remaining jobs)
+2. Mark complete anyway (skip remaining jobs)
 3. Review what's left
 ```
 
@@ -111,10 +111,10 @@ Wait for user decision.
 Check for lingering handoffs:
 
 ```bash
-ls .planning/phases/XX-current/.continue-here*.md 2>/dev/null
+ls .planning/objectives/XX-current/.continue-here*.md 2>/dev/null
 ```
 
-If found, delete them — phase is complete, handoffs are stale.
+If found, delete them — objective is complete, handoffs are stale.
 
 </step>
 
@@ -123,15 +123,15 @@ If found, delete them — phase is complete, handoffs are stale.
 **Delegate ROADMAP.md and STATE.md updates to df-tools:**
 
 ```bash
-TRANSITION=$(node ~/.claude/devflow/bin/df-tools.cjs phase complete "${current_phase}")
+TRANSITION=$(node ~/.claude/devflow/bin/df-tools.cjs objective complete "${current_phase}")
 ```
 
 The CLI handles:
-- Marking the phase checkbox as `[x]` complete with today's date
-- Updating plan count to final (e.g., "3/3 plans complete")
+- Marking the objective checkbox as `[x]` complete with today's date
+- Updating job count to final (e.g., "3/3 jobs complete")
 - Updating the Progress table (Status → Complete, adding date)
-- Advancing STATE.md to next phase (Current Phase, Status → Ready to plan, Current Plan → Not started)
-- Detecting if this is the last phase in the milestone
+- Advancing STATE.md to next objective (Current Objective, Status → Ready to plan, Current Job → Not started)
+- Detecting if this is the last objective in the milestone
 
 Extract from result: `completed_phase`, `plans_executed`, `next_phase`, `next_phase_name`, `is_last_phase`.
 
@@ -139,26 +139,26 @@ Extract from result: `completed_phase`, `plans_executed`, `next_phase`, `next_ph
 
 <step name="archive_prompts">
 
-If prompts were generated for the phase, they stay in place.
+If prompts were generated for the objective, they stay in place.
 The `completed/` subfolder pattern from create-meta-prompts handles archival.
 
 </step>
 
 <step name="evolve_project">
 
-Evolve PROJECT.md to reflect learnings from completed phase.
+Evolve PROJECT.md to reflect learnings from completed objective.
 
-**Read phase summaries:**
+**Read objective summaries:**
 
 ```bash
-cat .planning/phases/XX-current/*-SUMMARY.md
+cat .planning/objectives/XX-current/*-SUMMARY.md
 ```
 
 **Assess requirement changes:**
 
 1. **Requirements validated?**
-   - Any Active requirements shipped in this phase?
-   - Move to Validated with phase reference: `- ✓ [Requirement] — Phase X`
+   - Any Active requirements shipped in this objective?
+   - Move to Validated with objective reference: `- ✓ [Requirement] — Objective X`
 
 2. **Requirements invalidated?**
    - Any Active requirements discovered to be unnecessary or wrong?
@@ -182,7 +182,7 @@ Make the edits inline. Update "Last updated" footer:
 
 ```markdown
 ---
-*Last updated: [date] after Phase [X]*
+*Last updated: [date] after Objective [X]*
 ```
 
 **Example evolution:**
@@ -201,12 +201,12 @@ Before:
 - OAuth2 — complexity not needed for v1
 ```
 
-After (Phase 2 shipped JWT auth, discovered rate limiting needed):
+After (Objective 2 shipped JWT auth, discovered rate limiting needed):
 
 ```markdown
 ### Validated
 
-- ✓ JWT authentication — Phase 2
+- ✓ JWT authentication — Objective 2
 
 ### Active
 
@@ -221,7 +221,7 @@ After (Phase 2 shipped JWT auth, discovered rate limiting needed):
 
 **Step complete when:**
 
-- [ ] Phase summaries reviewed for learnings
+- [ ] Objective summaries reviewed for learnings
 - [ ] Validated requirements moved from Active
 - [ ] Invalidated requirements moved to Out of Scope with reason
 - [ ] Emerged requirements added to Active
@@ -233,7 +233,7 @@ After (Phase 2 shipped JWT auth, discovered rate limiting needed):
 
 <step name="update_current_position_after_transition">
 
-**Note:** Basic position updates (Current Phase, Status, Current Plan, Last Activity) were already handled by `df-tools phase complete` in the update_roadmap_and_state step.
+**Note:** Basic position updates (Current Objective, Status, Current Job, Last Activity) were already handled by `df-tools objective complete` in the update_roadmap_and_state step.
 
 Verify the updates are correct by reading STATE.md. If the progress bar needs updating, use:
 
@@ -245,10 +245,10 @@ Update the progress bar line in STATE.md with the result.
 
 **Step complete when:**
 
-- [ ] Phase number incremented to next phase (done by phase complete)
-- [ ] Plan status reset to "Not started" (done by phase complete)
-- [ ] Status shows "Ready to plan" (done by phase complete)
-- [ ] Progress bar reflects total completed plans
+- [ ] Objective number incremented to next objective (done by objective complete)
+- [ ] Plan status reset to "Not started" (done by objective complete)
+- [ ] Status shows "Ready to plan" (done by objective complete)
+- [ ] Progress bar reflects total completed jobs
 
 </step>
 
@@ -262,7 +262,7 @@ Update Project Reference section in STATE.md.
 See: .planning/PROJECT.md (updated [today])
 
 **Core value:** [Current core value from PROJECT.md]
-**Current focus:** [Next phase name]
+**Current focus:** [Next objective name]
 ```
 
 Update the date and current focus to reflect the transition.
@@ -275,15 +275,15 @@ Review and update Accumulated Context section in STATE.md.
 
 **Decisions:**
 
-- Note recent decisions from this phase (3-5 max)
+- Note recent decisions from this objective (3-5 max)
 - Full log lives in PROJECT.md Key Decisions table
 
 **Blockers/Concerns:**
 
-- Review blockers from completed phase
-- If addressed in this phase: Remove from list
-- If still relevant for future: Keep with "Phase X" prefix
-- Add any new concerns from completed phase's summaries
+- Review blockers from completed objective
+- If addressed in this objective: Remove from list
+- If still relevant for future: Keep with "Objective X" prefix
+- Add any new concerns from completed objective's summaries
 
 **Example:**
 
@@ -292,24 +292,24 @@ Before:
 ```markdown
 ### Blockers/Concerns
 
-- ⚠️ [Phase 1] Database schema not indexed for common queries
-- ⚠️ [Phase 2] WebSocket reconnection behavior on flaky networks unknown
+- ⚠️ [Objective 1] Database schema not indexed for common queries
+- ⚠️ [Objective 2] WebSocket reconnection behavior on flaky networks unknown
 ```
 
-After (if database indexing was addressed in Phase 2):
+After (if database indexing was addressed in Objective 2):
 
 ```markdown
 ### Blockers/Concerns
 
-- ⚠️ [Phase 2] WebSocket reconnection behavior on flaky networks unknown
+- ⚠️ [Objective 2] WebSocket reconnection behavior on flaky networks unknown
 ```
 
 **Step complete when:**
 
 - [ ] Recent decisions noted (full log in PROJECT.md)
 - [ ] Resolved blockers removed from list
-- [ ] Unresolved blockers kept with phase prefix
-- [ ] New concerns from completed phase added
+- [ ] Unresolved blockers kept with objective prefix
+- [ ] New concerns from completed objective added
 
 </step>
 
@@ -321,14 +321,14 @@ Update Session Continuity section in STATE.md to reflect transition completion.
 
 ```markdown
 Last session: [today]
-Stopped at: Phase [X] complete, ready to plan Phase [X+1]
+Stopped at: Objective [X] complete, ready to plan Objective [X+1]
 Resume file: None
 ```
 
 **Step complete when:**
 
 - [ ] Last session timestamp updated to current date and time
-- [ ] Stopped at describes phase completion and next phase
+- [ ] Stopped at describes objective completion and next objective
 - [ ] Resume file confirmed as None (transitions don't use resume files)
 
 </step>
@@ -343,33 +343,33 @@ Resume file: None
 cat .planning/workstream-marker.json 2>/dev/null
 ```
 
-If the file exists, parse it. Check if the completing phase is the LAST phase in this workstream's `phases` array. If so → **Route C: Workstream Complete**. Otherwise → normal routing below (advance within this workstream).
+If the file exists, parse it. Check if the completing objective is the LAST objective in this workstream's `objectives` array. If so → **Route C: Workstream Complete**. Otherwise → normal routing below (advance within this workstream).
 
-**Use the transition result from `df-tools phase complete`:**
+**Use the transition result from `df-tools objective complete`:**
 
-The `is_last_phase` field from the phase complete result tells you directly:
-- `is_last_phase: false` → More phases remain → Go to **Route A**
+The `is_last_phase` field from the objective complete result tells you directly:
+- `is_last_phase: false` → More objectives remain → Go to **Route A**
 - `is_last_phase: true` → Milestone complete → Go to **Route B**
 
-The `next_phase` and `next_phase_name` fields give you the next phase details.
+The `next_phase` and `next_phase_name` fields give you the next objective details.
 
 If you need additional context, use:
 ```bash
 ROADMAP=$(node ~/.claude/devflow/bin/df-tools.cjs roadmap analyze)
 ```
 
-This returns all phases with goals, disk status, and completion info.
+This returns all objectives with goals, disk status, and completion info.
 
 ---
 
 **Route C: Workstream complete (only when workstream-marker.json exists)**
 
-The completing phase is the last phase in this workstream's scope.
+The completing objective is the last objective in this workstream's scope.
 
 ```
 ## ✓ Workstream Complete
 
-**{workstream name}** — all phases done ({phases list}).
+**{workstream name}** — all objectives done ({objectives list}).
 
 This workstream worktree has completed its scope.
 
@@ -388,47 +388,47 @@ Then run:
 - `/df:workstreams merge` — merge when all workstreams are done
 ```
 
-Do NOT offer to plan the next sequential phase — this worktree only owns its assigned phases. The join phase will be planned from the main worktree after merge.
+Do NOT offer to plan the next sequential objective — this worktree only owns its assigned objectives. The join objective will be planned from the main worktree after merge.
 
 ---
 
-**Route A: More phases remain in milestone**
+**Route A: More objectives remain in milestone**
 
-Read ROADMAP.md to get the next phase's name and goal.
+Read ROADMAP.md to get the next objective's name and goal.
 
-**Check if next phase has CONTEXT.md:**
+**Check if next objective has CONTEXT.md:**
 
 ```bash
-ls .planning/phases/*[X+1]*/*-CONTEXT.md 2>/dev/null
+ls .planning/objectives/*[X+1]*/*-CONTEXT.md 2>/dev/null
 ```
 
-**If next phase exists:**
+**If next objective exists:**
 
 <if mode="yolo">
 
 **If CONTEXT.md exists:**
 
 ```
-Phase [X] marked complete.
+Objective [X] marked complete.
 
-Next: Phase [X+1] — [Name]
+Next: Objective [X+1] — [Name]
 
-⚡ Auto-continuing: Plan Phase [X+1] in detail
+⚡ Auto-continuing: Plan Objective [X+1] in detail
 ```
 
-Exit skill and invoke SlashCommand("/df:plan-phase [X+1] --auto")
+Exit skill and invoke SlashCommand("/df:plan-objective [X+1] --auto")
 
 **If CONTEXT.md does NOT exist:**
 
 ```
-Phase [X] marked complete.
+Objective [X] marked complete.
 
-Next: Phase [X+1] — [Name]
+Next: Objective [X+1] — [Name]
 
-⚡ Auto-continuing: Discuss Phase [X+1] first
+⚡ Auto-continuing: Discuss Objective [X+1] first
 ```
 
-Exit skill and invoke SlashCommand("/df:discuss-phase [X+1] --auto")
+Exit skill and invoke SlashCommand("/df:discuss-objective [X+1] --auto")
 
 </if>
 
@@ -437,23 +437,23 @@ Exit skill and invoke SlashCommand("/df:discuss-phase [X+1] --auto")
 **If CONTEXT.md does NOT exist:**
 
 ```
-## ✓ Phase [X] Complete
+## ✓ Objective [X] Complete
 
 ---
 
 ## ▶ Next Up
 
-**Phase [X+1]: [Name]** — [Goal from ROADMAP.md]
+**Objective [X+1]: [Name]** — [Goal from ROADMAP.md]
 
-`/df:discuss-phase [X+1]` — gather context and clarify approach
+`/df:discuss-objective [X+1]` — gather context and clarify approach
 
 <sub>`/clear` first → fresh context window</sub>
 
 ---
 
 **Also available:**
-- `/df:plan-phase [X+1]` — skip discussion, plan directly
-- `/df:research-phase [X+1]` — investigate unknowns
+- `/df:plan-objective [X+1]` — skip discussion, plan directly
+- `/df:research-objective [X+1]` — investigate unknowns
 
 ---
 ```
@@ -461,24 +461,24 @@ Exit skill and invoke SlashCommand("/df:discuss-phase [X+1] --auto")
 **If CONTEXT.md exists:**
 
 ```
-## ✓ Phase [X] Complete
+## ✓ Objective [X] Complete
 
 ---
 
 ## ▶ Next Up
 
-**Phase [X+1]: [Name]** — [Goal from ROADMAP.md]
+**Objective [X+1]: [Name]** — [Goal from ROADMAP.md]
 <sub>✓ Context gathered, ready to plan</sub>
 
-`/df:plan-phase [X+1]`
+`/df:plan-objective [X+1]`
 
 <sub>`/clear` first → fresh context window</sub>
 
 ---
 
 **Also available:**
-- `/df:discuss-phase [X+1]` — revisit context
-- `/df:research-phase [X+1]` — investigate unknowns
+- `/df:discuss-objective [X+1]` — revisit context
+- `/df:research-objective [X+1]` — investigate unknowns
 
 ---
 ```
@@ -487,7 +487,7 @@ Exit skill and invoke SlashCommand("/df:discuss-phase [X+1] --auto")
 
 ---
 
-**Route B: Milestone complete (all phases done)**
+**Route B: Milestone complete (all objectives done)**
 
 **Clear auto-advance** — milestone boundary is the natural stopping point:
 ```bash
@@ -497,9 +497,9 @@ node ~/.claude/devflow/bin/df-tools.cjs config-set workflow.auto_advance false
 <if mode="yolo">
 
 ```
-Phase {X} marked complete.
+Objective {X} marked complete.
 
-🎉 Milestone {version} is 100% complete — all {N} phases finished!
+🎉 Milestone {version} is 100% complete — all {N} objectives finished!
 
 ⚡ Auto-continuing: Complete milestone and archive
 ```
@@ -511,9 +511,9 @@ Exit skill and invoke SlashCommand("/df:complete-milestone {version}")
 <if mode="interactive" OR="custom with gates.confirm_transition true">
 
 ```
-## ✓ Phase {X}: {Phase Name} Complete
+## ✓ Objective {X}: {Objective Name} Complete
 
-🎉 Milestone {version} is 100% complete — all {N} phases finished!
+🎉 Milestone {version} is 100% complete — all {N} objectives finished!
 
 ---
 
@@ -540,29 +540,29 @@ Exit skill and invoke SlashCommand("/df:complete-milestone {version}")
 </process>
 
 <implicit_tracking>
-Progress tracking is IMPLICIT: planning phase N implies phases 1-(N-1) complete. No separate progress step—forward motion IS progress.
+Progress tracking is IMPLICIT: planning objective N implies objectives 1-(N-1) complete. No separate progress step—forward motion IS progress.
 </implicit_tracking>
 
 <partial_completion>
 
-If user wants to move on but phase isn't fully complete:
+If user wants to move on but objective isn't fully complete:
 
 ```
-Phase [X] has incomplete plans:
-- {phase}-02-PLAN.md (not executed)
-- {phase}-03-PLAN.md (not executed)
+Objective [X] has incomplete jobs:
+- {objective}-02-JOB.md (not executed)
+- {objective}-03-JOB.md (not executed)
 
 Options:
 1. Mark complete anyway (plans weren't needed)
-2. Defer work to later phase
-3. Stay and finish current phase
+2. Defer work to later objective
+3. Stay and finish current objective
 ```
 
 Respect user judgment — they know if work matters.
 
-**If marking complete with incomplete plans:**
+**If marking complete with incomplete jobs:**
 
-- Update ROADMAP: "2/3 plans complete" (not "3/3")
+- Update ROADMAP: "2/3 jobs complete" (not "3/3")
 - Note in transition message which plans were skipped
 
 </partial_completion>
@@ -571,9 +571,9 @@ Respect user judgment — they know if work matters.
 
 Transition is complete when:
 
-- [ ] Current phase plan summaries verified (all exist or user chose to skip)
+- [ ] Current objective plan summaries verified (all exist or user chose to skip)
 - [ ] Any stale handoffs deleted
-- [ ] ROADMAP.md updated with completion status and plan count
+- [ ] ROADMAP.md updated with completion status and job count
 - [ ] PROJECT.md evolved (requirements, decisions, description if needed)
 - [ ] STATE.md updated (position, project reference, context, session)
 - [ ] Progress table updated

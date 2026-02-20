@@ -27,7 +27,7 @@ Standard format for presenting next steps after completing a command or workflow
 ## Format Rules
 
 1. **Always show what it is** — name + description, never just a command path
-2. **Pull context from source** — ROADMAP.md for phases, PLAN.md `<objective>` for plans
+2. **Pull context from source** — ROADMAP.md for objectives, JOB.md `<objective>` for plans
 3. **Command in inline code** — backticks, easy to copy-paste, renders as clickable link
 4. **`/clear` explanation** — always include, keeps it concise but explains why
 5. **"Also available" not "Other options"** — sounds more app-like
@@ -44,7 +44,7 @@ Standard format for presenting next steps after completing a command or workflow
 
 **02-03: Refresh Token Rotation** — Add /api/auth/refresh with sliding expiry
 
-`/df:execute-phase 2`
+`/df:execute-objective 2`
 
 <sub>`/clear` first → fresh context window</sub>
 
@@ -52,12 +52,12 @@ Standard format for presenting next steps after completing a command or workflow
 
 **Also available:**
 - Review plan before executing
-- `/df:list-phase-assumptions 2` — check assumptions
+- `/df:list-objective-assumptions 2` — check assumptions
 
 ---
 ```
 
-### Execute Final Plan in Phase
+### Execute Final Plan in Objective
 
 Add note that this is the last plan and what comes after:
 
@@ -67,69 +67,69 @@ Add note that this is the last plan and what comes after:
 ## ▶ Next Up
 
 **02-03: Refresh Token Rotation** — Add /api/auth/refresh with sliding expiry
-<sub>Final plan in Phase 2</sub>
+<sub>Final plan in Objective 2</sub>
 
-`/df:execute-phase 2`
+`/df:execute-objective 2`
 
 <sub>`/clear` first → fresh context window</sub>
 
 ---
 
 **After this completes:**
-- Phase 2 → Phase 3 transition
-- Next: **Phase 3: Core Features** — User dashboard and settings
+- Objective 2 → Objective 3 transition
+- Next: **Objective 3: Core Features** — User dashboard and settings
 
 ---
 ```
 
-### Plan a Phase
+### Plan a Objective
 
 ```
 ---
 
 ## ▶ Next Up
 
-**Phase 2: Authentication** — JWT login flow with refresh tokens
+**Objective 2: Authentication** — JWT login flow with refresh tokens
 
-`/df:plan-phase 2`
+`/df:plan-objective 2`
 
 <sub>`/clear` first → fresh context window</sub>
 
 ---
 
 **Also available:**
-- `/df:discuss-phase 2` — gather context first
-- `/df:research-phase 2` — investigate unknowns
+- `/df:discuss-objective 2` — gather context first
+- `/df:research-objective 2` — investigate unknowns
 - Review roadmap
 
 ---
 ```
 
-### Phase Complete, Ready for Next
+### Objective Complete, Ready for Next
 
 Show completion status before next action:
 
 ```
 ---
 
-## ✓ Phase 2 Complete
+## ✓ Objective 2 Complete
 
-3/3 plans executed
+3/3 jobs executed
 
 ## ▶ Next Up
 
-**Phase 3: Core Features** — User dashboard, settings, and data export
+**Objective 3: Core Features** — User dashboard, settings, and data export
 
-`/df:plan-phase 3`
+`/df:plan-objective 3`
 
 <sub>`/clear` first → fresh context window</sub>
 
 ---
 
 **Also available:**
-- `/df:discuss-phase 3` — gather context first
-- `/df:research-phase 3` — investigate unknowns
-- Review what Phase 2 built
+- `/df:discuss-objective 3` — gather context first
+- `/df:research-objective 3` — investigate unknowns
+- Review what Objective 2 built
 
 ---
 ```
@@ -143,13 +143,13 @@ When there's no clear primary action:
 
 ## ▶ Next Up
 
-**Phase 3: Core Features** — User dashboard, settings, and data export
+**Objective 3: Core Features** — User dashboard, settings, and data export
 
-**To plan directly:** `/df:plan-phase 3`
+**To plan directly:** `/df:plan-objective 3`
 
-**To discuss context first:** `/df:discuss-phase 3`
+**To discuss context first:** `/df:discuss-objective 3`
 
-**To research unknowns:** `/df:research-phase 3`
+**To research unknowns:** `/df:research-objective 3`
 
 <sub>`/clear` first → fresh context window</sub>
 
@@ -163,7 +163,7 @@ When there's no clear primary action:
 
 ## 🎉 Milestone v1.0 Complete
 
-All 4 phases shipped
+All 4 objectives shipped
 
 ## ▶ Next Up
 
@@ -178,23 +178,23 @@ All 4 phases shipped
 
 ## Pulling Context
 
-### For phases (from ROADMAP.md):
+### For objectives (from ROADMAP.md):
 
 ```markdown
-### Phase 2: Authentication
+### Objective 2: Authentication
 **Goal**: JWT login flow with refresh tokens
 ```
 
-Extract: `**Phase 2: Authentication** — JWT login flow with refresh tokens`
+Extract: `**Objective 2: Authentication** — JWT login flow with refresh tokens`
 
 ### For plans (from ROADMAP.md):
 
 ```markdown
-Plans:
+Jobs:
 - [ ] 02-03: Add refresh token rotation
 ```
 
-Or from PLAN.md `<objective>`:
+Or from JOB.md `<objective>`:
 
 ```xml
 <objective>
@@ -214,7 +214,7 @@ Extract: `**02-03: Refresh Token Rotation** — Add /api/auth/refresh with slidi
 ## To Continue
 
 Run `/clear`, then paste:
-/df:execute-phase 2
+/df:execute-objective 2
 ```
 
 User has no idea what 02-03 is about.
@@ -222,7 +222,7 @@ User has no idea what 02-03 is about.
 ### Don't: Missing /clear explanation
 
 ```
-`/df:plan-phase 3`
+`/df:plan-objective 3`
 
 Run /clear first.
 ```
@@ -242,7 +242,7 @@ Sounds like an afterthought. Use "Also available:" instead.
 
 ```
 ```
-/df:plan-phase 3
+/df:plan-objective 3
 ```
 ```
 

@@ -1,6 +1,6 @@
 <purpose>
 
-Merge completed workstream branches back to main, reconcile `.planning/` state, clean up worktrees, and prepare for the join phase.
+Merge completed workstream branches back to main, reconcile `.planning/` state, clean up worktrees, and prepare for the join objective.
 
 </purpose>
 
@@ -29,7 +29,7 @@ For each workstream, check its worktree's STATE.md and disk status:
 ```bash
 # For each workstream
 cat {worktree_path}/.planning/STATE.md 2>/dev/null
-ls {worktree_path}/.planning/phases/XX-*/*-SUMMARY.md 2>/dev/null
+ls {worktree_path}/.planning/objectives/XX-*/*-SUMMARY.md 2>/dev/null
 ```
 
 **If all workstreams complete:**
@@ -84,20 +84,20 @@ The `--squash` strategy creates a single clean commit per workstream on main.
 
    | File | Strategy |
    |------|----------|
-   | `phases/` | No conflict — each workstream has different directories |
+   | `objectives/` | No conflict — each workstream has different directories |
    | `ROADMAP.md` | Regenerate from disk after all merges (via reconcile) |
-   | `STATE.md` | Discard all versions, regenerate for join phase (via reconcile) |
+   | `STATE.md` | Discard all versions, regenerate for join objective (via reconcile) |
    | `REQUIREMENTS.md` | Union of `[x]` checkbox completions |
    | `PROJECT.md` | Present diff to user if both modified (rare) |
    | `config.json` | Take main's version |
    | `codebase/` | Take latest (or manual merge if both modified) |
    | `workstream-marker.json` | Delete from merge (main worktree doesn't need it) |
 
-   For `.planning/` conflicts, auto-resolve by taking the workstream's version for phase directories and discarding STATE.md/ROADMAP.md changes (they'll be regenerated):
+   For `.planning/` conflicts, auto-resolve by taking the workstream's version for objective directories and discarding STATE.md/ROADMAP.md changes (they'll be regenerated):
 
    ```bash
-   # Accept workstream's phase directories (they're unique per workstream)
-   git checkout --theirs .planning/phases/
+   # Accept workstream's objective directories (they're unique per workstream)
+   git checkout --theirs .planning/objectives/
    # Discard STATE.md and ROADMAP.md changes (will regenerate)
    git checkout --ours .planning/STATE.md .planning/ROADMAP.md 2>/dev/null
    # Remove workstream-marker.json from merge
@@ -107,7 +107,7 @@ The `--squash` strategy creates a single clean commit per workstream on main.
 
 4. **Commit the merge:**
 ```bash
-git commit -m "feat: merge {ws-name} (Phase {N}: {phase name})"
+git commit -m "feat: merge {ws-name} (Objective {N}: {objective name})"
 ```
 
 5. **Update workstream status in workstreams.json:**
@@ -127,7 +127,7 @@ RECONCILE=$(node ~/.claude/devflow/bin/df-tools.cjs workstreams reconcile)
 
 This command:
 - Updates ROADMAP.md progress from disk (counts actual PLAN vs SUMMARY files)
-- Regenerates STATE.md pointing to the join phase
+- Regenerates STATE.md pointing to the join objective
 - Merges accumulated context (decisions, blockers) from all workstream STATE.md files
 - Updates workstreams.json (moves active to completed_workstreams)
 
@@ -164,7 +164,7 @@ Check `commit_docs` from config.
 If commit_docs is true:
 
 ```bash
-node ~/.claude/devflow/bin/df-tools.cjs commit "docs: merge workstreams, advance to Phase {N}" --files .planning/workstreams.json .planning/STATE.md .planning/ROADMAP.md
+node ~/.claude/devflow/bin/df-tools.cjs commit "docs: merge workstreams, advance to Objective {N}" --files .planning/workstreams.json .planning/STATE.md .planning/ROADMAP.md
 ```
 
 </step>
@@ -176,15 +176,15 @@ node ~/.claude/devflow/bin/df-tools.cjs commit "docs: merge workstreams, advance
 
 {N} workstreams merged successfully:
 
-| Workstream | Phase | Commit |
+| Workstream | Objective | Commit |
 |-----------|-------|--------|
-| {name} | Phase {N} | {short hash} |
-| {name} | Phase {N} | {short hash} |
+| {name} | Objective {N} | {short hash} |
+| {name} | Objective {N} | {short hash} |
 
 ### State Reconciled
 
 - ROADMAP.md: Progress updated from disk
-- STATE.md: Regenerated for Phase {join_phase}
+- STATE.md: Regenerated for Objective {join_phase}
 - Worktrees: Cleaned up
 - Branches: Deleted
 
@@ -192,11 +192,11 @@ node ~/.claude/devflow/bin/df-tools.cjs commit "docs: merge workstreams, advance
 
 ## ▶ Next Up
 
-**Phase {join_phase}: {name}** — the join point
+**Objective {join_phase}: {name}** — the join point
 
 All workstream dependencies are satisfied. Ready to plan:
 
-`/df:plan-phase {join_phase}`
+`/df:plan-objective {join_phase}`
 
 <sub>`/clear` first → fresh context window</sub>
 ```
@@ -213,9 +213,9 @@ All workstream dependencies are satisfied. Ready to plan:
 
 | File | Action | Rationale |
 |------|--------|-----------|
-| `phases/` | Accept theirs | Each workstream has unique phase dirs |
+| `objectives/` | Accept theirs | Each workstream has unique objective dirs |
 | `ROADMAP.md` | Regenerate | Count actual files on disk post-merge |
-| `STATE.md` | Regenerate | Fresh state for join phase |
+| `STATE.md` | Regenerate | Fresh state for join objective |
 | `REQUIREMENTS.md` | Union `[x]` | Both workstreams may complete different requirements |
 | `PROJECT.md` | Manual if both changed | Rare — present diff to user |
 | `config.json` | Take ours (main) | Config shouldn't change in workstreams |
@@ -242,6 +242,6 @@ Merge is complete when:
 - [ ] .planning/ state reconciled (ROADMAP, STATE regenerated)
 - [ ] Worktrees removed and branches deleted
 - [ ] workstreams.json updated (active → completed)
-- [ ] User knows join phase and next steps
+- [ ] User knows join objective and next steps
 
 </success_criteria>

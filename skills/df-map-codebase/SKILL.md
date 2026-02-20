@@ -63,7 +63,7 @@ Check for .planning/STATE.md - loads context if project already initialized
 5. Verify all 8 documents exist with line counts
 6. Synthesize CLAUDE.md from all 8 docs (prescriptive coding rules, marker-based merge)
 7. Commit codebase map + CLAUDE.md
-8. Offer next steps (typically: /df:new-project or /df:plan-phase)
+8. Offer next steps (typically: /df:new-project or /df:plan-objective)
 </process>
 
 <success_criteria>

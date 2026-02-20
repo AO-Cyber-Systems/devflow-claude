@@ -25,7 +25,7 @@ cat .planning/workstreams.json 2>/dev/null
 
 If not found: "No active workstreams. Use `/df:workstreams setup` to create them."
 
-If status is "merged": "All workstreams have been merged. Ready for next phase."
+If status is "merged": "All workstreams have been merged. Ready for next objective."
 
 </step>
 
@@ -38,7 +38,7 @@ For each workstream in `workstreams`:
 cat {worktree_path}/.planning/STATE.md 2>/dev/null
 ```
 
-Parse: current phase, plan progress, status.
+Parse: current objective, job progress, status.
 
 2. **Check git branch activity:**
 ```bash
@@ -49,15 +49,15 @@ Extract: last commit date, commit count since base.
 
 3. **Check plan completion on disk:**
 ```bash
-ls {worktree_path}/.planning/phases/*-PLAN.md 2>/dev/null | wc -l
-ls {worktree_path}/.planning/phases/*-SUMMARY.md 2>/dev/null | wc -l
+ls {worktree_path}/.planning/objectives/*-JOB.md 2>/dev/null | wc -l
+ls {worktree_path}/.planning/objectives/*-SUMMARY.md 2>/dev/null | wc -l
 ```
 
 4. **Determine status:**
    - `pending` — No plans created yet
    - `planning` — PLAN files exist, no SUMMARY
    - `in_progress` — Some SUMMARY files exist
-   - `complete` — All plans have summaries
+   - `complete` — All jobs have summaries
 
 </step>
 
@@ -66,14 +66,14 @@ ls {worktree_path}/.planning/phases/*-SUMMARY.md 2>/dev/null | wc -l
 ```
 ## Workstream Status
 
-| Workstream | Phase | Plans | Status | Last Activity |
+| Workstream | Objective | Plans | Status | Last Activity |
 |-----------|-------|-------|--------|---------------|
-| {name} | Phase {N} | {done}/{total} | {status} | {date} |
-| {name} | Phase {N} | {done}/{total} | {status} | {date} |
+| {name} | Objective {N} | {done}/{total} | {status} | {date} |
+| {name} | Objective {N} | {done}/{total} | {status} | {date} |
 
-### Join Phase
+### Join Objective
 
-**Phase {N}: {name}** — waiting for: {list of incomplete workstreams}
+**Objective {N}: {name}** — waiting for: {list of incomplete workstreams}
 
 {If all workstreams complete:}
 All workstreams complete. Ready to merge:
@@ -84,7 +84,7 @@ All workstreams complete. Ready to merge:
 ### Next Steps
 
 **Complete:**
-- ✓ {workstream name} — all plans done
+- ✓ {workstream name} — all jobs done
 
 **In Progress:**
 - ◐ {workstream name} — {X}/{Y} plans done
@@ -107,7 +107,7 @@ Status check is complete when:
 
 - [ ] All active workstreams inspected
 - [ ] Progress table presented
-- [ ] Join phase status shown
+- [ ] Join objective status shown
 - [ ] Clear next steps provided
 
 </success_criteria>

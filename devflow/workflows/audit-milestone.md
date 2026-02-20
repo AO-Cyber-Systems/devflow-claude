@@ -1,5 +1,5 @@
 <purpose>
-Verify milestone achieved its definition of done by aggregating phase verifications, checking cross-phase integration, and assessing requirements coverage. Reads existing VERIFICATION.md files (phases already verified during execute-phase), aggregates tech debt and deferred gaps, then spawns integration checker for cross-phase wiring.
+Verify milestone achieved its definition of done by aggregating objective verifications, checking cross-objective integration, and assessing requirements coverage. Reads existing VERIFICATION.md files (objectives already verified during execute-objective), aggregates tech debt and deferred gaps, then spawns integration checker for cross-objective wiring.
 </purpose>
 
 <required_reading>
@@ -24,24 +24,24 @@ CHECKER_MODEL=$(node ~/.claude/devflow/bin/df-tools.cjs resolve-model df-integra
 ## 1. Determine Milestone Scope
 
 ```bash
-# Get phases in milestone (sorted numerically, handles decimals)
-node ~/.claude/devflow/bin/df-tools.cjs phases list
+# Get objectives in milestone (sorted numerically, handles decimals)
+node ~/.claude/devflow/bin/df-tools.cjs objectives list
 ```
 
 - Parse version from arguments or detect current from ROADMAP.md
-- Identify all phase directories in scope
+- Identify all objective directories in scope
 - Extract milestone definition of done from ROADMAP.md
 - Extract requirements mapped to this milestone from REQUIREMENTS.md
 
-## 2. Read All Phase Verifications
+## 2. Read All Objective Verifications
 
-For each phase directory, read the VERIFICATION.md:
+For each objective directory, read the VERIFICATION.md:
 
 ```bash
-# For each phase, use find-phase to resolve the directory (handles archived phases)
-PHASE_INFO=$(node ~/.claude/devflow/bin/df-tools.cjs find-phase 01 --raw)
+# For each objective, use find-objective to resolve the directory (handles archived objectives)
+PHASE_INFO=$(node ~/.claude/devflow/bin/df-tools.cjs find-objective 01 --raw)
 # Extract directory from JSON, then read VERIFICATION.md from that directory
-# Repeat for each phase number from ROADMAP.md
+# Repeat for each objective number from ROADMAP.md
 ```
 
 From each VERIFICATION.md, extract:
@@ -51,28 +51,28 @@ From each VERIFICATION.md, extract:
 - **Anti-patterns found:** TODOs, stubs, placeholders
 - **Requirements coverage:** which requirements satisfied/blocked
 
-If a phase is missing VERIFICATION.md, flag it as "unverified phase" — this is a blocker.
+If an objective is missing VERIFICATION.md, flag it as "unverified objective" — this is a blocker.
 
 ## 3. Spawn Integration Checker
 
-With phase context collected:
+With objective context collected:
 
-Extract `MILESTONE_REQ_IDS` from REQUIREMENTS.md traceability table — all REQ-IDs assigned to phases in this milestone.
+Extract `MILESTONE_REQ_IDS` from REQUIREMENTS.md traceability table — all REQ-IDs assigned to objectives in this milestone.
 
 ```
 Task(
-  prompt="Check cross-phase integration and E2E flows.
+  prompt="Check cross-objective integration and E2E flows.
 
-Phases: {phase_dirs}
-Phase exports: {from SUMMARYs}
+Objectives: {phase_dirs}
+Objective exports: {from SUMMARYs}
 API routes: {routes created}
 
 Milestone Requirements:
-{MILESTONE_REQ_IDS — list each REQ-ID with description and assigned phase}
+{MILESTONE_REQ_IDS — list each REQ-ID with description and assigned objective}
 
 MUST map each integration finding to affected requirement IDs where applicable.
 
-Verify cross-phase wiring and E2E user flows.",
+Verify cross-objective wiring and E2E user flows.",
   subagent_type="df-integration-checker",
   model="{integration_checker_model}"
 )
@@ -81,7 +81,7 @@ Verify cross-phase wiring and E2E user flows.",
 ## 4. Collect Results
 
 Combine:
-- Phase-level gaps and tech debt (from step 2)
+- Objective-level gaps and tech debt (from step 2)
 - Integration checker's report (wiring gaps, broken flows)
 
 ## 5. Check Requirements Coverage (3-Source Cross-Reference)
@@ -90,20 +90,20 @@ MUST cross-reference three independent sources for each requirement:
 
 ### 5a. Parse REQUIREMENTS.md Traceability Table
 
-Extract all REQ-IDs mapped to milestone phases from the traceability table:
-- Requirement ID, description, assigned phase, current status, checked-off state (`[x]` vs `[ ]`)
+Extract all REQ-IDs mapped to milestone objectives from the traceability table:
+- Requirement ID, description, assigned objective, current status, checked-off state (`[x]` vs `[ ]`)
 
-### 5b. Parse Phase VERIFICATION.md Requirements Tables
+### 5b. Parse Objective VERIFICATION.md Requirements Tables
 
-For each phase's VERIFICATION.md, extract the expanded requirements table:
+For each objective's VERIFICATION.md, extract the expanded requirements table:
 - Requirement | Source Plan | Description | Status | Evidence
 - Map each entry back to its REQ-ID
 
 ### 5c. Extract SUMMARY.md Frontmatter Cross-Check
 
-For each phase's SUMMARY.md, extract `requirements-completed` from YAML frontmatter:
+For each objective's SUMMARY.md, extract `requirements-completed` from YAML frontmatter:
 ```bash
-for summary in .planning/phases/*-*/*-SUMMARY.md; do
+for summary in .planning/objectives/*-*/*-SUMMARY.md; do
   node ~/.claude/devflow/bin/df-tools.cjs summary-extract "$summary" --fields requirements_completed | jq -r '.requirements_completed'
 done
 ```
@@ -125,7 +125,7 @@ For each REQ-ID, determine status using all three sources:
 
 **REQUIRED:** Any `unsatisfied` requirement MUST force `gaps_found` status on the milestone audit.
 
-**Orphan detection:** Requirements present in REQUIREMENTS.md traceability table but absent from ALL phase VERIFICATION.md files MUST be flagged as orphaned. Orphaned requirements are treated as `unsatisfied` — they were assigned but never verified by any phase.
+**Orphan detection:** Requirements present in REQUIREMENTS.md traceability table but absent from ALL objective VERIFICATION.md files MUST be flagged as orphaned. Orphaned requirements are treated as `unsatisfied` — they were assigned but never verified by any objective.
 
 ## 6. Aggregate into v{version}-MILESTONE-AUDIT.md
 
@@ -138,32 +138,32 @@ audited: {timestamp}
 status: passed | gaps_found | tech_debt
 scores:
   requirements: N/M
-  phases: N/M
+  objectives: N/M
   integration: N/M
   flows: N/M
 gaps:  # Critical blockers
   requirements:
     - id: "{REQ-ID}"
       status: "unsatisfied | partial | orphaned"
-      phase: "{assigned phase}"
-      claimed_by_plans: ["{plan files that reference this requirement}"]
-      completed_by_plans: ["{plan files whose SUMMARY marks it complete}"]
+      objective: "{assigned objective}"
+      claimed_by_plans: ["{job files that reference this requirement}"]
+      completed_by_plans: ["{job files whose SUMMARY marks it complete}"]
       verification_status: "passed | gaps_found | missing | orphaned"
       evidence: "{specific evidence or lack thereof}"
   integration: [...]
   flows: [...]
 tech_debt:  # Non-critical, deferred
-  - phase: 01-auth
+  - objective: 01-auth
     items:
       - "TODO: add rate limiting"
       - "Warning: no password strength validation"
-  - phase: 03-dashboard
+  - objective: 03-dashboard
     items:
       - "Deferred: mobile responsive layout"
 ---
 ```
 
-Plus full markdown report with tables for requirements, phases, integration, tech debt.
+Plus full markdown report with tables for requirements, objectives, integration, tech debt.
 
 **Status values:**
 - `passed` — all requirements met, no critical gaps, minimal tech debt
@@ -188,7 +188,7 @@ Output this markdown directly (not as a code block). Route based on status:
 **Score:** {N}/{M} requirements satisfied
 **Report:** .planning/v{version}-MILESTONE-AUDIT.md
 
-All requirements covered. Cross-phase integration verified. E2E flows complete.
+All requirements covered. Cross-objective integration verified. E2E flows complete.
 
 ───────────────────────────────────────────────────────────────
 
@@ -214,10 +214,10 @@ All requirements covered. Cross-phase integration verified. E2E flows complete.
 ### Unsatisfied Requirements
 
 {For each unsatisfied requirement:}
-- **{REQ-ID}: {description}** (Phase {X})
+- **{REQ-ID}: {description}** (Objective {X})
   - {reason}
 
-### Cross-Phase Issues
+### Cross-Objective Issues
 
 {For each integration gap:}
 - **{from} → {to}:** {issue}
@@ -231,7 +231,7 @@ All requirements covered. Cross-phase integration verified. E2E flows complete.
 
 ## ▶ Next Up
 
-**Plan gap closure** — create phases to complete milestone
+**Plan gap closure** — create objectives to complete milestone
 
 /df:plan-milestone-gaps
 
@@ -256,14 +256,14 @@ All requirements covered. Cross-phase integration verified. E2E flows complete.
 
 All requirements met. No critical blockers. Accumulated tech debt needs review.
 
-### Tech Debt by Phase
+### Tech Debt by Objective
 
-{For each phase with debt:}
-**Phase {X}: {name}**
+{For each objective with debt:}
+**Objective {X}: {name}**
 - {item 1}
 - {item 2}
 
-### Total: {N} items across {M} phases
+### Total: {N} items across {M} objectives
 
 ───────────────────────────────────────────────────────────────
 
@@ -273,7 +273,7 @@ All requirements met. No critical blockers. Accumulated tech debt needs review.
 
 /df:complete-milestone {version}
 
-**B. Plan cleanup phase** — address debt before completing
+**B. Plan cleanup objective** — address debt before completing
 
 /df:plan-milestone-gaps
 
@@ -284,8 +284,8 @@ All requirements met. No critical blockers. Accumulated tech debt needs review.
 
 <success_criteria>
 - [ ] Milestone scope identified
-- [ ] All phase VERIFICATION.md files read
-- [ ] SUMMARY.md `requirements-completed` frontmatter extracted for each phase
+- [ ] All objective VERIFICATION.md files read
+- [ ] SUMMARY.md `requirements-completed` frontmatter extracted for each objective
 - [ ] REQUIREMENTS.md traceability table parsed for all milestone REQ-IDs
 - [ ] 3-source cross-reference completed (VERIFICATION + SUMMARY + traceability)
 - [ ] Orphaned requirements detected (in traceability but absent from all VERIFICATIONs)

@@ -1,10 +1,10 @@
 ---
-name: df:research-phase
+name: df:research-objective
 description: |
-  Research how to implement a phase before planning.
-  Use when the user wants to investigate, research, or explore options before planning a phase.
-  Triggers on: "research phase", "investigate before planning", "look into how to build", "what's the best approach for phase"
-argument-hint: "[phase]"
+  Research how to implement an objective before planning.
+  Use when the user wants to investigate, research, or explore options before planning an objective.
+  Triggers on: "research objective", "investigate before planning", "look into how to build", "what's the best approach for objective"
+argument-hint: "[objective]"
 allowed-tools:
   - Read
   - Bash
@@ -12,24 +12,24 @@ allowed-tools:
 ---
 
 <objective>
-Research how to implement a phase. Spawns df-phase-researcher agent with phase context.
+Research how to implement an objective. Spawns df-objective-researcher agent with objective context.
 
-**Note:** This is a standalone research command. For most workflows, use `/df:plan-phase` which integrates research automatically.
+**Note:** This is a standalone research command. For most workflows, use `/df:plan-objective` which integrates research automatically.
 
 **Use this command when:**
 - You want to research without planning yet
 - You want to re-research after planning is complete
-- You need to investigate before deciding if a phase is feasible
+- You need to investigate before deciding if an objective is feasible
 
-**Orchestrator role:** Parse phase, validate against roadmap, check existing research, gather context, spawn researcher agent, present results.
+**Orchestrator role:** Parse objective, validate against roadmap, check existing research, gather context, spawn researcher agent, present results.
 
 **Why subagent:** Research burns context fast (WebSearch, Context7 queries, source verification). Fresh 200k context for investigation. Main context stays lean for user interaction.
 </objective>
 
 <context>
-Phase number: $ARGUMENTS (required)
+Objective number: $ARGUMENTS (required)
 
-Normalize phase input in step 1 before any directory lookups.
+Normalize objective input in step 1 before any directory lookups.
 </context>
 
 <process>
@@ -37,20 +37,20 @@ Normalize phase input in step 1 before any directory lookups.
 ## 0. Initialize Context
 
 ```bash
-INIT=$(node ~/.claude/devflow/bin/df-tools.cjs init phase-op "$ARGUMENTS")
+INIT=$(node ~/.claude/devflow/bin/df-tools.cjs init objective-op "$ARGUMENTS")
 ```
 
 Extract from init JSON: `phase_dir`, `phase_number`, `phase_name`, `phase_found`, `commit_docs`, `has_research`.
 
 Resolve researcher model:
 ```bash
-RESEARCHER_MODEL=$(node ~/.claude/devflow/bin/df-tools.cjs resolve-model df-phase-researcher --raw)
+RESEARCHER_MODEL=$(node ~/.claude/devflow/bin/df-tools.cjs resolve-model df-objective-researcher --raw)
 ```
 
-## 1. Validate Phase
+## 1. Validate Objective
 
 ```bash
-PHASE_INFO=$(node ~/.claude/devflow/bin/df-tools.cjs roadmap get-phase "${phase_number}")
+PHASE_INFO=$(node ~/.claude/devflow/bin/df-tools.cjs roadmap get-objective "${phase_number}")
 ```
 
 **If `found` is false:** Error and exit. **If `found` is true:** Extract `phase_number`, `phase_name`, `goal` from JSON.
@@ -58,32 +58,32 @@ PHASE_INFO=$(node ~/.claude/devflow/bin/df-tools.cjs roadmap get-phase "${phase_
 ## 2. Check Existing Research
 
 ```bash
-ls .planning/phases/${PHASE}-*/RESEARCH.md 2>/dev/null
+ls .planning/objectives/${OBJECTIVE}-*/RESEARCH.md 2>/dev/null
 ```
 
 **If exists:** Offer: 1) Update research, 2) View existing, 3) Skip. Wait for response.
 
 **If doesn't exist:** Continue.
 
-## 3. Gather Phase Context
+## 3. Gather Objective Context
 
 ```bash
-# Phase section already loaded in PHASE_INFO
+# Objective section already loaded in PHASE_INFO
 echo "$PHASE_INFO" | jq -r '.section'
 cat .planning/REQUIREMENTS.md 2>/dev/null
-cat .planning/phases/${PHASE}-*/*-CONTEXT.md 2>/dev/null
+cat .planning/objectives/${OBJECTIVE}-*/*-CONTEXT.md 2>/dev/null
 grep -A30 "### Decisions Made" .planning/STATE.md 2>/dev/null
 ```
 
-Present summary with phase description, requirements, prior decisions.
+Present summary with objective description, requirements, prior decisions.
 
-## 4. Spawn df-phase-researcher Agent
+## 4. Spawn df-objective-researcher Agent
 
 Research modes: ecosystem (default), feasibility, implementation, comparison.
 
 ```markdown
 <research_type>
-Phase Research — investigating HOW to implement a specific phase well.
+Objective Research — investigating HOW to implement a specific objective well.
 </research_type>
 
 <key_insight>
@@ -91,7 +91,7 @@ The question is NOT "which library should I use?"
 
 The question is: "What do I not know that I don't know?"
 
-For this phase, discover:
+For this objective, discover:
 - What's the established architecture pattern?
 - What libraries form the standard stack?
 - What problems do people commonly hit?
@@ -100,19 +100,19 @@ For this phase, discover:
 </key_insight>
 
 <objective>
-Research implementation approach for Phase {phase_number}: {phase_name}
+Research implementation approach for Objective {phase_number}: {phase_name}
 Mode: ecosystem
 </objective>
 
 <context>
-**Phase description:** {phase_description}
+**Objective description:** {phase_description}
 **Requirements:** {requirements_list}
 **Prior decisions:** {decisions_if_any}
-**Phase context:** {context_md_content}
+**Objective context:** {context_md_content}
 </context>
 
 <downstream_consumer>
-Your RESEARCH.md will be loaded by `/df:plan-phase` which uses specific sections:
+Your RESEARCH.md will be loaded by `/df:plan-objective` which uses specific sections:
 - `## Standard Stack` → Plans use these libraries
 - `## Architecture Patterns` → Task structure follows these
 - `## Don't Hand-Roll` → Tasks NEVER build custom solutions for listed problems
@@ -128,26 +128,26 @@ Before declaring complete, verify:
 - [ ] Negative claims verified with official docs
 - [ ] Multiple sources for critical claims
 - [ ] Confidence levels assigned honestly
-- [ ] Section names match what plan-phase expects
+- [ ] Section names match what plan-objective expects
 </quality_gate>
 
 <output>
-Write to: .planning/phases/${PHASE}-{slug}/${PHASE}-RESEARCH.md
+Write to: .planning/objectives/${OBJECTIVE}-{slug}/${OBJECTIVE}-RESEARCH.md
 </output>
 ```
 
 ```
 Task(
-  prompt="First, read ~/.claude/agents/df-phase-researcher.md for your role and instructions.\n\n" + filled_prompt,
+  prompt="First, read ~/.claude/agents/df-objective-researcher.md for your role and instructions.\n\n" + filled_prompt,
   subagent_type="general-purpose",
   model="{researcher_model}",
-  description="Research Phase {phase}"
+  description="Research Objective {objective}"
 )
 ```
 
 ## 5. Handle Agent Return
 
-**`## RESEARCH COMPLETE`:** Display summary, offer: Plan phase, Dig deeper, Review full, Done.
+**`## RESEARCH COMPLETE`:** Display summary, offer: Plan objective, Dig deeper, Review full, Done.
 
 **`## CHECKPOINT REACHED`:** Present to user, get response, spawn continuation.
 
@@ -157,11 +157,11 @@ Task(
 
 ```markdown
 <objective>
-Continue research for Phase {phase_number}: {phase_name}
+Continue research for Objective {phase_number}: {phase_name}
 </objective>
 
 <prior_state>
-Research file: @.planning/phases/${PHASE}-{slug}/${PHASE}-RESEARCH.md
+Research file: @.planning/objectives/${OBJECTIVE}-{slug}/${OBJECTIVE}-RESEARCH.md
 </prior_state>
 
 <checkpoint_response>
@@ -172,19 +172,19 @@ Research file: @.planning/phases/${PHASE}-{slug}/${PHASE}-RESEARCH.md
 
 ```
 Task(
-  prompt="First, read ~/.claude/agents/df-phase-researcher.md for your role and instructions.\n\n" + continuation_prompt,
+  prompt="First, read ~/.claude/agents/df-objective-researcher.md for your role and instructions.\n\n" + continuation_prompt,
   subagent_type="general-purpose",
   model="{researcher_model}",
-  description="Continue research Phase {phase}"
+  description="Continue research Objective {objective}"
 )
 ```
 
 </process>
 
 <success_criteria>
-- [ ] Phase validated against roadmap
+- [ ] Objective validated against roadmap
 - [ ] Existing research checked
-- [ ] df-phase-researcher spawned with context
+- [ ] df-objective-researcher spawned with context
 - [ ] Checkpoints handled correctly
 - [ ] User knows next steps
 </success_criteria>

@@ -42,7 +42,7 @@ cat .planning/PROJECT.md
 **From STATE.md extract:**
 
 - **Project Reference**: Core value and current focus
-- **Current Position**: Phase X of Y, Plan A of B, Status
+- **Current Position**: Objective X of Y, Plan A of B, Status
 - **Progress**: Visual progress bar
 - **Recent Decisions**: Key decisions affecting current work
 - **Pending Todos**: Ideas captured during sessions
@@ -63,12 +63,12 @@ Look for incomplete work that needs attention:
 
 ```bash
 # Check for continue-here files (mid-plan resumption)
-ls .planning/phases/*/.continue-here*.md 2>/dev/null
+ls .planning/objectives/*/.continue-here*.md 2>/dev/null
 
 # Check for plans without summaries (incomplete execution)
-for plan in .planning/phases/*/*-PLAN.md; do
+for plan in .planning/objectives/*/*-JOB.md; do
   summary="${plan/PLAN/SUMMARY}"
-  [ ! -f "$summary" ] && echo "Incomplete: $plan"
+  [ ! -f "$summary" ] && echo "Incomplete: $job"
 done 2>/dev/null
 
 # Check for interrupted agents (use has_interrupted_agent and interrupted_agent_id from init)
@@ -86,7 +86,7 @@ fi
 **If PLAN without SUMMARY exists:**
 
 - Execution was started but not completed
-- Flag: "Found incomplete plan execution"
+- Flag: "Found incomplete job execution"
 
 **If interrupted agent found:**
 
@@ -104,7 +104,7 @@ Present complete project status to user:
 ╠══════════════════════════════════════════════════════════════╣
 ║  Building: [one-liner from PROJECT.md "What This Is"]         ║
 ║                                                               ║
-║  Phase: [X] of [Y] - [Phase name]                            ║
+║  Objective: [X] of [Y] - [Objective name]                            ║
 ║  Plan:  [A] of [B] - [Status]                                ║
 ║  Progress: [██████░░░░] XX%                                  ║
 ║                                                               ║
@@ -146,29 +146,29 @@ Based on project state, determine the most logical next action:
 
 **If .continue-here file exists:**
 → Primary: Resume from checkpoint
-→ Option: Start fresh on current plan
+→ Option: Start fresh on current job
 
 **If incomplete plan (PLAN without SUMMARY):**
 → Primary: Complete the incomplete plan
 → Option: Abandon and move on
 
-**If phase in progress, all plans complete:**
-→ Primary: Transition to next phase
+**If objective in progress, all jobs complete:**
+→ Primary: Transition to next objective
 → Option: Review completed work
 
-**If phase ready to plan:**
-→ Check if CONTEXT.md exists for this phase:
+**If objective ready to plan:**
+→ Check if CONTEXT.md exists for this objective:
 
 - If CONTEXT.md missing:
-  → Primary: Discuss phase vision (how user imagines it working)
+  → Primary: Discuss objective vision (how user imagines it working)
   → Secondary: Plan directly (skip context gathering)
 - If CONTEXT.md exists:
-  → Primary: Plan the phase
+  → Primary: Plan the objective
   → Option: Review roadmap
 
-**If phase ready to execute:**
-→ Primary: Execute next plan
-→ Option: Review the plan first
+**If objective ready to execute:**
+→ Primary: Execute next job
+→ Option: Review the job first
 </step>
 
 <step name="offer_options">
@@ -180,26 +180,26 @@ What would you like to do?
 [Primary action based on state - e.g.:]
 1. Resume interrupted agent [if interrupted agent found]
    OR
-1. Execute phase (/df:execute-phase {phase})
+1. Execute objective (/df:execute-objective {objective})
    OR
-1. Discuss Phase 3 context (/df:discuss-phase 3) [if CONTEXT.md missing]
+1. Discuss Objective 3 context (/df:discuss-objective 3) [if CONTEXT.md missing]
    OR
-1. Plan Phase 3 (/df:plan-phase 3) [if CONTEXT.md exists or discuss option declined]
+1. Plan Objective 3 (/df:plan-objective 3) [if CONTEXT.md exists or discuss option declined]
 
 [Secondary options:]
-2. Review current phase status
+2. Review current objective status
 3. Check pending todos ([N] pending)
 4. Review brief alignment
 5. Something else
 ```
 
-**Note:** When offering phase planning, check for CONTEXT.md existence first:
+**Note:** When offering objective planning, check for CONTEXT.md existence first:
 
 ```bash
-ls .planning/phases/XX-name/*-CONTEXT.md 2>/dev/null
+ls .planning/objectives/XX-name/*-CONTEXT.md 2>/dev/null
 ```
 
-If missing, suggest discuss-phase before plan. If exists, offer plan directly.
+If missing, suggest discuss-objective before plan. If exists, offer plan directly.
 
 Wait for user selection.
 </step>
@@ -213,31 +213,31 @@ Based on user selection, route to appropriate workflow:
 
   ## ▶ Next Up
 
-  **{phase}-{plan}: [Plan Name]** — [objective from PLAN.md]
+  **{objective}-{job}: [Plan Name]** — [objective from JOB.md]
 
-  `/df:execute-phase {phase}`
+  `/df:execute-objective {objective}`
 
   <sub>`/clear` first → fresh context window</sub>
 
   ---
   ```
-- **Plan phase** → Show command for user to run after clearing:
+- **Plan objective** → Show command for user to run after clearing:
   ```
   ---
 
   ## ▶ Next Up
 
-  **Phase [N]: [Name]** — [Goal from ROADMAP.md]
+  **Objective [N]: [Name]** — [Goal from ROADMAP.md]
 
-  `/df:plan-phase [phase-number]`
+  `/df:plan-objective [phase-number]`
 
   <sub>`/clear` first → fresh context window</sub>
 
   ---
 
   **Also available:**
-  - `/df:discuss-phase [N]` — gather context first
-  - `/df:research-phase [N]` — investigate unknowns
+  - `/df:discuss-objective [N]` — gather context first
+  - `/df:research-objective [N]` — investigate unknowns
 
   ---
   ```
@@ -271,7 +271,7 @@ If STATE.md is missing but other artifacts exist:
 "STATE.md missing. Reconstructing from artifacts..."
 
 1. Read PROJECT.md → Extract "What This Is" and Core Value
-2. Read ROADMAP.md → Determine phases, find current position
+2. Read ROADMAP.md → Determine objectives, find current position
 3. Scan \*-SUMMARY.md files → Extract decisions, concerns
 4. Count pending todos in .planning/todos/pending/
 5. Check for .continue-here files → Session continuity

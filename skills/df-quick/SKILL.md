@@ -2,7 +2,7 @@
 name: df:quick
 description: |
   Execute a quick task with DevFlow guarantees (atomic commits, state tracking) but skip optional agents.
-  Use when the user wants to do something small, quick, or ad-hoc without full phase ceremony.
+  Use when the user wants to do something small, quick, or ad-hoc without full objective ceremony.
   Triggers on: "quickly do", "just do this", "small task", "quick change", "quick fix", "can you just"
 argument-hint: "[--full]"
 allowed-tools:
@@ -20,12 +20,12 @@ Execute small, ad-hoc tasks with DevFlow guarantees (atomic commits, STATE.md tr
 
 Quick mode is the same system with a shorter path:
 - Spawns df-planner (quick mode) + df-executor(s)
-- Quick tasks live in `.planning/quick/` separate from planned phases
+- Quick tasks live in `.planning/quick/` separate from planned objectives
 - Updates STATE.md "Quick Tasks Completed" table (NOT ROADMAP.md)
 
-**Default:** Skips research, plan-checker, verifier. Use when you know exactly what to do.
+**Default:** Skips research, job-checker, verifier. Use when you know exactly what to do.
 
-**`--full` flag:** Enables plan-checking (max 2 iterations) and post-execution verification. Use when you want quality guarantees without full milestone ceremony.
+**`--full` flag:** Enables job-checking (max 2 iterations) and post-execution verification. Use when you want quality guarantees without full milestone ceremony.
 </objective>
 
 <execution_context>

@@ -1,10 +1,10 @@
 <purpose>
 Execute discovery at the appropriate depth level.
-Produces DISCOVERY.md (for Level 2-3) that informs PLAN.md creation.
+Produces DISCOVERY.md (for Level 2-3) that informs JOB.md creation.
 
-Called from plan-phase.md's mandatory_discovery step with a depth parameter.
+Called from plan-objective.md's mandatory_discovery step with a depth parameter.
 
-NOTE: For comprehensive ecosystem research ("how do experts build this"), use /df:research-phase instead, which produces RESEARCH.md.
+NOTE: For comprehensive ecosystem research ("how do experts build this"), use /df:research-objective instead, which produces RESEARCH.md.
 </purpose>
 
 <depth_levels>
@@ -16,7 +16,7 @@ NOTE: For comprehensive ecosystem research ("how do experts build this"), use /d
 | 2     | Standard     | 15-30 min | DISCOVERY.md                                 | Choosing between options, new integration |
 | 3     | Deep Dive    | 1+ hour   | Detailed DISCOVERY.md with validation gates  | Architectural decisions, novel problems   |
 
-**Depth is determined by plan-phase.md before routing here.**
+**Depth is determined by plan-objective.md before routing here.**
 </depth_levels>
 
 <source_hierarchy>
@@ -34,7 +34,7 @@ See ~/.claude/devflow/templates/discovery.md `<discovery_protocol>` for full pro
 <process>
 
 <step name="determine_depth">
-Check the depth parameter passed from plan-phase.md:
+Check the depth parameter passed from plan-objective.md:
 - `depth=verify` → Level 1 (Quick Verification)
 - `depth=standard` → Level 2 (Standard Discovery)
 - `depth=deep` → Level 3 (Deep Dive)
@@ -69,7 +69,7 @@ For: Single known library, confirming syntax/version still correct.
    - API syntax unchanged
    - No breaking changes in recent versions
 
-4. **If verified:** Return to plan-phase.md with confirmation. No DISCOVERY.md needed.
+4. **If verified:** Return to plan-objective.md with confirmation. No DISCOVERY.md needed.
 
 5. **If concerns found:** Escalate to Level 2.
 
@@ -114,9 +114,9 @@ For: Choosing between options, new external integration.
    - Code examples from Context7
    - Confidence level (should be MEDIUM-HIGH for Level 2)
 
-7. Return to plan-phase.md.
+7. Return to plan-objective.md.
 
-**Output:** `.planning/phases/XX-name/DISCOVERY.md`
+**Output:** `.planning/objectives/XX-name/DISCOVERY.md`
 </step>
 
 <step name="level_3_deep_dive">
@@ -167,15 +167,15 @@ For: Architectural decisions, novel problems, high-risk choices.
 
 7. **Confidence gate:** If overall confidence is LOW, present options before proceeding.
 
-8. Return to plan-phase.md.
+8. Return to plan-objective.md.
 
-**Output:** `.planning/phases/XX-name/DISCOVERY.md` (comprehensive)
+**Output:** `.planning/objectives/XX-name/DISCOVERY.md` (comprehensive)
 </step>
 
 <step name="identify_unknowns">
 **For Level 2-3:** Define what we need to learn.
 
-Ask: What do we need to learn before we can plan this phase?
+Ask: What do we need to learn before we can plan this objective?
 
 - Technology choices?
 - Best practices?
@@ -203,7 +203,7 @@ Run the discovery:
 </step>
 
 <step name="create_discovery_output">
-Write `.planning/phases/XX-name/DISCOVERY.md`:
+Write `.planning/objectives/XX-name/DISCOVERY.md`:
 - Summary with recommendation
 - Key findings with sources
 - Code examples if applicable
@@ -246,20 +246,20 @@ If "address first": Gather user input on questions, update discovery.
 
 <step name="offer_next">
 ```
-Discovery complete: .planning/phases/XX-name/DISCOVERY.md
+Discovery complete: .planning/objectives/XX-name/DISCOVERY.md
 Recommendation: [one-liner]
 Confidence: [level]
 
 What's next?
 
-1. Discuss phase context (/df:discuss-phase [current-phase])
-2. Create phase plan (/df:plan-phase [current-phase])
+1. Discuss objective context (/df:discuss-objective [current-objective])
+2. Create objective plan (/df:plan-objective [current-objective])
 3. Refine discovery (dig deeper)
 4. Review discovery
 
 ```
 
-NOTE: DISCOVERY.md is NOT committed separately. It will be committed with phase completion.
+NOTE: DISCOVERY.md is NOT committed separately. It will be committed with objective completion.
 </step>
 
 </process>
@@ -275,7 +275,7 @@ NOTE: DISCOVERY.md is NOT committed separately. It will be committed with phase 
 - WebSearch findings cross-verified
 - DISCOVERY.md created with recommendation
 - Confidence level MEDIUM or higher
-- Ready to inform PLAN.md creation
+- Ready to inform JOB.md creation
 
 **Level 3 (Deep Dive):**
 - Discovery scope defined
@@ -285,5 +285,5 @@ NOTE: DISCOVERY.md is NOT committed separately. It will be committed with phase 
 - Quality report with source attribution
 - If LOW confidence findings → validation checkpoints defined
 - Confidence gate passed
-- Ready to inform PLAN.md creation
+- Ready to inform JOB.md creation
 </success_criteria>

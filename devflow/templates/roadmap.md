@@ -11,62 +11,62 @@ Template for `.planning/ROADMAP.md`.
 
 [One paragraph describing the journey from start to finish]
 
-## Phases
+## Objectives
 
-**Phase Numbering:**
-- Integer phases (1, 2, 3): Planned milestone work
-- Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
+**Objective Numbering:**
+- Integer objectives (1, 2, 3): Planned milestone work
+- Decimal objectives (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
-Decimal phases appear between their surrounding integers in numeric order.
+Decimal objectives appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: [Name]** - [One-line description]
-- [ ] **Phase 2: [Name]** - [One-line description]
-- [ ] **Phase 3: [Name]** - [One-line description]
-- [ ] **Phase 4: [Name]** - [One-line description]
+- [ ] **Objective 1: [Name]** - [One-line description]
+- [ ] **Objective 2: [Name]** - [One-line description]
+- [ ] **Objective 3: [Name]** - [One-line description]
+- [ ] **Objective 4: [Name]** - [One-line description]
 
-## Phase Details
+## Objective Details
 
-### Phase 1: [Name]
-**Goal**: [What this phase delivers]
-**Depends on**: Nothing (first phase)
+### Objective 1: [Name]
+**Goal**: [What this objective delivers]
+**Depends on**: Nothing (first objective)
 **Requirements**: [REQ-01, REQ-02, REQ-03]  <!-- brackets optional, parser handles both formats -->
 **Success Criteria** (what must be TRUE):
   1. [Observable behavior from user perspective]
   2. [Observable behavior from user perspective]
   3. [Observable behavior from user perspective]
-**Plans**: [Number of plans, e.g., "3 plans" or "TBD"]
+**Plans**: [Number of plans, e.g., "3 jobs" or "TBD"]
 
-Plans:
+Jobs:
 - [ ] 01-01: [Brief description of first plan]
 - [ ] 01-02: [Brief description of second plan]
 - [ ] 01-03: [Brief description of third plan]
 
-### Phase 2: [Name]
-**Goal**: [What this phase delivers]
-**Depends on**: Phase 1
+### Objective 2: [Name]
+**Goal**: [What this objective delivers]
+**Depends on**: Objective 1
 **Requirements**: [REQ-04, REQ-05]
 **Success Criteria** (what must be TRUE):
   1. [Observable behavior from user perspective]
   2. [Observable behavior from user perspective]
 **Plans**: [Number of plans]
 
-Plans:
+Jobs:
 - [ ] 02-01: [Brief description]
 - [ ] 02-02: [Brief description]
 
-### Phase 2.1: Critical Fix (INSERTED)
-**Goal**: [Urgent work inserted between phases]
-**Depends on**: Phase 2
+### Objective 2.1: Critical Fix (INSERTED)
+**Goal**: [Urgent work inserted between objectives]
+**Depends on**: Objective 2
 **Success Criteria** (what must be TRUE):
   1. [What the fix achieves]
 **Plans**: 1 plan
 
-Plans:
+Jobs:
 - [ ] 02.1-01: [Description]
 
-### Phase 3: [Name]
-**Goal**: [What this phase delivers]
-**Depends on**: Phase 2
+### Objective 3: [Name]
+**Goal**: [What this objective delivers]
+**Depends on**: Objective 1
 **Requirements**: [REQ-06, REQ-07, REQ-08]
 **Success Criteria** (what must be TRUE):
   1. [Observable behavior from user perspective]
@@ -74,28 +74,33 @@ Plans:
   3. [Observable behavior from user perspective]
 **Plans**: [Number of plans]
 
-Plans:
+Jobs:
 - [ ] 03-01: [Brief description]
 - [ ] 03-02: [Brief description]
 
-### Phase 4: [Name]
-**Goal**: [What this phase delivers]
-**Depends on**: Phase 3
+> **Non-linear dependency:** Objective 3 depends on Objective 1 (not Objective 2) because it
+> doesn't read/modify any Objective 2 output. This means Objectives 2 and 3 can execute
+> in parallel via `/df:workstreams`. Objective 4 below is a **join point** — it waits
+> for both independent branches to complete.
+
+### Objective 4: [Name]
+**Goal**: [What this objective delivers]
+**Depends on**: Objective 2, Objective 3
 **Requirements**: [REQ-09, REQ-10]
 **Success Criteria** (what must be TRUE):
   1. [Observable behavior from user perspective]
   2. [Observable behavior from user perspective]
 **Plans**: [Number of plans]
 
-Plans:
+Jobs:
 - [ ] 04-01: [Brief description]
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 2 → 2.1 → 2.2 → 3 → 3.1 → 4
+Objectives execute in numeric order: 2 → 2.1 → 2.2 → 3 → 3.1 → 4
 
-| Phase | Plans Complete | Status | Completed |
+| Objective | Jobs Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. [Name] | 0/3 | Not started | - |
 | 2. [Name] | 0/2 | Not started | - |
@@ -105,25 +110,25 @@ Phases execute in numeric order: 2 → 2.1 → 2.2 → 3 → 3.1 → 4
 
 <guidelines>
 **Initial planning (v1.0):**
-- Phase count depends on depth setting (quick: 3-5, standard: 5-8, comprehensive: 8-12)
-- Each phase delivers something coherent
-- Phases can have 1+ plans (split if >3 tasks or multiple subsystems)
-- Plans use naming: {phase}-{plan}-PLAN.md (e.g., 01-02-PLAN.md)
+- Objective count depends on depth setting (quick: 3-5, standard: 5-8, comprehensive: 8-12)
+- Each objective delivers something coherent
+- Objectives can have 1+ plans (split if >3 tasks or multiple subsystems)
+- Plans use naming: {objective}-{job}-JOB.md (e.g., 01-02-JOB.md)
 - No time estimates (this isn't enterprise PM)
 - Progress table updated by execute workflow
-- Plan count can be "TBD" initially, refined during planning
+- Job count can be "TBD" initially, refined during planning
 
 **Success criteria:**
-- 2-5 observable behaviors per phase (from user's perspective)
+- 2-5 observable behaviors per objective (from user's perspective)
 - Cross-checked against requirements during roadmap creation
-- Flow downstream to `must_haves` in plan-phase
-- Verified by verify-phase after execution
+- Flow downstream to `must_haves` in plan-objective
+- Verified by verify-objective after execution
 - Format: "User can [action]" or "[Thing] works/exists"
 
 **After milestones ship:**
 - Collapse completed milestones in `<details>` tags
 - Add new milestone sections for upcoming work
-- Keep continuous phase numbering (never restart at 01)
+- Keep continuous objective numbering (never restart at 01)
 </guidelines>
 
 <status_values>
@@ -142,25 +147,25 @@ After completing first milestone, reorganize with milestone groupings:
 
 ## Milestones
 
-- ✅ **v1.0 MVP** - Phases 1-4 (shipped YYYY-MM-DD)
-- 🚧 **v1.1 [Name]** - Phases 5-6 (in progress)
-- 📋 **v2.0 [Name]** - Phases 7-10 (planned)
+- ✅ **v1.0 MVP** - Objectives 1-4 (shipped YYYY-MM-DD)
+- 🚧 **v1.1 [Name]** - Objectives 5-6 (in progress)
+- 📋 **v2.0 [Name]** - Objectives 7-10 (planned)
 
-## Phases
+## Objectives
 
 <details>
-<summary>✅ v1.0 MVP (Phases 1-4) - SHIPPED YYYY-MM-DD</summary>
+<summary>✅ v1.0 MVP (Objectives 1-4) - SHIPPED YYYY-MM-DD</summary>
 
-### Phase 1: [Name]
-**Goal**: [What this phase delivers]
-**Plans**: 3 plans
+### Objective 1: [Name]
+**Goal**: [What this objective delivers]
+**Plans**: 3 jobs
 
-Plans:
+Jobs:
 - [x] 01-01: [Brief description]
 - [x] 01-02: [Brief description]
 - [x] 01-03: [Brief description]
 
-[... remaining v1.0 phases ...]
+[... remaining v1.0 objectives ...]
 
 </details>
 
@@ -168,26 +173,26 @@ Plans:
 
 **Milestone Goal:** [What v1.1 delivers]
 
-#### Phase 5: [Name]
-**Goal**: [What this phase delivers]
-**Depends on**: Phase 4
-**Plans**: 2 plans
+#### Objective 5: [Name]
+**Goal**: [What this objective delivers]
+**Depends on**: Objective 4
+**Plans**: 2 jobs
 
-Plans:
+Jobs:
 - [ ] 05-01: [Brief description]
 - [ ] 05-02: [Brief description]
 
-[... remaining v1.1 phases ...]
+[... remaining v1.1 objectives ...]
 
 ### 📋 v2.0 [Name] (Planned)
 
 **Milestone Goal:** [What v2.0 delivers]
 
-[... v2.0 phases ...]
+[... v2.0 objectives ...]
 
 ## Progress
 
-| Phase | Milestone | Plans Complete | Status | Completed |
+| Objective | Milestone | Jobs Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 1. Foundation | v1.0 | 3/3 | Complete | YYYY-MM-DD |
 | 2. Features | v1.0 | 2/2 | Complete | YYYY-MM-DD |
@@ -198,5 +203,5 @@ Plans:
 - Milestone emoji: ✅ shipped, 🚧 in progress, 📋 planned
 - Completed milestones collapsed in `<details>` for readability
 - Current/future milestones expanded
-- Continuous phase numbering (01-99)
+- Continuous objective numbering (01-99)
 - Progress table includes milestone column

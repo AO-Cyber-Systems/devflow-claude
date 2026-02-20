@@ -94,9 +94,9 @@ AskUserQuestion([
     question: "How thorough should planning be?",
     multiSelect: false,
     options: [
-      { label: "Quick (Recommended)", description: "Ship fast (3-5 phases, 1-3 plans each)" },
-      { label: "Standard", description: "Balanced scope and speed (5-8 phases, 3-5 plans each)" },
-      { label: "Comprehensive", description: "Thorough coverage (8-12 phases, 5-10 plans each)" }
+      { label: "Quick (Recommended)", description: "Ship fast (3-5 objectives, 1-3 jobs each)" },
+      { label: "Standard", description: "Balanced scope and speed (5-8 objectives, 3-5 jobs each)" },
+      { label: "Comprehensive", description: "Thorough coverage (8-12 objectives, 5-10 jobs each)" }
     ]
   },
   {
@@ -126,7 +126,7 @@ AskUserQuestion([
 AskUserQuestion([
   {
     header: "Research",
-    question: "Research before planning each phase? (adds tokens/time)",
+    question: "Research before planning each objective? (adds tokens/time)",
     multiSelect: false,
     options: [
       { label: "Yes (Recommended)", description: "Investigate domain, find patterns, surface gotchas" },
@@ -144,10 +144,10 @@ AskUserQuestion([
   },
   {
     header: "Verifier",
-    question: "Verify work satisfies requirements after each phase? (adds tokens/time)",
+    question: "Verify work satisfies requirements after each objective? (adds tokens/time)",
     multiSelect: false,
     options: [
-      { label: "Yes (Recommended)", description: "Confirm deliverables match phase goals" },
+      { label: "Yes (Recommended)", description: "Confirm deliverables match objective goals" },
       { label: "No", description: "Trust execution, skip verification" }
     ]
   },
@@ -175,7 +175,7 @@ Create `.planning/config.json` with mode set to "yolo":
   "model_profile": "quality|balanced|budget",
   "workflow": {
     "research": true|false,
-    "plan_check": true|false,
+    "job_check": true|false,
     "verifier": true|false,
     "auto_advance": true
   }
@@ -383,9 +383,9 @@ questions: [
     question: "How thorough should planning be?",
     multiSelect: false,
     options: [
-      { label: "Quick", description: "Ship fast (3-5 phases, 1-3 plans each)" },
-      { label: "Standard", description: "Balanced scope and speed (5-8 phases, 3-5 plans each)" },
-      { label: "Comprehensive", description: "Thorough coverage (8-12 phases, 5-10 plans each)" }
+      { label: "Quick", description: "Ship fast (3-5 objectives, 1-3 jobs each)" },
+      { label: "Standard", description: "Balanced scope and speed (5-8 objectives, 3-5 jobs each)" },
+      { label: "Comprehensive", description: "Thorough coverage (8-12 objectives, 5-10 jobs each)" }
     ]
   },
   {
@@ -415,9 +415,9 @@ These spawn additional agents during planning/execution. They add tokens and tim
 
 | Agent | When it runs | What it does |
 |-------|--------------|--------------|
-| **Researcher** | Before planning each phase | Investigates domain, finds patterns, surfaces gotchas |
-| **Plan Checker** | After plan is created | Verifies plan actually achieves the phase goal |
-| **Verifier** | After phase execution | Confirms must-haves were delivered |
+| **Researcher** | Before planning each objective | Investigates domain, finds patterns, surfaces gotchas |
+| **Plan Checker** | After plan is created | Verifies plan actually achieves the objective goal |
+| **Verifier** | After objective execution | Confirms must-haves were delivered |
 
 All recommended for important projects. Skip for quick experiments.
 
@@ -425,7 +425,7 @@ All recommended for important projects. Skip for quick experiments.
 questions: [
   {
     header: "Research",
-    question: "Research before planning each phase? (adds tokens/time)",
+    question: "Research before planning each objective? (adds tokens/time)",
     multiSelect: false,
     options: [
       { label: "Yes (Recommended)", description: "Investigate domain, find patterns, surface gotchas" },
@@ -443,10 +443,10 @@ questions: [
   },
   {
     header: "Verifier",
-    question: "Verify work satisfies requirements after each phase? (adds tokens/time)",
+    question: "Verify work satisfies requirements after each objective? (adds tokens/time)",
     multiSelect: false,
     options: [
-      { label: "Yes (Recommended)", description: "Confirm deliverables match phase goals" },
+      { label: "Yes (Recommended)", description: "Confirm deliverables match objective goals" },
       { label: "No", description: "Trust execution, skip verification" }
     ]
   },
@@ -474,7 +474,7 @@ Create `.planning/config.json` with all settings:
   "model_profile": "quality|balanced|budget",
   "workflow": {
     "research": true|false,
-    "plan_check": true|false,
+    "job_check": true|false,
     "verifier": true|false
   }
 }
@@ -656,7 +656,7 @@ How are [domain] systems typically structured? What are major components?
 </project_context>
 
 <downstream_consumer>
-Your ARCHITECTURE.md informs phase structure in roadmap. Include:
+Your ARCHITECTURE.md informs objective structure in roadmap. Include:
 - Component boundaries (what talks to what)
 - Data flow (how information moves)
 - Suggested build order (dependencies between components)
@@ -699,13 +699,13 @@ What do [domain] projects commonly get wrong? Critical mistakes?
 Your PITFALLS.md prevents mistakes in roadmap/planning. For each pitfall:
 - Warning signs (how to detect early)
 - Prevention strategy (how to avoid)
-- Which phase should address it
+- Which objective should address it
 </downstream_consumer>
 
 <quality_gate>
 - [ ] Pitfalls are specific to this domain (not generic advice)
 - [ ] Prevention strategies are actionable
-- [ ] Phase mapping included where relevant
+- [ ] Objective mapping included where relevant
 </quality_gate>
 
 <output>
@@ -938,7 +938,7 @@ Display stage banner:
 
 **Progress tracking (if available):**
 ```
-TaskCreate(subject="Create roadmap", description="Deriving phases from requirements, mapping coverage, defining success criteria", activeForm="Creating roadmap")
+TaskCreate(subject="Create roadmap", description="Deriving objectives from requirements, mapping coverage, defining success criteria", activeForm="Creating roadmap")
 ```
 
 Spawn df-roadmapper agent with context:
@@ -963,9 +963,9 @@ Task(prompt="
 
 <instructions>
 Create roadmap:
-1. Derive phases from requirements (don't impose structure)
-2. Map every v1 requirement to exactly one phase
-3. Derive 2-5 success criteria per phase (observable user behaviors)
+1. Derive objectives from requirements (don't impose structure)
+2. Map every v1 requirement to exactly one objective
+3. Derive 2-5 success criteria per objective (observable user behaviors)
 4. Validate 100% coverage
 5. Write files immediately (ROADMAP.md, STATE.md, update REQUIREMENTS.md traceability)
 6. Return ROADMAP CREATED with summary
@@ -996,18 +996,18 @@ Read the created ROADMAP.md and present it nicely inline:
 
 ## Proposed Roadmap
 
-**[N] phases** | **[X] requirements mapped** | All v1 requirements covered ✓
+**[N] objectives** | **[X] requirements mapped** | All v1 requirements covered ✓
 
-| # | Phase | Goal | Requirements | Success Criteria |
+| # | Objective | Goal | Requirements | Success Criteria |
 |---|-------|------|--------------|------------------|
 | 1 | [Name] | [Goal] | [REQ-IDs] | [count] |
 | 2 | [Name] | [Goal] | [REQ-IDs] | [count] |
 | 3 | [Name] | [Goal] | [REQ-IDs] | [count] |
 ...
 
-### Phase Details
+### Objective Details
 
-**Phase 1: [Name]**
+**Objective 1: [Name]**
 Goal: [goal]
 Requirements: [REQ-IDs]
 Success criteria:
@@ -1015,14 +1015,14 @@ Success criteria:
 2. [criterion]
 3. [criterion]
 
-**Phase 2: [Name]**
+**Objective 2: [Name]**
 Goal: [goal]
 Requirements: [REQ-IDs]
 Success criteria:
 1. [criterion]
 2. [criterion]
 
-[... continue for all phases ...]
+[... continue for all objectives ...]
 
 ---
 ```
@@ -1036,12 +1036,12 @@ Use AskUserQuestion:
 - question: "Does this roadmap structure work for you?"
 - options:
   - "Approve" — Commit and continue
-  - "Adjust phases" — Tell me what to change
+  - "Adjust objectives" — Tell me what to change
   - "Review full file" — Show raw ROADMAP.md
 
 **If "Approve":** Continue to commit.
 
-**If "Adjust phases":**
+**If "Adjust objectives":**
 - Get user's adjustment notes
 - Re-spawn roadmapper with revision context:
   ```
@@ -1065,7 +1065,7 @@ Use AskUserQuestion:
 **Commit roadmap (after approval or auto mode):**
 
 ```bash
-node ~/.claude/devflow/bin/df-tools.cjs commit "docs: create roadmap ([N] phases)" --files .planning/ROADMAP.md .planning/STATE.md .planning/REQUIREMENTS.md
+node ~/.claude/devflow/bin/df-tools.cjs commit "docs: create roadmap ([N] objectives)" --files .planning/ROADMAP.md .planning/STATE.md .planning/REQUIREMENTS.md
 ```
 
 ## 9. Done
@@ -1087,18 +1087,18 @@ Present completion summary:
 | Requirements   | `.planning/REQUIREMENTS.md` |
 | Roadmap        | `.planning/ROADMAP.md`      |
 
-**[N] phases** | **[X] requirements** | Ready to build ✓
+**[N] objectives** | **[X] requirements** | Ready to build ✓
 ```
 
 **If auto mode:**
 
 ```
 ╔══════════════════════════════════════════╗
-║  AUTO-ADVANCING → DISCUSS PHASE 1        ║
+║  AUTO-ADVANCING → DISCUSS OBJECTIVE 1        ║
 ╚══════════════════════════════════════════╝
 ```
 
-Exit skill and invoke SlashCommand("/df:discuss-phase 1 --auto")
+Exit skill and invoke SlashCommand("/df:discuss-objective 1 --auto")
 
 **If interactive mode:**
 
@@ -1107,16 +1107,16 @@ Exit skill and invoke SlashCommand("/df:discuss-phase 1 --auto")
 
 ## ▶ Next Up
 
-**Phase 1: [Phase Name]** — [Goal from ROADMAP.md]
+**Objective 1: [Objective Name]** — [Goal from ROADMAP.md]
 
-/df:discuss-phase 1 — gather context and clarify approach
+/df:discuss-objective 1 — gather context and clarify approach
 
 <sub>/clear first → fresh context window</sub>
 
 ---
 
 **Also available:**
-- /df:plan-phase 1 — skip discussion, plan directly
+- /df:plan-objective 1 — skip discussion, plan directly
 
 ───────────────────────────────────────────────────────────────
 ```
@@ -1154,11 +1154,11 @@ Exit skill and invoke SlashCommand("/df:discuss-phase 1 --auto")
 - [ ] df-roadmapper spawned with context
 - [ ] Roadmap files written immediately (not draft)
 - [ ] User feedback incorporated (if any)
-- [ ] ROADMAP.md created with phases, requirement mappings, success criteria
+- [ ] ROADMAP.md created with objectives, requirement mappings, success criteria
 - [ ] STATE.md initialized
 - [ ] REQUIREMENTS.md traceability updated
-- [ ] User knows next step is `/df:discuss-phase 1`
+- [ ] User knows next step is `/df:discuss-objective 1`
 
-**Atomic commits:** Each phase commits its artifacts immediately. If context is lost, artifacts persist.
+**Atomic commits:** Each objective commits its artifacts immediately. If context is lost, artifacts persist.
 
 </success_criteria>

@@ -60,7 +60,7 @@ files_changed: []
 <section_rules>
 
 **Frontmatter (status, trigger, timestamps):**
-- `status`: OVERWRITE - reflects current phase
+- `status`: OVERWRITE - reflects current objective
 - `trigger`: IMMUTABLE - verbatim user input, never changes
 - `created`: IMMUTABLE - set once
 - `updated`: OVERWRITE - update on every change
@@ -72,7 +72,7 @@ files_changed: []
 - Fields: hypothesis, test, expecting, next_action
 
 **Symptoms:**
-- Written during initial gathering phase
+- Written during initial gathering objective
 - IMMUTABLE after gathering complete
 - Reference point for what we're trying to fix
 - Fields: expected, actual, errors, reproduction, started

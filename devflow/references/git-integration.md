@@ -14,7 +14,7 @@ The git log should read like a changelog of what shipped, not a diary of plannin
 | Event                   | Commit? | Why                                              |
 | ----------------------- | ------- | ------------------------------------------------ |
 | BRIEF + ROADMAP created | YES     | Project initialization                           |
-| PLAN.md created         | NO      | Intermediate - commit with plan completion       |
+| JOB.md created         | NO      | Intermediate - commit with plan completion       |
 | RESEARCH.md created     | NO      | Intermediate                                     |
 | DISCOVERY.md created    | NO      | Intermediate                                     |
 | **Task completed**      | YES     | Atomic unit of work (1 commit per task)         |
@@ -38,11 +38,11 @@ If NO_GIT: Run `git init` silently. DevFlow projects always get their own repo.
 ## Project Initialization (brief + roadmap together)
 
 ```
-docs: initialize [project-name] ([N] phases)
+docs: initialize [project-name] ([N] objectives)
 
 [One-liner from PROJECT.md]
 
-Phases:
+Objectives:
 1. [phase-name]: [goal]
 2. [phase-name]: [goal]
 3. [phase-name]: [goal]
@@ -51,7 +51,7 @@ Phases:
 What to commit:
 
 ```bash
-node ~/.claude/devflow/bin/df-tools.cjs commit "docs: initialize [project-name] ([N] phases)" --files .planning/
+node ~/.claude/devflow/bin/df-tools.cjs commit "docs: initialize [project-name] ([N] objectives)" --files .planning/
 ```
 
 </format>
@@ -62,7 +62,7 @@ node ~/.claude/devflow/bin/df-tools.cjs commit "docs: initialize [project-name] 
 Each task gets its own commit immediately after completion.
 
 ```
-{type}({phase}-{plan}): {task-name}
+{type}({objective}-{job}): {task-name}
 
 - [Key change 1]
 - [Key change 2]
@@ -72,8 +72,8 @@ Each task gets its own commit immediately after completion.
 **Commit types:**
 - `feat` - New feature/functionality
 - `fix` - Bug fix
-- `test` - Test-only (TDD RED phase)
-- `refactor` - Code cleanup (TDD REFACTOR phase)
+- `test` - Test-only (TDD RED objective)
+- `refactor` - Code cleanup (TDD REFACTOR objective)
 - `perf` - Performance improvement
 - `chore` - Dependencies, config, tooling
 
@@ -89,7 +89,7 @@ git commit -m "feat(08-02): create user registration endpoint
 - Returns JWT token on success
 "
 
-# TDD task - RED phase
+# TDD task - RED objective
 git add src/__tests__/jwt.test.ts
 git commit -m "test(07-02): add failing test for JWT generation
 
@@ -98,7 +98,7 @@ git commit -m "test(07-02): add failing test for JWT generation
 - Tests signature verification
 "
 
-# TDD task - GREEN phase
+# TDD task - GREEN objective
 git add src/utils/jwt.ts
 git commit -m "feat(07-02): implement JWT generation
 
@@ -116,20 +116,20 @@ git commit -m "feat(07-02): implement JWT generation
 After all tasks committed, one final metadata commit captures plan completion.
 
 ```
-docs({phase}-{plan}): complete [plan-name] plan
+docs({objective}-{job}): complete [plan-name] plan
 
 Tasks completed: [N]/[N]
 - [Task 1 name]
 - [Task 2 name]
 - [Task 3 name]
 
-SUMMARY: .planning/phases/XX-name/{phase}-{plan}-SUMMARY.md
+SUMMARY: .planning/objectives/XX-name/{objective}-{job}-SUMMARY.md
 ```
 
 What to commit:
 
 ```bash
-node ~/.claude/devflow/bin/df-tools.cjs commit "docs({phase}-{plan}): complete [plan-name] plan" --files .planning/phases/XX-name/{phase}-{plan}-PLAN.md .planning/phases/XX-name/{phase}-{plan}-SUMMARY.md .planning/STATE.md .planning/ROADMAP.md
+node ~/.claude/devflow/bin/df-tools.cjs commit "docs({objective}-{job}): complete [plan-name] plan" --files .planning/objectives/XX-name/{objective}-{job}-JOB.md .planning/objectives/XX-name/{objective}-{job}-SUMMARY.md .planning/STATE.md .planning/ROADMAP.md
 ```
 
 **Note:** Code files NOT included - already committed per-task.
@@ -163,24 +163,24 @@ a7f2d1 feat(checkout): Stripe payments with webhook verification
 3e9c4b feat(products): catalog with search, filters, and pagination
 8a1b2c feat(auth): JWT with refresh rotation using jose
 5c3d7e feat(foundation): Next.js 15 + Prisma + Tailwind scaffold
-2f4a8d docs: initialize ecommerce-app (5 phases)
+2f4a8d docs: initialize ecommerce-app (5 objectives)
 ```
 
 **New approach (per-task commits):**
 ```
-# Phase 04 - Checkout
+# Objective 04 - Checkout
 1a2b3c docs(04-01): complete checkout flow plan
 4d5e6f feat(04-01): add webhook signature verification
 7g8h9i feat(04-01): implement payment session creation
 0j1k2l feat(04-01): create checkout page component
 
-# Phase 03 - Products
+# Objective 03 - Products
 3m4n5o docs(03-02): complete product listing plan
 6p7q8r feat(03-02): add pagination controls
 9s0t1u feat(03-02): implement search and filters
 2v3w4x feat(03-01): create product catalog schema
 
-# Phase 02 - Auth
+# Objective 02 - Auth
 5y6z7a docs(02-02): complete token refresh plan
 8b9c0d feat(02-02): implement refresh token rotation
 1e2f3g test(02-02): add failing test for token refresh
@@ -188,24 +188,24 @@ a7f2d1 feat(checkout): Stripe payments with webhook verification
 7k8l9m feat(02-01): add JWT generation and validation
 0n1o2p chore(02-01): install jose library
 
-# Phase 01 - Foundation
+# Objective 01 - Foundation
 3q4r5s docs(01-01): complete scaffold plan
 6t7u8v feat(01-01): configure Tailwind and globals
 9w0x1y feat(01-01): set up Prisma with database
 2z3a4b feat(01-01): create Next.js 15 project
 
 # Initialization
-5c6d7e docs: initialize ecommerce-app (5 phases)
+5c6d7e docs: initialize ecommerce-app (5 objectives)
 ```
 
-Each plan produces 2-4 commits (tasks + metadata). Clear, granular, bisectable.
+Each job produces 2-4 commits (tasks + metadata). Clear, granular, bisectable.
 
 </example_log>
 
 <anti_patterns>
 
 **Still don't commit (intermediate artifacts):**
-- PLAN.md creation (commit with plan completion)
+- JOB.md creation (commit with plan completion)
 - RESEARCH.md (intermediate)
 - DISCOVERY.md (intermediate)
 - Minor planning tweaks
@@ -226,7 +226,7 @@ Each plan produces 2-4 commits (tasks + metadata). Clear, granular, bisectable.
 
 **Context engineering for AI:**
 - Git history becomes primary context source for future Claude sessions
-- `git log --grep="{phase}-{plan}"` shows all work for a plan
+- `git log --grep="{objective}-{job}"` shows all work for a plan
 - `git diff <hash>^..<hash>` shows exact changes per task
 - Less reliance on parsing SUMMARY.md = more context for actual work
 

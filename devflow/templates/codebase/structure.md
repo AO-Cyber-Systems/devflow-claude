@@ -125,9 +125,9 @@ Template for `.planning/codebase/STRUCTURE.md` - captures physical file organiza
 ```
 devflow/
 ├── bin/                # Executable entry points
-├── commands/           # Slash command definitions
-│   └── df/            # DevFlow commands
-├── devflow/     # Skill resources
+├── skills/             # Skill definitions (auto-invokable)
+│   └── df-*/          # DevFlow skills (df-plan-objective/, df-debug/, etc.)
+├── devflow/            # Skill resources
 │   ├── references/    # Principle documents
 │   ├── templates/     # File templates
 │   └── workflows/     # Multi-step procedures
@@ -145,11 +145,11 @@ devflow/
 - Key files: install.js - handles npx installation
 - Subdirectories: None
 
-**commands/df/**
-- Purpose: Slash command definitions for Claude Code
-- Contains: *.md files (one per command)
-- Key files: new-project.md, plan-phase.md, execute-plan.md
-- Subdirectories: None (flat structure)
+**skills/df-*/**
+- Purpose: Skill definitions for Claude Code (auto-invokable from natural language)
+- Contains: SKILL.md per skill directory
+- Key files: df-new-project/SKILL.md, df-plan-objective/SKILL.md, df-execute-objective/SKILL.md
+- Subdirectories: One directory per skill (df-plan-objective/, df-debug/, etc.)
 
 **devflow/references/**
 - Purpose: Core philosophy and guidance documents
@@ -166,7 +166,7 @@ devflow/
 **devflow/workflows/**
 - Purpose: Reusable multi-step procedures
 - Contains: Workflow definitions called by commands
-- Key files: execute-plan.md, research-phase.md
+- Key files: execute-job.md, research-objective.md
 - Subdirectories: None
 
 ## Key File Locations
@@ -205,10 +205,10 @@ devflow/
 
 ## Where to Add New Code
 
-**New Slash Command:**
-- Primary code: `commands/df/{command-name}.md`
-- Tests: `tests/commands/{command-name}.test.js` (if testing implemented)
-- Documentation: Update `README.md` with new command
+**New Skill:**
+- Primary code: `skills/df-{skill-name}/SKILL.md`
+- Tests: `tests/skills/{skill-name}.test.js` (if testing implemented)
+- Documentation: Update `README.md` with new skill
 
 **New Template:**
 - Implementation: `devflow/templates/{name}.md`
@@ -233,8 +233,8 @@ devflow/
 - Source: Copied by bin/install.js during installation
 - Committed: Yes (source of truth)
 
-**commands/**
-- Purpose: Slash commands installed to ~/.claude/commands/
+**skills/**
+- Purpose: Skills installed to ~/.claude/skills/
 - Source: Copied by bin/install.js during installation
 - Committed: Yes (source of truth)
 
@@ -277,7 +277,7 @@ root/
 └── file.ts        # Purpose
 ```
 
-**Useful for phase planning when:**
+**Useful for objective planning when:**
 - Adding new features (where should files go?)
 - Understanding project organization
 - Finding where specific logic lives

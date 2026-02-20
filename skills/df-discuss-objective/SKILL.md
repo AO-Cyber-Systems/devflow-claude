@@ -1,10 +1,10 @@
 ---
-name: df:discuss-phase
+name: df:discuss-objective
 description: |
-  Gather phase context through adaptive questioning before planning.
-  Use when the user wants to discuss, design, or clarify a phase before planning it.
-  Triggers on: "let's discuss phase", "talk about the approach", "design phase", "clarify phase", "what should phase X look like?"
-argument-hint: "<phase> [--auto]"
+  Gather objective context through adaptive questioning before planning.
+  Use when the user wants to discuss, design, or clarify an objective before planning it.
+  Triggers on: "let's discuss objective", "talk about the approach", "design objective", "clarify objective", "what should objective X look like?"
+argument-hint: "<objective> [--auto]"
 allowed-tools:
   - Read
   - Write
@@ -19,7 +19,7 @@ allowed-tools:
 Extract implementation decisions that downstream agents need — researcher and planner will use CONTEXT.md to know what to investigate and what choices are locked.
 
 **How it works:**
-1. Analyze the phase to identify gray areas (UI, UX, behavior, etc.)
+1. Analyze the objective to identify gray areas (UI, UX, behavior, etc.)
 2. Present gray areas — user selects which to discuss
 3. Deep-dive each selected area until satisfied
 4. Create CONTEXT.md with decisions that guide research and planning
@@ -28,12 +28,12 @@ Extract implementation decisions that downstream agents need — researcher and 
 </objective>
 
 <execution_context>
-@~/.claude/devflow/workflows/discuss-phase.md
+@~/.claude/devflow/workflows/discuss-objective.md
 @~/.claude/devflow/templates/context.md
 </execution_context>
 
 <context>
-Phase number: $ARGUMENTS (required)
+Objective number: $ARGUMENTS (required)
 
 **Load project state:**
 @.planning/STATE.md
@@ -43,22 +43,22 @@ Phase number: $ARGUMENTS (required)
 </context>
 
 <process>
-1. Validate phase number (error if missing or not in roadmap)
+1. Validate objective number (error if missing or not in roadmap)
 2. Check if CONTEXT.md exists (offer update/view/skip if yes)
-3. **Analyze phase** — Identify domain and generate phase-specific gray areas
+3. **Analyze objective** — Identify domain and generate phase-specific gray areas
 4. **Present gray areas** — Multi-select: which to discuss? (NO skip option)
 5. **Deep-dive each area** — 4 questions per area, then offer more/next
 6. **Write CONTEXT.md** — Sections match areas discussed
 7. Offer next steps (research or plan)
 
 **CRITICAL: Scope guardrail**
-- Phase boundary from ROADMAP.md is FIXED
+- Objective boundary from ROADMAP.md is FIXED
 - Discussion clarifies HOW to implement, not WHETHER to add more
-- If user suggests new capabilities: "That's its own phase. I'll note it for later."
+- If user suggests new capabilities: "That's its own objective. I'll note it for later."
 - Capture deferred ideas — don't lose them, don't act on them
 
 **Domain-aware gray areas:**
-Gray areas depend on what's being built. Analyze the phase goal:
+Gray areas depend on what's being built. Analyze the objective goal:
 - Something users SEE → layout, density, interactions, states
 - Something users CALL → responses, errors, auth, versioning
 - Something users RUN → output format, flags, modes, error handling

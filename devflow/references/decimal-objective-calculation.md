@@ -1,12 +1,12 @@
-# Decimal Phase Calculation
+# Decimal Objective Calculation
 
-Calculate the next decimal phase number for urgent insertions.
+Calculate the next decimal objective number for urgent insertions.
 
 ## Using df-tools
 
 ```bash
-# Get next decimal phase after phase 6
-node ~/.claude/devflow/bin/df-tools.cjs phase next-decimal 6
+# Get next decimal objective after objective 6
+node ~/.claude/devflow/bin/df-tools.cjs objective next-decimal 6
 ```
 
 Output:
@@ -32,20 +32,20 @@ With existing decimals:
 ## Extract Values
 
 ```bash
-DECIMAL_INFO=$(node ~/.claude/devflow/bin/df-tools.cjs phase next-decimal "${AFTER_PHASE}")
+DECIMAL_INFO=$(node ~/.claude/devflow/bin/df-tools.cjs objective next-decimal "${AFTER_PHASE}")
 DECIMAL_PHASE=$(echo "$DECIMAL_INFO" | jq -r '.next')
 BASE_PHASE=$(echo "$DECIMAL_INFO" | jq -r '.base_phase')
 ```
 
 Or with --raw flag:
 ```bash
-DECIMAL_PHASE=$(node ~/.claude/devflow/bin/df-tools.cjs phase next-decimal "${AFTER_PHASE}" --raw)
+DECIMAL_PHASE=$(node ~/.claude/devflow/bin/df-tools.cjs objective next-decimal "${AFTER_PHASE}" --raw)
 # Returns just: 06.1
 ```
 
 ## Examples
 
-| Existing Phases | Next Phase |
+| Existing Objectives | Next Objective |
 |-----------------|------------|
 | 06 only | 06.1 |
 | 06, 06.1 | 06.2 |
@@ -54,12 +54,12 @@ DECIMAL_PHASE=$(node ~/.claude/devflow/bin/df-tools.cjs phase next-decimal "${AF
 
 ## Directory Naming
 
-Decimal phase directories use the full decimal number:
+Decimal objective directories use the full decimal number:
 
 ```bash
 SLUG=$(node ~/.claude/devflow/bin/df-tools.cjs generate-slug "$DESCRIPTION" --raw)
-PHASE_DIR=".planning/phases/${DECIMAL_PHASE}-${SLUG}"
-mkdir -p "$PHASE_DIR"
+PHASE_DIR=".planning/objectives/${DECIMAL_PHASE}-${SLUG}"
+mkdir -p "$OBJECTIVE_DIR"
 ```
 
-Example: `.planning/phases/06.1-fix-critical-auth-bug/`
+Example: `.planning/objectives/06.1-fix-critical-auth-bug/`

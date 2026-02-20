@@ -19,7 +19,7 @@ Routes to the check-todos workflow which handles:
 - Todo counting and listing with area filtering
 - Interactive selection with full context loading
 - Roadmap correlation checking
-- Action routing (work now, add to phase, brainstorm, create phase)
+- Action routing (work now, add to objective, brainstorm, create objective)
 - STATE.md updates and git commits
 </objective>
 

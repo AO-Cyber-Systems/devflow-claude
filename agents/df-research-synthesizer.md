@@ -30,8 +30,8 @@ Your SUMMARY.md is consumed by the df-roadmapper agent which uses it to:
 |---------|------------------------|
 | Executive Summary | Quick understanding of domain |
 | Key Findings | Technology and feature decisions |
-| Implications for Roadmap | Phase structure suggestions |
-| Research Flags | Which phases need deeper research |
+| Implications for Roadmap | Objective structure suggestions |
+| Research Flags | Which objectives need deeper research |
 | Gaps to Address | What to flag for validation |
 
 **Be opinionated.** The roadmapper needs clear recommendations, not wishy-washy summaries.
@@ -56,7 +56,7 @@ Parse each file to extract:
 - **STACK.md:** Recommended technologies, versions, rationale
 - **FEATURES.md:** Table stakes, differentiators, anti-features
 - **ARCHITECTURE.md:** Patterns, component boundaries, data flow
-- **PITFALLS.md:** Critical/moderate/minor pitfalls, phase warnings
+- **PITFALLS.md:** Critical/moderate/minor pitfalls, objective warnings
 
 ## Step 2: Synthesize Executive Summary
 
@@ -91,20 +91,20 @@ For each research file, pull out the most important points:
 
 This is the most important section. Based on combined research:
 
-**Suggest phase structure:**
+**Suggest objective structure:**
 - What should come first based on dependencies?
 - What groupings make sense based on architecture?
 - Which features belong together?
 
-**For each suggested phase, include:**
+**For each suggested objective, include:**
 - Rationale (why this order)
 - What it delivers
 - Which features from FEATURES.md
 - Which pitfalls it must avoid
 
 **Add research flags:**
-- Which phases likely need `/df:research-phase` during planning?
-- Which phases have well-documented patterns (skip research)?
+- Which objectives likely need `/df:research-objective` during planning?
+- Which objectives have well-documented patterns (skip research)?
 
 ## Step 5: Assess Confidence
 
@@ -144,7 +144,7 @@ Use template: ~/.claude/devflow/templates/research-project/SUMMARY.md
 Key sections:
 - Executive Summary (2-3 paragraphs)
 - Key Findings (summaries from each research file)
-- Implications for Roadmap (phase suggestions with rationale)
+- Implications for Roadmap (objective suggestions with rationale)
 - Confidence Assessment (honest evaluation)
 - Sources (aggregated from research files)
 
@@ -173,16 +173,16 @@ When SUMMARY.md is written and committed:
 
 ### Roadmap Implications
 
-Suggested phases: [N]
+Suggested objectives: [N]
 
-1. **[Phase name]** — [one-liner rationale]
-2. **[Phase name]** — [one-liner rationale]
-3. **[Phase name]** — [one-liner rationale]
+1. **[Objective name]** — [one-liner rationale]
+2. **[Objective name]** — [one-liner rationale]
+3. **[Objective name]** — [one-liner rationale]
 
 ### Research Flags
 
-Needs research: Phase [X], Phase [Y]
-Standard patterns: Phase [Z]
+Needs research: Objective [X], Objective [Y]
+Standard patterns: Objective [Z]
 
 ### Confidence
 
@@ -218,8 +218,8 @@ Synthesis is complete when:
 - [ ] All 4 research files read
 - [ ] Executive summary captures key conclusions
 - [ ] Key findings extracted from each file
-- [ ] Roadmap implications include phase suggestions
-- [ ] Research flags identify which phases need deeper research
+- [ ] Roadmap implications include objective suggestions
+- [ ] Research flags identify which objectives need deeper research
 - [ ] Confidence assessed honestly
 - [ ] Gaps identified for later attention
 - [ ] SUMMARY.md follows template format
@@ -230,7 +230,7 @@ Quality indicators:
 
 - **Synthesized, not concatenated:** Findings are integrated, not just copied
 - **Opinionated:** Clear recommendations emerge from combined research
-- **Actionable:** Roadmapper can structure phases based on implications
+- **Actionable:** Roadmapper can structure objectives based on implications
 - **Honest:** Confidence levels reflect actual source quality
 
 </success_criteria>

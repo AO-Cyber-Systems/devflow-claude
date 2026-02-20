@@ -9,43 +9,43 @@ This template is used by the complete-milestone workflow to create archive files
 # Milestone v{{VERSION}}: {{MILESTONE_NAME}}
 
 **Status:** ✅ SHIPPED {{DATE}}
-**Phases:** {{PHASE_START}}-{{PHASE_END}}
+**Objectives:** {{PHASE_START}}-{{PHASE_END}}
 **Total Plans:** {{TOTAL_PLANS}}
 
 ## Overview
 
 {{MILESTONE_DESCRIPTION}}
 
-## Phases
+## Objectives
 
 {{PHASES_SECTION}}
 
-[For each phase in this milestone, include:]
+[For each objective in this milestone, include:]
 
-### Phase {{PHASE_NUM}}: {{PHASE_NAME}}
+### Objective {{PHASE_NUM}}: {{PHASE_NAME}}
 
 **Goal**: {{PHASE_GOAL}}
 **Depends on**: {{DEPENDS_ON}}
 **Plans**: {{PLAN_COUNT}} plans
 
-Plans:
+Jobs:
 
-- [x] {{PHASE}}-01: {{PLAN_DESCRIPTION}}
-- [x] {{PHASE}}-02: {{PLAN_DESCRIPTION}}
-      [... all plans ...]
+- [x] {{OBJECTIVE}}-01: {{PLAN_DESCRIPTION}}
+- [x] {{OBJECTIVE}}-02: {{PLAN_DESCRIPTION}}
+      [... all jobs ...]
 
 **Details:**
 {{PHASE_DETAILS_FROM_ROADMAP}}
 
-**For decimal phases, include (INSERTED) marker:**
+**For decimal objectives, include (INSERTED) marker:**
 
-### Phase 2.1: Critical Security Patch (INSERTED)
+### Objective 2.1: Critical Security Patch (INSERTED)
 
 **Goal**: Fix authentication bypass vulnerability
-**Depends on**: Phase 2
+**Depends on**: Objective 2
 **Plans**: 1 plan
 
-Plans:
+Jobs:
 
 - [x] 02.1-01: Patch auth vulnerability
 
@@ -56,24 +56,24 @@ Plans:
 
 ## Milestone Summary
 
-**Decimal Phases:**
+**Decimal Objectives:**
 
-- Phase 2.1: Critical Security Patch (inserted after Phase 2 for urgent fix)
-- Phase 5.1: Performance Hotfix (inserted after Phase 5 for production issue)
+- Objective 2.1: Critical Security Patch (inserted after Objective 2 for urgent fix)
+- Objective 5.1: Performance Hotfix (inserted after Objective 5 for production issue)
 
 **Key Decisions:**
 {{DECISIONS_FROM_PROJECT_STATE}}
 [Example:]
 
 - Decision: Use ROADMAP.md split (Rationale: Constant context cost)
-- Decision: Decimal phase numbering (Rationale: Clear insertion semantics)
+- Decision: Decimal objective numbering (Rationale: Clear insertion semantics)
 
 **Issues Resolved:**
 {{ISSUES_RESOLVED_DURING_MILESTONE}}
 [Example:]
 
-- Fixed context overflow at 100+ phases
-- Resolved phase insertion confusion
+- Fixed context overflow at 100+ objectives
+- Resolved objective insertion confusion
 
 **Issues Deferred:**
 {{ISSUES_DEFERRED_TO_LATER}}
@@ -85,7 +85,7 @@ Plans:
 {{SHORTCUTS_NEEDING_FUTURE_WORK}}
 [Example:]
 
-- Some workflows still have hardcoded paths (fix in Phase 5)
+- Some workflows still have hardcoded paths (fix in Objective 5)
 
 ---
 
@@ -97,15 +97,15 @@ _For current project status, see .planning/ROADMAP.md_
 
 <guidelines>
 **When to create milestone archives:**
-- After completing all phases in a milestone (v1.0, v1.1, v2.0, etc.)
+- After completing all objectives in a milestone (v1.0, v1.1, v2.0, etc.)
 - Triggered by complete-milestone workflow
 - Before planning next milestone work
 
 **How to fill template:**
 
 - Replace {{PLACEHOLDERS}} with actual values
-- Extract phase details from ROADMAP.md
-- Document decimal phases with (INSERTED) marker
+- Extract objective details from ROADMAP.md
+- Document decimal objectives with (INSERTED) marker
 - Include key decisions from PROJECT-STATE.md or SUMMARY files
 - List issues resolved vs deferred
 - Capture technical debt for future reference
@@ -119,5 +119,5 @@ _For current project status, see .planning/ROADMAP.md_
 
 - Update ROADMAP.md to collapse completed milestone in `<details>` tag
 - Update PROJECT.md to brownfield format with Current State section
-- Continue phase numbering in next milestone (never restart at 01)
+- Continue objective numbering in next milestone (never restart at 01)
   </guidelines>

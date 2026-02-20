@@ -1,7 +1,7 @@
 <purpose>
 Execute small, ad-hoc tasks with DevFlow guarantees (atomic commits, STATE.md tracking). Quick mode spawns df-planner (quick mode) + df-executor(s), tracks tasks in `.planning/quick/`, and updates STATE.md's "Quick Tasks Completed" table.
 
-With `--full` flag: enables plan-checking (max 2 iterations) and post-execution verification for quality guarantees without full milestone ceremony.
+With `--full` flag: enables job-checking (max 2 iterations) and post-execution verification for quality guarantees without full milestone ceremony.
 </purpose>
 
 <required_reading>
@@ -50,7 +50,7 @@ Parse JSON for: `planner_model`, `executor_model`, `checker_model`, `verifier_mo
 
 **If `roadmap_exists` is false:** Error — Quick mode requires an active project with ROADMAP.md. Run `/df:new-project` first.
 
-Quick tasks can run mid-phase - validation only checks ROADMAP.md exists, not phase status.
+Quick tasks can run mid-objective - validation only checks ROADMAP.md exists, not objective status.
 
 ---
 
@@ -114,14 +114,14 @@ Task(
 <constraints>
 - Create a SINGLE plan with 1-3 focused tasks
 - Quick tasks should be atomic and self-contained
-- No research phase
+- No research objective
 ${FULL_MODE ? '- Target ~40% context usage (structured for verification)' : '- Target ~30% context usage (simple, focused)'}
 ${FULL_MODE ? '- MUST generate `must_haves` in plan frontmatter (truths, artifacts, key_links)' : ''}
 ${FULL_MODE ? '- Each task MUST have `files`, `action`, `verify`, `done` fields' : ''}
 </constraints>
 
 <output>
-Write plan to: ${QUICK_DIR}/${next_num}-PLAN.md
+Write plan to: ${QUICK_DIR}/${next_num}-JOB.md
 Return: ## PLANNING COMPLETE with plan path
 </output>
 ",
@@ -132,11 +132,11 @@ Return: ## PLANNING COMPLETE with plan path
 ```
 
 After planner returns:
-1. Verify plan exists at `${QUICK_DIR}/${next_num}-PLAN.md`
-2. Extract plan count (typically 1 for quick tasks)
-3. Report: "Plan created: ${QUICK_DIR}/${next_num}-PLAN.md"
+1. Verify plan exists at `${QUICK_DIR}/${next_num}-JOB.md`
+2. Extract job count (typically 1 for quick tasks)
+3. Report: "Plan created: ${QUICK_DIR}/${next_num}-JOB.md"
 
-If plan not found, error: "Planner failed to create ${next_num}-PLAN.md"
+If plan not found, error: "Planner failed to create ${next_num}-JOB.md"
 
 ---
 
@@ -150,11 +150,11 @@ Display banner:
  DF ► CHECKING PLAN
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-◆ Spawning plan checker...
+◆ Spawning job checker...
 ```
 
 ```bash
-PLAN_CONTENT=$(cat "${QUICK_DIR}/${next_num}-PLAN.md" 2>/dev/null)
+PLAN_CONTENT=$(cat "${QUICK_DIR}/${next_num}-JOB.md" 2>/dev/null)
 ```
 
 Checker prompt:
@@ -166,11 +166,11 @@ Checker prompt:
 
 **Plan to verify:** ${PLAN_CONTENT}
 
-**Scope:** This is a quick task, not a full phase. Skip checks that require a ROADMAP phase goal.
+**Scope:** This is a quick task, not a full objective. Skip checks that require a ROADMAP objective goal.
 </verification_context>
 
 <check_dimensions>
-- Requirement coverage: Does the plan address the task description?
+- Requirement coverage: Does the job address the task description?
 - Task completeness: Do tasks have files, action, verify, done fields?
 - Key links: Are referenced files real?
 - Scope sanity: Is this appropriately sized for a quick task (1-3 tasks)?
@@ -188,7 +188,7 @@ Skip: context compliance (no CONTEXT.md), cross-plan deps (single plan), ROADMAP
 ```
 Task(
   prompt=checker_prompt,
-  subagent_type="df-plan-checker",
+  subagent_type="df-job-checker",
   model="{checker_model}",
   description="Check quick plan: ${DESCRIPTION}"
 )
@@ -208,7 +208,7 @@ Track `iteration_count` (starts at 1 after initial plan + check).
 Display: `Sending back to planner for revision... (iteration ${N}/2)`
 
 ```bash
-PLAN_CONTENT=$(cat "${QUICK_DIR}/${next_num}-PLAN.md" 2>/dev/null)
+PLAN_CONTENT=$(cat "${QUICK_DIR}/${next_num}-JOB.md" 2>/dev/null)
 ```
 
 Revision prompt:
@@ -217,7 +217,7 @@ Revision prompt:
 <revision_context>
 **Mode:** quick-full (revision)
 
-**Existing plan:** ${PLAN_CONTENT}
+**Existing job:** ${PLAN_CONTENT}
 **Checker issues:** ${structured_issues_from_checker}
 
 </revision_context>
@@ -257,14 +257,14 @@ Task(
   prompt="
 Execute quick task ${next_num}.
 
-Plan: @${QUICK_DIR}/${next_num}-PLAN.md
+Job: @${QUICK_DIR}/${next_num}-JOB.md
 Project state: @.planning/STATE.md
 
 <constraints>
-- Execute all tasks in the plan
+- Execute all tasks in the job
 - Commit each task atomically
 - Create summary at: ${QUICK_DIR}/${next_num}-SUMMARY.md
-- Do NOT update ROADMAP.md (quick tasks are separate from planned phases)
+- Do NOT update ROADMAP.md (quick tasks are separate from planned objectives)
 </constraints>
 ",
   subagent_type="df-executor",
@@ -282,7 +282,7 @@ After executor returns:
 
 If summary not found, error: "Executor failed to create ${next_num}-SUMMARY.md"
 
-Note: For quick tasks producing multiple plans (rare), spawn executors in parallel waves per execute-phase patterns.
+Note: For quick tasks producing multiple jobs (rare), spawn executors in parallel waves per execute-objective patterns.
 
 ---
 
@@ -304,7 +304,7 @@ Task(
   prompt="Verify quick task goal achievement.
 Task directory: ${QUICK_DIR}
 Task goal: ${DESCRIPTION}
-Plan: @${QUICK_DIR}/${next_num}-PLAN.md
+Job: @${QUICK_DIR}/${next_num}-JOB.md
 Check must_haves against actual codebase. Create VERIFICATION.md at ${QUICK_DIR}/${next_num}-VERIFICATION.md.",
   subagent_type="df-verifier",
   model="{verifier_model}",
@@ -387,7 +387,7 @@ Use Edit tool to make these changes atomically
 Stage and commit quick task artifacts:
 
 Build file list:
-- `${QUICK_DIR}/${next_num}-PLAN.md`
+- `${QUICK_DIR}/${next_num}-JOB.md`
 - `${QUICK_DIR}/${next_num}-SUMMARY.md`
 - `.planning/STATE.md`
 - If `$FULL_MODE` and verification file exists: `${QUICK_DIR}/${next_num}-VERIFICATION.md`
@@ -450,8 +450,8 @@ Ready for next task: /df:quick
 - [ ] Slug generated (lowercase, hyphens, max 40 chars)
 - [ ] Next number calculated (001, 002, 003...)
 - [ ] Directory created at `.planning/quick/NNN-slug/`
-- [ ] `${next_num}-PLAN.md` created by planner
-- [ ] (--full) Plan checker validates plan, revision loop capped at 2
+- [ ] `${next_num}-JOB.md` created by planner
+- [ ] (--full) Job checker validates plan, revision loop capped at 2
 - [ ] `${next_num}-SUMMARY.md` created by executor
 - [ ] (--full) `${next_num}-VERIFICATION.md` created by verifier
 - [ ] STATE.md updated with quick task row (Status column when --full)

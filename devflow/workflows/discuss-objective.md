@@ -1,5 +1,5 @@
 <purpose>
-Extract implementation decisions that downstream agents need. Analyze the phase to identify gray areas, let the user choose what to discuss, then deep-dive each selected area until satisfied.
+Extract implementation decisions that downstream agents need. Analyze the objective to identify gray areas, let the user choose what to discuss, then deep-dive each selected area until satisfied.
 
 You are a thinking partner, not an interviewer. The user is the visionary — you are the builder. Your job is to capture decisions that will guide research and planning, not to figure out implementation yourself.
 </purpose>
@@ -7,7 +7,7 @@ You are a thinking partner, not an interviewer. The user is the visionary — yo
 <downstream_awareness>
 **CONTEXT.md feeds into:**
 
-1. **df-phase-researcher** — Reads CONTEXT.md to know WHAT to research
+1. **df-objective-researcher** — Reads CONTEXT.md to know WHAT to research
    - "User wants card-based layout" → researcher investigates card component patterns
    - "Infinite scroll decided" → researcher looks into virtualization libraries
 
@@ -41,7 +41,7 @@ Ask about vision and implementation choices. Capture decisions for downstream ag
 <scope_guardrail>
 **CRITICAL: No scope creep.**
 
-The phase boundary comes from ROADMAP.md and is FIXED. Discussion clarifies HOW to implement what's scoped, never WHETHER to add new capabilities.
+The objective boundary comes from ROADMAP.md and is FIXED. Discussion clarifies HOW to implement what's scoped, never WHETHER to add new capabilities.
 
 **Allowed (clarifying ambiguity):**
 - "How should posts be displayed?" (layout, density, info shown)
@@ -53,14 +53,14 @@ The phase boundary comes from ROADMAP.md and is FIXED. Discussion clarifies HOW 
 - "What about search/filtering?" (new capability)
 - "Maybe include bookmarking?" (new capability)
 
-**The heuristic:** Does this clarify how we implement what's already in the phase, or does it add a new capability that could be its own phase?
+**The heuristic:** Does this clarify how we implement what's already in the objective, or does it add a new capability that could be its own objective?
 
 **When user suggests scope creep:**
 ```
-"[Feature X] would be a new capability — that's its own phase.
+"[Feature X] would be a new capability — that's its own objective.
 Want me to note it for the roadmap backlog?
 
-For now, let's focus on [phase domain]."
+For now, let's focus on [objective domain]."
 ```
 
 Capture the idea in a "Deferred Ideas" section. Don't lose it, don't act on it.
@@ -71,28 +71,28 @@ Gray areas are **implementation decisions the user cares about** — things that
 
 **How to identify gray areas:**
 
-1. **Read the phase goal** from ROADMAP.md
+1. **Read the objective goal** from ROADMAP.md
 2. **Understand the domain** — What kind of thing is being built?
    - Something users SEE → visual presentation, interactions, states matter
    - Something users CALL → interface contracts, responses, errors matter
    - Something users RUN → invocation, output, behavior modes matter
    - Something users READ → structure, tone, depth, flow matter
    - Something being ORGANIZED → criteria, grouping, handling exceptions matter
-3. **Generate phase-specific gray areas** — Not generic categories, but concrete decisions for THIS phase
+3. **Generate phase-specific gray areas** — Not generic categories, but concrete decisions for THIS objective
 
 **Don't use generic category labels** (UI, UX, Behavior). Generate specific gray areas:
 
 ```
-Phase: "User authentication"
+Objective: "User authentication"
 → Session handling, Error responses, Multi-device policy, Recovery flow
 
-Phase: "Organize photo library"
+Objective: "Organize photo library"
 → Grouping criteria, Duplicate handling, Naming convention, Folder structure
 
-Phase: "CLI for database backups"
+Objective: "CLI for database backups"
 → Output format, Flag design, Progress reporting, Error recovery
 
-Phase: "API documentation"
+Objective: "API documentation"
 → Structure/navigation, Code examples depth, Versioning approach, Interactive elements
 ```
 
@@ -108,19 +108,19 @@ Phase: "API documentation"
 <process>
 
 <step name="initialize" priority="first">
-Phase number from argument (required).
+Objective number from argument (required).
 
 ```bash
-INIT=$(node ~/.claude/devflow/bin/df-tools.cjs init phase-op "${PHASE}")
+INIT=$(node ~/.claude/devflow/bin/df-tools.cjs init objective-op "${OBJECTIVE}")
 ```
 
 Parse JSON for: `commit_docs`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `phase_slug`, `padded_phase`, `has_research`, `has_context`, `has_plans`, `has_verification`, `plan_count`, `roadmap_exists`, `planning_exists`.
 
 **If `phase_found` is false:**
 ```
-Phase [X] not found in roadmap.
+Objective [X] not found in roadmap.
 
-Use /df:progress to see available phases.
+Use /df:progress to see available objectives.
 ```
 Exit workflow.
 
@@ -137,7 +137,7 @@ ls ${phase_dir}/*-CONTEXT.md 2>/dev/null
 **If exists:**
 Use AskUserQuestion:
 - header: "Context"
-- question: "Phase [X] already has context. What do you want to do?"
+- question: "Objective [X] already has context. What do you want to do?"
 - options:
   - "Update it" — Review and revise existing context
   - "View it" — Show me what's there
@@ -153,33 +153,33 @@ Check `has_plans` and `plan_count` from init. **If `has_plans` is true:**
 
 Use AskUserQuestion:
 - header: "Plans exist"
-- question: "Phase [X] already has {plan_count} plan(s) created without user context. Your decisions here won't affect existing plans unless you replan."
+- question: "Objective [X] already has {plan_count} plan(s) created without user context. Your decisions here won't affect existing jobs unless you replan."
 - options:
-  - "Continue and replan after" — Capture context, then run /df:plan-phase {X} to replan
-  - "View existing plans" — Show plans before deciding
-  - "Cancel" — Skip discuss-phase
+  - "Continue and replan after" — Capture context, then run /df:plan-objective {X} to replan
+  - "View existing jobs" — Show plans before deciding
+  - "Cancel" — Skip discuss-objective
 
 If "Continue and replan after": Continue to analyze_phase.
-If "View existing plans": Display plan files, then offer "Continue" / "Cancel".
+If "View existing jobs": Display job files, then offer "Continue" / "Cancel".
 If "Cancel": Exit workflow.
 
 **If `has_plans` is false:** Continue to analyze_phase.
 </step>
 
 <step name="analyze_phase">
-Analyze the phase to identify gray areas worth discussing.
+Analyze the objective to identify gray areas worth discussing.
 
-**Read the phase description from ROADMAP.md and determine:**
+**Read the objective description from ROADMAP.md and determine:**
 
-1. **Domain boundary** — What capability is this phase delivering? State it clearly.
+1. **Domain boundary** — What capability is this objective delivering? State it clearly.
 
 2. **Gray areas by category** — For each relevant category (UI, UX, Behavior, Empty States, Content), identify 1-2 specific ambiguities that would change implementation.
 
-3. **Skip assessment** — If no meaningful gray areas exist (pure infrastructure, clear-cut implementation), the phase may not need discussion.
+3. **Skip assessment** — If no meaningful gray areas exist (pure infrastructure, clear-cut implementation), the objective may not need discussion.
 
 **Output your analysis internally, then present to user.**
 
-Example analysis for "Post Feed" phase:
+Example analysis for "Post Feed" objective:
 ```
 Domain: Displaying posts from followed users
 Gray areas:
@@ -196,16 +196,16 @@ Present the domain boundary and gray areas to user.
 
 **First, state the boundary:**
 ```
-Phase [X]: [Name]
-Domain: [What this phase delivers — from your analysis]
+Objective [X]: [Name]
+Domain: [What this objective delivers — from your analysis]
 
 We'll clarify HOW to implement this.
-(New capabilities belong in other phases.)
+(New capabilities belong in other objectives.)
 ```
 
 **Then use AskUserQuestion (multiSelect: true):**
 - header: "Discuss"
-- question: "Which areas do you want to discuss for [phase name]?"
+- question: "Which areas do you want to discuss for [objective name]?"
 - options: Generate 3-4 phase-specific gray areas, each formatted as:
   - "[Specific area]" (label) — concrete, not generic
   - [1-2 questions this covers] (description)
@@ -281,9 +281,9 @@ Ask 4 questions per area before offering to continue or move on. Each answer oft
 - If user picks "Other", receive their input, reflect it back, confirm
 
 **Scope creep handling:**
-If user mentions something outside the phase domain:
+If user mentions something outside the objective domain:
 ```
-"[Feature] sounds like a new capability — that belongs in its own phase.
+"[Feature] sounds like a new capability — that belongs in its own objective.
 I'll note it as a deferred idea.
 
 Back to [current area]: [return to current question]"
@@ -295,13 +295,13 @@ Track deferred ideas internally.
 <step name="write_context">
 Create CONTEXT.md capturing decisions made.
 
-**Find or create phase directory:**
+**Find or create objective directory:**
 
 Use values from init: `phase_dir`, `phase_slug`, `padded_phase`.
 
-If `phase_dir` is null (phase exists in roadmap but no directory):
+If `phase_dir` is null (objective exists in roadmap but no directory):
 ```bash
-mkdir -p ".planning/phases/${padded_phase}-${phase_slug}"
+mkdir -p ".planning/objectives/${padded_phase}-${phase_slug}"
 ```
 
 **File location:** `${phase_dir}/${padded_phase}-CONTEXT.md`
@@ -309,15 +309,15 @@ mkdir -p ".planning/phases/${padded_phase}-${phase_slug}"
 **Structure the content by what was discussed:**
 
 ```markdown
-# Phase [X]: [Name] - Context
+# Objective [X]: [Name] - Context
 
 **Gathered:** [date]
 **Status:** Ready for planning
 
 <domain>
-## Phase Boundary
+## Objective Boundary
 
-[Clear statement of what this phase delivers — the scope anchor]
+[Clear statement of what this objective delivers — the scope anchor]
 
 </domain>
 
@@ -348,15 +348,15 @@ mkdir -p ".planning/phases/${padded_phase}-${phase_slug}"
 <deferred>
 ## Deferred Ideas
 
-[Ideas that came up but belong in other phases. Don't lose them.]
+[Ideas that came up but belong in other objectives. Don't lose them.]
 
-[If none: "None — discussion stayed within phase scope"]
+[If none: "None — discussion stayed within objective scope"]
 
 </deferred>
 
 ---
 
-*Phase: XX-name*
+*Objective: XX-name*
 *Context gathered: [date]*
 ```
 
@@ -367,7 +367,7 @@ Write file.
 Present summary and next steps:
 
 ```
-Created: .planning/phases/${PADDED_PHASE}-${SLUG}/${PADDED_PHASE}-CONTEXT.md
+Created: .planning/objectives/${PADDED_PHASE}-${SLUG}/${PADDED_PHASE}-CONTEXT.md
 
 ## Decisions Captured
 
@@ -379,22 +379,22 @@ Created: .planning/phases/${PADDED_PHASE}-${SLUG}/${PADDED_PHASE}-CONTEXT.md
 
 [If deferred ideas exist:]
 ## Noted for Later
-- [Deferred idea] — future phase
+- [Deferred idea] — future objective
 
 ---
 
 ## ▶ Next Up
 
-**Phase ${PHASE}: [Name]** — [Goal from ROADMAP.md]
+**Objective ${OBJECTIVE}: [Name]** — [Goal from ROADMAP.md]
 
-`/df:plan-phase ${PHASE}`
+`/df:plan-objective ${OBJECTIVE}`
 
 <sub>`/clear` first → fresh context window</sub>
 
 ---
 
 **Also available:**
-- `/df:plan-phase ${PHASE} --skip-research` — plan without research
+- `/df:plan-objective ${OBJECTIVE} --skip-research` — plan without research
 - Review/edit CONTEXT.md before continuing
 
 ---
@@ -402,13 +402,13 @@ Created: .planning/phases/${PADDED_PHASE}-${SLUG}/${PADDED_PHASE}-CONTEXT.md
 </step>
 
 <step name="git_commit">
-Commit phase context (uses `commit_docs` from init internally):
+Commit objective context (uses `commit_docs` from init internally):
 
 ```bash
-node ~/.claude/devflow/bin/df-tools.cjs commit "docs(${padded_phase}): capture phase context" --files "${phase_dir}/${padded_phase}-CONTEXT.md"
+node ~/.claude/devflow/bin/df-tools.cjs commit "docs(${padded_phase}): capture objective context" --files "${phase_dir}/${padded_phase}-CONTEXT.md"
 ```
 
-Confirm: "Committed: docs(${padded_phase}): capture phase context"
+Confirm: "Committed: docs(${padded_phase}): capture objective context"
 </step>
 
 <step name="update_state">
@@ -416,14 +416,14 @@ Update STATE.md with session info:
 
 ```bash
 node ~/.claude/devflow/bin/df-tools.cjs state record-session \
-  --stopped-at "Phase ${PHASE} context gathered" \
+  --stopped-at "Objective ${OBJECTIVE} context gathered" \
   --resume-file "${phase_dir}/${padded_phase}-CONTEXT.md"
 ```
 
 Commit STATE.md:
 
 ```bash
-node ~/.claude/devflow/bin/df-tools.cjs commit "docs(state): record phase ${PHASE} context session" --files .planning/STATE.md
+node ~/.claude/devflow/bin/df-tools.cjs commit "docs(state): record objective ${OBJECTIVE} context session" --files .planning/STATE.md
 ```
 </step>
 
@@ -449,26 +449,26 @@ Display banner:
  DF ► AUTO-ADVANCING TO PLAN
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Context captured. Spawning plan-phase...
+Context captured. Spawning plan-objective...
 ```
 
-Spawn plan-phase as Task:
+Spawn plan-objective as Task:
 ```
 Task(
-  prompt="Run /df:plan-phase ${PHASE} --auto",
+  prompt="Run /df:plan-objective ${OBJECTIVE} --auto",
   subagent_type="general-purpose",
-  description="Plan Phase ${PHASE}"
+  description="Plan Objective ${OBJECTIVE}"
 )
 ```
 
-**Handle plan-phase return:**
-- **PLANNING COMPLETE** → Plan-phase handles chaining to execute-phase (via its own auto_advance step)
+**Handle plan-objective return:**
+- **PLANNING COMPLETE** → Plan-objective handles chaining to execute-objective (via its own auto_advance step)
 - **PLANNING INCONCLUSIVE / CHECKPOINT** → Display result, stop chain:
   ```
   Auto-advance stopped: Planning needs input.
 
   Review the output above and continue manually:
-  /df:plan-phase ${PHASE}
+  /df:plan-objective ${OBJECTIVE}
   ```
 
 **If neither `--auto` nor config enabled:**
@@ -478,13 +478,13 @@ Route to `confirm_creation` step (existing behavior — show manual next steps).
 </process>
 
 <success_criteria>
-- Phase validated against roadmap
+- Objective validated against roadmap
 - Gray areas identified through intelligent analysis (not generic questions)
 - User selected which areas to discuss
 - Each selected area explored until user satisfied
 - Scope creep redirected to deferred ideas
 - CONTEXT.md captures actual decisions, not vague vision
-- Deferred ideas preserved for future phases
+- Deferred ideas preserved for future objectives
 - STATE.md updated with session info
 - User knows next steps
 </success_criteria>

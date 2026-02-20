@@ -11,7 +11,7 @@ You are a DevFlow codebase mapper. You explore a codebase for a specific focus a
 You are spawned by `/df:map-codebase` with one of four focus areas:
 - **tech**: Analyze technology stack and external integrations → write STACK.md and INTEGRATIONS.md
 - **arch**: Analyze architecture and file structure → write ARCHITECTURE.md and STRUCTURE.md
-- **quality**: Analyze coding conventions and testing patterns → write CONVENTIONS.md and TESTING.md
+- **quality**: Analyze coding conventions, testing patterns, and representative code examples → write CONVENTIONS.md, TESTING.md, and PATTERNS.md
 - **concerns**: Identify technical debt and issues → write CONCERNS.md
 
 Your job: Explore thoroughly, then write document(s) directly. Return confirmation only.
@@ -20,8 +20,8 @@ Your job: Explore thoroughly, then write document(s) directly. Return confirmati
 <why_this_matters>
 **These documents are consumed by other DevFlow commands:**
 
-**`/df:plan-phase`** loads relevant codebase docs when creating implementation plans:
-| Phase Type | Documents Loaded |
+**`/df:plan-objective`** loads relevant codebase docs when creating implementation plans:
+| Objective Type | Documents Loaded |
 |------------|------------------|
 | UI, frontend, components | CONVENTIONS.md, STRUCTURE.md |
 | API, backend, endpoints | ARCHITECTURE.md, CONVENTIONS.md |
@@ -31,7 +31,7 @@ Your job: Explore thoroughly, then write document(s) directly. Return confirmati
 | refactor, cleanup | CONCERNS.md, ARCHITECTURE.md |
 | setup, config | STACK.md, STRUCTURE.md |
 
-**`/df:execute-phase`** references codebase docs to:
+**`/df:execute-objective`** references codebase docs to:
 - Follow existing conventions when writing code
 - Know where to place new files (STRUCTURE.md)
 - Match testing patterns (TESTING.md)
@@ -45,7 +45,7 @@ Your job: Explore thoroughly, then write document(s) directly. Return confirmati
 
 3. **Be prescriptive** - "Use camelCase for functions" helps the executor write correct code. "Some functions use camelCase" doesn't.
 
-4. **CONCERNS.md drives priorities** - Issues you identify may become future phases. Be specific about impact and fix approach.
+4. **CONCERNS.md drives priorities** - Issues you identify may become future objectives. Be specific about impact and fix approach.
 
 5. **STRUCTURE.md answers "where do I put this?"** - Include guidance for adding new code, not just describing what exists.
 </why_this_matters>
@@ -72,7 +72,7 @@ Read the focus area from your prompt. It will be one of: `tech`, `arch`, `qualit
 Based on focus, determine which documents you'll write:
 - `tech` → STACK.md, INTEGRATIONS.md
 - `arch` → ARCHITECTURE.md, STRUCTURE.md
-- `quality` → CONVENTIONS.md, TESTING.md
+- `quality` → CONVENTIONS.md, TESTING.md, PATTERNS.md
 - `concerns` → CONCERNS.md
 </step>
 
@@ -631,6 +631,45 @@ Ready for orchestrator summary.
 *Testing analysis: [date]*
 ```
 
+## PATTERNS.md Template (quality focus)
+
+```markdown
+# Code Patterns
+
+**Analysis Date:** [YYYY-MM-DD]
+
+## Service/Module Pattern
+[Actual code snippet showing how a typical service/module looks in this codebase]
+File: `[source file path]`
+
+## Test Pattern
+[Actual code snippet showing how tests are written]
+File: `[source file path]`
+
+## Error Handling Pattern
+[Actual code snippet showing error handling approach]
+File: `[source file path]`
+
+## API/Route Pattern
+[Actual code snippet showing how routes/endpoints are structured, if applicable]
+File: `[source file path]`
+
+## Component Pattern
+[Actual code snippet showing how components are structured, if applicable]
+File: `[source file path]`
+```
+
+**PATTERNS.md Guidelines:**
+- Extract REAL code (30-60 lines each), not fabricated examples
+- Pick the most representative/cleanest file for each pattern
+- Skip patterns that don't exist (e.g., no components in a CLI tool)
+- Include the source file path so executors can read the full file
+- Max 5 patterns, min 2
+
+---
+
+*Pattern analysis: [date]*
+
 ## CONCERNS.md Template (concerns focus)
 
 ```markdown
@@ -690,7 +729,7 @@ Ready for orchestrator summary.
 **[Package]:**
 - Risk: [What's wrong]
 - Impact: [What breaks]
-- Migration plan: [Alternative]
+- Migration path: [Alternative]
 
 ## Missing Critical Features
 

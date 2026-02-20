@@ -1,15 +1,15 @@
 # Research Template
 
-Template for `.planning/phases/XX-name/{phase_num}-RESEARCH.md` - comprehensive ecosystem research before planning.
+Template for `.planning/objectives/XX-name/{phase_num}-RESEARCH.md` - comprehensive ecosystem research before planning.
 
-**Purpose:** Document what Claude needs to know to implement a phase well - not just "which library" but "how do experts build this."
+**Purpose:** Document what Claude needs to know to implement an objective well - not just "which library" but "how do experts build this."
 
 ---
 
 ## File Template
 
 ```markdown
-# Phase [X]: [Name] - Research
+# Objective [X]: [Name] - Research
 
 **Researched:** [date]
 **Domain:** [primary technology/problem domain]
@@ -18,7 +18,7 @@ Template for `.planning/phases/XX-name/{phase_num}-RESEARCH.md` - comprehensive 
 <user_constraints>
 ## User Constraints (from CONTEXT.md)
 
-**CRITICAL:** If CONTEXT.md exists from /df:discuss-phase, copy locked decisions here verbatim. These MUST be honored by the planner.
+**CRITICAL:** If CONTEXT.md exists from /df:discuss-objective, copy locked decisions here verbatim. These MUST be honored by the jobner.
 
 ### Locked Decisions
 [Copy from CONTEXT.md `## Decisions` section - these are NON-NEGOTIABLE]
@@ -239,7 +239,7 @@ Things that couldn't be fully resolved:
 
 ---
 
-*Phase: XX-name*
+*Objective: XX-name*
 *Research completed: [date]*
 *Ready for planning: [yes/no]*
 ```
@@ -249,7 +249,7 @@ Things that couldn't be fully resolved:
 ## Good Example
 
 ```markdown
-# Phase 3: 3D City Driving - Research
+# Objective 3: 3D City Driving - Research
 
 **Researched:** 2025-01-20
 **Domain:** Three.js 3D web game with driving mechanics
@@ -513,7 +513,7 @@ function useVehicleControls(rigidBodyRef) {
 
 ---
 
-*Phase: 03-city-driving*
+*Objective: 03-city-driving*
 *Research completed: 2025-01-20*
 *Ready for planning: yes*
 ```
@@ -523,7 +523,7 @@ function useVehicleControls(rigidBodyRef) {
 ## Guidelines
 
 **When to create:**
-- Before planning phases in niche/complex domains
+- Before planning objectives in niche/complex domains
 - When Claude's training data is likely stale or sparse
 - When "how do experts do this" matters more than "which library"
 
@@ -540,13 +540,13 @@ function useVehicleControls(rigidBodyRef) {
 - Sources: Mark confidence levels honestly
 
 **Integration with planning:**
-- RESEARCH.md loaded as @context reference in PLAN.md
+- RESEARCH.md loaded as @context reference in JOB.md
 - Standard stack informs library choices
 - Don't hand-roll prevents custom solutions
 - Pitfalls inform verification criteria
 - Code examples can be referenced in task actions
 
 **After creation:**
-- File lives in phase directory: `.planning/phases/XX-name/{phase_num}-RESEARCH.md`
+- File lives in objective directory: `.planning/objectives/XX-name/{phase_num}-RESEARCH.md`
 - Referenced during planning workflow
-- plan-phase loads it automatically when present
+- plan-objective loads it automatically when present

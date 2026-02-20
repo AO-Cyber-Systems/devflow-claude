@@ -1,5 +1,5 @@
 <purpose>
-Interactive configuration of DevFlow workflow agents (research, plan_check, verifier) and model profile selection via multi-question prompt. Updates .planning/config.json with user preferences. Optionally saves settings as global defaults (~/.devflow/defaults.json) for future projects.
+Interactive configuration of DevFlow workflow agents (research, job_check, verifier) and model profile selection via multi-question prompt. Updates .planning/config.json with user preferences. Optionally saves settings as global defaults (~/.devflow/defaults.json) for future projects.
 </purpose>
 
 <required_reading>
@@ -25,9 +25,9 @@ cat .planning/config.json
 ```
 
 Parse current values (default to `true` if not present):
-- `workflow.research` — spawn researcher during plan-phase
-- `workflow.plan_check` — spawn plan checker during plan-phase
-- `workflow.verifier` — spawn verifier during execute-phase
+- `workflow.research` — spawn researcher during plan-objective
+- `workflow.job_check` — spawn job checker during plan-objective
+- `workflow.verifier` — spawn verifier during execute-objective
 - `model_profile` — which model each agent uses (default: `balanced`)
 - `git.branching_strategy` — branching approach (default: `"none"`)
 </step>
@@ -52,7 +52,7 @@ AskUserQuestion([
     header: "Research",
     multiSelect: false,
     options: [
-      { label: "Yes", description: "Research phase goals before planning" },
+      { label: "Yes", description: "Research objective goals before planning" },
       { label: "No", description: "Skip research, plan directly" }
     ]
   },
@@ -61,12 +61,12 @@ AskUserQuestion([
     header: "Plan Check",
     multiSelect: false,
     options: [
-      { label: "Yes", description: "Verify plans meet phase goals" },
+      { label: "Yes", description: "Verify plans meet objective goals" },
       { label: "No", description: "Skip plan verification" }
     ]
   },
   {
-    question: "Spawn Execution Verifier? (verifies phase completion)",
+    question: "Spawn Execution Verifier? (verifies objective completion)",
     header: "Verifier",
     multiSelect: false,
     options: [
@@ -89,7 +89,7 @@ AskUserQuestion([
     multiSelect: false,
     options: [
       { label: "None (Recommended)", description: "Commit directly to current branch" },
-      { label: "Per Phase", description: "Create branch for each phase (df/phase-{N}-{name})" },
+      { label: "Per Objective", description: "Create branch for each objective (df/phase-{N}-{name})" },
       { label: "Per Milestone", description: "Create branch for entire milestone (df/{version}-{name})" }
     ]
   }
@@ -106,12 +106,12 @@ Merge new settings into existing config.json:
   "model_profile": "quality" | "balanced" | "budget",
   "workflow": {
     "research": true/false,
-    "plan_check": true/false,
+    "job_check": true/false,
     "verifier": true/false,
     "auto_advance": true/false
   },
   "git": {
-    "branching_strategy": "none" | "phase" | "milestone"
+    "branching_strategy": "none" | "objective" | "milestone"
   }
 }
 ```
@@ -153,7 +153,7 @@ Write `~/.devflow/defaults.json` with:
   "branching_strategy": <current>,
   "workflow": {
     "research": <current>,
-    "plan_check": <current>,
+    "job_check": <current>,
     "verifier": <current>,
     "auto_advance": <current>
   }
@@ -176,16 +176,16 @@ Display:
 | Plan Checker         | {On/Off} |
 | Execution Verifier   | {On/Off} |
 | Auto-Advance         | {On/Off} |
-| Git Branching        | {None/Per Phase/Per Milestone} |
+| Git Branching        | {None/Per Objective/Per Milestone} |
 | Saved as Defaults    | {Yes/No} |
 
-These settings apply to future /df:plan-phase and /df:execute-phase runs.
+These settings apply to future /df:plan-objective and /df:execute-objective runs.
 
 Quick commands:
 - /df:set-profile <profile> — switch model profile
-- /df:plan-phase --research — force research
-- /df:plan-phase --skip-research — skip research
-- /df:plan-phase --skip-verify — skip plan check
+- /df:plan-objective --research — force research
+- /df:plan-objective --skip-research — skip research
+- /df:plan-objective --skip-verify — skip plan check
 ```
 </step>
 

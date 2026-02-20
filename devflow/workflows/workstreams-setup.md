@@ -1,6 +1,6 @@
 <purpose>
 
-Analyze ROADMAP.md dependency graph, identify independent phases, create git worktrees for parallel execution, and provision each worktree with filtered `.planning/` context.
+Analyze ROADMAP.md dependency graph, identify independent objectives, create git worktrees for parallel execution, and provision each worktree with filtered `.planning/` context.
 
 </purpose>
 
@@ -59,11 +59,11 @@ Parse the result. Check `parallelism_possible`:
 ```
 No parallel workstreams detected.
 
-All pending phases have linear dependencies — each depends on the previous.
-Use normal sequential execution: /df:plan-phase → /df:execute-phase
+All pending objectives have linear dependencies — each depends on the previous.
+Use normal sequential execution: /df:plan-objective → /df:execute-objective
 
 Dependency chain:
-[Show phase dependency chain from analysis]
+[Show objective dependency chain from analysis]
 ```
 Stop here.
 
@@ -83,14 +83,14 @@ Present the workstream plan to the user:
 
 ### Workstream Groups
 
-| # | Workstream | Phases | Depends on (completed) |
+| # | Workstream | Objectives | Depends on (completed) |
 |---|-----------|--------|------------------------|
-| 1 | {name}    | Phase {N} | Phase {deps} |
-| 2 | {name}    | Phase {N} | Phase {deps} |
+| 1 | {name}    | Objective {N} | Objective {deps} |
+| 2 | {name}    | Objective {N} | Objective {deps} |
 
 ### Join Point
 
-**Phase {N}: {name}** — waits for all workstreams to complete
+**Objective {N}: {name}** — waits for all workstreams to complete
 
 ### What happens next
 
@@ -160,7 +160,7 @@ node ~/.claude/devflow/bin/df-tools.cjs workstreams provision {ws-id} {worktree-
 This copies:
 - Shared files: PROJECT.md, REQUIREMENTS.md, ROADMAP.md, config.json
 - Shared dirs: research/, codebase/
-- Filtered phases: only this workstream's phase directories + completed dependencies
+- Filtered objectives: only this workstream's objective directories + completed dependencies
 - Generated: filtered STATE.md with workstream context header
 - Marker: workstream-marker.json identifying this worktree's scope
 
@@ -180,8 +180,8 @@ Write `.planning/workstreams.json` in the main worktree:
   "workstreams": [
     {
       "id": "ws-{slug}",
-      "name": "{phase name}",
-      "phases": [{phase_number}],
+      "name": "{objective name}",
+      "objectives": [{phase_number}],
       "branch": "df/ws-{slug}",
       "worktree_path": "{path}",
       "status": "pending",
@@ -231,12 +231,12 @@ node ~/.claude/devflow/bin/df-tools.cjs commit "docs: setup workstreams for para
 # Terminal 1: {workstream 1 name}
 cd {worktree_path_1}
 claude
-# Then: /df:plan-phase {phase} → /df:execute-phase {phase}
+# Then: /df:plan-objective {objective} → /df:execute-objective {objective}
 
 # Terminal 2: {workstream 2 name}
 cd {worktree_path_2}
 claude
-# Then: /df:plan-phase {phase} → /df:execute-phase {phase}
+# Then: /df:plan-objective {objective} → /df:execute-objective {objective}
 ```
 
 **When both are done, come back here:**

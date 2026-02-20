@@ -10,8 +10,8 @@ Display the complete DevFlow command reference. Output ONLY the reference conten
 ## Quick Start
 
 1. `/df:new-project` - Initialize project (includes research, requirements, roadmap)
-2. `/df:plan-phase 1` - Create detailed plan for first phase
-3. `/df:execute-phase 1` - Execute the phase
+2. `/df:plan-objective 1` - Create detailed plan for first objective
+3. `/df:execute-objective 1` - Execute the objective
 
 ## Staying Updated
 
@@ -24,7 +24,7 @@ npx devflow-cc@latest
 ## Core Workflow
 
 ```
-/df:new-project → /df:plan-phase → /df:execute-phase → repeat
+/df:new-project → /df:plan-objective → /df:execute-objective → repeat
 ```
 
 ### Project Initialization
@@ -36,14 +36,14 @@ One command takes you from idea to ready-for-planning:
 - Deep questioning to understand what you're building
 - Optional domain research (spawns 4 parallel researcher agents)
 - Requirements definition with v1/v2/out-of-scope scoping
-- Roadmap creation with phase breakdown and success criteria
+- Roadmap creation with objective breakdown and success criteria
 
 Creates all `.planning/` artifacts:
 - `PROJECT.md` — vision and requirements
 - `config.json` — workflow mode (interactive/yolo)
 - `research/` — domain research (if selected)
 - `REQUIREMENTS.md` — scoped requirements with REQ-IDs
-- `ROADMAP.md` — phases mapped to requirements
+- `ROADMAP.md` — objectives mapped to requirements
 - `STATE.md` — project memory
 
 Usage: `/df:new-project`
@@ -58,18 +58,18 @@ Map an existing codebase for brownfield projects.
 
 Usage: `/df:map-codebase`
 
-### Phase Planning
+### Objective Planning
 
-**`/df:discuss-phase <number>`**
-Help articulate your vision for a phase before planning.
+**`/df:discuss-objective <number>`**
+Help articulate your vision for an objective before planning.
 
-- Captures how you imagine this phase working
+- Captures how you imagine this objective working
 - Creates CONTEXT.md with your vision, essentials, and boundaries
 - Use when you have ideas about how something should look/feel
 
-Usage: `/df:discuss-phase 2`
+Usage: `/df:discuss-objective 2`
 
-**`/df:research-phase <number>`**
+**`/df:research-objective <number>`**
 Comprehensive ecosystem research for niche/complex domains.
 
 - Discovers standard stack, architecture patterns, pitfalls
@@ -77,39 +77,39 @@ Comprehensive ecosystem research for niche/complex domains.
 - Use for 3D, games, audio, shaders, ML, and other specialized domains
 - Goes beyond "which library" to ecosystem knowledge
 
-Usage: `/df:research-phase 3`
+Usage: `/df:research-objective 3`
 
-**`/df:list-phase-assumptions <number>`**
+**`/df:list-objective-assumptions <number>`**
 See what Claude is planning to do before it starts.
 
-- Shows Claude's intended approach for a phase
+- Shows Claude's intended approach for an objective
 - Lets you course-correct if Claude misunderstood your vision
 - No files created - conversational output only
 
-Usage: `/df:list-phase-assumptions 3`
+Usage: `/df:list-objective-assumptions 3`
 
-**`/df:plan-phase <number>`**
-Create detailed execution plan for a specific phase.
+**`/df:plan-objective <number>`**
+Create detailed execution plan for a specific objective.
 
-- Generates `.planning/phases/XX-phase-name/XX-YY-PLAN.md`
-- Breaks phase into concrete, actionable tasks
+- Generates `.planning/objectives/XX-phase-name/XX-YY-JOB.md`
+- Breaks objective into concrete, actionable tasks
 - Includes verification criteria and success measures
-- Multiple plans per phase supported (XX-01, XX-02, etc.)
+- Multiple plans per objective supported (XX-01, XX-02, etc.)
 
-Usage: `/df:plan-phase 1`
-Result: Creates `.planning/phases/01-foundation/01-01-PLAN.md`
+Usage: `/df:plan-objective 1`
+Result: Creates `.planning/objectives/01-foundation/01-01-JOB.md`
 
 ### Execution
 
-**`/df:execute-phase <phase-number>`**
-Execute all plans in a phase.
+**`/df:execute-objective <phase-number>`**
+Execute all jobs in an objective.
 
 - Groups plans by wave (from frontmatter), executes waves sequentially
 - Plans within each wave run in parallel via Task tool
-- Verifies phase goal after all plans complete
+- Verifies objective goal after all jobs complete
 - Updates REQUIREMENTS.md, ROADMAP.md, STATE.md
 
-Usage: `/df:execute-phase 5`
+Usage: `/df:execute-objective 5`
 
 ### Quick Mode
 
@@ -118,53 +118,53 @@ Execute small, ad-hoc tasks with DevFlow guarantees but skip optional agents.
 
 Quick mode uses the same system with a shorter path:
 - Spawns planner + executor (skips researcher, checker, verifier)
-- Quick tasks live in `.planning/quick/` separate from planned phases
+- Quick tasks live in `.planning/quick/` separate from planned objectives
 - Updates STATE.md tracking (not ROADMAP.md)
 
 Use when you know exactly what to do and the task is small enough to not need research or verification.
 
 Usage: `/df:quick`
-Result: Creates `.planning/quick/NNN-slug/PLAN.md`, `.planning/quick/NNN-slug/SUMMARY.md`
+Result: Creates `.planning/quick/NNN-slug/JOB.md`, `.planning/quick/NNN-slug/SUMMARY.md`
 
 ### Roadmap Management
 
-**`/df:add-phase <description>`**
-Add new phase to end of current milestone.
+**`/df:add-objective <description>`**
+Add new objective to end of current milestone.
 
 - Appends to ROADMAP.md
 - Uses next sequential number
-- Updates phase directory structure
+- Updates objective directory structure
 
-Usage: `/df:add-phase "Add admin dashboard"`
+Usage: `/df:add-objective "Add admin dashboard"`
 
-**`/df:insert-phase <after> <description>`**
-Insert urgent work as decimal phase between existing phases.
+**`/df:insert-objective <after> <description>`**
+Insert urgent work as decimal objective between existing objectives.
 
-- Creates intermediate phase (e.g., 7.1 between 7 and 8)
+- Creates intermediate objective (e.g., 7.1 between 7 and 8)
 - Useful for discovered work that must happen mid-milestone
-- Maintains phase ordering
+- Maintains objective ordering
 
-Usage: `/df:insert-phase 7 "Fix critical auth bug"`
-Result: Creates Phase 7.1
+Usage: `/df:insert-objective 7 "Fix critical auth bug"`
+Result: Creates Objective 7.1
 
-**`/df:remove-phase <number>`**
-Remove a future phase and renumber subsequent phases.
+**`/df:remove-objective <number>`**
+Remove a future objective and renumber subsequent objectives.
 
-- Deletes phase directory and all references
-- Renumbers all subsequent phases to close the gap
-- Only works on future (unstarted) phases
+- Deletes objective directory and all references
+- Renumbers all subsequent objectives to close the gap
+- Only works on future (unstarted) objectives
 - Git commit preserves historical record
 
-Usage: `/df:remove-phase 17`
-Result: Phase 17 deleted, phases 18-20 become 17-19
+Usage: `/df:remove-objective 17`
+Result: Objective 17 deleted, objectives 18-20 become 17-19
 
 ### Parallel Workstreams
 
 **`/df:workstreams setup`**
-Create parallel worktrees for independent phases.
+Create parallel worktrees for independent objectives.
 
 - Analyzes ROADMAP.md dependency graph for non-linear dependencies
-- Creates git worktree + branch for each independent phase group
+- Creates git worktree + branch for each independent objective group
 - Provisions `.planning/` context per worktree (filtered state, marker)
 - Each worktree runs normal DevFlow commands in its own Claude session
 
@@ -175,7 +175,7 @@ Check progress across all active workstreams.
 
 - Reads each worktree's STATE.md and git branch activity
 - Shows completion status per workstream
-- Indicates when join phase is ready
+- Indicates when join objective is ready
 
 Usage: `/df:workstreams status`
 
@@ -186,7 +186,7 @@ Merge completed workstreams back to main.
 - Auto-reconciles `.planning/` conflicts
 - Regenerates ROADMAP.md progress and STATE.md
 - Cleans up worktrees and branches
-- Advances to the join phase
+- Advances to the join objective
 
 Usage: `/df:workstreams merge`
 
@@ -198,7 +198,7 @@ Start a new milestone through unified flow.
 - Deep questioning to understand what you're building next
 - Optional domain research (spawns 4 parallel researcher agents)
 - Requirements definition with scoping
-- Roadmap creation with phase breakdown
+- Roadmap creation with objective breakdown
 
 Mirrors `/df:new-project` flow for brownfield projects (existing PROJECT.md).
 
@@ -223,7 +223,7 @@ Check project status and intelligently route to next action.
 - Summarizes recent work from SUMMARY files
 - Displays current position and what's next
 - Lists key decisions and open issues
-- Offers to execute next plan or create it if missing
+- Offers to execute next job or create it if missing
 - Detects 100% milestone completion
 
 Usage: `/df:progress`
@@ -240,7 +240,7 @@ Resume work from previous session with full context restoration.
 Usage: `/df:resume-work`
 
 **`/df:pause-work`**
-Create context handoff when pausing work mid-phase.
+Create context handoff when pausing work mid-objective.
 
 - Creates .continue-here file with current state
 - Updates STATE.md session continuity section
@@ -282,7 +282,7 @@ List pending todos and select one to work on.
 - Lists all pending todos with title, area, age
 - Optional area filter (e.g., `/df:check-todos api`)
 - Loads full context for selected todo
-- Routes to appropriate action (work now, add to phase, brainstorm)
+- Routes to appropriate action (work now, add to objective, brainstorm)
 - Moves todo to done/ when work begins
 
 Usage: `/df:check-todos`
@@ -290,7 +290,7 @@ Usage: `/df:check-todos api`
 
 ### User Acceptance Testing
 
-**`/df:verify-work [phase]`**
+**`/df:verify-work [objective]`**
 Validate built features through conversational UAT.
 
 - Extracts testable deliverables from SUMMARY.md files
@@ -305,20 +305,20 @@ Usage: `/df:verify-work 3`
 **`/df:audit-milestone [version]`**
 Audit milestone completion against original intent.
 
-- Reads all phase VERIFICATION.md files
+- Reads all objective VERIFICATION.md files
 - Checks requirements coverage
-- Spawns integration checker for cross-phase wiring
+- Spawns integration checker for cross-objective wiring
 - Creates MILESTONE-AUDIT.md with gaps and tech debt
 
 Usage: `/df:audit-milestone`
 
 **`/df:plan-milestone-gaps`**
-Create phases to close gaps identified by audit.
+Create objectives to close gaps identified by audit.
 
-- Reads MILESTONE-AUDIT.md and groups gaps into phases
+- Reads MILESTONE-AUDIT.md and groups gaps into objectives
 - Prioritizes by requirement priority (must/should/nice)
-- Adds gap closure phases to ROADMAP.md
-- Ready for `/df:plan-phase` on new phases
+- Adds gap closure objectives to ROADMAP.md
+- Ready for `/df:plan-objective` on new objectives
 
 Usage: `/df:plan-milestone-gaps`
 
@@ -327,7 +327,7 @@ Usage: `/df:plan-milestone-gaps`
 **`/df:settings`**
 Configure workflow toggles and model profile interactively.
 
-- Toggle researcher, plan checker, verifier agents
+- Toggle researcher, job checker, verifier agents
 - Select model profile (quality/balanced/budget)
 - Updates `.planning/config.json`
 
@@ -345,12 +345,12 @@ Usage: `/df:set-profile budget`
 ### Utility Commands
 
 **`/df:cleanup`**
-Archive accumulated phase directories from completed milestones.
+Archive accumulated objective directories from completed milestones.
 
-- Identifies phases from completed milestones still in `.planning/phases/`
+- Identifies objectives from completed milestones still in `.planning/objectives/`
 - Shows dry-run summary before moving anything
-- Moves phase dirs to `.planning/milestones/v{X.Y}-phases/`
-- Use after multiple milestones to reduce `.planning/phases/` clutter
+- Moves objective dirs to `.planning/milestones/v{X.Y}-objectives/`
+- Use after multiple milestones to reduce `.planning/objectives/` clutter
 
 Usage: `/df:cleanup`
 
@@ -381,7 +381,7 @@ Usage: `/df:join-discord`
 ```
 .planning/
 ├── PROJECT.md            # Project vision
-├── ROADMAP.md            # Current phase breakdown
+├── ROADMAP.md            # Current objective breakdown
 ├── STATE.md              # Project memory & context
 ├── config.json           # Workflow mode & gates
 ├── todos/                # Captured ideas and tasks
@@ -392,7 +392,7 @@ Usage: `/df:join-discord`
 ├── milestones/
 │   ├── v1.0-ROADMAP.md       # Archived roadmap snapshot
 │   ├── v1.0-REQUIREMENTS.md  # Archived requirements
-│   └── v1.0-phases/          # Archived phase dirs (via /df:cleanup or --archive-phases)
+│   └── v1.0-objectives/          # Archived objective dirs (via /df:cleanup or --archive-objectives)
 │       ├── 01-foundation/
 │       └── 02-core-features/
 ├── codebase/             # Codebase map (brownfield projects)
@@ -403,12 +403,12 @@ Usage: `/df:join-discord`
 │   ├── TESTING.md        # Test setup, patterns
 │   ├── INTEGRATIONS.md   # External services, APIs
 │   └── CONCERNS.md       # Tech debt, known issues
-└── phases/
+└── objectives/
     ├── 01-foundation/
-    │   ├── 01-01-PLAN.md
+    │   ├── 01-01-JOB.md
     │   └── 01-01-SUMMARY.md
     └── 02-core-features/
-        ├── 02-01-PLAN.md
+        ├── 02-01-JOB.md
         └── 02-01-SUMMARY.md
 ```
 
@@ -464,9 +464,9 @@ Example config:
 ```
 /df:new-project        # Unified flow: questioning → research → requirements → roadmap
 /clear
-/df:plan-phase 1       # Create plans for first phase
+/df:plan-objective 1       # Create plans for first objective
 /clear
-/df:execute-phase 1    # Execute all plans in phase
+/df:execute-objective 1    # Execute all jobs in objective
 ```
 
 **Resuming work after a break:**
@@ -478,18 +478,18 @@ Example config:
 **Adding urgent mid-milestone work:**
 
 ```
-/df:insert-phase 5 "Critical security fix"
-/df:plan-phase 5.1
-/df:execute-phase 5.1
+/df:insert-objective 5 "Critical security fix"
+/df:plan-objective 5.1
+/df:execute-objective 5.1
 ```
 
-**Running independent phases in parallel:**
+**Running independent objectives in parallel:**
 
 ```
 /df:workstreams setup     # Analyze deps, create worktrees
-# Open terminals in each worktree, run plan-phase + execute-phase
+# Open terminals in each worktree, run plan-objective + execute-objective
 /df:workstreams status    # Check progress
-/df:workstreams merge     # Merge when done, advance to join phase
+/df:workstreams merge     # Merge when done, advance to join objective
 ```
 
 **Completing a milestone:**
@@ -522,6 +522,6 @@ Example config:
 
 - Read `.planning/PROJECT.md` for project vision
 - Read `.planning/STATE.md` for current context
-- Check `.planning/ROADMAP.md` for phase status
+- Check `.planning/ROADMAP.md` for objective status
 - Run `/df:progress` to check where you're up to
 </reference>

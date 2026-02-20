@@ -1,9 +1,9 @@
 ---
 name: df:list-phase-assumptions
 description: |
-  Surface Claude's assumptions about a phase approach before planning.
+  Surface Claude's assumptions about an objective approach before planning.
   Specialized diagnostic tool for reviewing AI assumptions.
-argument-hint: "[phase]"
+argument-hint: "[objective]"
 disable-model-invocation: true
 allowed-tools:
   - Read
@@ -13,18 +13,18 @@ allowed-tools:
 ---
 
 <objective>
-Analyze a phase and present Claude's assumptions about technical approach, implementation order, scope boundaries, risk areas, and dependencies.
+Analyze an objective and present Claude's assumptions about technical approach, implementation order, scope boundaries, risk areas, and dependencies.
 
 Purpose: Help users see what Claude thinks BEFORE planning begins - enabling course correction early when assumptions are wrong.
 Output: Conversational output only (no file creation) - ends with "What do you think?" prompt
 </objective>
 
 <execution_context>
-@~/.claude/devflow/workflows/list-phase-assumptions.md
+@~/.claude/devflow/workflows/list-objective-assumptions.md
 </execution_context>
 
 <context>
-Phase number: $ARGUMENTS (required)
+Objective number: $ARGUMENTS (required)
 
 **Load project state first:**
 @.planning/STATE.md
@@ -34,9 +34,9 @@ Phase number: $ARGUMENTS (required)
 </context>
 
 <process>
-1. Validate phase number argument (error if missing or invalid)
-2. Check if phase exists in roadmap
-3. Follow list-phase-assumptions.md workflow:
+1. Validate objective number argument (error if missing or invalid)
+2. Check if objective exists in roadmap
+3. Follow list-objective-assumptions.md workflow:
    - Analyze roadmap description
    - Surface assumptions about: technical approach, implementation order, scope, risks, dependencies
    - Present assumptions clearly
@@ -46,8 +46,8 @@ Phase number: $ARGUMENTS (required)
 
 <success_criteria>
 
-- Phase validated against roadmap
+- Objective validated against roadmap
 - Assumptions surfaced across five areas
 - User prompted for feedback
-- User knows next steps (discuss context, plan phase, or correct assumptions)
+- User knows next steps (discuss context, plan objective, or correct assumptions)
   </success_criteria>

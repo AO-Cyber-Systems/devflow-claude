@@ -1,11 +1,11 @@
-# Phase Prompt Template
+# Objective Prompt Template
 
 > **Note:** Planning methodology is in `agents/df-planner.md`.
-> This template defines the PLAN.md output format that the agent produces.
+> This template defines the JOB.md output format that the agent produces.
 
-Template for `.planning/phases/XX-name/{phase}-{plan}-PLAN.md` - executable phase plans optimized for parallel execution.
+Template for `.planning/objectives/XX-name/{objective}-{job}-JOB.md` - executable objective plans optimized for parallel execution.
 
-**Naming:** Use `{phase}-{plan}-PLAN.md` format (e.g., `01-02-PLAN.md` for Phase 1, Plan 2)
+**Naming:** Use `{objective}-{job}-JOB.md` format (e.g., `01-02-JOB.md` for Objective 1, Job 2)
 
 ---
 
@@ -13,14 +13,14 @@ Template for `.planning/phases/XX-name/{phase}-{plan}-PLAN.md` - executable phas
 
 ```markdown
 ---
-phase: XX-name
-plan: NN
+objective: XX-name
+job: NN
 type: execute
 wave: N                     # Execution wave (1, 2, 3...). Pre-computed at plan time.
-depends_on: []              # Plan IDs this plan requires (e.g., ["01-01"]).
-files_modified: []          # Files this plan modifies.
-autonomous: true            # false if plan has checkpoints requiring user interaction
-requirements: []            # REQUIRED — Requirement IDs from ROADMAP this plan addresses. MUST NOT be empty.
+depends_on: []              # Plan IDs this job requires (e.g., ["01-01"]).
+files_modified: []          # Files this job modifies.
+autonomous: true            # false if job has checkpoints requiring user interaction
+requirements: []            # REQUIRED — Requirement IDs from ROADMAP this job addresses. MUST NOT be empty.
 user_setup: []              # Human-required setup Claude cannot automate (see below)
 
 # Goal-backward verification (derived during planning, verified after execution)
@@ -31,15 +31,15 @@ must_haves:
 ---
 
 <objective>
-[What this plan accomplishes]
+[What this job accomplishes]
 
 Purpose: [Why this matters for the project]
 Output: [What artifacts will be created]
 </objective>
 
 <file_tree>
-<!-- Optional: Include when plan creates 2+ new files -->
-Files created/modified by this plan:
+<!-- Optional: Include when job creates 2+ new files -->
+Files created/modified by this job:
 ```
 src/
 ├── middleware/
@@ -52,7 +52,7 @@ src/
 </file_tree>
 
 <execution_context>
-@~/.claude/devflow/workflows/execute-plan.md
+@~/.claude/devflow/workflows/execute-job.md
 @~/.claude/devflow/templates/summary.md
 [If plan contains checkpoint tasks (type="checkpoint:*"), add:]
 @~/.claude/devflow/references/checkpoints.md
@@ -63,18 +63,18 @@ src/
 @.planning/ROADMAP.md
 @.planning/STATE.md
 
-# Only reference prior plan SUMMARYs if genuinely needed:
-# - This plan uses types/exports from prior plan
-# - Prior plan made decision that affects this plan
-# Do NOT reflexively chain: Plan 02 refs 01, Plan 03 refs 02...
+# Only reference prior job SUMMARYs if genuinely needed:
+# - This job uses types/exports from prior job
+# - Prior job made decision that affects this job
+# Do NOT reflexively chain: Job 02 refs 01, Job 03 refs 02...
 
 [Relevant source files:]
 @src/path/to/relevant.ts
 </context>
 
 <research_context>
-<!-- Optional: Include when RESEARCH.md exists and is relevant to this plan's scope -->
-[Key findings from RESEARCH.md relevant to THIS plan's scope]
+<!-- Optional: Include when RESEARCH.md exists and is relevant to this job's scope -->
+[Key findings from RESEARCH.md relevant to THIS job's scope]
 - Libraries: [specific libraries and versions to use]
 - Gotchas: [critical pitfalls from research]
 - Patterns: [recommended approaches from research]
@@ -82,9 +82,9 @@ src/
 
 <gotchas>
 <!-- Optional: Include when plan touches areas with known issues -->
-- [Warning about this plan's specific domain/libraries]
+- [Warning about this job's specific domain/libraries]
 - [Anti-pattern to avoid during these tasks]
-- [Known issue from CONCERNS.md relevant to files in this plan]
+- [Known issue from CONCERNS.md relevant to files in this job]
 </gotchas>
 
 <tasks>
@@ -150,7 +150,7 @@ Before declaring plan complete:
   </success_criteria>
 
 <output>
-After completion, create `.planning/phases/XX-name/{phase}-{plan}-SUMMARY.md`
+After completion, create `.planning/objectives/XX-name/{objective}-{job}-SUMMARY.md`
 </output>
 ```
 
@@ -160,21 +160,21 @@ After completion, create `.planning/phases/XX-name/{phase}-{plan}-SUMMARY.md`
 
 | Field | Required | Purpose |
 |-------|----------|---------|
-| `phase` | Yes | Phase identifier (e.g., `01-foundation`) |
-| `plan` | Yes | Plan number within phase (e.g., `01`, `02`) |
-| `type` | Yes | Always `execute` for standard plans, `tdd` for TDD plans |
+| `objective` | Yes | Objective identifier (e.g., `01-foundation`) |
+| `job` | Yes | Job number within objective (e.g., `01`, `02`) |
+| `type` | Yes | Always `execute` for standard jobs, `tdd` for TDD jobs |
 | `wave` | Yes | Execution wave number (1, 2, 3...). Pre-computed at plan time. |
-| `depends_on` | Yes | Array of plan IDs this plan requires. |
-| `files_modified` | Yes | Files this plan touches. |
+| `depends_on` | Yes | Array of plan IDs this job requires. |
+| `files_modified` | Yes | Files this job touches. |
 | `autonomous` | Yes | `true` if no checkpoints, `false` if has checkpoints |
 | `requirements` | Yes | **MUST** list requirement IDs from ROADMAP. Every roadmap requirement MUST appear in at least one plan. |
 | `user_setup` | No | Array of human-required setup items (external services) |
 | `validation_gates` | No | Runnable lint/test/build commands from STACK.md |
 | `must_haves` | Yes | Goal-backward verification criteria (see below) |
 
-**Wave is pre-computed:** Wave numbers are assigned during `/df:plan-phase`. Execute-phase reads `wave` directly from frontmatter and groups plans by wave number. No runtime dependency analysis needed.
+**Wave is pre-computed:** Wave numbers are assigned during `/df:plan-objective`. Execute-objective reads `wave` directly from frontmatter and groups plans by wave number. No runtime dependency analysis needed.
 
-**Must-haves enable verification:** The `must_haves` field carries goal-backward requirements from planning to execution. After all plans complete, execute-phase spawns a verification subagent that checks these criteria against the actual codebase.
+**Must-haves enable verification:** The `must_haves` field carries goal-backward requirements from planning to execution. After all jobs complete, execute-objective spawns a verification subagent that checks these criteria against the actual codebase.
 
 ---
 
@@ -185,19 +185,19 @@ After completion, create `.planning/phases/XX-name/{phase}-{plan}-SUMMARY.md`
 **Wave 1 candidates (parallel):**
 
 ```yaml
-# Plan 01 - User feature
+# Job 01 - User feature
 wave: 1
 depends_on: []
 files_modified: [src/models/user.ts, src/api/users.ts]
 autonomous: true
 
-# Plan 02 - Product feature (no overlap with Plan 01)
+# Job 02 - Product feature (no overlap with Job 01)
 wave: 1
 depends_on: []
 files_modified: [src/models/product.ts, src/api/products.ts]
 autonomous: true
 
-# Plan 03 - Order feature (no overlap)
+# Job 03 - Order feature (no overlap)
 wave: 1
 depends_on: []
 files_modified: [src/models/order.ts, src/api/orders.ts]
@@ -209,25 +209,25 @@ All three run in parallel (Wave 1) - no dependencies, no file conflicts.
 **Sequential (genuine dependency):**
 
 ```yaml
-# Plan 01 - Auth foundation
+# Job 01 - Auth foundation
 wave: 1
 depends_on: []
 files_modified: [src/lib/auth.ts, src/middleware/auth.ts]
 autonomous: true
 
-# Plan 02 - Protected features (needs auth)
+# Job 02 - Protected features (needs auth)
 wave: 2
 depends_on: ["01"]
 files_modified: [src/features/dashboard.ts]
 autonomous: true
 ```
 
-Plan 02 in Wave 2 waits for Plan 01 in Wave 1 - genuine dependency on auth types/middleware.
+Job 02 in Wave 2 waits for Job 01 in Wave 1 - genuine dependency on auth types/middleware.
 
 **Checkpoint plan:**
 
 ```yaml
-# Plan 03 - UI with verification
+# Job 03 - UI with verification
 wave: 3
 depends_on: ["01", "02"]
 files_modified: [src/components/Dashboard.tsx]
@@ -251,9 +251,9 @@ Wave 3 runs after Waves 1 and 2. Pauses at checkpoint, orchestrator presents to 
 @.planning/STATE.md
 
 # Only include SUMMARY refs if genuinely needed:
-# - This plan imports types from prior plan
-# - Prior plan made decision affecting this plan
-# - Prior plan's output is input to this plan
+# - This job imports types from prior job
+# - Prior job made decision affecting this job
+# - Prior job's output is input to this job
 #
 # Independent plans need NO prior SUMMARY references.
 # Do NOT reflexively chain: 02 refs 01, 03 refs 02...
@@ -265,8 +265,8 @@ Wave 3 runs after Waves 1 and 2. Pauses at checkpoint, orchestrator presents to 
 **Bad pattern (creates false dependencies):**
 ```markdown
 <context>
-@.planning/phases/03-features/03-01-SUMMARY.md  # Just because it's earlier
-@.planning/phases/03-features/03-02-SUMMARY.md  # Reflexive chaining
+@.planning/objectives/03-features/03-01-SUMMARY.md  # Just because it's earlier
+@.planning/objectives/03-features/03-02-SUMMARY.md  # Reflexive chaining
 </context>
 ```
 
@@ -276,39 +276,39 @@ Wave 3 runs after Waves 1 and 2. Pauses at checkpoint, orchestrator presents to 
 
 **Plan sizing:**
 
-- 2-3 tasks per plan
+- 2-3 tasks per job
 - ~50% context usage maximum
-- Complex phases: Multiple focused plans, not one large plan
+- Complex objectives: Multiple focused plans, not one large plan
 
 **When to split:**
 
 - Different subsystems (auth vs API vs UI)
 - >3 tasks
 - Risk of context overflow
-- TDD candidates - separate plans
+- TDD candidates - separate jobs
 
 **Vertical slices preferred:**
 
 ```
-PREFER: Plan 01 = User (model + API + UI)
-        Plan 02 = Product (model + API + UI)
+PREFER: Job 01 = User (model + API + UI)
+        Job 02 = Product (model + API + UI)
 
-AVOID:  Plan 01 = All models
-        Plan 02 = All APIs
-        Plan 03 = All UIs
+AVOID:  Job 01 = All models
+        Job 02 = All APIs
+        Job 03 = All UIs
 ```
 
 ---
 
 ## TDD Plans
 
-TDD features get dedicated plans with `type: tdd`.
+TDD features get dedicated jobs with `type: tdd`.
 
 **Heuristic:** Can you write `expect(fn(input)).toBe(output)` before writing `fn`?
-→ Yes: Create a TDD plan
-→ No: Standard task in standard plan
+→ Yes: Create a TDD job
+→ No: Standard task in standard job
 
-See `~/.claude/devflow/references/tdd.md` for TDD plan structure.
+See `~/.claude/devflow/references/tdd.md` for TDD job structure.
 
 ---
 
@@ -336,8 +336,8 @@ See `~/.claude/devflow/references/tdd.md` for TDD plan structure.
 
 ```markdown
 ---
-phase: 03-features
-plan: 01
+objective: 03-features
+job: 01
 type: execute
 wave: 1
 depends_on: []
@@ -353,7 +353,7 @@ Output: User model, API endpoints, and UI components.
 </objective>
 
 <file_tree>
-Files created/modified by this plan:
+Files created/modified by this job:
 ```
 src/features/user/
 ├── model.ts         ← CREATE (User type)
@@ -413,7 +413,7 @@ src/features/user/
 </success_criteria>
 
 <output>
-After completion, create `.planning/phases/03-features/03-01-SUMMARY.md`
+After completion, create `.planning/objectives/03-features/03-01-SUMMARY.md`
 </output>
 ```
 
@@ -421,8 +421,8 @@ After completion, create `.planning/phases/03-features/03-01-SUMMARY.md`
 
 ```markdown
 ---
-phase: 03-features
-plan: 03
+objective: 03-features
+job: 03
 type: execute
 wave: 2
 depends_on: ["03-01", "03-02"]
@@ -438,7 +438,7 @@ Output: Working dashboard component.
 </objective>
 
 <execution_context>
-@~/.claude/devflow/workflows/execute-plan.md
+@~/.claude/devflow/workflows/execute-job.md
 @~/.claude/devflow/templates/summary.md
 @~/.claude/devflow/references/checkpoints.md
 </execution_context>
@@ -446,8 +446,8 @@ Output: Working dashboard component.
 <context>
 @.planning/PROJECT.md
 @.planning/ROADMAP.md
-@.planning/phases/03-features/03-01-SUMMARY.md
-@.planning/phases/03-features/03-02-SUMMARY.md
+@.planning/objectives/03-features/03-01-SUMMARY.md
+@.planning/objectives/03-features/03-02-SUMMARY.md
 </context>
 
 <tasks>
@@ -484,7 +484,7 @@ Output: Working dashboard component.
 </success_criteria>
 
 <output>
-After completion, create `.planning/phases/03-features/03-03-SUMMARY.md`
+After completion, create `.planning/objectives/03-features/03-03-SUMMARY.md`
 </output>
 ```
 
@@ -499,9 +499,9 @@ depends_on: ["03-01"]  # Just because 01 comes before 02
 
 **Bad: Horizontal layer grouping**
 ```
-Plan 01: All models
-Plan 02: All APIs (depends on 01)
-Plan 03: All UIs (depends on 02)
+Job 01: All models
+Job 02: All APIs (depends on 01)
+Job 03: All UIs (depends on 02)
 ```
 
 **Bad: Missing autonomy flag**
@@ -528,12 +528,12 @@ files_modified: [...]
 - Include `wave`, `depends_on`, `files_modified`, `autonomous` in every plan
 - Prefer vertical slices over horizontal layers
 - Only reference prior SUMMARYs when genuinely needed
-- Group checkpoints with related auto tasks in same plan
-- 2-3 tasks per plan, ~50% context max
-- Include `<file_tree>` when the plan creates 2+ new files. Use `← CREATE` for new files, `← MODIFY` for existing files. Skip for plans that only modify existing files.
-- Include `<research_context>` when RESEARCH.md exists and is relevant to the plan's scope. Only include findings that directly affect THIS plan's tasks — not the entire research document.
-- Include `<gotchas>` when the plan touches areas flagged in CONCERNS.md, uses libraries with known quirks from RESEARCH.md, or involves patterns that commonly go wrong.
-- Include `<validation_gates>` populated from STACK.md with runnable lint/test/build commands. These are plan-level — run after all tasks complete.
+- Group checkpoints with related auto tasks in same job
+- 2-3 tasks per job, ~50% context max
+- Include `<file_tree>` when the job creates 2+ new files. Use `← CREATE` for new files, `← MODIFY` for existing files. Skip for plans that only modify existing files.
+- Include `<research_context>` when RESEARCH.md exists and is relevant to the job's scope. Only include findings that directly affect THIS job's tasks — not the entire research document.
+- Include `<gotchas>` when the job touches areas flagged in CONCERNS.md, uses libraries with known quirks from RESEARCH.md, or involves patterns that commonly go wrong.
+- Include `<validation_gates>` populated from STACK.md with runnable lint/test/build commands. These are job-level — run after all tasks complete.
 
 ---
 
@@ -565,7 +565,7 @@ user_setup:
 
 **NOT included:** Package installs, code changes, file creation, CLI commands Claude can run.
 
-**Result:** Execute-plan generates `{phase}-USER-SETUP.md` with checklist for the user.
+**Result:** Execute-plan generates `{objective}-USER-SETUP.md` with checklist for the user.
 
 See `~/.claude/devflow/templates/user-setup.md` for full schema and examples
 
@@ -573,7 +573,7 @@ See `~/.claude/devflow/templates/user-setup.md` for full schema and examples
 
 ## Must-Haves (Goal-Backward Verification)
 
-The `must_haves` field defines what must be TRUE for the phase goal to be achieved. Derived during planning, verified after execution.
+The `must_haves` field defines what must be TRUE for the objective goal to be achieved. Derived during planning, verified after execution.
 
 **Structure:**
 
@@ -627,11 +627,11 @@ Task completion ≠ Goal achievement. A task "create chat component" can complet
 
 **Verification flow:**
 
-1. Plan-phase derives must_haves from phase goal (goal-backward)
-2. Must_haves written to PLAN.md frontmatter
-3. Execute-phase runs all plans
+1. Plan-objective derives must_haves from objective goal (goal-backward)
+2. Must_haves written to JOB.md frontmatter
+3. Execute-objective runs all jobs
 4. Verification subagent checks must_haves against codebase
 5. Gaps found → fix plans created → execute → re-verify
-6. All must_haves pass → phase complete
+6. All must_haves pass → objective complete
 
-See `~/.claude/devflow/workflows/verify-phase.md` for verification logic.
+See `~/.claude/devflow/workflows/verify-objective.md` for verification logic.

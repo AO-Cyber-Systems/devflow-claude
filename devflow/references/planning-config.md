@@ -10,7 +10,7 @@ Configuration options for `.planning/` directory behavior.
 },
 "git": {
   "branching_strategy": "none",
-  "phase_branch_template": "df/phase-{phase}-{slug}",
+  "objective_branch_template": "df/objective-{objective}-{slug}",
   "milestone_branch_template": "gsd/{milestone}-{slug}"
 }
 ```
@@ -19,8 +19,8 @@ Configuration options for `.planning/` directory behavior.
 |--------|---------|-------------|
 | `commit_docs` | `true` | Whether to commit planning artifacts to git |
 | `search_gitignored` | `false` | Add `--no-ignore` to broad rg searches |
-| `git.branching_strategy` | `"none"` | Git branching approach: `"none"`, `"phase"`, or `"milestone"` |
-| `git.phase_branch_template` | `"df/phase-{phase}-{slug}"` | Branch template for phase strategy |
+| `git.branching_strategy` | `"none"` | Git branching approach: `"none"`, `"objective"`, or `"milestone"` |
+| `git.objective_branch_template` | `"df/objective-{objective}-{slug}"` | Branch template for objective strategy |
 | `git.milestone_branch_template` | `"gsd/{milestone}-{slug}"` | Branch template for milestone strategy |
 </config_schema>
 
@@ -47,7 +47,7 @@ INIT=$(node ~/.claude/devflow/bin/df-tools.cjs state load)
 # commit_docs is available in the JSON output
 
 # Or use init commands which include commit_docs:
-INIT=$(node ~/.claude/devflow/bin/df-tools.cjs init execute-phase "1")
+INIT=$(node ~/.claude/devflow/bin/df-tools.cjs init execute-objective "1")
 # commit_docs is included in all init command outputs
 ```
 
@@ -101,7 +101,7 @@ To use uncommitted mode:
    git commit -m "chore: stop tracking planning docs"
    ```
 
-4. **Branch merges:** When using `branching_strategy: phase` or `milestone`, the `complete-milestone` workflow automatically strips `.planning/` files from staging before merge commits when `commit_docs: false`.
+4. **Branch merges:** When using `branching_strategy: objective` or `milestone`, the `complete-milestone` workflow automatically strips `.planning/` files from staging before merge commits when `commit_docs: false`.
 
 </setup_uncommitted_mode>
 
@@ -112,55 +112,55 @@ To use uncommitted mode:
 | Strategy | When branch created | Branch scope | Merge point |
 |----------|---------------------|--------------|-------------|
 | `none` | Never | N/A | N/A |
-| `phase` | At `execute-phase` start | Single phase | User merges after phase |
-| `milestone` | At first `execute-phase` of milestone | Entire milestone | At `complete-milestone` |
+| `objective` | At `execute-objective` start | Single objective | User merges after objective |
+| `milestone` | At first `execute-objective` of milestone | Entire milestone | At `complete-milestone` |
 
 **When `git.branching_strategy: "none"` (default):**
 - All work commits to current branch
 - Standard DevFlow behavior
 
-**When `git.branching_strategy: "phase"`:**
-- `execute-phase` creates/switches to a branch before execution
-- Branch name from `phase_branch_template` (e.g., `df/phase-03-authentication`)
+**When `git.branching_strategy: "objective"`:**
+- `execute-objective` creates/switches to a branch before execution
+- Branch name from `objective_branch_template` (e.g., `df/phase-03-authentication`)
 - All plan commits go to that branch
-- User merges branches manually after phase completion
-- `complete-milestone` offers to merge all phase branches
+- User merges branches manually after objective completion
+- `complete-milestone` offers to merge all objective branches
 
 **When `git.branching_strategy: "milestone"`:**
-- First `execute-phase` of milestone creates the milestone branch
+- First `execute-objective` of milestone creates the milestone branch
 - Branch name from `milestone_branch_template` (e.g., `gsd/v1.0-mvp`)
-- All phases in milestone commit to same branch
+- All objectives in milestone commit to same branch
 - `complete-milestone` offers to merge milestone branch to main
 
 **Template variables:**
 
 | Variable | Available in | Description |
 |----------|--------------|-------------|
-| `{phase}` | phase_branch_template | Zero-padded phase number (e.g., "03") |
+| `{objective}` | objective_branch_template | Zero-padded objective number (e.g., "03") |
 | `{slug}` | Both | Lowercase, hyphenated name |
 | `{milestone}` | milestone_branch_template | Milestone version (e.g., "v1.0") |
 
 **Checking the config:**
 
-Use `init execute-phase` which returns all config as JSON:
+Use `init execute-objective` which returns all config as JSON:
 ```bash
-INIT=$(node ~/.claude/devflow/bin/df-tools.cjs init execute-phase "1")
-# JSON output includes: branching_strategy, phase_branch_template, milestone_branch_template
+INIT=$(node ~/.claude/devflow/bin/df-tools.cjs init execute-objective "1")
+# JSON output includes: branching_strategy, objective_branch_template, milestone_branch_template
 ```
 
 Or use `state load` for the config values:
 ```bash
 INIT=$(node ~/.claude/devflow/bin/df-tools.cjs state load)
-# Parse branching_strategy, phase_branch_template, milestone_branch_template from JSON
+# Parse branching_strategy, objective_branch_template, milestone_branch_template from JSON
 ```
 
 **Branch creation:**
 
 ```bash
-# For phase strategy
-if [ "$BRANCHING_STRATEGY" = "phase" ]; then
+# For objective strategy
+if [ "$BRANCHING_STRATEGY" = "objective" ]; then
   PHASE_SLUG=$(echo "$PHASE_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | sed 's/^-//;s/-$//')
-  BRANCH_NAME=$(echo "$PHASE_BRANCH_TEMPLATE" | sed "s/{phase}/$PADDED_PHASE/g" | sed "s/{slug}/$PHASE_SLUG/g")
+  BRANCH_NAME=$(echo "$PHASE_BRANCH_TEMPLATE" | sed "s/{objective}/$PADDED_PHASE/g" | sed "s/{slug}/$PHASE_SLUG/g")
   git checkout -b "$BRANCH_NAME" 2>/dev/null || git checkout "$BRANCH_NAME"
 fi
 
@@ -188,9 +188,55 @@ Squash merge is recommended — keeps main branch history clean while preserving
 | Strategy | Best for |
 |----------|----------|
 | `none` | Solo development, simple projects |
-| `phase` | Code review per phase, granular rollback, team collaboration |
+| `objective` | Code review per objective, granular rollback, team collaboration |
 | `milestone` | Release branches, staging environments, PR per version |
 
 </branching_strategy_behavior>
+
+<workstreams_config>
+
+## Workstreams Configuration
+
+Parallel feature development using git worktrees. Independent objectives execute simultaneously in separate worktrees, each with their own Claude session.
+
+<config_schema_workstreams>
+```json
+"workstreams": {
+  "worktree_prefix": "../{project}-ws-",
+  "branch_prefix": "df/ws-",
+  "merge_strategy": "squash"
+}
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `worktree_prefix` | `"../{project}-ws-"` | Path prefix for worktree directories. `{project}` replaced with current dir name |
+| `branch_prefix` | `"df/ws-"` | Git branch prefix for workstream branches |
+| `merge_strategy` | `"squash"` | How to merge branches: `"squash"` (single commit) or `"merge"` (preserve history) |
+</config_schema_workstreams>
+
+**When to use workstreams:**
+- ROADMAP.md has non-linear dependencies (e.g., Objective 2 and 3 both depend on Objective 1)
+- Independent features don't share files or APIs
+- You want to develop features in parallel sessions
+
+**Workflow:**
+1. `/df:workstreams setup` — Analyze deps, create git worktrees
+2. Open terminals in each worktree, run normal DevFlow commands
+3. `/df:workstreams status` — Check progress across workstreams
+4. `/df:workstreams merge` — Squash-merge branches, reconcile state
+
+**Key files:**
+- `.planning/workstreams.json` — Active workstream tracking (main worktree)
+- `.planning/workstream-marker.json` — Worktree identity marker (per worktree)
+
+**Merge strategies:**
+
+| Strategy | Git command | Result |
+|----------|-------------|--------|
+| `squash` (default) | `git merge --squash` | Single clean commit per workstream |
+| `merge` | `git merge --no-ff` | Preserves full commit history |
+
+</workstreams_config>
 
 </planning_config>

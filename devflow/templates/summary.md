@@ -1,6 +1,6 @@
 # Summary Template
 
-Template for `.planning/phases/XX-name/{phase}-{plan}-SUMMARY.md` - phase completion documentation.
+Template for `.planning/objectives/XX-name/{objective}-{job}-SUMMARY.md` - objective completion documentation.
 
 ---
 
@@ -8,22 +8,22 @@ Template for `.planning/phases/XX-name/{phase}-{plan}-SUMMARY.md` - phase comple
 
 ```markdown
 ---
-phase: XX-name
-plan: YY
+objective: XX-name
+job: YY
 subsystem: [primary category: auth, payments, ui, api, database, infra, testing, etc.]
 tags: [searchable tech: jwt, stripe, react, postgres, prisma]
 
 # Dependency graph
 requires:
-  - phase: [prior phase this depends on]
-    provides: [what that phase built that this uses]
+  - objective: [prior objective this depends on]
+    provides: [what that objective built that this uses]
 provides:
-  - [bullet list of what this phase built/delivered]
-affects: [list of phase names or keywords that will need this context]
+  - [bullet list of what this objective built/delivered]
+affects: [list of objective names or keywords that will need this context]
 
 # Tech tracking
 tech-stack:
-  added: [libraries/tools added in this phase]
+  added: [libraries/tools added in this objective]
   patterns: [architectural/code patterns established]
 
 key-files:
@@ -38,16 +38,16 @@ patterns-established:
   - "Pattern 1: description"
   - "Pattern 2: description"
 
-requirements-completed: []  # REQUIRED — Copy ALL requirement IDs from this plan's `requirements` frontmatter field.
+requirements-completed: []  # REQUIRED — Copy ALL requirement IDs from this job's `requirements` frontmatter field.
 
 # Metrics
 duration: Xmin
 completed: YYYY-MM-DD
 ---
 
-# Phase [X]: [Name] Summary
+# Objective [X]: [Name] Summary
 
-**[Substantive one-liner describing outcome - NOT "phase complete" or "implementation finished"]**
+**[Substantive one-liner describing outcome - NOT "objective complete" or "implementation finished"]**
 
 ## Performance
 
@@ -83,7 +83,7 @@ _Note: TDD tasks may have multiple commits (test → feat → refactor)_
 
 ## Deviations from Plan
 
-[If no deviations: "None - plan executed exactly as written"]
+[If no deviations: "None - job executed exactly as written"]
 
 [If deviations occurred:]
 
@@ -112,7 +112,7 @@ _Note: TDD tasks may have multiple commits (test → feat → refactor)_
 ## User Setup Required
 
 [If USER-SETUP.md was generated:]
-**External services require manual configuration.** See [{phase}-USER-SETUP.md](./{phase}-USER-SETUP.md) for:
+**External services require manual configuration.** See [{objective}-USER-SETUP.md](./{objective}-USER-SETUP.md) for:
 - Environment variables to add
 - Dashboard configuration steps
 - Verification commands
@@ -120,31 +120,31 @@ _Note: TDD tasks may have multiple commits (test → feat → refactor)_
 [If no USER-SETUP.md:]
 None - no external service configuration required.
 
-## Next Phase Readiness
-[What's ready for next phase]
+## Next Objective Readiness
+[What's ready for next objective]
 [Any blockers or concerns]
 
 ---
-*Phase: XX-name*
+*Objective: XX-name*
 *Completed: [date]*
 ```
 
 <frontmatter_guidance>
-**Purpose:** Enable automatic context assembly via dependency graph. Frontmatter makes summary metadata machine-readable so plan-phase can scan all summaries quickly and select relevant ones based on dependencies.
+**Purpose:** Enable automatic context assembly via dependency graph. Frontmatter makes summary metadata machine-readable so plan-objective can scan all summaries quickly and select relevant ones based on dependencies.
 
 **Fast scanning:** Frontmatter is first ~25 lines, cheap to scan across all summaries without reading full content.
 
-**Dependency graph:** `requires`/`provides`/`affects` create explicit links between phases, enabling transitive closure for context selection.
+**Dependency graph:** `requires`/`provides`/`affects` create explicit links between objectives, enabling transitive closure for context selection.
 
-**Subsystem:** Primary categorization (auth, payments, ui, api, database, infra, testing) for detecting related phases.
+**Subsystem:** Primary categorization (auth, payments, ui, api, database, infra, testing) for detecting related objectives.
 
 **Tags:** Searchable technical keywords (libraries, frameworks, tools) for tech stack awareness.
 
-**Key-files:** Important files for @context references in PLAN.md.
+**Key-files:** Important files for @context references in JOB.md.
 
-**Patterns:** Established conventions future phases should maintain.
+**Patterns:** Established conventions future objectives should maintain.
 
-**Population:** Frontmatter is populated during summary creation in execute-plan.md. See `<step name="create_summary">` for field-by-field guidance.
+**Population:** Frontmatter is populated during summary creation in execute-job.md. See `<step name="create_summary">` for field-by-field guidance.
 </frontmatter_guidance>
 
 <one_liner_rules>
@@ -156,7 +156,7 @@ The one-liner MUST be substantive:
 - "Dashboard with real-time metrics via Server-Sent Events"
 
 **Bad:**
-- "Phase complete"
+- "Objective complete"
 - "Authentication implemented"
 - "Foundation finished"
 - "All tasks done"
@@ -166,7 +166,7 @@ The one-liner should tell someone what actually shipped.
 
 <example>
 ```markdown
-# Phase 1: Foundation Summary
+# Objective 1: Foundation Summary
 
 **JWT auth with refresh rotation using jose library, Prisma User model, and protected API middleware**
 
@@ -224,12 +224,12 @@ The one-liner should tell someone what actually shipped.
 ## Issues Encountered
 - jsonwebtoken CommonJS import failed in Edge runtime - switched to jose (planned library change, worked as expected)
 
-## Next Phase Readiness
+## Next Objective Readiness
 - Auth foundation complete, ready for feature development
 - User registration endpoint needed before public launch
 
 ---
-*Phase: 01-foundation*
+*Objective: 01-foundation*
 *Completed: 2025-01-15*
 ```
 </example>

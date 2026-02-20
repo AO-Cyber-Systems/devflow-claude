@@ -1,5 +1,5 @@
 <purpose>
-Create all phases necessary to close gaps identified by `/df:audit-milestone`. Reads MILESTONE-AUDIT.md, groups gaps into logical phases, creates phase entries in ROADMAP.md, and offers to plan each phase. One command creates all fix phases — no manual `/df:add-phase` per gap.
+Create all objectives necessary to close gaps identified by `/df:audit-milestone`. Reads MILESTONE-AUDIT.md, groups gaps into logical objectives, creates objective entries in ROADMAP.md, and offers to plan each objective. One command creates all fix objectives — no manual `/df:add-objective` per gap.
 </purpose>
 
 <required_reading>
@@ -17,7 +17,7 @@ ls -t .planning/v*-MILESTONE-AUDIT.md 2>/dev/null | head -1
 
 Parse YAML frontmatter to extract structured gaps:
 - `gaps.requirements` — unsatisfied requirements
-- `gaps.integration` — missing cross-phase connections
+- `gaps.integration` — missing cross-objective connections
 - `gaps.flows` — broken E2E flows
 
 If no audit file exists or has no gaps, error:
@@ -31,46 +31,46 @@ Group gaps by priority from REQUIREMENTS.md:
 
 | Priority | Action |
 |----------|--------|
-| `must` | Create phase, blocks milestone |
-| `should` | Create phase, recommended |
+| `must` | Create objective, blocks milestone |
+| `should` | Create objective, recommended |
 | `nice` | Ask user: include or defer? |
 
 For integration/flow gaps, infer priority from affected requirements.
 
-## 3. Group Gaps into Phases
+## 3. Group Gaps into Objectives
 
-Cluster related gaps into logical phases:
+Cluster related gaps into logical objectives:
 
 **Grouping rules:**
-- Same affected phase → combine into one fix phase
+- Same affected objective → combine into one fix objective
 - Same subsystem (auth, API, UI) → combine
 - Dependency order (fix stubs before wiring)
-- Keep phases focused: 2-4 tasks each
+- Keep objectives focused: 2-4 tasks each
 
 **Example grouping:**
 ```
 Gap: DASH-01 unsatisfied (Dashboard doesn't fetch)
-Gap: Integration Phase 1→3 (Auth not passed to API calls)
+Gap: Integration Objective 1→3 (Auth not passed to API calls)
 Gap: Flow "View dashboard" broken at data fetch
 
-→ Phase 6: "Wire Dashboard to API"
+→ Objective 6: "Wire Dashboard to API"
   - Add fetch to Dashboard.tsx
   - Include auth header in fetch
   - Handle response, update state
   - Render user data
 ```
 
-## 4. Determine Phase Numbers
+## 4. Determine Objective Numbers
 
-Find highest existing phase:
+Find highest existing objective:
 ```bash
-# Get sorted phase list, extract last one
-PHASES=$(node ~/.claude/devflow/bin/df-tools.cjs phases list)
+# Get sorted objective list, extract last one
+PHASES=$(node ~/.claude/devflow/bin/df-tools.cjs objectives list)
 HIGHEST=$(echo "$PHASES" | jq -r '.directories[-1]')
 ```
 
-New phases continue from there:
-- If Phase 5 is highest, gaps become Phase 6, 7, 8...
+New objectives continue from there:
+- If Objective 5 is highest, gaps become Objective 6, 7, 8...
 
 ## 5. Present Gap Closure Plan
 
@@ -80,15 +80,15 @@ New phases continue from there:
 **Milestone:** {version}
 **Gaps to close:** {N} requirements, {M} integration, {K} flows
 
-### Proposed Phases
+### Proposed Objectives
 
-**Phase {N}: {Name}**
+**Objective {N}: {Name}**
 Closes:
 - {REQ-ID}: {description}
 - Integration: {from} → {to}
 Tasks: {count}
 
-**Phase {N+1}: {Name}**
+**Objective {N+1}: {Name}**
 Closes:
 - {REQ-ID}: {description}
 - Flow: {flow name}
@@ -104,29 +104,29 @@ These gaps are optional. Include them?
 
 ---
 
-Create these {X} phases? (yes / adjust / defer all optional)
+Create these {X} objectives? (yes / adjust / defer all optional)
 ```
 
 Wait for user confirmation.
 
 ## 6. Update ROADMAP.md
 
-Add new phases to current milestone:
+Add new objectives to current milestone:
 
 ```markdown
-### Phase {N}: {Name}
+### Objective {N}: {Name}
 **Goal:** {derived from gaps being closed}
 **Requirements:** {REQ-IDs being satisfied}
 **Gap Closure:** Closes gaps from audit
 
-### Phase {N+1}: {Name}
+### Objective {N+1}: {Name}
 ...
 ```
 
 ## 7. Update REQUIREMENTS.md Traceability Table (REQUIRED)
 
-For each REQ-ID assigned to a gap closure phase:
-- Update the Phase column to reflect the new gap closure phase
+For each REQ-ID assigned to a gap closure objective:
+- Update the Objective column to reflect the new gap closure objective
 - Reset Status to `Pending`
 
 Reset checked-off requirements the audit found unsatisfied:
@@ -138,45 +138,45 @@ Reset checked-off requirements the audit found unsatisfied:
 grep -c "Pending" .planning/REQUIREMENTS.md
 ```
 
-## 8. Create Phase Directories
+## 8. Create Objective Directories
 
 ```bash
-mkdir -p ".planning/phases/{NN}-{name}"
+mkdir -p ".planning/objectives/{NN}-{name}"
 ```
 
 ## 9. Commit Roadmap and Requirements Update
 
 ```bash
-node ~/.claude/devflow/bin/df-tools.cjs commit "docs(roadmap): add gap closure phases {N}-{M}" --files .planning/ROADMAP.md .planning/REQUIREMENTS.md
+node ~/.claude/devflow/bin/df-tools.cjs commit "docs(roadmap): add gap closure objectives {N}-{M}" --files .planning/ROADMAP.md .planning/REQUIREMENTS.md
 ```
 
 ## 10. Offer Next Steps
 
 ```markdown
-## ✓ Gap Closure Phases Created
+## ✓ Gap Closure Objectives Created
 
-**Phases added:** {N} - {M}
+**Objectives added:** {N} - {M}
 **Gaps addressed:** {count} requirements, {count} integration, {count} flows
 
 ---
 
 ## ▶ Next Up
 
-**Plan first gap closure phase**
+**Plan first gap closure objective**
 
-`/df:plan-phase {N}`
+`/df:plan-objective {N}`
 
 <sub>`/clear` first → fresh context window</sub>
 
 ---
 
 **Also available:**
-- `/df:execute-phase {N}` — if plans already exist
+- `/df:execute-objective {N}` — if plans already exist
 - `cat .planning/ROADMAP.md` — see updated roadmap
 
 ---
 
-**After all gap phases complete:**
+**After all gap objectives complete:**
 
 `/df:audit-milestone` — re-audit to verify gaps closed
 `/df:complete-milestone {version}` — archive when audit passes
@@ -201,7 +201,7 @@ gap:
 
 becomes:
 
-phase: "Wire Dashboard Data"
+objective: "Wire Dashboard Data"
 tasks:
   - name: "Add data fetching"
     files: [src/components/Dashboard.tsx]
@@ -229,7 +229,7 @@ gap:
 
 becomes:
 
-phase: "Add Auth to Dashboard API Calls"
+objective: "Add Auth to Dashboard API Calls"
 tasks:
   - name: "Add auth header to fetches"
     files: [src/components/Dashboard.tsx, src/lib/api.ts]
@@ -253,7 +253,7 @@ gap:
 
 becomes:
 
-# Usually same phase as requirement/integration gap
+# Usually same objective as requirement/integration gap
 # Flow gaps often overlap with other gap types
 ```
 
@@ -262,13 +262,13 @@ becomes:
 <success_criteria>
 - [ ] MILESTONE-AUDIT.md loaded and gaps parsed
 - [ ] Gaps prioritized (must/should/nice)
-- [ ] Gaps grouped into logical phases
-- [ ] User confirmed phase plan
-- [ ] ROADMAP.md updated with new phases
-- [ ] REQUIREMENTS.md traceability table updated with gap closure phase assignments
+- [ ] Gaps grouped into logical objectives
+- [ ] User confirmed objective plan
+- [ ] ROADMAP.md updated with new objectives
+- [ ] REQUIREMENTS.md traceability table updated with gap closure objective assignments
 - [ ] Unsatisfied requirement checkboxes reset (`[x]` → `[ ]`)
 - [ ] Coverage count updated in REQUIREMENTS.md
-- [ ] Phase directories created
+- [ ] Objective directories created
 - [ ] Changes committed (includes REQUIREMENTS.md)
-- [ ] User knows to run `/df:plan-phase` next
+- [ ] User knows to run `/df:plan-objective` next
 </success_criteria>

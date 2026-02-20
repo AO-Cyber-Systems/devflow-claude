@@ -1,14 +1,14 @@
 ---
 name: df:cleanup
 description: |
-  Archive accumulated phase directories from completed milestones.
+  Archive accumulated objective directories from completed milestones.
   Destructive operation — archives directories. Use only when explicitly requested.
 disable-model-invocation: true
 ---
 <objective>
-Archive phase directories from completed milestones into `.planning/milestones/v{X.Y}-phases/`.
+Archive objective directories from completed milestones into `.planning/milestones/v{X.Y}-objectives/`.
 
-Use when `.planning/phases/` has accumulated directories from past milestones.
+Use when `.planning/objectives/` has accumulated directories from past milestones.
 </objective>
 
 <execution_context>

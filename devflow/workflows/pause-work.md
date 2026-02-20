@@ -9,22 +9,22 @@ Read all files referenced by the invoking prompt's execution_context before star
 <process>
 
 <step name="detect">
-Find current phase directory from most recently modified files:
+Find current objective directory from most recently modified files:
 
 ```bash
-# Find most recent phase directory with work
-ls -lt .planning/phases/*/PLAN.md 2>/dev/null | head -1 | grep -oP 'phases/\K[^/]+'
+# Find most recent objective directory with work
+ls -lt .planning/objectives/*/JOB.md 2>/dev/null | head -1 | grep -oP 'objectives/\K[^/]+'
 ```
 
-If no active phase detected, ask user which phase they're pausing work on.
+If no active objective detected, ask user which objective they're pausing work on.
 </step>
 
 <step name="gather">
 **Collect complete state for handoff:**
 
-1. **Current position**: Which phase, which plan, which task
+1. **Current position**: Which objective, which plan, which task
 2. **Work completed**: What got done this session
-3. **Work remaining**: What's left in current plan/phase
+3. **Work remaining**: What's left in current job/objective
 4. **Decisions made**: Key decisions and rationale
 5. **Blockers/issues**: Anything stuck
 6. **Mental context**: The approach, next steps, "vibe"
@@ -34,11 +34,11 @@ Ask user for clarifications if needed via conversational questions.
 </step>
 
 <step name="write">
-**Write handoff to `.planning/phases/XX-name/.continue-here.md`:**
+**Write handoff to `.planning/objectives/XX-name/.continue-here.md`:**
 
 ```markdown
 ---
-phase: XX-name
+objective: XX-name
 task: 3
 total_tasks: 7
 status: in_progress
@@ -74,7 +74,7 @@ last_updated: [timestamp from current-timestamp]
 </blockers>
 
 <context>
-[Mental state, what were you thinking, the plan]
+[Mental state, what were you thinking, the job]
 </context>
 
 <next_action>
@@ -92,17 +92,17 @@ timestamp=$(node ~/.claude/devflow/bin/df-tools.cjs current-timestamp full --raw
 
 <step name="commit">
 ```bash
-node ~/.claude/devflow/bin/df-tools.cjs commit "wip: [phase-name] paused at task [X]/[Y]" --files .planning/phases/*/.continue-here.md
+node ~/.claude/devflow/bin/df-tools.cjs commit "wip: [phase-name] paused at task [X]/[Y]" --files .planning/objectives/*/.continue-here.md
 ```
 </step>
 
 <step name="confirm">
 ```
-✓ Handoff created: .planning/phases/[XX-name]/.continue-here.md
+✓ Handoff created: .planning/objectives/[XX-name]/.continue-here.md
 
 Current state:
 
-- Phase: [XX-name]
+- Objective: [XX-name]
 - Task: [X] of [Y]
 - Status: [in_progress/blocked]
 - Committed as WIP
@@ -115,7 +115,7 @@ To resume: /df:resume-work
 </process>
 
 <success_criteria>
-- [ ] .continue-here.md created in correct phase directory
+- [ ] .continue-here.md created in correct objective directory
 - [ ] All sections filled with specific content
 - [ ] Committed as WIP
 - [ ] User knows location and how to resume

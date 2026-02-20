@@ -17,10 +17,10 @@ Use for major workflow transitions.
 - `RESEARCHING`
 - `DEFINING REQUIREMENTS`
 - `CREATING ROADMAP`
-- `PLANNING PHASE {N}`
+- `PLANNING OBJECTIVE {N}`
 - `EXECUTING WAVE {N}`
 - `VERIFYING`
-- `PHASE {N} COMPLETE ✓`
+- `OBJECTIVE {N} COMPLETE ✓`
 - `MILESTONE COMPLETE 🎉`
 
 ---
@@ -64,7 +64,7 @@ User action required. 62-character width.
 
 ## Progress Display
 
-**Phase/milestone level:**
+**Objective/milestone level:**
 ```
 Progress: ████████░░ 80%
 ```
@@ -76,7 +76,7 @@ Tasks: 2/4 complete
 
 **Plan level:**
 ```
-Plans: 3/5 complete
+Jobs: 3/5 complete
 ```
 
 ---
@@ -140,7 +140,7 @@ Always at end of major completions.
 ## Tables
 
 ```
-| Phase | Status | Plans | Progress |
+| Objective | Status | Plans | Progress |
 |-------|--------|-------|----------|
 | 1     | ✓      | 3/3   | 100%     |
 | 2     | ◆      | 1/4   | 25%      |

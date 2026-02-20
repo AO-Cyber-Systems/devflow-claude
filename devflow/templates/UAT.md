@@ -1,6 +1,6 @@
 # UAT Template
 
-Template for `.planning/phases/XX-name/{phase_num}-UAT.md` — persistent UAT session tracking.
+Template for `.planning/objectives/XX-name/{phase_num}-UAT.md` — persistent UAT session tracking.
 
 ---
 
@@ -9,7 +9,7 @@ Template for `.planning/phases/XX-name/{phase_num}-UAT.md` — persistent UAT se
 ```markdown
 ---
 status: testing | complete | diagnosed
-phase: XX-name
+objective: XX-name
 source: [list of SUMMARY.md files tested]
 started: [ISO timestamp]
 updated: [ISO timestamp]
@@ -57,7 +57,7 @@ skipped: [N]
 
 ## Gaps
 
-<!-- YAML format for plan-phase --gaps consumption -->
+<!-- YAML format for plan-objective --gaps consumption -->
 - truth: "[expected behavior from test]"
   status: failed
   reason: "User reported: [verbatim response]"
@@ -75,7 +75,7 @@ skipped: [N]
 
 **Frontmatter:**
 - `status`: OVERWRITE - "testing" or "complete"
-- `phase`: IMMUTABLE - set on creation
+- `objective`: IMMUTABLE - set on creation
 - `source`: IMMUTABLE - SUMMARY files being tested
 - `started`: IMMUTABLE - set on creation
 - `updated`: OVERWRITE - update on every change
@@ -98,7 +98,7 @@ skipped: [N]
 **Gaps:**
 - APPEND only when issue found (YAML format)
 - After diagnosis: fill `root_cause`, `artifacts`, `missing`, `debug_session`
-- This section feeds directly into /df:plan-phase --gaps
+- This section feeds directly into /df:plan-objective --gaps
 
 </section_rules>
 
@@ -112,7 +112,7 @@ skipped: [N]
 4. UAT.md Gaps section updated with diagnosis:
    - Each gap gets `root_cause`, `artifacts`, `missing`, `debug_session` filled
 5. status → "diagnosed"
-6. Ready for /df:plan-phase --gaps with root causes
+6. Ready for /df:plan-objective --gaps with root causes
 
 **After diagnosis:**
 ```yaml
@@ -157,7 +157,7 @@ skipped: [N]
 - Present summary with next steps
 
 **Resume after /clear:**
-1. Read frontmatter → know phase and status
+1. Read frontmatter → know objective and status
 2. Read Current Test → know where we are
 3. Find first [pending] result → continue from there
 4. Summary shows progress so far
@@ -183,7 +183,7 @@ Default: **major** (safe default, user can clarify if wrong)
 ```markdown
 ---
 status: diagnosed
-phase: 04-comments
+objective: 04-comments
 source: 04-01-SUMMARY.md, 04-02-SUMMARY.md
 started: 2025-01-15T10:30:00Z
 updated: 2025-01-15T10:45:00Z

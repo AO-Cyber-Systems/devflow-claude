@@ -1,13 +1,13 @@
-# Phase Context Template
+# Objective Context Template
 
-Template for `.planning/phases/XX-name/{phase_num}-CONTEXT.md` - captures implementation decisions for a phase.
+Template for `.planning/objectives/XX-name/{phase_num}-CONTEXT.md` - captures implementation decisions for an objective.
 
 **Purpose:** Document decisions that downstream agents need. Researcher uses this to know WHAT to investigate. Planner uses this to know WHAT choices are locked vs flexible.
 
-**Key principle:** Categories are NOT predefined. They emerge from what was actually discussed for THIS phase. A CLI phase has CLI-relevant sections, a UI phase has UI-relevant sections.
+**Key principle:** Categories are NOT predefined. They emerge from what was actually discussed for THIS objective. A CLI objective has CLI-relevant sections, a UI objective has UI-relevant sections.
 
 **Downstream consumers:**
-- `df-phase-researcher` — Reads decisions to focus research (e.g., "card layout" → research card component patterns)
+- `df-objective-researcher` — Reads decisions to focus research (e.g., "card layout" → research card component patterns)
 - `df-planner` — Reads decisions to create specific tasks (e.g., "infinite scroll" → task includes virtualization)
 
 ---
@@ -15,15 +15,15 @@ Template for `.planning/phases/XX-name/{phase_num}-CONTEXT.md` - captures implem
 ## File Template
 
 ```markdown
-# Phase [X]: [Name] - Context
+# Objective [X]: [Name] - Context
 
 **Gathered:** [date]
 **Status:** Ready for planning
 
 <domain>
-## Phase Boundary
+## Objective Boundary
 
-[Clear statement of what this phase delivers — the scope anchor. This comes from ROADMAP.md and is fixed. Discussion clarifies implementation within this boundary.]
+[Clear statement of what this objective delivers — the scope anchor. This comes from ROADMAP.md and is fixed. Discussion clarifies implementation within this boundary.]
 
 </domain>
 
@@ -57,15 +57,15 @@ Template for `.planning/phases/XX-name/{phase_num}-CONTEXT.md` - captures implem
 <deferred>
 ## Deferred Ideas
 
-[Ideas that came up during discussion but belong in other phases. Captured here so they're not lost, but explicitly out of scope for this phase.]
+[Ideas that came up during discussion but belong in other objectives. Captured here so they're not lost, but explicitly out of scope for this objective.]
 
-[If none: "None — discussion stayed within phase scope"]
+[If none: "None — discussion stayed within objective scope"]
 
 </deferred>
 
 ---
 
-*Phase: XX-name*
+*Objective: XX-name*
 *Context gathered: [date]*
 ```
 
@@ -74,15 +74,15 @@ Template for `.planning/phases/XX-name/{phase_num}-CONTEXT.md` - captures implem
 **Example 1: Visual feature (Post Feed)**
 
 ```markdown
-# Phase 3: Post Feed - Context
+# Objective 3: Post Feed - Context
 
 **Gathered:** 2025-01-20
 **Status:** Ready for planning
 
 <domain>
-## Phase Boundary
+## Objective Boundary
 
-Display posts from followed users in a scrollable feed. Users can view posts and see engagement counts. Creating posts and interactions are separate phases.
+Display posts from followed users in a scrollable feed. Users can view posts and see engagement counts. Creating posts and interactions are separate objectives.
 
 </domain>
 
@@ -121,29 +121,29 @@ Display posts from followed users in a scrollable feed. Users can view posts and
 <deferred>
 ## Deferred Ideas
 
-- Commenting on posts — Phase 5
+- Commenting on posts — Objective 5
 - Bookmarking posts — add to backlog
 
 </deferred>
 
 ---
 
-*Phase: 03-post-feed*
+*Objective: 03-post-feed*
 *Context gathered: 2025-01-20*
 ```
 
 **Example 2: CLI tool (Database backup)**
 
 ```markdown
-# Phase 2: Backup Command - Context
+# Objective 2: Backup Command - Context
 
 **Gathered:** 2025-01-20
 **Status:** Ready for planning
 
 <domain>
-## Phase Boundary
+## Objective Boundary
 
-CLI command to backup database to local file or S3. Supports full and incremental backups. Restore command is a separate phase.
+CLI command to backup database to local file or S3. Supports full and incremental backups. Restore command is a separate objective.
 
 </domain>
 
@@ -183,29 +183,29 @@ CLI command to backup database to local file or S3. Supports full and incrementa
 <deferred>
 ## Deferred Ideas
 
-- Scheduled backups — separate phase
+- Scheduled backups — separate objective
 - Backup rotation/retention — add to backlog
 
 </deferred>
 
 ---
 
-*Phase: 02-backup-command*
+*Objective: 02-backup-command*
 *Context gathered: 2025-01-20*
 ```
 
 **Example 3: Organization task (Photo library)**
 
 ```markdown
-# Phase 1: Photo Organization - Context
+# Objective 1: Photo Organization - Context
 
 **Gathered:** 2025-01-20
 **Status:** Ready for planning
 
 <domain>
-## Phase Boundary
+## Objective Boundary
 
-Organize existing photo library into structured folders. Handle duplicates and apply consistent naming. Tagging and search are separate phases.
+Organize existing photo library into structured folders. Handle duplicates and apply consistent naming. Tagging and search are separate objectives.
 
 </domain>
 
@@ -245,14 +245,14 @@ Organize existing photo library into structured folders. Handle duplicates and a
 <deferred>
 ## Deferred Ideas
 
-- Face detection grouping — future phase
+- Face detection grouping — future objective
 - Cloud sync — out of scope for now
 
 </deferred>
 
 ---
 
-*Phase: 01-photo-organization*
+*Objective: 01-photo-organization*
 *Context gathered: 2025-01-20*
 ```
 
@@ -261,7 +261,7 @@ Organize existing photo library into structured folders. Handle duplicates and a
 <guidelines>
 **This template captures DECISIONS for downstream agents.**
 
-The output should answer: "What does the researcher need to investigate? What choices are locked for the planner?"
+The output should answer: "What does the researcher need to investigate? What choices are locked for the jobner?"
 
 **Good content (concrete decisions):**
 - "Card-based layout, not timeline"
@@ -276,8 +276,8 @@ The output should answer: "What does the researcher need to investigate? What ch
 - "Easy to use"
 
 **After creation:**
-- File lives in phase directory: `.planning/phases/XX-name/{phase_num}-CONTEXT.md`
-- `df-phase-researcher` uses decisions to focus investigation
+- File lives in objective directory: `.planning/objectives/XX-name/{phase_num}-CONTEXT.md`
+- `df-objective-researcher` uses decisions to focus investigation
 - `df-planner` uses decisions + research to create executable tasks
 - Downstream agents should NOT need to ask the user again about captured decisions
 </guidelines>

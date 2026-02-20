@@ -16,7 +16,7 @@ allowed-tools:
   - AskUserQuestion
 ---
 <objective>
-Manage parallel feature development using git worktrees. Independent phases execute simultaneously in separate worktrees, each with their own Claude session.
+Manage parallel feature development using git worktrees. Independent objectives execute simultaneously in separate worktrees, each with their own Claude session.
 
 Routes by first argument:
 - `setup` — Analyze deps, create worktrees, provision .planning/
@@ -51,7 +51,7 @@ Follow @~/.claude/devflow/workflows/workstreams-merge.md
 **If no argument or unrecognized:**
 Display usage:
 ```
-/df:workstreams setup   — Create parallel worktrees for independent phases
+/df:workstreams setup   — Create parallel worktrees for independent objectives
 /df:workstreams status  — Check progress across active workstreams
 /df:workstreams merge   — Merge completed workstreams back to main
 ```

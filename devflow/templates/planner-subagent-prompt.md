@@ -9,7 +9,7 @@ Template for spawning df-planner agent. The agent contains all planning expertis
 ```markdown
 <planning_context>
 
-**Phase:** {phase_number}
+**Objective:** {phase_number}
 **Mode:** {standard | gap_closure}
 
 **Project State:**
@@ -21,20 +21,20 @@ Template for spawning df-planner agent. The agent contains all planning expertis
 **Requirements (if exists):**
 @.planning/REQUIREMENTS.md
 
-**Phase Context (if exists):**
-@.planning/phases/{phase_dir}/{phase_num}-CONTEXT.md
+**Objective Context (if exists):**
+@.planning/objectives/{phase_dir}/{phase_num}-CONTEXT.md
 
 **Research (if exists):**
-@.planning/phases/{phase_dir}/{phase_num}-RESEARCH.md
+@.planning/objectives/{phase_dir}/{phase_num}-RESEARCH.md
 
 **Gap Closure (if --gaps mode):**
-@.planning/phases/{phase_dir}/{phase_num}-VERIFICATION.md
-@.planning/phases/{phase_dir}/{phase_num}-UAT.md
+@.planning/objectives/{phase_dir}/{phase_num}-VERIFICATION.md
+@.planning/objectives/{phase_dir}/{phase_num}-UAT.md
 
 </planning_context>
 
 <downstream_consumer>
-Output consumed by /df:execute-phase
+Output consumed by /df:execute-objective
 Plans must be executable prompts with:
 - Frontmatter (wave, depends_on, files_modified, autonomous)
 - Tasks in XML format
@@ -44,12 +44,12 @@ Plans must be executable prompts with:
 
 <quality_gate>
 Before returning PLANNING COMPLETE:
-- [ ] PLAN.md files created in phase directory
-- [ ] Each plan has valid frontmatter
+- [ ] JOB.md files created in objective directory
+- [ ] Each job has valid frontmatter
 - [ ] Tasks are specific and actionable
 - [ ] Dependencies correctly identified
 - [ ] Waves assigned for parallel execution
-- [ ] must_haves derived from phase goal
+- [ ] must_haves derived from objective goal
 </quality_gate>
 ```
 
@@ -60,29 +60,29 @@ Before returning PLANNING COMPLETE:
 | Placeholder | Source | Example |
 |-------------|--------|---------|
 | `{phase_number}` | From roadmap/arguments | `5` or `2.1` |
-| `{phase_dir}` | Phase directory name | `05-user-profiles` |
-| `{phase}` | Phase prefix | `05` |
+| `{phase_dir}` | Objective directory name | `05-user-profiles` |
+| `{objective}` | Objective prefix | `05` |
 | `{standard \| gap_closure}` | Mode flag | `standard` |
 
 ---
 
 ## Usage
 
-**From /df:plan-phase (standard mode):**
+**From /df:plan-objective (standard mode):**
 ```python
 Task(
   prompt=filled_template,
   subagent_type="df-planner",
-  description="Plan Phase {phase}"
+  description="Plan Objective {objective}"
 )
 ```
 
-**From /df:plan-phase --gaps (gap closure mode):**
+**From /df:plan-objective --gaps (gap closure mode):**
 ```python
 Task(
   prompt=filled_template,  # with mode: gap_closure
   subagent_type="df-planner",
-  description="Plan gaps for Phase {phase}"
+  description="Plan gaps for Objective {objective}"
 )
 ```
 
@@ -94,12 +94,12 @@ For checkpoints, spawn fresh agent with:
 
 ```markdown
 <objective>
-Continue planning for Phase {phase_number}: {phase_name}
+Continue planning for Objective {phase_number}: {phase_name}
 </objective>
 
 <prior_state>
-Phase directory: @.planning/phases/{phase_dir}/
-Existing plans: @.planning/phases/{phase_dir}/*-PLAN.md
+Objective directory: @.planning/objectives/{phase_dir}/
+Existing jobs: @.planning/objectives/{phase_dir}/*-JOB.md
 </prior_state>
 
 <checkpoint_response>

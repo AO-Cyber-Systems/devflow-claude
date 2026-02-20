@@ -27,7 +27,7 @@ When a milestone completes:
 
 **Context Efficiency:** Archives keep ROADMAP.md constant-size and REQUIREMENTS.md milestone-scoped.
 
-**ROADMAP archive** uses `templates/milestone-archive.md` — includes milestone header (status, phases, date), full phase details, milestone summary (decisions, issues, tech debt).
+**ROADMAP archive** uses `templates/milestone-archive.md` — includes milestone header (status, objectives, date), full objective details, milestone summary (decisions, issues, tech debt).
 
 **REQUIREMENTS archive** contains all requirements marked complete with outcomes, traceability table with final status, notes on changed requirements.
 
@@ -43,9 +43,9 @@ When a milestone completes:
 ROADMAP=$(node ~/.claude/devflow/bin/df-tools.cjs roadmap analyze)
 ```
 
-This returns all phases with plan/summary counts and disk status. Use this to verify:
-- Which phases belong to this milestone?
-- All phases complete (all plans have summaries)? Check `disk_status === 'complete'` for each.
+This returns all objectives with job/summary counts and disk status. Use this to verify:
+- Which objectives belong to this milestone?
+- All objectives complete (all jobs have summaries)? Check `disk_status === 'complete'` for each.
 - `progress_percent` should be 100%.
 
 **Requirements completion check (REQUIRED before presenting):**
@@ -60,12 +60,12 @@ Present:
 Milestone: [Name, e.g., "v1.0 MVP"]
 
 Includes:
-- Phase 1: Foundation (2/2 plans complete)
-- Phase 2: Authentication (2/2 plans complete)
-- Phase 3: Core Features (3/3 plans complete)
-- Phase 4: Polish (1/1 plan complete)
+- Objective 1: Foundation (2/2 jobs complete)
+- Objective 2: Authentication (2/2 jobs complete)
+- Objective 3: Core Features (3/3 jobs complete)
+- Objective 4: Polish (1/1 job complete)
 
-Total: {phase_count} phases, {total_plans} plans, all complete
+Total: {phase_count} objectives, {total_plans} plans, all complete
 Requirements: {N}/{M} v1 requirements checked off
 ```
 
@@ -74,8 +74,8 @@ Requirements: {N}/{M} v1 requirements checked off
 ```
 ⚠ Unchecked Requirements:
 
-- [ ] {REQ-ID}: {description} (Phase {X})
-- [ ] {REQ-ID}: {description} (Phase {Y})
+- [ ] {REQ-ID}: {description} (Objective {X})
+- [ ] {REQ-ID}: {description} (Objective {Y})
 ```
 
 MUST present 3 options:
@@ -113,7 +113,7 @@ Ready to mark this milestone as shipped?
 ```
 
 Wait for confirmation.
-- "adjust scope": Ask which phases to include.
+- "adjust scope": Ask which objectives to include.
 - "wait": Stop, user returns when ready.
 
 </if>
@@ -136,9 +136,9 @@ Present:
 
 ```
 Milestone Stats:
-- Phases: [X-Y]
+- Objectives: [X-Y]
 - Plans: [Z] total
-- Tasks: [N] total (from phase summaries)
+- Tasks: [N] total (from objective summaries)
 - Files modified: [M]
 - Lines of code: [LOC] [language]
 - Timeline: [Days] days ([Start] → [End])
@@ -152,8 +152,8 @@ Milestone Stats:
 Extract one-liners from SUMMARY.md files using summary-extract:
 
 ```bash
-# For each phase in milestone, extract one-liner
-for summary in .planning/phases/*-*/*-SUMMARY.md; do
+# For each objective in milestone, extract one-liner
+for summary in .planning/objectives/*-*/*-SUMMARY.md; do
   node ~/.claude/devflow/bin/df-tools.cjs summary-extract "$summary" --fields one_liner | jq -r '.one_liner'
 done
 ```
@@ -162,18 +162,18 @@ Extract 4-6 key accomplishments. Present:
 
 ```
 Key accomplishments for this milestone:
-1. [Achievement from phase 1]
-2. [Achievement from phase 2]
-3. [Achievement from phase 3]
-4. [Achievement from phase 4]
-5. [Achievement from phase 5]
+1. [Achievement from objective 1]
+2. [Achievement from objective 2]
+3. [Achievement from objective 3]
+4. [Achievement from objective 4]
+5. [Achievement from objective 5]
 ```
 
 </step>
 
 <step name="create_milestone_entry">
 
-**Note:** MILESTONES.md entry is now created automatically by `df-tools milestone complete` in the archive_milestone step. The entry includes version, date, phase/plan/task counts, and accomplishments extracted from SUMMARY.md files.
+**Note:** MILESTONES.md entry is now created automatically by `df-tools milestone complete` in the archive_milestone step. The entry includes version, date, objective/job/task counts, and accomplishments extracted from SUMMARY.md files.
 
 If additional details are needed (e.g., user-provided "Delivered" summary, git range, LOC stats), add them manually after the CLI creates the base entry.
 
@@ -183,10 +183,10 @@ If additional details are needed (e.g., user-provided "Delivered" summary, git r
 
 Full PROJECT.md evolution review at milestone completion.
 
-Read all phase summaries:
+Read all objective summaries:
 
 ```bash
-cat .planning/phases/*-*/*-SUMMARY.md
+cat .planning/objectives/*-*/*-SUMMARY.md
 ```
 
 **Full review checklist:**
@@ -221,7 +221,7 @@ cat .planning/phases/*-*/*-SUMMARY.md
    - Known issues or technical debt
 
 5. **Key Decisions audit:**
-   - Extract all decisions from milestone phase summaries
+   - Extract all decisions from milestone objective summaries
    - Add to Key Decisions table with outcomes
    - Mark ✓ Good, ⚠️ Revisit, or — Pending
 
@@ -320,37 +320,37 @@ Initial user testing showed demand for shape tools.
 
 <step name="reorganize_roadmap">
 
-Update `.planning/ROADMAP.md` — group completed milestone phases:
+Update `.planning/ROADMAP.md` — group completed milestone objectives:
 
 ```markdown
 # Roadmap: [Project Name]
 
 ## Milestones
 
-- ✅ **v1.0 MVP** — Phases 1-4 (shipped YYYY-MM-DD)
-- 🚧 **v1.1 Security** — Phases 5-6 (in progress)
-- 📋 **v2.0 Redesign** — Phases 7-10 (planned)
+- ✅ **v1.0 MVP** — Objectives 1-4 (shipped YYYY-MM-DD)
+- 🚧 **v1.1 Security** — Objectives 5-6 (in progress)
+- 📋 **v2.0 Redesign** — Objectives 7-10 (planned)
 
-## Phases
+## Objectives
 
 <details>
-<summary>✅ v1.0 MVP (Phases 1-4) — SHIPPED YYYY-MM-DD</summary>
+<summary>✅ v1.0 MVP (Objectives 1-4) — SHIPPED YYYY-MM-DD</summary>
 
-- [x] Phase 1: Foundation (2/2 plans) — completed YYYY-MM-DD
-- [x] Phase 2: Authentication (2/2 plans) — completed YYYY-MM-DD
-- [x] Phase 3: Core Features (3/3 plans) — completed YYYY-MM-DD
-- [x] Phase 4: Polish (1/1 plan) — completed YYYY-MM-DD
+- [x] Objective 1: Foundation (2/2 jobs) — completed YYYY-MM-DD
+- [x] Objective 2: Authentication (2/2 jobs) — completed YYYY-MM-DD
+- [x] Objective 3: Core Features (3/3 jobs) — completed YYYY-MM-DD
+- [x] Objective 4: Polish (1/1 job) — completed YYYY-MM-DD
 
 </details>
 
 ### 🚧 v[Next] [Name] (In Progress / Planned)
 
-- [ ] Phase 5: [Name] ([N] plans)
-- [ ] Phase 6: [Name] ([N] plans)
+- [ ] Objective 5: [Name] ([N] plans)
+- [ ] Objective 6: [Name] ([N] plans)
 
 ## Progress
 
-| Phase             | Milestone | Plans Complete | Status      | Completed  |
+| Objective             | Milestone | Jobs Complete | Status      | Completed  |
 | ----------------- | --------- | -------------- | ----------- | ---------- |
 | 1. Foundation     | v1.0      | 2/2            | Complete    | YYYY-MM-DD |
 | 2. Authentication | v1.0      | 2/2            | Complete    | YYYY-MM-DD |
@@ -378,23 +378,23 @@ The CLI handles:
 - Creating/appending MILESTONES.md entry with accomplishments from SUMMARY.md files
 - Updating STATE.md (status, last activity)
 
-Extract from result: `version`, `date`, `phases`, `plans`, `tasks`, `accomplishments`, `archived`.
+Extract from result: `version`, `date`, `objectives`, `plans`, `tasks`, `accomplishments`, `archived`.
 
 Verify: `✅ Milestone archived to .planning/milestones/`
 
-**Phase archival (optional):** After archival completes, ask the user:
+**Objective archival (optional):** After archival completes, ask the user:
 
-AskUserQuestion(header="Archive Phases", question="Archive phase directories to milestones/?", options: "Yes — move to milestones/v[X.Y]-phases/" | "Skip — keep phases in place")
+AskUserQuestion(header="Archive Objectives", question="Archive objective directories to milestones/?", options: "Yes — move to milestones/v[X.Y]-objectives/" | "Skip — keep objectives in place")
 
-If "Yes": move phase directories to the milestone archive:
+If "Yes": move objective directories to the milestone archive:
 ```bash
-mkdir -p .planning/milestones/v[X.Y]-phases
-# For each phase directory in .planning/phases/:
-mv .planning/phases/{phase-dir} .planning/milestones/v[X.Y]-phases/
+mkdir -p .planning/milestones/v[X.Y]-objectives
+# For each objective directory in .planning/objectives/:
+mv .planning/objectives/{objective-dir} .planning/milestones/v[X.Y]-objectives/
 ```
-Verify: `✅ Phase directories archived to .planning/milestones/v[X.Y]-phases/`
+Verify: `✅ Objective directories archived to .planning/milestones/v[X.Y]-objectives/`
 
-If "Skip": Phase directories remain in `.planning/phases/` as raw execution history. Use `/df:cleanup` later to archive retroactively.
+If "Skip": Objective directories remain in `.planning/objectives/` as raw execution history. Use `/df:cleanup` later to archive retroactively.
 
 After archival, the AI still handles:
 - Reorganizing ROADMAP.md with milestone grouping (requires judgment)
@@ -408,23 +408,23 @@ After archival, the AI still handles:
 
 After `milestone complete` has archived, reorganize ROADMAP.md with milestone groupings, then delete originals:
 
-**Reorganize ROADMAP.md** — group completed milestone phases:
+**Reorganize ROADMAP.md** — group completed milestone objectives:
 
 ```markdown
 # Roadmap: [Project Name]
 
 ## Milestones
 
-- ✅ **v1.0 MVP** — Phases 1-4 (shipped YYYY-MM-DD)
-- 🚧 **v1.1 Security** — Phases 5-6 (in progress)
+- ✅ **v1.0 MVP** — Objectives 1-4 (shipped YYYY-MM-DD)
+- 🚧 **v1.1 Security** — Objectives 5-6 (in progress)
 
-## Phases
+## Objectives
 
 <details>
-<summary>✅ v1.0 MVP (Phases 1-4) — SHIPPED YYYY-MM-DD</summary>
+<summary>✅ v1.0 MVP (Objectives 1-4) — SHIPPED YYYY-MM-DD</summary>
 
-- [x] Phase 1: Foundation (2/2 plans) — completed YYYY-MM-DD
-- [x] Phase 2: Authentication (2/2 plans) — completed YYYY-MM-DD
+- [x] Objective 1: Foundation (2/2 jobs) — completed YYYY-MM-DD
+- [x] Objective 2: Authentication (2/2 jobs) — completed YYYY-MM-DD
 
 </details>
 ```
@@ -467,14 +467,14 @@ Check branching strategy and offer merge options.
 Use `init milestone-op` for context, or load config directly:
 
 ```bash
-INIT=$(node ~/.claude/devflow/bin/df-tools.cjs init execute-phase "1")
+INIT=$(node ~/.claude/devflow/bin/df-tools.cjs init execute-objective "1")
 ```
 
-Extract `branching_strategy`, `phase_branch_template`, `milestone_branch_template`, and `commit_docs` from init JSON.
+Extract `branching_strategy`, `objective_branch_template`, `milestone_branch_template`, and `commit_docs` from init JSON.
 
 **If "none":** Skip to git_tag.
 
-**For "phase" strategy:**
+**For "objective" strategy:**
 
 ```bash
 BRANCH_PREFIX=$(echo "$PHASE_BRANCH_TEMPLATE" | sed 's/{.*//')
@@ -495,7 +495,7 @@ MILESTONE_BRANCH=$(git branch --list "${BRANCH_PREFIX}*" 2>/dev/null | sed 's/^\
 ```
 ## Git Branches Detected
 
-Branching strategy: {phase/milestone}
+Branching strategy: {objective/milestone}
 Branches: {list}
 
 Options:
@@ -512,7 +512,7 @@ AskUserQuestion with options: Squash merge (Recommended), Merge with history, De
 CURRENT_BRANCH=$(git branch --show-current)
 git checkout main
 
-if [ "$BRANCHING_STRATEGY" = "phase" ]; then
+if [ "$BRANCHING_STRATEGY" = "objective" ]; then
   for branch in $PHASE_BRANCHES; do
     git merge --squash "$branch"
     # Strip .planning/ from staging if commit_docs is false
@@ -541,7 +541,7 @@ git checkout "$CURRENT_BRANCH"
 CURRENT_BRANCH=$(git branch --show-current)
 git checkout main
 
-if [ "$BRANCHING_STRATEGY" = "phase" ]; then
+if [ "$BRANCHING_STRATEGY" = "objective" ]; then
   for branch in $PHASE_BRANCHES; do
     git merge --no-ff --no-commit "$branch"
     # Strip .planning/ from staging if commit_docs is false
@@ -567,7 +567,7 @@ git checkout "$CURRENT_BRANCH"
 **Delete without merging:**
 
 ```bash
-if [ "$BRANCHING_STRATEGY" = "phase" ]; then
+if [ "$BRANCHING_STRATEGY" = "objective" ]; then
   for branch in $PHASE_BRANCHES; do
     git branch -d "$branch" 2>/dev/null || git branch -D "$branch"
   done
@@ -629,7 +629,7 @@ Confirm: "Committed: chore: complete v[X.Y] milestone"
 ✅ Milestone v[X.Y] [Name] complete
 
 Shipped:
-- [N] phases ([M] plans, [P] tasks)
+- [N] objectives ([M] plans, [P] tasks)
 - [One sentence of what shipped]
 
 Archived:
@@ -671,7 +671,7 @@ Tag: v[X.Y]
 
 **Create milestones for:** Initial release, public releases, major feature sets shipped, before archiving planning.
 
-**Don't create milestones for:** Every phase completion (too granular), work in progress, internal dev iterations (unless truly shipped).
+**Don't create milestones for:** Every objective completion (too granular), work in progress, internal dev iterations (unless truly shipped).
 
 Heuristic: "Is this deployed/usable/shipped?" If yes → milestone. If no → keep working.
 

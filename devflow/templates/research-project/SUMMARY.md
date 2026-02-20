@@ -65,27 +65,27 @@ Template for `.planning/research/SUMMARY.md` — executive summary of project re
 
 ## Implications for Roadmap
 
-Based on research, suggested phase structure:
+Based on research, suggested objective structure:
 
-### Phase 1: [Name]
+### Objective 1: [Name]
 **Rationale:** [why this comes first based on research]
-**Delivers:** [what this phase produces]
+**Delivers:** [what this objective produces]
 **Addresses:** [features from FEATURES.md]
 **Avoids:** [pitfall from PITFALLS.md]
 
-### Phase 2: [Name]
+### Objective 2: [Name]
 **Rationale:** [why this order]
-**Delivers:** [what this phase produces]
+**Delivers:** [what this objective produces]
 **Uses:** [stack elements from STACK.md]
 **Implements:** [architecture component]
 
-### Phase 3: [Name]
+### Objective 3: [Name]
 **Rationale:** [why this order]
-**Delivers:** [what this phase produces]
+**Delivers:** [what this objective produces]
 
-[Continue for suggested phases...]
+[Continue for suggested objectives...]
 
-### Phase Ordering Rationale
+### Objective Ordering Rationale
 
 - [Why this order based on dependencies discovered]
 - [Why this grouping based on architecture patterns]
@@ -93,12 +93,12 @@ Based on research, suggested phase structure:
 
 ### Research Flags
 
-Phases likely needing deeper research during planning:
-- **Phase [X]:** [reason — e.g., "complex integration, needs API research"]
-- **Phase [Y]:** [reason — e.g., "niche domain, sparse documentation"]
+Objectives likely needing deeper research during planning:
+- **Objective [X]:** [reason — e.g., "complex integration, needs API research"]
+- **Objective [Y]:** [reason — e.g., "niche domain, sparse documentation"]
 
-Phases with standard patterns (skip research-phase):
-- **Phase [X]:** [reason — e.g., "well-documented, established patterns"]
+Objectives with standard patterns (skip research-objective):
+- **Objective [X]:** [reason — e.g., "well-documented, established patterns"]
 
 ## Confidence Assessment
 
@@ -152,8 +152,8 @@ Phases with standard patterns (skip research-phase):
 **Implications for Roadmap:**
 - This is the most important section
 - Directly informs roadmap creation
-- Be explicit about phase suggestions and rationale
-- Include research flags for each suggested phase
+- Be explicit about objective suggestions and rationale
+- Include research flags for each suggested objective
 
 **Confidence Assessment:**
 - Be honest about uncertainty
@@ -164,7 +164,7 @@ Phases with standard patterns (skip research-phase):
 
 **Integration with roadmap creation:**
 - This file is loaded as context during roadmap creation
-- Phase suggestions here become starting point for roadmap
-- Research flags inform phase planning
+- Objective suggestions here become starting point for roadmap
+- Research flags inform objective planning
 
 </guidelines>

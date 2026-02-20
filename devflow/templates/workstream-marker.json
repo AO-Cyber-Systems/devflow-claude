@@ -1,0 +1,6 @@
+{
+  "id": "ws-{slug}",
+  "name": "{workstream name}",
+  "objectives": ["{phase_number}"],
+  "main_worktree": "../{project}"
+}

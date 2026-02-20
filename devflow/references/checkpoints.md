@@ -549,7 +549,7 @@ timeout 30 bash -c 'until curl -s localhost:3000 > /dev/null 2>&1; do sleep 1; d
 
 **Placement:**
 - **After automation completes** - not before Claude does the work
-- **After UI buildout** - before declaring phase complete
+- **After UI buildout** - before declaring objective complete
 - **Before dependent work** - decisions before implementation
 - **At integration points** - after configuring external services
 
@@ -756,6 +756,60 @@ timeout 30 bash -c 'until curl -s localhost:3000 > /dev/null 2>&1; do sleep 1; d
 **Why bad:** Stripe has an API. Claude should create the webhook via API and write to .env directly.
 
 </anti_patterns>
+
+<resume_vs_fresh_agent>
+
+## Resume vs Fresh Agent Decision
+
+DevFlow uses **fresh agents with explicit file-based state** rather than agent resume. This section documents why, and when resume might be reconsidered.
+
+### Comparison
+
+| Dimension | Fresh Agent + File State | Agent Resume |
+|-----------|--------------------------|--------------|
+| **Parallel safety** | Safe — each agent has isolated context | Unsafe — resume serializes state that may include parallel tool call references |
+| **State transfer** | Explicit — file artifacts are the contract | Implicit — internal context may drift or corrupt |
+| **Context freshness** | Full 200k context per agent | Accumulated context, may be compressed or truncated |
+| **Reliability** | Proven — file state survives crashes, /clear, context limits | Fragile — depends on Claude Code internal serialization |
+| **Debuggability** | High — all state visible in .planning/ files | Low — internal context is opaque |
+| **Cost** | Higher — agent re-reads files each spawn | Lower — resumes from existing context |
+
+### Resume is Safe ONLY When
+
+All of these conditions must be true:
+
+- [ ] Agent did NOT use parallel tool calls during execution
+- [ ] Agent is single-threaded (no concurrent file operations)
+- [ ] Session is long-lived (not crossing /clear boundaries)
+- [ ] State is simple (few files, linear execution path)
+- [ ] No other agents are running concurrently
+- [ ] Agent has not consumed > 50% of context window
+
+### Future Resume Candidates
+
+These patterns may benefit from resume in future evaluations:
+
+- **df-debugger interactive mode** — Single-threaded investigation, linear hypothesis testing, long sessions
+- **Simple executor plans** — Single auto task + checkpoint, minimal file state
+
+### NOT Candidates for Resume
+
+These patterns must always use fresh agents:
+
+- **Parallel wave agents** — Multiple executors running simultaneously, shared file state
+- **Multi-file-tracking agents** — Complex state spread across many artifacts
+- **Continuation after checkpoint** — State includes completed tasks table, commit hashes, and resume point
+- **Any agent spawned by execute-objective** — Wave execution may have parallel siblings
+
+### Decision Protocol
+
+Before considering resume for any agent:
+1. Check if agent used parallel tool calls → if yes, NEVER resume
+2. Check if other agents may be running concurrently → if yes, NEVER resume
+3. Check if state can be fully reconstructed from files → if yes, prefer fresh agent (more reliable)
+4. Only consider resume when file-based state reconstruction would lose significant context AND conditions above are all safe
+
+</resume_vs_fresh_agent>
 
 <summary>
 

@@ -27,7 +27,7 @@ Todos are captured during work sessions with /df:add-todo.
 
 Would you like to:
 
-1. Continue with current phase (/df:progress)
+1. Continue with current objective (/df:progress)
 2. Add a todo now (/df:add-todo)
 ```
 
@@ -93,20 +93,20 @@ If `files` field has entries, read and briefly summarize each.
 Check for roadmap (can use init progress or directly check file existence):
 
 If `.planning/ROADMAP.md` exists:
-1. Check if todo's area matches an upcoming phase
-2. Check if todo's files overlap with a phase's scope
+1. Check if todo's area matches an upcoming objective
+2. Check if todo's files overlap with an objective's scope
 3. Note any match for action options
 </step>
 
 <step name="offer_actions">
-**If todo maps to a roadmap phase:**
+**If todo maps to a roadmap objective:**
 
 Use AskUserQuestion:
 - header: "Action"
-- question: "This todo relates to Phase [N]: [name]. What would you like to do?"
+- question: "This todo relates to Objective [N]: [name]. What would you like to do?"
 - options:
   - "Work on it now" — move to done, start working
-  - "Add to phase plan" — include when planning Phase [N]
+  - "Add to objective plan" — include when planning Objective [N]
   - "Brainstorm approach" — think through before deciding
   - "Put it back" — return to list
 
@@ -117,7 +117,7 @@ Use AskUserQuestion:
 - question: "What would you like to do with this todo?"
 - options:
   - "Work on it now" — move to done, start working
-  - "Create a phase" — /df:add-phase with this scope
+  - "Create an objective" — /df:add-objective with this scope
   - "Brainstorm approach" — think through before deciding
   - "Put it back" — return to list
 </step>
@@ -129,11 +129,11 @@ mv ".planning/todos/pending/[filename]" ".planning/todos/done/"
 ```
 Update STATE.md todo count. Present problem/solution context. Begin work or ask how to proceed.
 
-**Add to phase plan:**
-Note todo reference in phase planning notes. Keep in pending. Return to list or exit.
+**Add to objective plan:**
+Note todo reference in objective planning notes. Keep in pending. Return to list or exit.
 
-**Create a phase:**
-Display: `/df:add-phase [description from todo]`
+**Create an objective:**
+Display: `/df:add-objective [description from todo]`
 Keep in pending. User runs command in fresh context.
 
 **Brainstorm approach:**
@@ -168,7 +168,7 @@ Confirm: "Committed: docs: start work on todo - [title]"
 - [ ] All pending todos listed with title, area, age
 - [ ] Area filter applied if specified
 - [ ] Selected todo's full context loaded
-- [ ] Roadmap context checked for phase match
+- [ ] Roadmap context checked for objective match
 - [ ] Appropriate actions offered
 - [ ] Selected action executed
 - [ ] STATE.md updated if todo count changed

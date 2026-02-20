@@ -1,5 +1,5 @@
 <purpose>
-Execute a phase prompt (PLAN.md) and create the outcome summary (SUMMARY.md).
+Execute an objective prompt (JOB.md) and create the outcome summary (SUMMARY.md).
 </purpose>
 
 <required_reading>
@@ -12,10 +12,10 @@ Read config.json for planning behavior settings.
 <process>
 
 <step name="init_context" priority="first">
-Load execution context (uses `init execute-phase` for full context, including file contents):
+Load execution context (uses `init execute-objective` for full context, including file contents):
 
 ```bash
-INIT=$(node ~/.claude/devflow/bin/df-tools.cjs init execute-phase "${PHASE}" --include state,config)
+INIT=$(node ~/.claude/devflow/bin/df-tools.cjs init execute-objective "${OBJECTIVE}" --include state,config)
 ```
 
 Extract from init JSON: `executor_model`, `commit_docs`, `phase_dir`, `phase_number`, `plans`, `summaries`, `incomplete_plans`.
@@ -32,22 +32,22 @@ If `.planning/` missing: error.
 <step name="identify_plan">
 ```bash
 # Use plans/summaries from INIT JSON, or list files
-ls .planning/phases/XX-name/*-PLAN.md 2>/dev/null | sort
-ls .planning/phases/XX-name/*-SUMMARY.md 2>/dev/null | sort
+ls .planning/objectives/XX-name/*-JOB.md 2>/dev/null | sort
+ls .planning/objectives/XX-name/*-SUMMARY.md 2>/dev/null | sort
 ```
 
-Find first PLAN without matching SUMMARY. Decimal phases supported (`01.1-hotfix/`):
+Find first PLAN without matching SUMMARY. Decimal objectives supported (`01.1-hotfix/`):
 
 ```bash
-PHASE=$(echo "$PLAN_PATH" | grep -oE '[0-9]+(\.[0-9]+)?-[0-9]+')
+OBJECTIVE=$(echo "$JOB_PATH" | grep -oE '[0-9]+(\.[0-9]+)?-[0-9]+')
 # config_content already loaded via --include config in init_context
 ```
 
 <if mode="yolo">
-Auto-approve: `⚡ Execute {phase}-{plan}-PLAN.md [Plan X of Y for Phase Z]` → parse_segments.
+Auto-approve: `⚡ Execute {objective}-{job}-JOB.md [Plan X of Y for Objective Z]` → parse_segments.
 </if>
 
-<if mode="interactive" OR="custom with gates.execute_next_plan true">
+<if mode="interactive" OR="custom with gates.execute_next_job true">
 Present plan identification, wait for confirmation.
 </if>
 </step>
@@ -61,7 +61,7 @@ PLAN_START_EPOCH=$(date +%s)
 
 <step name="parse_segments">
 ```bash
-grep -n "type=\"checkpoint" .planning/phases/XX-name/{phase}-{plan}-PLAN.md
+grep -n "type=\"checkpoint" .planning/objectives/XX-name/{objective}-{job}-JOB.md
 ```
 
 **Routing by checkpoint type:**
@@ -95,7 +95,7 @@ fi
 
 If interrupted: ask user to resume (Task `resume` parameter) or start fresh.
 
-**Tracking protocol:** On spawn: write agent_id to `current-agent-id.txt`, append to agent-history.json: `{"agent_id":"[id]","task_description":"[desc]","phase":"[phase]","plan":"[plan]","segment":[num|null],"timestamp":"[ISO]","status":"spawned","completion_timestamp":null}`. On completion: status → "completed", set completion_timestamp, delete current-agent-id.txt. Prune: if entries > max_entries, remove oldest "completed" (never "spawned").
+**Tracking protocol:** On spawn: write agent_id to `current-agent-id.txt`, append to agent-history.json: `{"agent_id":"[id]","task_description":"[desc]","objective":"[objective]","plan":"[plan]","segment":[num|null],"timestamp":"[ISO]","status":"spawned","completion_timestamp":null}`. On completion: status → "completed", set completion_timestamp, delete current-agent-id.txt. Prune: if entries > max_entries, remove oldest "completed" (never "spawned").
 
 Run for Pattern A/B before spawning. Pattern C: skip.
 </step>
@@ -109,7 +109,7 @@ Pattern B only (verify-only checkpoints). Skip for A/C.
    - Main route: execute tasks using standard flow (step name="execute")
 3. After ALL segments: aggregate files/deviations/decisions → create SUMMARY.md → commit → self-check:
    - Verify key-files.created exist on disk with `[ -f ]`
-   - Check `git log --oneline --all --grep="{phase}-{plan}"` returns ≥1 commit
+   - Check `git log --oneline --all --grep="{objective}-{job}"` returns ≥1 commit
    - Append `## Self-Check: PASSED` or `## Self-Check: FAILED` to SUMMARY
 
    **Known Claude Code bug (classifyHandoffIfNeeded):** If any segment agent reports "failed" with `classifyHandoffIfNeeded is not defined`, this is a Claude Code runtime bug — not a real failure. Run spot-checks; if they pass, treat as successful.
@@ -121,17 +121,17 @@ Pattern B only (verify-only checkpoints). Skip for A/C.
 
 <step name="load_prompt">
 ```bash
-cat .planning/phases/XX-name/{phase}-{plan}-PLAN.md
+cat .planning/objectives/XX-name/{objective}-{job}-JOB.md
 ```
-This IS the execution instructions. Follow exactly. If plan references CONTEXT.md: honor user's vision throughout.
+This IS the execution instructions. Follow exactly. If job references CONTEXT.md: honor user's vision throughout.
 </step>
 
 <step name="previous_phase_check">
 ```bash
-node ~/.claude/devflow/bin/df-tools.cjs phases list --type summaries --raw
+node ~/.claude/devflow/bin/df-tools.cjs objectives list --type summaries --raw
 # Extract the second-to-last summary from the JSON result
 ```
-If previous SUMMARY has unresolved "Issues Encountered" or "Next Phase Readiness" blockers: AskUserQuestion(header="Previous Issues", options: "Proceed anyway" | "Address first" | "Review previous").
+If previous SUMMARY has unresolved "Issues Encountered" or "Next Objective Readiness" blockers: AskUserQuestion(header="Previous Issues", options: "Proceed anyway" | "Address first" | "Review previous").
 </step>
 
 <step name="execute">
@@ -206,7 +206,7 @@ Proceed with proposed change? (yes / different approach / defer)
 
 ## Documenting Deviations
 
-Summary MUST include deviations section. None? → `## Deviations from Plan\n\nNone - plan executed exactly as written.`
+Summary MUST include deviations section. None? → `## Deviations from Plan\n\nNone - job executed exactly as written.`
 
 Per deviation: **[Rule N - Category] Title** — Found during: Task X | Issue | Fix | Files modified | Verification | Commit hash
 
@@ -219,10 +219,10 @@ End with: **Total deviations:** N auto-fixed (breakdown). **Impact:** assessment
 
 For `type: tdd` plans — RED-GREEN-REFACTOR:
 
-1. **Infrastructure** (first TDD plan only): detect project, install framework, config, verify empty suite
-2. **RED:** Read `<behavior>` → failing test(s) → run (MUST fail) → commit: `test({phase}-{plan}): add failing test for [feature]`
-3. **GREEN:** Read `<implementation>` → minimal code → run (MUST pass) → commit: `feat({phase}-{plan}): implement [feature]`
-4. **REFACTOR:** Clean up → tests MUST pass → commit: `refactor({phase}-{plan}): clean up [feature]`
+1. **Infrastructure** (first TDD job only): detect project, install framework, config, verify empty suite
+2. **RED:** Read `<behavior>` → failing test(s) → run (MUST fail) → commit: `test({objective}-{job}): add failing test for [feature]`
+3. **GREEN:** Read `<implementation>` → minimal code → run (MUST pass) → commit: `feat({objective}-{job}): implement [feature]`
+4. **REFACTOR:** Clean up → tests MUST pass → commit: `refactor({objective}-{job}): clean up [feature]`
 
 Errors: RED doesn't fail → investigate test/existing feature. GREEN doesn't pass → debug, iterate. REFACTOR breaks → undo.
 
@@ -255,7 +255,7 @@ git add src/types/user.ts
 | `style` | Formatting | style(08-02): format auth module |
 | `chore` | Config/deps | chore(08-02): add bcrypt dependency |
 
-**4. Format:** `{type}({phase}-{plan}): {description}` with bullet points for key changes.
+**4. Format:** `{type}({objective}-{job}): {description}` with bullet points for key changes.
 
 **5. Record hash:**
 ```bash
@@ -313,39 +313,39 @@ fi
 
 <step name="generate_user_setup">
 ```bash
-grep -A 50 "^user_setup:" .planning/phases/XX-name/{phase}-{plan}-PLAN.md | head -50
+grep -A 50 "^user_setup:" .planning/objectives/XX-name/{objective}-{job}-JOB.md | head -50
 ```
 
-If user_setup exists: create `{phase}-USER-SETUP.md` using template `~/.claude/devflow/templates/user-setup.md`. Per service: env vars table, account setup checklist, dashboard config, local dev notes, verification commands. Status "Incomplete". Set `USER_SETUP_CREATED=true`. If empty/missing: skip.
+If user_setup exists: create `{objective}-USER-SETUP.md` using template `~/.claude/devflow/templates/user-setup.md`. Per service: env vars table, account setup checklist, dashboard config, local dev notes, verification commands. Status "Incomplete". Set `USER_SETUP_CREATED=true`. If empty/missing: skip.
 </step>
 
 <step name="create_summary">
-Create `{phase}-{plan}-SUMMARY.md` at `.planning/phases/XX-name/`. Use `~/.claude/devflow/templates/summary.md`.
+Create `{objective}-{job}-SUMMARY.md` at `.planning/objectives/XX-name/`. Use `~/.claude/devflow/templates/summary.md`.
 
-**Frontmatter:** phase, plan, subsystem, tags | requires/provides/affects | tech-stack.added/patterns | key-files.created/modified | key-decisions | requirements-completed (**MUST** copy `requirements` array from PLAN.md frontmatter verbatim) | duration ($DURATION), completed ($PLAN_END_TIME date).
+**Frontmatter:** objective, job, subsystem, tags | requires/provides/affects | tech-stack.added/patterns | key-files.created/modified | key-decisions | requirements-completed (**MUST** copy `requirements` array from JOB.md frontmatter verbatim) | duration ($DURATION), completed ($JOB_END_TIME date).
 
-Title: `# Phase [X] Plan [Y]: [Name] Summary`
+Title: `# Objective [X] Plan [Y]: [Name] Summary`
 
 One-liner SUBSTANTIVE: "JWT auth with refresh rotation using jose library" not "Authentication implemented"
 
 Include: duration, start/end times, task count, file count.
 
-Next: more plans → "Ready for {next-plan}" | last → "Phase complete, ready for transition".
+Next: more plans → "Ready for {next-plan}" | last → "Objective complete, ready for transition".
 </step>
 
 <step name="update_current_position">
 Update STATE.md using df-tools:
 
 ```bash
-# Advance plan counter (handles last-plan edge case)
-node ~/.claude/devflow/bin/df-tools.cjs state advance-plan
+# Advance job counter (handles last-plan edge case)
+node ~/.claude/devflow/bin/df-tools.cjs state advance-job
 
 # Recalculate progress bar from disk state
 node ~/.claude/devflow/bin/df-tools.cjs state update-progress
 
 # Record execution metrics
 node ~/.claude/devflow/bin/df-tools.cjs state record-metric \
-  --phase "${PHASE}" --plan "${PLAN}" --duration "${DURATION}" \
+  --objective "${OBJECTIVE}" --job "${JOB}" --duration "${DURATION}" \
   --tasks "${TASK_COUNT}" --files "${FILE_COUNT}"
 ```
 </step>
@@ -356,7 +356,7 @@ From SUMMARY: Extract decisions and add to STATE.md:
 ```bash
 # Add each decision from SUMMARY key-decisions
 node ~/.claude/devflow/bin/df-tools.cjs state add-decision \
-  --phase "${PHASE}" --summary "${DECISION_TEXT}" --rationale "${RATIONALE}"
+  --objective "${OBJECTIVE}" --summary "${DECISION_TEXT}" --rationale "${RATIONALE}"
 
 # Add blockers if any found
 node ~/.claude/devflow/bin/df-tools.cjs state add-blocker "Blocker description"
@@ -368,7 +368,7 @@ Update session info using df-tools:
 
 ```bash
 node ~/.claude/devflow/bin/df-tools.cjs state record-session \
-  --stopped-at "Completed ${PHASE}-${PLAN}-PLAN.md" \
+  --stopped-at "Completed ${OBJECTIVE}-${PLAN}-JOB.md" \
   --resume-file "None"
 ```
 
@@ -381,26 +381,26 @@ If SUMMARY "Issues Encountered" ≠ "None": yolo → log and continue. Interacti
 
 <step name="update_roadmap">
 ```bash
-node ~/.claude/devflow/bin/df-tools.cjs roadmap update-plan-progress "${PHASE}"
+node ~/.claude/devflow/bin/df-tools.cjs roadmap update-job-progress "${OBJECTIVE}"
 ```
 Counts PLAN vs SUMMARY files on disk. Updates progress table row with correct count and status (`In Progress` or `Complete` with date).
 </step>
 
 <step name="update_requirements">
-Mark completed requirements from the PLAN.md frontmatter `requirements:` field:
+Mark completed requirements from the JOB.md frontmatter `requirements:` field:
 
 ```bash
 node ~/.claude/devflow/bin/df-tools.cjs requirements mark-complete ${REQ_IDS}
 ```
 
-Extract requirement IDs from the plan's frontmatter (e.g., `requirements: [AUTH-01, AUTH-02]`). If no requirements field, skip.
+Extract requirement IDs from the job's frontmatter (e.g., `requirements: [AUTH-01, AUTH-02]`). If no requirements field, skip.
 </step>
 
 <step name="git_commit_metadata">
 Task code already committed per-task. Commit plan metadata:
 
 ```bash
-node ~/.claude/devflow/bin/df-tools.cjs commit "docs({phase}-{plan}): complete [plan-name] plan" --files .planning/phases/XX-name/{phase}-{plan}-SUMMARY.md .planning/STATE.md .planning/ROADMAP.md .planning/REQUIREMENTS.md
+node ~/.claude/devflow/bin/df-tools.cjs commit "docs({objective}-{job}): complete [plan-name] plan" --files .planning/objectives/XX-name/{objective}-{job}-SUMMARY.md .planning/STATE.md .planning/ROADMAP.md .planning/REQUIREMENTS.md
 ```
 </step>
 
@@ -408,7 +408,7 @@ node ~/.claude/devflow/bin/df-tools.cjs commit "docs({phase}-{plan}): complete [
 If .planning/codebase/ doesn't exist: skip.
 
 ```bash
-FIRST_TASK=$(git log --oneline --grep="feat({phase}-{plan}):" --grep="fix({phase}-{plan}):" --grep="test({phase}-{plan}):" --reverse | head -1 | cut -d' ' -f1)
+FIRST_TASK=$(git log --oneline --grep="feat({objective}-{job}):" --grep="fix({objective}-{job}):" --grep="test({objective}-{job}):" --reverse | head -1 | cut -d' ' -f1)
 git diff --name-only ${FIRST_TASK}^..HEAD 2>/dev/null
 ```
 
@@ -423,15 +423,15 @@ node ~/.claude/devflow/bin/df-tools.cjs commit "" --files .planning/codebase/*.m
 If `USER_SETUP_CREATED=true`: display `⚠️ USER SETUP REQUIRED` with path + env/config tasks at TOP.
 
 ```bash
-ls -1 .planning/phases/[current-phase-dir]/*-PLAN.md 2>/dev/null | wc -l
-ls -1 .planning/phases/[current-phase-dir]/*-SUMMARY.md 2>/dev/null | wc -l
+ls -1 .planning/objectives/[current-objective-dir]/*-JOB.md 2>/dev/null | wc -l
+ls -1 .planning/objectives/[current-objective-dir]/*-SUMMARY.md 2>/dev/null | wc -l
 ```
 
 | Condition | Route | Action |
 |-----------|-------|--------|
-| summaries < plans | **A: More plans** | Find next PLAN without SUMMARY. Yolo: auto-continue. Interactive: show next plan, suggest `/df:execute-phase {phase}` + `/df:verify-work`. STOP here. |
-| summaries = plans, current < highest phase | **B: Phase done** | Show completion, suggest `/df:plan-phase {Z+1}` + `/df:verify-work {Z}` + `/df:discuss-phase {Z+1}` |
-| summaries = plans, current = highest phase | **C: Milestone done** | Show banner, suggest `/df:complete-milestone` + `/df:verify-work` + `/df:add-phase` |
+| summaries < plans | **A: More plans** | Find next PLAN without SUMMARY. Yolo: auto-continue. Interactive: show next job, suggest `/df:execute-objective {objective}` + `/df:verify-work`. STOP here. |
+| summaries = plans, current < highest objective | **B: Objective done** | Show completion, suggest `/df:plan-objective {Z+1}` + `/df:verify-work {Z}` + `/df:discuss-objective {Z+1}` |
+| summaries = plans, current = highest objective | **C: Milestone done** | Show banner, suggest `/df:complete-milestone` + `/df:verify-work` + `/df:add-objective` |
 
 All routes: `/clear` first for fresh context.
 </step>
@@ -440,7 +440,7 @@ All routes: `/clear` first for fresh context.
 
 <success_criteria>
 
-- All tasks from PLAN.md completed
+- All tasks from JOB.md completed
 - All verifications pass
 - USER-SETUP.md generated if user_setup in frontmatter
 - SUMMARY.md created with substantive content

@@ -1,5 +1,5 @@
 <purpose>
-Validate built features through conversational testing with persistent state. Creates UAT.md that tracks test progress, survives /clear, and feeds gaps into /df:plan-phase --gaps.
+Validate built features through conversational testing with persistent state. Creates UAT.md that tracks test progress, survives /clear, and feeds gaps into /df:plan-objective --gaps.
 
 User tests, Claude records. One test at a time. Plain text responses.
 </purpose>
@@ -21,7 +21,7 @@ No Pass/Fail buttons. No severity questions. Just: "Here's what should happen. D
 <process>
 
 <step name="initialize" priority="first">
-If $ARGUMENTS contains a phase number, load context:
+If $ARGUMENTS contains an objective number, load context:
 
 ```bash
 INIT=$(node ~/.claude/devflow/bin/df-tools.cjs init verify-work "${PHASE_ARG}")
@@ -34,34 +34,34 @@ Parse JSON for: `planner_model`, `checker_model`, `commit_docs`, `phase_found`, 
 **First: Check for active UAT sessions**
 
 ```bash
-find .planning/phases -name "*-UAT.md" -type f 2>/dev/null | head -5
+find .planning/objectives -name "*-UAT.md" -type f 2>/dev/null | head -5
 ```
 
 **If active sessions exist AND no $ARGUMENTS provided:**
 
-Read each file's frontmatter (status, phase) and Current Test section.
+Read each file's frontmatter (status, objective) and Current Test section.
 
 Display inline:
 
 ```
 ## Active UAT Sessions
 
-| # | Phase | Status | Current Test | Progress |
+| # | Objective | Status | Current Test | Progress |
 |---|-------|--------|--------------|----------|
 | 1 | 04-comments | testing | 3. Reply to Comment | 2/6 |
 | 2 | 05-auth | testing | 1. Login Form | 0/4 |
 
-Reply with a number to resume, or provide a phase number to start new.
+Reply with a number to resume, or provide an objective number to start new.
 ```
 
 Wait for user response.
 
 - If user replies with number (1, 2) → Load that file, go to `resume_from_file`
-- If user replies with phase number → Treat as new session, go to `create_uat_file`
+- If user replies with objective number → Treat as new session, go to `create_uat_file`
 
 **If active sessions exist AND $ARGUMENTS provided:**
 
-Check if session exists for that phase. If yes, offer to resume or restart.
+Check if session exists for that objective. If yes, offer to resume or restart.
 If no, continue to `create_uat_file`.
 
 **If no active sessions AND no $ARGUMENTS:**
@@ -69,7 +69,7 @@ If no, continue to `create_uat_file`.
 ```
 No active UAT sessions.
 
-Provide a phase number to start testing (e.g., /df:verify-work 4)
+Provide an objective number to start testing (e.g., /df:verify-work 4)
 ```
 
 **If no active sessions AND $ARGUMENTS provided:**
@@ -114,7 +114,7 @@ Skip internal/non-observable items (refactors, type changes, etc.).
 **Create UAT file with all tests:**
 
 ```bash
-mkdir -p "$PHASE_DIR"
+mkdir -p "$OBJECTIVE_DIR"
 ```
 
 Build test list from extracted deliverables.
@@ -136,7 +136,7 @@ Create file:
 ```markdown
 ---
 status: testing
-phase: XX-name
+objective: XX-name
 source: [list of SUMMARY.md files]
 started: [ISO timestamp]
 updated: [ISO timestamp]
@@ -176,7 +176,7 @@ skipped: 0
 [none yet]
 ```
 
-Write to `.planning/phases/XX-name/{phase_num}-UAT.md`
+Write to `.planning/objectives/XX-name/{phase_num}-UAT.md`
 
 Proceed to `present_test`.
 </step>
@@ -248,7 +248,7 @@ reported: "{verbatim user response}"
 severity: {inferred}
 ```
 
-Append to Gaps section (structured YAML for plan-phase --gaps):
+Append to Gaps section (structured YAML for plan-objective --gaps):
 ```yaml
 - truth: "{expected behavior from test}"
   status: failed
@@ -282,7 +282,7 @@ Find first test with `result: [pending]`.
 
 Announce:
 ```
-Resuming: Phase {phase} UAT
+Resuming: Objective {objective} UAT
 Progress: {passed + issues + skipped}/{total}
 Issues found so far: {issues count}
 
@@ -309,12 +309,12 @@ Clear Current Test section:
 
 Commit the UAT file:
 ```bash
-node ~/.claude/devflow/bin/df-tools.cjs commit "test({phase_num}): complete UAT - {passed} passed, {issues} issues" --files ".planning/phases/XX-name/{phase_num}-UAT.md"
+node ~/.claude/devflow/bin/df-tools.cjs commit "test({phase_num}): complete UAT - {passed} passed, {issues} issues" --files ".planning/objectives/XX-name/{phase_num}-UAT.md"
 ```
 
 Present summary:
 ```
-## UAT Complete: Phase {phase}
+## UAT Complete: Objective {objective}
 
 | Result | Count |
 |--------|-------|
@@ -334,8 +334,8 @@ Present summary:
 ```
 All tests passed. Ready to continue.
 
-- `/df:plan-phase {next}` — Plan next phase
-- `/df:execute-phase {next}` — Execute next phase
+- `/df:plan-objective {next}` — Plan next objective
+- `/df:execute-objective {next}` — Execute next objective
 ```
 </step>
 
@@ -388,11 +388,11 @@ Task(
   prompt="""
 <planning_context>
 
-**Phase:** {phase_number}
+**Objective:** {phase_number}
 **Mode:** gap_closure
 
 **UAT with diagnoses:**
-@.planning/phases/{phase_dir}/{phase_num}-UAT.md
+@.planning/objectives/{phase_dir}/{phase_num}-UAT.md
 
 **Project State:**
 @.planning/STATE.md
@@ -403,13 +403,13 @@ Task(
 </planning_context>
 
 <downstream_consumer>
-Output consumed by /df:execute-phase
+Output consumed by /df:execute-objective
 Plans must be executable prompts.
 </downstream_consumer>
 """,
   subagent_type="df-planner",
   model="{planner_model}",
-  description="Plan gap fixes for Phase {phase}"
+  description="Plan gap fixes for Objective {objective}"
 )
 ```
 
@@ -427,23 +427,23 @@ Display:
  DF ► VERIFYING FIX PLANS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-◆ Spawning plan checker...
+◆ Spawning job checker...
 ```
 
 Initialize: `iteration_count = 1`
 
-Spawn df-plan-checker:
+Spawn df-job-checker:
 
 ```
 Task(
   prompt="""
 <verification_context>
 
-**Phase:** {phase_number}
-**Phase Goal:** Close diagnosed gaps from UAT
+**Objective:** {phase_number}
+**Objective Goal:** Close diagnosed gaps from UAT
 
 **Plans to verify:**
-@.planning/phases/{phase_dir}/*-PLAN.md
+@.planning/objectives/{phase_dir}/*-JOB.md
 
 </verification_context>
 
@@ -453,9 +453,9 @@ Return one of:
 - ## ISSUES FOUND — structured issue list
 </expected_output>
 """,
-  subagent_type="df-plan-checker",
+  subagent_type="df-job-checker",
   model="{checker_model}",
-  description="Verify Phase {phase} fix plans"
+  description="Verify Objective {objective} fix plans"
 )
 ```
 
@@ -478,11 +478,11 @@ Task(
   prompt="""
 <revision_context>
 
-**Phase:** {phase_number}
+**Objective:** {phase_number}
 **Mode:** revision
 
-**Existing plans:**
-@.planning/phases/{phase_dir}/*-PLAN.md
+**Existing jobs:**
+@.planning/objectives/{phase_dir}/*-JOB.md
 
 **Checker issues:**
 {structured_issues_from_checker}
@@ -490,13 +490,13 @@ Task(
 </revision_context>
 
 <instructions>
-Read existing PLAN.md files. Make targeted updates to address checker issues.
+Read existing JOB.md files. Make targeted updates to address checker issues.
 Do NOT replan from scratch unless issues are fundamental.
 </instructions>
 """,
   subagent_type="df-planner",
   model="{planner_model}",
-  description="Revise Phase {phase} plans"
+  description="Revise Objective {objective} plans"
 )
 ```
 
@@ -510,7 +510,7 @@ Display: `Max iterations reached. {N} issues remain.`
 Offer options:
 1. Force proceed (execute despite issues)
 2. Provide guidance (user gives direction, retry)
-3. Abandon (exit, user runs /df:plan-phase manually)
+3. Abandon (exit, user runs /df:plan-objective manually)
 
 Wait for user response.
 </step>
@@ -523,12 +523,12 @@ Wait for user response.
  DF ► FIXES READY ✓
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-**Phase {X}: {Name}** — {N} gap(s) diagnosed, {M} fix plan(s) created
+**Objective {X}: {Name}** — {N} gap(s) diagnosed, {M} fix plan(s) created
 
 | Gap | Root Cause | Fix Plan |
 |-----|------------|----------|
-| {truth 1} | {root_cause} | {phase}-04 |
-| {truth 2} | {root_cause} | {phase}-04 |
+| {truth 1} | {root_cause} | {objective}-04 |
+| {truth 2} | {root_cause} | {objective}-04 |
 
 Plans verified and ready for execution.
 
@@ -538,7 +538,7 @@ Plans verified and ready for execution.
 
 **Execute fixes** — run fix plans
 
-`/clear` then `/df:execute-phase {phase} --gaps-only`
+`/clear` then `/df:execute-objective {objective} --gaps-only`
 
 ───────────────────────────────────────────────────────────────
 ```
@@ -590,7 +590,7 @@ Default to **major** if unclear. User can correct if needed.
 - [ ] Committed on completion
 - [ ] If issues: parallel debug agents diagnose root causes
 - [ ] If issues: df-planner creates fix plans (gap_closure mode)
-- [ ] If issues: df-plan-checker verifies fix plans
+- [ ] If issues: df-job-checker verifies fix plans
 - [ ] If issues: revision loop until plans pass (max 3 iterations)
-- [ ] Ready for `/df:execute-phase --gaps-only` when complete
+- [ ] Ready for `/df:execute-objective --gaps-only` when complete
 </success_criteria>

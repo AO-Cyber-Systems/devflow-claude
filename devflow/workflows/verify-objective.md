@@ -1,7 +1,7 @@
 <purpose>
-Verify phase goal achievement through goal-backward analysis. Check that the codebase delivers what the phase promised, not just that tasks completed.
+Verify objective goal achievement through goal-backward analysis. Check that the codebase delivers what the objective promised, not just that tasks completed.
 
-Executed by a verification subagent spawned from execute-phase.md.
+Executed by a verification subagent spawned from execute-objective.md.
 </purpose>
 
 <core_principle>
@@ -25,22 +25,22 @@ Then verify each level against the actual codebase.
 <process>
 
 <step name="load_context" priority="first">
-Load phase operation context:
+Load objective operation context:
 
 ```bash
-INIT=$(node ~/.claude/devflow/bin/df-tools.cjs init phase-op "${PHASE_ARG}")
+INIT=$(node ~/.claude/devflow/bin/df-tools.cjs init objective-op "${PHASE_ARG}")
 ```
 
 Extract from init JSON: `phase_dir`, `phase_number`, `phase_name`, `has_plans`, `plan_count`.
 
-Then load phase details and list plans/summaries:
+Then load objective details and list plans/summaries:
 ```bash
-node ~/.claude/devflow/bin/df-tools.cjs roadmap get-phase "${phase_number}"
+node ~/.claude/devflow/bin/df-tools.cjs roadmap get-objective "${phase_number}"
 grep -E "^| ${phase_number}" .planning/REQUIREMENTS.md 2>/dev/null
-ls "$phase_dir"/*-SUMMARY.md "$phase_dir"/*-PLAN.md 2>/dev/null
+ls "$phase_dir"/*-SUMMARY.md "$phase_dir"/*-JOB.md 2>/dev/null
 ```
 
-Extract **phase goal** from ROADMAP.md (the outcome to verify, not tasks) and **requirements** from REQUIREMENTS.md if it exists.
+Extract **objective goal** from ROADMAP.md (the outcome to verify, not tasks) and **requirements** from REQUIREMENTS.md if it exists.
 </step>
 
 <step name="establish_must_haves">
@@ -49,22 +49,22 @@ Extract **phase goal** from ROADMAP.md (the outcome to verify, not tasks) and **
 Use df-tools to extract must_haves from each PLAN:
 
 ```bash
-for plan in "$PHASE_DIR"/*-PLAN.md; do
-  MUST_HAVES=$(node ~/.claude/devflow/bin/df-tools.cjs frontmatter get "$plan" --field must_haves)
-  echo "=== $plan ===" && echo "$MUST_HAVES"
+for plan in "$OBJECTIVE_DIR"/*-JOB.md; do
+  MUST_HAVES=$(node ~/.claude/devflow/bin/df-tools.cjs frontmatter get "$job" --field must_haves)
+  echo "=== $job ===" && echo "$MUST_HAVES"
 done
 ```
 
 Returns JSON: `{ truths: [...], artifacts: [...], key_links: [...] }`
 
-Aggregate all must_haves across plans for phase-level verification.
+Aggregate all must_haves across plans for objective-level verification.
 
 **Option B: Use Success Criteria from ROADMAP.md**
 
 If no must_haves in frontmatter (MUST_HAVES returns error or empty), check for Success Criteria:
 
 ```bash
-PHASE_DATA=$(node ~/.claude/devflow/bin/df-tools.cjs roadmap get-phase "${phase_number}" --raw)
+PHASE_DATA=$(node ~/.claude/devflow/bin/df-tools.cjs roadmap get-objective "${phase_number}" --raw)
 ```
 
 Parse the `success_criteria` array from the JSON output. If non-empty:
@@ -75,7 +75,7 @@ Parse the `success_criteria` array from the JSON output. If non-empty:
 
 Success Criteria from ROADMAP.md are the contract — they override PLAN-level must_haves when both exist.
 
-**Option C: Derive from phase goal (fallback)**
+**Option C: Derive from objective goal (fallback)**
 
 If no must_haves in frontmatter AND no Success Criteria in ROADMAP:
 1. State the goal from ROADMAP.md
@@ -99,9 +99,9 @@ For each truth: identify supporting artifacts → check artifact status → chec
 Use df-tools for artifact verification against must_haves in each PLAN:
 
 ```bash
-for plan in "$PHASE_DIR"/*-PLAN.md; do
-  ARTIFACT_RESULT=$(node ~/.claude/devflow/bin/df-tools.cjs verify artifacts "$plan")
-  echo "=== $plan ===" && echo "$ARTIFACT_RESULT"
+for plan in "$OBJECTIVE_DIR"/*-JOB.md; do
+  ARTIFACT_RESULT=$(node ~/.claude/devflow/bin/df-tools.cjs verify artifacts "$job")
+  echo "=== $job ===" && echo "$ARTIFACT_RESULT"
 done
 ```
 
@@ -131,9 +131,9 @@ WIRED = imported AND used. ORPHANED = exists but not imported/used.
 Use df-tools for key link verification against must_haves in each PLAN:
 
 ```bash
-for plan in "$PHASE_DIR"/*-PLAN.md; do
-  LINKS_RESULT=$(node ~/.claude/devflow/bin/df-tools.cjs verify key-links "$plan")
-  echo "=== $plan ===" && echo "$LINKS_RESULT"
+for plan in "$OBJECTIVE_DIR"/*-JOB.md; do
+  LINKS_RESULT=$(node ~/.claude/devflow/bin/df-tools.cjs verify key-links "$job")
+  echo "=== $job ===" && echo "$LINKS_RESULT"
 done
 ```
 
@@ -159,14 +159,14 @@ Record status and evidence for each key link.
 <step name="verify_requirements">
 If REQUIREMENTS.md exists:
 ```bash
-grep -E "Phase ${PHASE_NUM}" .planning/REQUIREMENTS.md 2>/dev/null
+grep -E "Objective ${PHASE_NUM}" .planning/REQUIREMENTS.md 2>/dev/null
 ```
 
 For each requirement: parse description → identify supporting truths/artifacts → status: ✓ SATISFIED / ✗ BLOCKED / ? NEEDS HUMAN.
 </step>
 
 <step name="scan_antipatterns">
-Extract files modified in this phase from SUMMARY.md, scan each:
+Extract files modified in this objective from SUMMARY.md, scan each:
 
 | Pattern | Search | Severity |
 |---------|--------|----------|
@@ -201,17 +201,17 @@ If gaps_found:
 
 1. **Cluster related gaps:** API stub + component unwired → "Wire frontend to backend". Multiple missing → "Complete core implementation". Wiring only → "Connect existing components".
 
-2. **Generate plan per cluster:** Objective, 2-3 tasks (files/action/verify each), re-verify step. Keep focused: single concern per plan.
+2. **Generate plan per cluster:** Objective, 2-3 tasks (files/action/verify each), re-verify step. Keep focused: single concern per job.
 
 3. **Order by dependency:** Fix missing → fix stubs → fix wiring → verify.
 </step>
 
 <step name="create_report">
 ```bash
-REPORT_PATH="$PHASE_DIR/${PHASE_NUM}-VERIFICATION.md"
+REPORT_PATH="$OBJECTIVE_DIR/${PHASE_NUM}-VERIFICATION.md"
 ```
 
-Fill template sections: frontmatter (phase/timestamp/status/score), goal achievement, artifact table, wiring table, requirements coverage, anti-patterns, human verification, gaps summary, fix plans (if gaps_found), metadata.
+Fill template sections: frontmatter (objective/timestamp/status/score), goal achievement, artifact table, wiring table, requirements coverage, anti-patterns, human verification, gaps summary, fix plans (if gaps_found), metadata.
 
 See ~/.claude/devflow/templates/verification-report.md for complete template.
 </step>

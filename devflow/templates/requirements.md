@@ -12,7 +12,7 @@ Template for `.planning/REQUIREMENTS.md` — checkable requirements that define 
 
 ## v1 Requirements
 
-Requirements for initial release. Each maps to roadmap phases.
+Requirements for initial release. Each maps to roadmap objectives.
 
 ### Authentication
 
@@ -52,19 +52,19 @@ Explicitly excluded. Documented to prevent scope creep.
 
 ## Traceability
 
-Which phases cover which requirements. Updated during roadmap creation.
+Which objectives cover which requirements. Updated during roadmap creation.
 
-| Requirement | Phase | Status |
+| Requirement | Objective | Status |
 |-------------|-------|--------|
-| AUTH-01 | Phase 1 | Pending |
-| AUTH-02 | Phase 1 | Pending |
-| AUTH-03 | Phase 1 | Pending |
-| AUTH-04 | Phase 1 | Pending |
-| [REQ-ID] | Phase [N] | Pending |
+| AUTH-01 | Objective 1 | Pending |
+| AUTH-02 | Objective 1 | Pending |
+| AUTH-03 | Objective 1 | Pending |
+| AUTH-04 | Objective 1 | Pending |
+| [REQ-ID] | Objective [N] | Pending |
 
 **Coverage:**
 - v1 requirements: [X] total
-- Mapped to phases: [Y]
+- Mapped to objectives: [Y]
 - Unmapped: [Z] ⚠️
 
 ---
@@ -87,7 +87,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 - Typical: Authentication, Content, Social, Notifications, Moderation, Payments, Admin
 
 **v1 vs v2:**
-- v1: Committed scope, will be in roadmap phases
+- v1: Committed scope, will be in roadmap objectives
 - v2: Acknowledged but deferred, not in current roadmap
 - Moving v2 → v1 requires roadmap update
 
@@ -98,12 +98,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 **Traceability:**
 - Empty initially, populated during roadmap creation
-- Each requirement maps to exactly one phase
+- Each requirement maps to exactly one objective
 - Unmapped requirements = roadmap gap
 
 **Status Values:**
 - Pending: Not started
-- In Progress: Phase is active
+- In Progress: Objective is active
 - Complete: Requirement verified
 - Blocked: Waiting on external factor
 
@@ -111,7 +111,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 <evolution>
 
-**After each phase completes:**
+**After each objective completes:**
 1. Mark covered requirements as Complete
 2. Update traceability status
 3. Note any requirements that changed scope
@@ -197,30 +197,30 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ## Traceability
 
-| Requirement | Phase | Status |
+| Requirement | Objective | Status |
 |-------------|-------|--------|
-| AUTH-01 | Phase 1 | Pending |
-| AUTH-02 | Phase 1 | Pending |
-| AUTH-03 | Phase 1 | Pending |
-| AUTH-04 | Phase 1 | Pending |
-| PROF-01 | Phase 2 | Pending |
-| PROF-02 | Phase 2 | Pending |
-| PROF-03 | Phase 2 | Pending |
-| PROF-04 | Phase 2 | Pending |
-| CONT-01 | Phase 3 | Pending |
-| CONT-02 | Phase 3 | Pending |
-| CONT-03 | Phase 3 | Pending |
-| CONT-04 | Phase 3 | Pending |
-| CONT-05 | Phase 3 | Pending |
-| SOCL-01 | Phase 4 | Pending |
-| SOCL-02 | Phase 4 | Pending |
-| SOCL-03 | Phase 4 | Pending |
-| SOCL-04 | Phase 4 | Pending |
-| SOCL-05 | Phase 4 | Pending |
+| AUTH-01 | Objective 1 | Pending |
+| AUTH-02 | Objective 1 | Pending |
+| AUTH-03 | Objective 1 | Pending |
+| AUTH-04 | Objective 1 | Pending |
+| PROF-01 | Objective 2 | Pending |
+| PROF-02 | Objective 2 | Pending |
+| PROF-03 | Objective 2 | Pending |
+| PROF-04 | Objective 2 | Pending |
+| CONT-01 | Objective 3 | Pending |
+| CONT-02 | Objective 3 | Pending |
+| CONT-03 | Objective 3 | Pending |
+| CONT-04 | Objective 3 | Pending |
+| CONT-05 | Objective 3 | Pending |
+| SOCL-01 | Objective 4 | Pending |
+| SOCL-02 | Objective 4 | Pending |
+| SOCL-03 | Objective 4 | Pending |
+| SOCL-04 | Objective 4 | Pending |
+| SOCL-05 | Objective 4 | Pending |
 
 **Coverage:**
 - v1 requirements: 18 total
-- Mapped to phases: 18
+- Mapped to objectives: 18
 - Unmapped: 0 ✓
 
 ---

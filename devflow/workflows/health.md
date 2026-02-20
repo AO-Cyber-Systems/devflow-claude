@@ -1,5 +1,5 @@
 <purpose>
-Validate `.planning/` directory integrity and report actionable issues. Checks for missing files, invalid configurations, inconsistent state, and orphaned plans. Optionally repairs auto-fixable issues.
+Validate `.planning/` directory integrity and report actionable issues. Checks for missing files, invalid configurations, inconsistent state, and orphaned jobs. Optionally repairs auto-fixable issues.
 </purpose>
 
 <required_reading>
@@ -72,10 +72,10 @@ Errors: N | Warnings: N | Info: N
 ```
 ## Warnings
 
-- [W001] STATE.md references phase 5, but only phases 1-3 exist
+- [W001] STATE.md references objective 5, but only objectives 1-3 exist
   Fix: Run /df:health --repair to regenerate
 
-- [W005] Phase directory "1-setup" doesn't follow NN-name format
+- [W005] Objective directory "1-setup" doesn't follow NN-name format
   Fix: Rename to match pattern (e.g., 01-setup)
 ```
 
@@ -83,7 +83,7 @@ Errors: N | Warnings: N | Info: N
 ```
 ## Info
 
-- [I001] 02-implementation/02-01-PLAN.md has no SUMMARY.md
+- [I001] 02-implementation/02-01-JOB.md has no SUMMARY.md
   Note: May be in progress
 ```
 
@@ -130,12 +130,12 @@ Report final status.
 | E004 | error | STATE.md not found | Yes |
 | E005 | error | config.json parse error | Yes |
 | W001 | warning | PROJECT.md missing required section | No |
-| W002 | warning | STATE.md references invalid phase | Yes |
+| W002 | warning | STATE.md references invalid objective | Yes |
 | W003 | warning | config.json not found | Yes |
 | W004 | warning | config.json invalid field value | No |
-| W005 | warning | Phase directory naming mismatch | No |
-| W006 | warning | Phase in ROADMAP but no directory | No |
-| W007 | warning | Phase on disk but not in ROADMAP | No |
+| W005 | warning | Objective directory naming mismatch | No |
+| W006 | warning | Objective in ROADMAP but no directory | No |
+| W007 | warning | Objective on disk but not in ROADMAP | No |
 | I001 | info | Plan without SUMMARY (may be in progress) | No |
 
 </error_codes>
@@ -150,7 +150,7 @@ Report final status.
 
 **Not repairable (too risky):**
 - PROJECT.md, ROADMAP.md content
-- Phase directory renaming
+- Objective directory renaming
 - Orphaned plan cleanup
 
 </repair_actions>

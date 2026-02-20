@@ -2,7 +2,7 @@
 name: df:audit-milestone
 description: |
   Audit milestone completion against original intent before archiving.
-  Expensive operation that checks requirements coverage and cross-phase integration.
+  Expensive operation that checks requirements coverage and cross-objective integration.
 argument-hint: "[version]"
 disable-model-invocation: true
 allowed-tools:
@@ -14,9 +14,9 @@ allowed-tools:
   - Write
 ---
 <objective>
-Verify milestone achieved its definition of done. Check requirements coverage, cross-phase integration, and end-to-end flows.
+Verify milestone achieved its definition of done. Check requirements coverage, cross-objective integration, and end-to-end flows.
 
-**This command IS the orchestrator.** Reads existing VERIFICATION.md files (phases already verified during execute-phase), aggregates tech debt and deferred gaps, then spawns integration checker for cross-phase wiring.
+**This command IS the orchestrator.** Reads existing VERIFICATION.md files (objectives already verified during execute-objective), aggregates tech debt and deferred gaps, then spawns integration checker for cross-objective wiring.
 </objective>
 
 <execution_context>
@@ -35,8 +35,8 @@ Version: $ARGUMENTS (optional — defaults to current milestone)
 @.planning/config.json (if exists)
 
 **Completed Work:**
-Glob: .planning/phases/*/*-SUMMARY.md
-Glob: .planning/phases/*/*-VERIFICATION.md
+Glob: .planning/objectives/*/*-SUMMARY.md
+Glob: .planning/objectives/*/*-VERIFICATION.md
 </context>
 
 <process>

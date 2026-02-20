@@ -1,9 +1,9 @@
 <purpose>
-Execute all plans in a phase using wave-based parallel execution. Orchestrator stays lean — delegates plan execution to subagents.
+Execute all jobs in an objective using wave-based parallel execution. Orchestrator stays lean — delegates job execution to subagents.
 </purpose>
 
 <core_principle>
-Orchestrator coordinates, not executes. Each subagent loads the full execute-plan context. Orchestrator: discover plans → analyze deps → group waves → spawn agents → handle checkpoints → collect results.
+Orchestrator coordinates, not executes. Each subagent loads the full execute-job context. Orchestrator: discover plans → analyze deps → group waves → spawn agents → handle checkpoints → collect results.
 </core_principle>
 
 <required_reading>
@@ -16,13 +16,13 @@ Read STATE.md before any operation to load project context.
 Load all context in one call:
 
 ```bash
-INIT=$(node ~/.claude/devflow/bin/df-tools.cjs init execute-phase "${PHASE_ARG}")
+INIT=$(node ~/.claude/devflow/bin/df-tools.cjs init execute-objective "${PHASE_ARG}")
 ```
 
 Parse JSON for: `executor_model`, `verifier_model`, `commit_docs`, `parallelization`, `branching_strategy`, `branch_name`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `phase_slug`, `plans`, `incomplete_plans`, `plan_count`, `incomplete_count`, `state_exists`, `roadmap_exists`.
 
-**If `phase_found` is false:** Error — phase directory not found.
-**If `plan_count` is 0:** Error — no plans found in phase.
+**If `phase_found` is false:** Error — objective directory not found.
+**If `plan_count` is 0:** Error — no plans found in objective.
 **If `state_exists` is false but `.planning/` exists:** Offer reconstruct or continue.
 
 When `parallelization` is false, plans within a wave execute sequentially.
@@ -33,7 +33,7 @@ Check `branching_strategy` from init:
 
 **"none":** Skip, continue on current branch.
 
-**"phase" or "milestone":** Use pre-computed `branch_name` from init:
+**"objective" or "milestone":** Use pre-computed `branch_name` from init:
 ```bash
 git checkout -b "$BRANCH_NAME" 2>/dev/null || git checkout "$BRANCH_NAME"
 ```
@@ -51,18 +51,18 @@ Report: "Found {plan_count} plans in {phase_dir} ({incomplete_count} incomplete)
 Load plan inventory with wave grouping in one call:
 
 ```bash
-PLAN_INDEX=$(node ~/.claude/devflow/bin/df-tools.cjs phase-plan-index "${PHASE_NUMBER}")
+PLAN_INDEX=$(node ~/.claude/devflow/bin/df-tools.cjs objective-job-index "${PHASE_NUMBER}")
 ```
 
-Parse JSON for: `phase`, `plans[]` (each with `id`, `wave`, `autonomous`, `objective`, `files_modified`, `task_count`, `has_summary`), `waves` (map of wave number → plan IDs), `incomplete`, `has_checkpoints`.
+Parse JSON for: `objective`, `plans[]` (each with `id`, `wave`, `autonomous`, `objective`, `files_modified`, `task_count`, `has_summary`), `waves` (map of wave number → plan IDs), `incomplete`, `has_checkpoints`.
 
-**Filtering:** Skip plans where `has_summary: true`. If `--gaps-only`: also skip non-gap_closure plans. If all filtered: "No matching incomplete plans" → exit.
+**Filtering:** Skip plans where `has_summary: true`. If `--gaps-only`: also skip non-gap_closure plans. If all filtered: "No matching incomplete jobs" → exit.
 
 Report:
 ```
 ## Execution Plan
 
-**Phase {X}: {Name}** — {total_plans} plans across {wave_count} waves
+**Objective {X}: {Name}** — {total_plans} plans across {wave_count} waves
 
 | Wave | Plans | What it builds |
 |------|-------|----------------|
@@ -78,7 +78,7 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
 
 1. **Describe what's being built (BEFORE spawning):**
 
-   Read each plan's `<objective>`. Extract what's being built and why.
+   Read each job's `<objective>`. Extract what's being built and why.
 
    ```
    ---
@@ -96,7 +96,7 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
 
 2. **Create progress tasks (if available):**
 
-   For each plan in the wave:
+   For each job in the wave:
    ```
    TaskCreate(
      subject="Execute {plan_id}: {plan_name}",
@@ -107,7 +107,7 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
 
 3. **Assess plan complexity for model selection:**
 
-   For each plan in the wave, evaluate complexity:
+   For each job in the wave, evaluate complexity:
    - Read `task_count` and `files_modified` from plan index
    - **Simple** (task_count <= 2, files_modified <= 3): use sonnet — straightforward implementation
    - **Standard** (task_count 3-5): use `executor_model` from profile — normal execution
@@ -128,12 +128,12 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
      model="{resolved_executor_model}",
      prompt="
        <objective>
-       Execute plan {plan_number} of phase {phase_number}-{phase_name}.
+       Execute plan {plan_number} of objective {phase_number}-{phase_name}.
        Commit each task atomically. Create SUMMARY.md. Update STATE.md and ROADMAP.md.
        </objective>
 
        <execution_context>
-       @~/.claude/devflow/workflows/execute-plan.md
+       @~/.claude/devflow/workflows/execute-job.md
        @~/.claude/devflow/templates/summary.md
        @~/.claude/devflow/references/checkpoints.md
        @~/.claude/devflow/references/tdd.md
@@ -151,7 +151,7 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
        - [ ] Each task committed individually
        - [ ] SUMMARY.md created in plan directory
        - [ ] STATE.md updated with position and decisions
-       - [ ] ROADMAP.md updated with plan progress (via `roadmap update-plan-progress`)
+       - [ ] ROADMAP.md updated with job progress (via `roadmap update-job-progress`)
        </success_criteria>
      "
    )
@@ -164,7 +164,7 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
    Spawn each executor with `run_in_background=true` to enable true parallel execution:
    ```
    task_ids = []
-   for each plan in wave:
+   for each job in wave:
      result = Task(
        subagent_type="df-executor",
        model="{resolved_executor_model}",
@@ -199,7 +199,7 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
 
    For each SUMMARY.md:
    - Verify first 2 files from `key-files.created` exist on disk
-   - Check `git log --oneline --all --grep="{phase}-{plan}"` returns ≥1 commit
+   - Check `git log --oneline --all --grep="{objective}-{job}"` returns ≥1 commit
    - Check for `## Self-Check: FAILED` marker
 
    If ANY spot-check fails: report which plan failed, route to failure handler — ask "Retry plan?" or "Continue with remaining waves?"
@@ -281,9 +281,9 @@ When executor returns a checkpoint AND `AUTO_CFG` is `"true"`:
 After all waves:
 
 ```markdown
-## Phase {X}: {Name} Execution Complete
+## Objective {X}: {Name} Execution Complete
 
-**Waves:** {N} | **Plans:** {M}/{total} complete
+**Waves:** {N} | **Jobs:** {M}/{total} complete
 
 | Wave | Plans | Status |
 |------|-------|--------|
@@ -301,11 +301,11 @@ After all waves:
 </step>
 
 <step name="close_parent_artifacts">
-**For decimal/polish phases only (X.Y pattern):** Close the feedback loop by resolving parent UAT and debug artifacts.
+**For decimal/polish objectives only (X.Y pattern):** Close the feedback loop by resolving parent UAT and debug artifacts.
 
-**Skip if** phase number has no decimal (e.g., `3`, `04`) — only applies to gap-closure phases like `4.1`, `03.1`.
+**Skip if** objective number has no decimal (e.g., `3`, `04`) — only applies to gap-closure objectives like `4.1`, `03.1`.
 
-**1. Detect decimal phase and derive parent:**
+**1. Detect decimal objective and derive parent:**
 ```bash
 # Check if phase_number contains a decimal
 if [[ "$PHASE_NUMBER" == *.* ]]; then
@@ -315,7 +315,7 @@ fi
 
 **2. Find parent UAT file:**
 ```bash
-PARENT_INFO=$(node ~/.claude/devflow/bin/df-tools.cjs find-phase "${PARENT_PHASE}" --raw)
+PARENT_INFO=$(node ~/.claude/devflow/bin/df-tools.cjs find-objective "${PARENT_PHASE}" --raw)
 # Extract directory from PARENT_INFO JSON, then find UAT file in that directory
 ```
 
@@ -346,32 +346,32 @@ mv .planning/debug/{slug}.md .planning/debug/resolved/
 
 **6. Commit updated artifacts:**
 ```bash
-node ~/.claude/devflow/bin/df-tools.cjs commit "docs(phase-${PARENT_PHASE}): resolve UAT gaps and debug sessions after ${PHASE_NUMBER} gap closure" --files .planning/phases/*${PARENT_PHASE}*/*-UAT.md .planning/debug/resolved/*.md
+node ~/.claude/devflow/bin/df-tools.cjs commit "docs(phase-${PARENT_PHASE}): resolve UAT gaps and debug sessions after ${PHASE_NUMBER} gap closure" --files .planning/objectives/*${PARENT_PHASE}*/*-UAT.md .planning/debug/resolved/*.md
 ```
 </step>
 
 <step name="verify_phase_goal">
-Verify phase achieved its GOAL, not just completed tasks.
+Verify objective achieved its GOAL, not just completed tasks.
 
 **Progress tracking (if available):**
 ```
 TaskCreate(
-  subject="Verify Phase {X} goals",
-  description="Checking phase goal achievement against must-haves and requirements",
-  activeForm="Verifying Phase {X}"
+  subject="Verify Objective {X} goals",
+  description="Checking objective goal achievement against must-haves and requirements",
+  activeForm="Verifying Objective {X}"
 )
 ```
 
 ```bash
-PHASE_REQ_IDS=$(node ~/.claude/devflow/bin/df-tools.cjs roadmap get-phase "${PHASE_NUMBER}" | jq -r '.section' | grep -i "Requirements:" | sed 's/.*Requirements:\*\*\s*//' | sed 's/[\[\]]//g')
+PHASE_REQ_IDS=$(node ~/.claude/devflow/bin/df-tools.cjs roadmap get-objective "${PHASE_NUMBER}" | jq -r '.section' | grep -i "Requirements:" | sed 's/.*Requirements:\*\*\s*//' | sed 's/[\[\]]//g')
 ```
 
 ```
 Task(
-  prompt="Verify phase {phase_number} goal achievement.
-Phase directory: {phase_dir}
-Phase goal: {goal from ROADMAP.md}
-Phase requirement IDs: {phase_req_ids}
+  prompt="Verify objective {phase_number} goal achievement.
+Objective directory: {phase_dir}
+Objective goal: {goal from ROADMAP.md}
+Objective requirement IDs: {phase_req_ids}
 Check must_haves against actual codebase.
 Cross-reference requirement IDs from PLAN frontmatter against REQUIREMENTS.md — every ID MUST be accounted for.
 Create VERIFICATION.md.",
@@ -382,14 +382,14 @@ Create VERIFICATION.md.",
 
 Read status:
 ```bash
-grep "^status:" "$PHASE_DIR"/*-VERIFICATION.md | cut -d: -f2 | tr -d ' '
+grep "^status:" "$OBJECTIVE_DIR"/*-VERIFICATION.md | cut -d: -f2 | tr -d ' '
 ```
 
 | Status | Action |
 |--------|--------|
 | `passed` | → update_roadmap |
 | `human_needed` | Present items for human testing, get approval or feedback |
-| `gaps_found` | Present gap summary, offer `/df:plan-phase {phase} --gaps` |
+| `gaps_found` | Present gap summary, offer `/df:plan-objective {objective} --gaps` |
 
 **If human_needed:**
 
@@ -411,7 +411,7 @@ If "Issue found": follow up with freeform "Describe the issue:" prompt. Collect 
 
 **If gaps_found:**
 ```
-## ⚠ Phase {X}: {Name} — Gaps Found
+## ⚠ Objective {X}: {Name} — Gaps Found
 
 **Score:** {N}/{M} must-haves verified
 **Report:** {phase_dir}/{phase_num}-VERIFICATION.md
@@ -422,7 +422,7 @@ If "Issue found": follow up with freeform "Describe the issue:" prompt. Collect 
 ---
 ## ▶ Next Up
 
-`/df:plan-phase {X} --gaps`
+`/df:plan-objective {X} --gaps`
 
 <sub>`/clear` first → fresh context window</sub>
 
@@ -430,33 +430,33 @@ Also: `cat {phase_dir}/{phase_num}-VERIFICATION.md` — full report
 Also: `/df:verify-work {X}` — manual testing first
 ```
 
-Gap closure cycle: `/df:plan-phase {X} --gaps` reads VERIFICATION.md → creates gap plans with `gap_closure: true` → user runs `/df:execute-phase {X} --gaps-only` → verifier re-runs.
+Gap closure cycle: `/df:plan-objective {X} --gaps` reads VERIFICATION.md → creates gap plans with `gap_closure: true` → user runs `/df:execute-objective {X} --gaps-only` → verifier re-runs.
 </step>
 
 <step name="update_roadmap">
-**Mark phase complete and update all tracking files:**
+**Mark objective complete and update all tracking files:**
 
 ```bash
-COMPLETION=$(node ~/.claude/devflow/bin/df-tools.cjs phase complete "${PHASE_NUMBER}")
+COMPLETION=$(node ~/.claude/devflow/bin/df-tools.cjs objective complete "${PHASE_NUMBER}")
 ```
 
 The CLI handles:
-- Marking phase checkbox `[x]` with completion date
+- Marking objective checkbox `[x]` with completion date
 - Updating Progress table (Status → Complete, date)
-- Updating plan count to final
-- Advancing STATE.md to next phase
+- Updating job count to final
+- Advancing STATE.md to next objective
 - Updating REQUIREMENTS.md traceability
 
 Extract from result: `next_phase`, `next_phase_name`, `is_last_phase`.
 
 ```bash
-node ~/.claude/devflow/bin/df-tools.cjs commit "docs(phase-{X}): complete phase execution" --files .planning/ROADMAP.md .planning/STATE.md .planning/REQUIREMENTS.md .planning/phases/{phase_dir}/*-VERIFICATION.md
+node ~/.claude/devflow/bin/df-tools.cjs commit "docs(phase-{X}): complete objective execution" --files .planning/ROADMAP.md .planning/STATE.md .planning/REQUIREMENTS.md .planning/objectives/{phase_dir}/*-VERIFICATION.md
 ```
 </step>
 
 <step name="offer_next">
 
-**Exception:** If `gaps_found`, the `verify_phase_goal` step already presents the gap-closure path (`/df:plan-phase {X} --gaps`). No additional routing needed — skip auto-advance.
+**Exception:** If `gaps_found`, the `verify_phase_goal` step already presents the gap-closure path (`/df:plan-objective {X} --gaps`). No additional routing needed — skip auto-advance.
 
 **Auto-advance detection:**
 
@@ -471,13 +471,13 @@ node ~/.claude/devflow/bin/df-tools.cjs commit "docs(phase-{X}): complete phase 
 ```
 ╔══════════════════════════════════════════╗
 ║  AUTO-ADVANCING → TRANSITION             ║
-║  Phase {X} verified, continuing chain    ║
+║  Objective {X} verified, continuing chain    ║
 ╚══════════════════════════════════════════╝
 ```
 
-Execute the transition workflow inline (do NOT use Task — orchestrator context is ~10-15%, transition needs phase completion data already in context):
+Execute the transition workflow inline (do NOT use Task — orchestrator context is ~10-15%, transition needs objective completion data already in context):
 
-Read and follow `~/.claude/devflow/workflows/transition.md`, passing through the `--auto` flag so it propagates to the next phase invocation.
+Read and follow `~/.claude/devflow/workflows/transition.md`, passing through the `--auto` flag so it propagates to the next objective invocation.
 
 **If neither `--auto` nor `AUTO_CFG` is true:**
 
@@ -495,11 +495,11 @@ Orchestrator: ~10-15% context. Subagents: fresh 200k each. No polling (Task bloc
 - **Agent fails mid-plan:** Missing SUMMARY.md → report, ask user how to proceed
 - **Dependency chain breaks:** Wave 1 fails → Wave 2 dependents likely fail → user chooses attempt or skip
 - **All agents in wave fail:** Systemic issue → stop, report for investigation
-- **Checkpoint unresolvable:** "Skip this plan?" or "Abort phase execution?" → record partial progress in STATE.md
+- **Checkpoint unresolvable:** "Skip this job?" or "Abort objective execution?" → record partial progress in STATE.md
 </failure_handling>
 
 <resumption>
-Re-run `/df:execute-phase {phase}` → discover_plans finds completed SUMMARYs → skips them → resumes from first incomplete plan → continues wave execution.
+Re-run `/df:execute-objective {objective}` → discover_plans finds completed SUMMARYs → skips them → resumes from first incomplete plan → continues wave execution.
 
 STATE.md tracks: last completed plan, current wave, pending checkpoints.
 </resumption>

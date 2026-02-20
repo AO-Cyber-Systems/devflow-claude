@@ -58,8 +58,8 @@ Update Active requirements section and "Last updated" footer.
 ```markdown
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
+Objective: Not started (defining requirements)
+Job: —
 Status: Defining requirements
 Last activity: [today] — Milestone v[X.Y] started
 ```
@@ -88,7 +88,7 @@ AskUserQuestion: "Research the domain ecosystem for new features before defining
 - "Research first (Recommended)" — Discover patterns, features, architecture for NEW capabilities
 - "Skip research" — Go straight to requirements
 
-**Persist choice to config** (so future `/df:plan-phase` honors it):
+**Persist choice to config** (so future `/df:plan-objective` honors it):
 
 ```bash
 # If "Research first": persist true
@@ -147,7 +147,7 @@ Use template: ~/.claude/devflow/templates/research-project/{FILE}
 |-------|-------|----------|-------------|----------|
 | EXISTING_CONTEXT | Existing validated capabilities (DO NOT re-research): [from PROJECT.md] | Existing features (already built): [from PROJECT.md] | Existing architecture: [from PROJECT.md or codebase map] | Focus on common mistakes when ADDING these features to existing system |
 | QUESTION | What stack additions/changes are needed for [new features]? | How do [target features] typically work? Expected behavior? | How do [target features] integrate with existing architecture? | Common mistakes when adding [target features] to [domain]? |
-| CONSUMER | Specific libraries with versions for NEW capabilities, integration points, what NOT to add | Table stakes vs differentiators vs anti-features, complexity noted, dependencies on existing | Integration points, new components, data flow changes, suggested build order | Warning signs, prevention strategy, which phase should address it |
+| CONSUMER | Specific libraries with versions for NEW capabilities, integration points, what NOT to add | Table stakes vs differentiators vs anti-features, complexity noted, dependencies on existing | Integration points, new components, data flow changes, suggested build order | Warning signs, prevention strategy, which objective should address it |
 | GATES | Versions current (verify with Context7), rationale explains WHY, integration considered | Categories clear, complexity noted, dependencies identified | Integration points identified, new vs modified explicit, build order considers deps | Pitfalls specific to adding these features, integration pitfalls covered, prevention actionable |
 | FILE | STACK.md | FEATURES.md | ARCHITECTURE.md | PITFALLS.md |
 
@@ -259,7 +259,7 @@ node ~/.claude/devflow/bin/df-tools.cjs commit "docs: define milestone v[X.Y] re
 ◆ Spawning roadmapper...
 ```
 
-**Starting phase number:** Read MILESTONES.md for last phase number. Continue from there (v1.0 ended at phase 5 → v1.1 starts at phase 6).
+**Starting objective number:** Read MILESTONES.md for last objective number. Continue from there (v1.0 ended at objective 5 → v1.1 starts at objective 6).
 
 ```
 Task(prompt="
@@ -273,10 +273,10 @@ Task(prompt="
 
 <instructions>
 Create roadmap for milestone v[X.Y]:
-1. Start phase numbering from [N]
-2. Derive phases from THIS MILESTONE's requirements only
-3. Map every requirement to exactly one phase
-4. Derive 2-5 success criteria per phase (observable user behaviors)
+1. Start objective numbering from [N]
+2. Derive objectives from THIS MILESTONE's requirements only
+3. Map every requirement to exactly one objective
+4. Derive 2-5 success criteria per objective (observable user behaviors)
 5. Validate 100% coverage
 6. Write files immediately (ROADMAP.md, STATE.md, update REQUIREMENTS.md traceability)
 7. Return ROADMAP CREATED with summary
@@ -295,15 +295,15 @@ Write files first, then return.
 ```
 ## Proposed Roadmap
 
-**[N] phases** | **[X] requirements mapped** | All covered ✓
+**[N] objectives** | **[X] requirements mapped** | All covered ✓
 
-| # | Phase | Goal | Requirements | Success Criteria |
+| # | Objective | Goal | Requirements | Success Criteria |
 |---|-------|------|--------------|------------------|
 | [N] | [Name] | [Goal] | [REQ-IDs] | [count] |
 
-### Phase Details
+### Objective Details
 
-**Phase [N]: [Name]**
+**Objective [N]: [Name]**
 Goal: [goal]
 Requirements: [REQ-IDs]
 Success criteria:
@@ -313,7 +313,7 @@ Success criteria:
 
 **Ask for approval** via AskUserQuestion:
 - "Approve" — Commit and continue
-- "Adjust phases" — Tell me what to change
+- "Adjust objectives" — Tell me what to change
 - "Review full file" — Show raw ROADMAP.md
 
 **If "Adjust":** Get notes, re-spawn roadmapper with revision context, loop until approved.
@@ -321,7 +321,7 @@ Success criteria:
 
 **Commit roadmap** (after approval):
 ```bash
-node ~/.claude/devflow/bin/df-tools.cjs commit "docs: create milestone v[X.Y] roadmap ([N] phases)" --files .planning/ROADMAP.md .planning/STATE.md .planning/REQUIREMENTS.md
+node ~/.claude/devflow/bin/df-tools.cjs commit "docs: create milestone v[X.Y] roadmap ([N] objectives)" --files .planning/ROADMAP.md .planning/STATE.md .planning/REQUIREMENTS.md
 ```
 
 ## 11. Done
@@ -340,17 +340,17 @@ node ~/.claude/devflow/bin/df-tools.cjs commit "docs: create milestone v[X.Y] ro
 | Requirements   | `.planning/REQUIREMENTS.md` |
 | Roadmap        | `.planning/ROADMAP.md`      |
 
-**[N] phases** | **[X] requirements** | Ready to build ✓
+**[N] objectives** | **[X] requirements** | Ready to build ✓
 
 ## ▶ Next Up
 
-**Phase [N]: [Phase Name]** — [Goal]
+**Objective [N]: [Objective Name]** — [Goal]
 
-`/df:discuss-phase [N]` — gather context and clarify approach
+`/df:discuss-objective [N]` — gather context and clarify approach
 
 <sub>`/clear` first → fresh context window</sub>
 
-Also: `/df:plan-phase [N]` — skip discussion, plan directly
+Also: `/df:plan-objective [N]` — skip discussion, plan directly
 ```
 
 </process>
@@ -362,12 +362,12 @@ Also: `/df:plan-phase [N]` — skip discussion, plan directly
 - [ ] Research completed (if selected) — 4 parallel agents, milestone-aware
 - [ ] Requirements gathered and scoped per category
 - [ ] REQUIREMENTS.md created with REQ-IDs
-- [ ] df-roadmapper spawned with phase numbering context
+- [ ] df-roadmapper spawned with objective numbering context
 - [ ] Roadmap files written immediately (not draft)
 - [ ] User feedback incorporated (if any)
-- [ ] ROADMAP.md phases continue from previous milestone
+- [ ] ROADMAP.md objectives continue from previous milestone
 - [ ] All commits made (if planning docs committed)
-- [ ] User knows next step: `/df:discuss-phase [N]`
+- [ ] User knows next step: `/df:discuss-objective [N]`
 
-**Atomic commits:** Each phase commits its artifacts immediately.
+**Atomic commits:** Each objective commits its artifacts immediately.
 </success_criteria>

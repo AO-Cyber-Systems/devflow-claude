@@ -3,7 +3,7 @@
   "depth": "standard",
   "workflow": {
     "research": true,
-    "plan_check": true,
+    "job_check": true,
     "verifier": true,
     "auto_advance": false
   },
@@ -13,24 +13,29 @@
   },
   "parallelization": {
     "enabled": true,
-    "plan_level": true,
+    "job_level": true,
     "task_level": false,
     "skip_checkpoints": true,
     "max_concurrent_agents": 3,
-    "min_plans_for_parallel": 2
+    "min_jobs_for_parallel": 2
   },
   "gates": {
     "confirm_project": true,
-    "confirm_phases": true,
+    "confirm_objectives": true,
     "confirm_roadmap": true,
     "confirm_breakdown": true,
-    "confirm_plan": true,
-    "execute_next_plan": true,
+    "confirm_job": true,
+    "execute_next_job": true,
     "issues_review": true,
     "confirm_transition": true
   },
   "safety": {
     "always_confirm_destructive": true,
     "always_confirm_external_services": true
+  },
+  "workstreams": {
+    "worktree_prefix": "../{project}-ws-",
+    "branch_prefix": "df/ws-",
+    "merge_strategy": "squash"
   }
 }

@@ -21,10 +21,10 @@ Brownfield equivalent of new-project. Project exists, PROJECT.md has history. Ga
 - `.planning/PROJECT.md` — updated with new milestone goals
 - `.planning/research/` — domain research (optional, NEW features only)
 - `.planning/REQUIREMENTS.md` — scoped requirements for this milestone
-- `.planning/ROADMAP.md` — phase structure (continues numbering)
+- `.planning/ROADMAP.md` — objective structure (continues numbering)
 - `.planning/STATE.md` — reset for new milestone
 
-**After:** `/df:plan-phase [N]` to start execution.
+**After:** `/df:plan-objective [N]` to start execution.
 </objective>
 
 <execution_context>

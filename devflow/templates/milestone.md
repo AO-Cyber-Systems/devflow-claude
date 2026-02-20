@@ -7,7 +7,7 @@ Add this entry to `.planning/MILESTONES.md` when completing a milestone:
 
 **Delivered:** [One sentence describing what shipped]
 
-**Phases completed:** [X-Y] ([Z] plans total)
+**Objectives completed:** [X-Y] ([Z] plans total)
 
 **Key accomplishments:**
 - [Major achievement 1]
@@ -18,7 +18,7 @@ Add this entry to `.planning/MILESTONES.md` when completing a milestone:
 **Stats:**
 - [X] files created/modified
 - [Y] lines of code (primary language)
-- [Z] phases, [N] plans, [M] tasks
+- [Z] objectives, [N] plans, [M] tasks
 - [D] days from start to ship (or milestone to milestone)
 
 **Git range:** `feat(XX-XX)` → `feat(YY-YY)`
@@ -46,19 +46,19 @@ If MILESTONES.md doesn't exist, create it with header:
 - Before archiving planning (capture what was shipped)
 
 **Don't create milestones for:**
-- Individual phase completions (normal workflow)
+- Individual objective completions (normal workflow)
 - Work in progress (wait until shipped)
 - Minor bug fixes that don't constitute a release
 
 **Stats to include:**
 - Count modified files: `git diff --stat feat(XX-XX)..feat(YY-YY) | tail -1`
 - Count LOC: `find . -name "*.swift" -o -name "*.ts" | xargs wc -l` (or relevant extension)
-- Phase/plan/task counts from ROADMAP
-- Timeline from first phase commit to last phase commit
+- Objective/plan/task counts from ROADMAP
+- Timeline from first objective commit to last objective commit
 
 **Git range format:**
 - First commit of milestone → last commit of milestone
-- Example: `feat(01-01)` → `feat(04-01)` for phases 1-4
+- Example: `feat(01-01)` → `feat(04-01)` for objectives 1-4
 </guidelines>
 
 <example>
@@ -69,7 +69,7 @@ If MILESTONES.md doesn't exist, create it with header:
 
 **Delivered:** Security hardening with Keychain integration and comprehensive error handling
 
-**Phases completed:** 5-6 (3 plans total)
+**Objectives completed:** 5-6 (3 jobs total)
 
 **Key accomplishments:**
 - Migrated API key storage from plaintext to macOS Keychain
@@ -80,7 +80,7 @@ If MILESTONES.md doesn't exist, create it with header:
 **Stats:**
 - 23 files modified
 - 650 lines of Swift added
-- 2 phases, 3 plans, 12 tasks
+- 2 objectives, 3 jobs, 12 tasks
 - 8 days from v1.0 to v1.1
 
 **Git range:** `feat(05-01)` → `feat(06-02)`
@@ -93,7 +93,7 @@ If MILESTONES.md doesn't exist, create it with header:
 
 **Delivered:** Menu bar weather app with current conditions and 3-day forecast
 
-**Phases completed:** 1-4 (7 plans total)
+**Objectives completed:** 1-4 (7 jobs total)
 
 **Key accomplishments:**
 - Menu bar app with popover UI (AppKit)
@@ -105,7 +105,7 @@ If MILESTONES.md doesn't exist, create it with header:
 **Stats:**
 - 47 files created
 - 2,450 lines of Swift
-- 4 phases, 7 plans, 28 tasks
+- 4 objectives, 7 jobs, 28 tasks
 - 12 days from start to ship
 
 **Git range:** `feat(01-01)` → `feat(04-01)`

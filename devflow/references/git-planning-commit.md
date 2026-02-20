@@ -24,12 +24,12 @@ node ~/.claude/devflow/bin/df-tools.cjs commit "" --files .planning/codebase/*.m
 
 | Command | Scope | Example |
 |---------|-------|---------|
-| plan-phase | phase | `docs(phase-03): create authentication plans` |
-| execute-phase | phase | `docs(phase-03): complete authentication phase` |
+| plan-objective | objective | `docs(phase-03): create authentication plans` |
+| execute-objective | objective | `docs(phase-03): complete authentication objective` |
 | new-milestone | milestone | `docs: start milestone v1.1` |
-| remove-phase | chore | `chore: remove phase 17 (dashboard)` |
-| insert-phase | phase | `docs: insert phase 16.1 (critical fix)` |
-| add-phase | phase | `docs: add phase 07 (settings page)` |
+| remove-objective | chore | `chore: remove objective 17 (dashboard)` |
+| insert-objective | objective | `docs: insert objective 16.1 (critical fix)` |
+| add-objective | objective | `docs: add objective 07 (settings page)` |
 
 ## When to Skip
 

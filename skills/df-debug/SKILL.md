@@ -135,7 +135,7 @@ Task(
 - Display root cause and evidence summary
 - Offer options:
   - "Fix now" - spawn fix subagent
-  - "Plan fix" - suggest /df:plan-phase --gaps
+  - "Plan fix" - suggest /df:plan-objective --gaps
   - "Manual fix" - done
 
 **If `## CHECKPOINT REACHED`:**

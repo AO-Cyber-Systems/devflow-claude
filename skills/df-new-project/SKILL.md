@@ -25,10 +25,10 @@ Initialize a new project through unified flow: questioning → research (optiona
 - `.planning/config.json` — workflow preferences
 - `.planning/research/` — domain research (optional)
 - `.planning/REQUIREMENTS.md` — scoped requirements
-- `.planning/ROADMAP.md` — phase structure
+- `.planning/ROADMAP.md` — objective structure
 - `.planning/STATE.md` — project memory
 
-**After this command:** Run `/df:plan-phase 1` to start execution.
+**After this command:** Run `/df:plan-objective 1` to start execution.
 </objective>
 
 <execution_context>

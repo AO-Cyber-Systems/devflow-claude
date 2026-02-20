@@ -1,10 +1,10 @@
 ---
-name: df:plan-phase
+name: df:plan-objective
 description: |
-  Create detailed phase plan (PLAN.md) with verification loop.
-  Use when the user wants to plan a phase, create execution plans, or prepare for building.
-  Triggers on: "plan phase", "create plans", "plan the next phase", "let's plan", "prepare phase", "make plans for"
-argument-hint: "[phase] [--auto] [--research] [--skip-research] [--gaps] [--skip-verify]"
+  Create detailed objective plan (JOB.md) with verification loop.
+  Use when the user wants to plan an objective, create execution plans, or prepare for building.
+  Triggers on: "plan objective", "create plans", "plan the next objective", "let's plan", "prepare objective", "make plans for"
+argument-hint: "[objective] [--auto] [--research] [--skip-research] [--gaps] [--skip-verify]"
 agent: df-planner
 allowed-tools:
   - Read
@@ -17,20 +17,20 @@ allowed-tools:
   - mcp__context7__*
 ---
 <objective>
-Create executable phase prompts (PLAN.md files) for a roadmap phase with integrated research and verification.
+Create executable objective prompts (JOB.md files) for a roadmap objective with integrated research and verification.
 
 **Default flow:** Research (if needed) → Plan → Verify → Done
 
-**Orchestrator role:** Parse arguments, validate phase, research domain (unless skipped), spawn df-planner, verify with df-plan-checker, iterate until pass or max iterations, present results.
+**Orchestrator role:** Parse arguments, validate objective, research domain (unless skipped), spawn df-planner, verify with df-job-checker, iterate until pass or max iterations, present results.
 </objective>
 
 <execution_context>
-@~/.claude/devflow/workflows/plan-phase.md
+@~/.claude/devflow/workflows/plan-objective.md
 @~/.claude/devflow/references/ui-brand.md
 </execution_context>
 
 <context>
-Phase number: $ARGUMENTS (optional — auto-detects next unplanned phase if omitted)
+Objective number: $ARGUMENTS (optional — auto-detects next unplanned objective if omitted)
 
 **Flags:**
 - `--research` — Force re-research even if RESEARCH.md exists
@@ -38,10 +38,10 @@ Phase number: $ARGUMENTS (optional — auto-detects next unplanned phase if omit
 - `--gaps` — Gap closure mode (reads VERIFICATION.md, skips research)
 - `--skip-verify` — Skip verification loop
 
-Normalize phase input in step 2 before any directory lookups.
+Normalize objective input in step 2 before any directory lookups.
 </context>
 
 <process>
-Execute the plan-phase workflow from @~/.claude/devflow/workflows/plan-phase.md end-to-end.
+Execute the job-objective workflow from @~/.claude/devflow/workflows/plan-objective.md end-to-end.
 Preserve all workflow gates (validation, research, planning, verification loop, routing).
 </process>

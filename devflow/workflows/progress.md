@@ -1,5 +1,5 @@
 <purpose>
-Check project progress, summarize recent work and what's ahead, then intelligently route to the next action — either executing an existing plan or creating the next one. Provides situational awareness before continuing work.
+Check project progress, summarize recent work and what's ahead, then intelligently route to the next action — either executing an existing job or creating the next one. Provides situational awareness before continuing work.
 </purpose>
 
 <required_reading>
@@ -23,7 +23,7 @@ else
 fi
 ```
 
-Extract from init JSON: `project_exists`, `roadmap_exists`, `state_exists`, `phases`, `current_phase`, `next_phase`, `milestone_version`, `completed_count`, `phase_count`, `paused_at`.
+Extract from init JSON: `project_exists`, `roadmap_exists`, `state_exists`, `objectives`, `current_phase`, `next_phase`, `milestone_version`, `completed_count`, `phase_count`, `paused_at`.
 
 **File contents (from --include):** `state_content`, `roadmap_content`, `project_content`, `config_content`. These are null if files don't exist.
 
@@ -51,7 +51,7 @@ If missing both ROADMAP.md and PROJECT.md: suggest `/df:new-project`.
 
 All file contents are already loaded via `--include` in init_context step:
 - `state_content` — living memory (position, decisions, issues)
-- `roadmap_content` — phase structure and objectives
+- `roadmap_content` — objective structure and objectives
 - `project_content` — current state (What This Is, Core Value, Requirements)
 - `config_content` — settings (model_profile, workflow toggles)
 
@@ -66,11 +66,11 @@ ROADMAP=$(node ~/.claude/devflow/bin/df-tools.cjs roadmap analyze)
 ```
 
 This returns structured JSON with:
-- All phases with disk status (complete/partial/planned/empty/no_directory)
-- Goal and dependencies per phase
-- Plan and summary counts per phase
+- All objectives with disk status (complete/partial/planned/empty/no_directory)
+- Goal and dependencies per objective
+- Plan and summary counts per objective
 - Aggregated stats: total plans, summaries, progress percent
-- Current and next phase identification
+- Current and next objective identification
 
 Use this instead of manually reading/parsing ROADMAP.md.
 </step>
@@ -90,7 +90,7 @@ Use this instead of manually reading/parsing ROADMAP.md.
 **Parse current position from init context and roadmap analysis:**
 
 - Use `current_phase` and `next_phase` from roadmap analyze
-- Use phase-level `has_context` and `has_research` flags from analyze
+- Use objective-level `has_context` and `has_research` flags from analyze
 - Note `paused_at` if work was paused (from init context)
 - Count pending todos: use `init todos` or `list-todos`
 - Check for active debug sessions: `ls .planning/debug/*.md 2>/dev/null | grep -v resolved | wc -l`
@@ -113,11 +113,11 @@ Present:
 **Profile:** [quality/balanced/budget]
 
 ## Recent Work
-- [Phase X, Plan Y]: [what was accomplished - 1 line from summary-extract]
-- [Phase X, Plan Z]: [what was accomplished - 1 line from summary-extract]
+- [Objective X, Plan Y]: [what was accomplished - 1 line from summary-extract]
+- [Objective X, Plan Z]: [what was accomplished - 1 line from summary-extract]
 
 ## Current Position
-Phase [N] of [total]: [phase-name]
+Objective [N] of [total]: [phase-name]
 Plan [M] of [phase-total]: [status]
 CONTEXT: [✓ if has_context | - if not]
 
@@ -136,7 +136,7 @@ CONTEXT: [✓ if has_context | - if not]
 (Only show this section if count > 0)
 
 ## What's Next
-[Next phase/plan objective from roadmap analyze]
+[Next objective/plan objective from roadmap analyze]
 ```
 
 </step>
@@ -144,17 +144,17 @@ CONTEXT: [✓ if has_context | - if not]
 <step name="route">
 **Determine next action based on verified counts.**
 
-**Step 1: Count plans, summaries, and issues in current phase**
+**Step 1: Count plans, summaries, and issues in current objective**
 
-List files in the current phase directory:
+List files in the current objective directory:
 
 ```bash
-ls -1 .planning/phases/[current-phase-dir]/*-PLAN.md 2>/dev/null | wc -l
-ls -1 .planning/phases/[current-phase-dir]/*-SUMMARY.md 2>/dev/null | wc -l
-ls -1 .planning/phases/[current-phase-dir]/*-UAT.md 2>/dev/null | wc -l
+ls -1 .planning/objectives/[current-objective-dir]/*-JOB.md 2>/dev/null | wc -l
+ls -1 .planning/objectives/[current-objective-dir]/*-SUMMARY.md 2>/dev/null | wc -l
+ls -1 .planning/objectives/[current-objective-dir]/*-UAT.md 2>/dev/null | wc -l
 ```
 
-State: "This phase has {X} plans, {Y} summaries."
+State: "This objective has {X} plans, {Y} summaries."
 
 **Step 1.5: Check for unaddressed UAT gaps**
 
@@ -162,7 +162,7 @@ Check for UAT.md files with status "diagnosed" (has gaps needing fixes).
 
 ```bash
 # Check for diagnosed UAT with gaps
-grep -l "status: diagnosed" .planning/phases/[current-phase-dir]/*-UAT.md 2>/dev/null
+grep -l "status: diagnosed" .planning/objectives/[current-objective-dir]/*-UAT.md 2>/dev/null
 ```
 
 Track:
@@ -173,15 +173,15 @@ Track:
 | Condition | Meaning | Action |
 |-----------|---------|--------|
 | uat_with_gaps > 0 | UAT gaps need fix plans | Go to **Route E** |
-| summaries < plans | Unexecuted plans exist | Go to **Route A** |
-| summaries = plans AND plans > 0 | Phase complete | Go to Step 3 |
-| plans = 0 | Phase not yet planned | Go to **Route B** |
+| summaries < plans | Unexecuted jobs exist | Go to **Route A** |
+| summaries = plans AND plans > 0 | Objective complete | Go to Step 3 |
+| plans = 0 | Objective not yet planned | Go to **Route B** |
 
 ---
 
 **Route A: Unexecuted plan exists**
 
-Find the first PLAN.md without matching SUMMARY.md.
+Find the first JOB.md without matching SUMMARY.md.
 Read its `<objective>` section.
 
 ```
@@ -189,9 +189,9 @@ Read its `<objective>` section.
 
 ## ▶ Next Up
 
-**{phase}-{plan}: [Plan Name]** — [objective summary from PLAN.md]
+**{objective}-{job}: [Plan Name]** — [objective summary from JOB.md]
 
-`/df:execute-phase {phase}`
+`/df:execute-objective {objective}`
 
 <sub>`/clear` first → fresh context window</sub>
 
@@ -200,9 +200,9 @@ Read its `<objective>` section.
 
 ---
 
-**Route B: Phase needs planning**
+**Route B: Objective needs planning**
 
-Check if `{phase_num}-CONTEXT.md` exists in phase directory.
+Check if `{phase_num}-CONTEXT.md` exists in objective directory.
 
 **If CONTEXT.md exists:**
 
@@ -211,10 +211,10 @@ Check if `{phase_num}-CONTEXT.md` exists in phase directory.
 
 ## ▶ Next Up
 
-**Phase {N}: {Name}** — {Goal from ROADMAP.md}
+**Objective {N}: {Name}** — {Goal from ROADMAP.md}
 <sub>✓ Context gathered, ready to plan</sub>
 
-`/df:plan-phase {phase-number}`
+`/df:plan-objective {phase-number}`
 
 <sub>`/clear` first → fresh context window</sub>
 
@@ -228,17 +228,17 @@ Check if `{phase_num}-CONTEXT.md` exists in phase directory.
 
 ## ▶ Next Up
 
-**Phase {N}: {Name}** — {Goal from ROADMAP.md}
+**Objective {N}: {Name}** — {Goal from ROADMAP.md}
 
-`/df:discuss-phase {phase}` — gather context and clarify approach
+`/df:discuss-objective {objective}` — gather context and clarify approach
 
 <sub>`/clear` first → fresh context window</sub>
 
 ---
 
 **Also available:**
-- `/df:plan-phase {phase}` — skip discussion, plan directly
-- `/df:list-phase-assumptions {phase}` — see Claude's assumptions
+- `/df:plan-objective {objective}` — skip discussion, plan directly
+- `/df:list-objective-assumptions {objective}` — see Claude's assumptions
 
 ---
 ```
@@ -256,61 +256,61 @@ UAT.md exists with gaps (diagnosed issues). User needs to plan fixes.
 
 **{phase_num}-UAT.md** has {N} gaps requiring fixes.
 
-`/df:plan-phase {phase} --gaps`
+`/df:plan-objective {objective} --gaps`
 
 <sub>`/clear` first → fresh context window</sub>
 
 ---
 
 **Also available:**
-- `/df:execute-phase {phase}` — execute phase plans
-- `/df:verify-work {phase}` — run more UAT testing
+- `/df:execute-objective {objective}` — execute objective plans
+- `/df:verify-work {objective}` — run more UAT testing
 
 ---
 ```
 
 ---
 
-**Step 3: Check milestone status (only when phase complete)**
+**Step 3: Check milestone status (only when objective complete)**
 
 Read ROADMAP.md and identify:
-1. Current phase number
-2. All phase numbers in the current milestone section
+1. Current objective number
+2. All objective numbers in the current milestone section
 
-Count total phases and identify the highest phase number.
+Count total objectives and identify the highest objective number.
 
-State: "Current phase is {X}. Milestone has {N} phases (highest: {Y})."
+State: "Current objective is {X}. Milestone has {N} objectives (highest: {Y})."
 
 **Route based on milestone status:**
 
 | Condition | Meaning | Action |
 |-----------|---------|--------|
-| current phase < highest phase | More phases remain | Go to **Route C** |
-| current phase = highest phase | Milestone complete | Go to **Route D** |
+| current objective < highest objective | More objectives remain | Go to **Route C** |
+| current objective = highest objective | Milestone complete | Go to **Route D** |
 
 ---
 
-**Route C: Phase complete, more phases remain**
+**Route C: Objective complete, more objectives remain**
 
-Read ROADMAP.md to get the next phase's name and goal.
+Read ROADMAP.md to get the next objective's name and goal.
 
 ```
 ---
 
-## ✓ Phase {Z} Complete
+## ✓ Objective {Z} Complete
 
 ## ▶ Next Up
 
-**Phase {Z+1}: {Name}** — {Goal from ROADMAP.md}
+**Objective {Z+1}: {Name}** — {Goal from ROADMAP.md}
 
-`/df:discuss-phase {Z+1}` — gather context and clarify approach
+`/df:discuss-objective {Z+1}` — gather context and clarify approach
 
 <sub>`/clear` first → fresh context window</sub>
 
 ---
 
 **Also available:**
-- `/df:plan-phase {Z+1}` — skip discussion, plan directly
+- `/df:plan-objective {Z+1}` — skip discussion, plan directly
 - `/df:verify-work {Z}` — user acceptance test before continuing
 
 ---
@@ -325,7 +325,7 @@ Read ROADMAP.md to get the next phase's name and goal.
 
 ## 🎉 Milestone Complete
 
-All {N} phases finished!
+All {N} objectives finished!
 
 ## ▶ Next Up
 
@@ -374,7 +374,7 @@ Ready to plan the next milestone.
 <step name="edge_cases">
 **Handle edge cases:**
 
-- Phase complete but next phase not planned → offer `/df:plan-phase [next]`
+- Objective complete but next objective not planned → offer `/df:plan-objective [next]`
 - All work complete → offer milestone completion
 - Blockers present → highlight before offering to continue
 - Handoff file exists → mention it, offer `/df:resume-work`
@@ -387,7 +387,7 @@ Ready to plan the next milestone.
 - [ ] Rich context provided (recent work, decisions, issues)
 - [ ] Current position clear with visual progress
 - [ ] What's next clearly explained
-- [ ] Smart routing: /df:execute-phase if plans exist, /df:plan-phase if not
+- [ ] Smart routing: /df:execute-objective if plans exist, /df:plan-objective if not
 - [ ] User confirms before any action
 - [ ] Seamless handoff to appropriate gsd command
       </success_criteria>

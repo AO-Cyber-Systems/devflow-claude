@@ -1,7 +1,7 @@
 <purpose>
 Orchestrate parallel debug agents to investigate UAT gaps and find root causes.
 
-After UAT finds gaps, spawn one debug agent per gap. Each agent investigates autonomously with symptoms pre-filled from UAT. Collect root causes, update UAT.md gaps with diagnosis, then hand off to plan-phase --gaps with actual diagnoses.
+After UAT finds gaps, spawn one debug agent per gap. Each agent investigates autonomously with symptoms pre-filled from UAT. Collect root causes, update UAT.md gaps with diagnosis, then hand off to plan-objective --gaps with actual diagnoses.
 
 Orchestrator stays lean: parse gaps, spawn agents, collect results, update UAT.
 </purpose>
@@ -15,7 +15,7 @@ Debug files use the `.planning/debug/` path (hidden directory with leading dot).
 <core_principle>
 **Diagnose before planning fixes.**
 
-UAT tells us WHAT is broken (symptoms). Debug agents find WHY (root cause). plan-phase --gaps then creates targeted fixes based on actual causes, not guesses.
+UAT tells us WHAT is broken (symptoms). Debug agents find WHY (root cause). plan-objective --gaps then creates targeted fixes based on actual causes, not guesses.
 
 Without diagnosis: "Comment doesn't refresh" → guess at fix → maybe wrong
 With diagnosis: "Comment doesn't refresh" → "useEffect missing dependency" → precise fix
@@ -105,7 +105,7 @@ Template placeholders:
 - `{errors}`: Any error messages from UAT (or "None reported")
 - `{reproduction}`: "Test {test_num} in UAT"
 - `{timeline}`: "Discovered during UAT"
-- `{goal}`: `find_root_cause_only` (UAT flow - plan-phase --gaps handles fixes)
+- `{goal}`: `find_root_cause_only` (UAT flow - plan-objective --gaps handles fixes)
 - `{slug}`: Generated from truth
 </step>
 
@@ -129,7 +129,7 @@ Each agent returns with:
 - {file1}: {what's wrong}
 - {file2}: {related issue}
 
-**Suggested Fix Direction:** {brief hint for plan-phase --gaps}
+**Suggested Fix Direction:** {brief hint for plan-objective --gaps}
 ```
 
 Parse each return to extract:
@@ -174,7 +174,7 @@ Update status in frontmatter to "diagnosed".
 
 Commit the updated UAT.md:
 ```bash
-node ~/.claude/devflow/bin/df-tools.cjs commit "docs({phase_num}): add root causes from diagnosis" --files ".planning/phases/XX-name/{phase_num}-UAT.md"
+node ~/.claude/devflow/bin/df-tools.cjs commit "docs({phase_num}): add root causes from diagnosis" --files ".planning/objectives/XX-name/{phase_num}-UAT.md"
 ```
 </step>
 
@@ -206,7 +206,7 @@ Do NOT offer manual next steps - verify-work handles the rest.
 
 <context_efficiency>
 Agents start with symptoms pre-filled from UAT (no symptom gathering).
-Agents only diagnose—plan-phase --gaps handles fixes (no fix application).
+Agents only diagnose—plan-objective --gaps handles fixes (no fix application).
 </context_efficiency>
 
 <failure_handling>
@@ -222,7 +222,7 @@ Agents only diagnose—plan-phase --gaps handles fixes (no fix application).
 **All agents fail:**
 - Something systemic (permissions, git, etc.)
 - Report for manual investigation
-- Fall back to plan-phase --gaps without root causes (less precise)
+- Fall back to plan-objective --gaps without root causes (less precise)
 </failure_handling>
 
 <success_criteria>

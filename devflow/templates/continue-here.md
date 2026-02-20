@@ -1,10 +1,10 @@
 # Continue-Here Template
 
-Copy and fill this structure for `.planning/phases/XX-name/.continue-here.md`:
+Copy and fill this structure for `.planning/objectives/XX-name/.continue-here.md`:
 
 ```yaml
 ---
-phase: XX-name
+objective: XX-name
 task: 3
 total_tasks: 7
 status: in_progress
@@ -26,7 +26,7 @@ last_updated: 2025-01-15T14:30:00Z
 </completed_work>
 
 <remaining_work>
-[What's left in this phase]
+[What's left in this objective]
 
 - Task 3: [name] - [what's left to do]
 - Task 4: [name] - Not started
@@ -49,7 +49,7 @@ last_updated: 2025-01-15T14:30:00Z
 <context>
 [Mental state, "vibe", anything that helps resume smoothly]
 
-[What were you thinking about? What was the plan?
+[What were you thinking about? What was the job?
 This is the "pick up exactly where you left off" context.]
 </context>
 
@@ -63,9 +63,9 @@ Start with: [specific action]
 <yaml_fields>
 Required YAML frontmatter:
 
-- `phase`: Directory name (e.g., `02-authentication`)
+- `objective`: Directory name (e.g., `02-authentication`)
 - `task`: Current task number
-- `total_tasks`: How many tasks in phase
+- `total_tasks`: How many tasks in objective
 - `status`: `in_progress`, `blocked`, `almost_done`
 - `last_updated`: ISO timestamp
 </yaml_fields>
