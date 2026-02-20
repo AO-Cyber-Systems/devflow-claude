@@ -6,14 +6,13 @@
 
 **Solves context rot — the quality degradation that happens as Claude fills its context window.**
 
-[![npm version](https://img.shields.io/npm/v/devflow-cc?style=for-the-badge&logo=npm&logoColor=white&color=CB3837)](https://www.npmjs.com/package/devflow-cc)
-[![npm downloads](https://img.shields.io/npm/dm/devflow-cc?style=for-the-badge&logo=npm&logoColor=white&color=CB3837)](https://www.npmjs.com/package/devflow-cc)
+[![GitHub Package](https://img.shields.io/github/v/release/AO-Cyber-Systems/devflow-claude?style=for-the-badge&logo=github&logoColor=white&color=24292e)](https://github.com/AO-Cyber-Systems/devflow-claude/packages)
 [![License](https://img.shields.io/badge/license-MIT-blue?style=for-the-badge)](LICENSE)
 
 <br>
 
 ```bash
-npx devflow-cc@latest
+npx @ao-cyber-systems/devflow-cc@latest
 ```
 
 **Works on Mac, Windows, and Linux.**
@@ -43,7 +42,7 @@ People who want to describe what they want and have it built correctly — witho
 ## Getting Started
 
 ```bash
-npx devflow-cc@latest
+npx @ao-cyber-systems/devflow-cc@latest
 ```
 
 The installer prompts you to choose:
@@ -56,7 +55,7 @@ Verify with `/df:help` in Claude Code.
 DevFlow evolves fast. Update periodically:
 
 ```bash
-npx devflow-cc@latest
+npx @ao-cyber-systems/devflow-cc@latest
 ```
 
 <details>
@@ -577,7 +576,7 @@ This prevents Claude from reading these files entirely, regardless of what comma
 
 **Updating to the latest version?**
 ```bash
-npx devflow-cc@latest
+npx @ao-cyber-systems/devflow-cc@latest
 ```
 
 **Using Docker or containerized environments?**

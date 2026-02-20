@@ -18,7 +18,7 @@ Display the complete DevFlow command reference. Output ONLY the reference conten
 DevFlow evolves fast. Update periodically:
 
 ```bash
-npx devflow-cc@latest
+npx @ao-cyber-systems/devflow-cc@latest
 ```
 
 ## Core Workflow
