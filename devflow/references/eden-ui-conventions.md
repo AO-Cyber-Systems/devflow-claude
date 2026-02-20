@@ -58,13 +58,18 @@ Three pre-built layouts in `app/views/eden_ui/layouts/`:
 
 ### Colors
 
-**Brand — Gold palette (primary):**
-| Token | Hex | Usage |
-|-------|-----|-------|
-| `gold-500` / `primary-500` | `#d4a853` | Primary actions, links, focus rings |
-| `gold-600` / `primary-600` | `#c49545` | Hover states |
-| `gold-700` / `primary-700` | `#a67a38` | Active/pressed states |
-| `gold-50` / `primary-50` | `#fdf8ef` | Light backgrounds |
+**Brand — Primary palette (configurable, defaults to gold):**
+
+The `primary-*` classes map to whichever brand is configured via `EdenUi.configure { |c| c.brand_color = :blue }`. Available presets: `:gold`, `:blue`, `:emerald`, `:purple`, `:red`, `:slate`, or a custom hash.
+
+| Token | Usage |
+|-------|-------|
+| `primary-500` | Primary actions, links, focus rings |
+| `primary-600` | Hover states |
+| `primary-700` | Active/pressed states |
+| `primary-50` | Light backgrounds |
+
+The `gold-*` classes always reference the gold palette directly (useful for elements that should stay gold regardless of brand).
 
 **Neutral — Zinc scale:**
 `neutral-50` (#fafafa) through `neutral-950` (#0a0a0a). Use for text, backgrounds, borders.
@@ -96,8 +101,8 @@ Tailwind mapping: `font-sans` → body, `font-display` → headings, `font-mono`
 | `shadow-sm` | Subtle elevation (inputs, small cards) |
 | `shadow-md` | Medium elevation (dropdowns, popovers) |
 | `shadow-lg` | High elevation (modals, drawers) |
-| `shadow-glow` | Subtle gold glow for primary elements |
-| `shadow-glow-strong` | Prominent gold glow for CTAs, focus |
+| `shadow-glow` | Subtle brand glow for primary elements |
+| `shadow-glow-strong` | Prominent brand glow for CTAs, focus |
 
 ### Animations
 
@@ -210,7 +215,7 @@ All components support dark mode via Tailwind `dark:` variants. Eden-UI defaults
 - Compose using eden helpers: `eden_card`, `eden_button`, `eden_alert`, etc.
 - Use `eden_empty_state` for zero-data scenarios
 - Use `eden_form_group` to wrap form fields (handles label, error, hint)
-- Use the gold palette (`primary-*`) for brand/CTA elements
+- Use the primary palette (`primary-*`) for brand/CTA elements (adapts to configured brand)
 - Include icons via `eden_icon()` — never inline raw SVG in views
 - Use `eden_flash_message` in layouts for flash[:notice]/flash[:alert]
 - Test with dark mode enabled (default)
@@ -232,5 +237,29 @@ All components support dark mode via Tailwind `dark:` variants. Eden-UI defaults
 | `lib/eden_ui/form_builder.rb` | Custom FormBuilder class |
 | `lib/eden_ui/engine.rb` | Engine initialization |
 | `lib/eden_ui/configuration.rb` | Config options |
+| `lib/eden_ui/brand_presets.rb` | Brand color + font presets |
+| `app/helpers/eden_ui/brand_helper.rb` | Brand style/font head tag helpers |
+
+## Brand Customization
+
+Each Rails app can configure its own brand via the initializer:
+
+```ruby
+EdenUi.configure do |config|
+  config.brand_color = :blue        # or :emerald, :purple, :red, :slate, or custom hash
+  config.font_preset = :inter       # or :system, or custom hash
+end
+```
+
+**Presets:** `:gold` (default), `:blue`, `:emerald`, `:purple`, `:red`, `:slate`
+
+**Head tag requirements** — add to application layout `<head>`:
+```erb
+<%= eden_font_tags %>           <%# Google Fonts (respects font_preset) %>
+<%= eden_brand_style_tag %>     <%# Brand color overrides (no-op for :gold) %>
+<%= eden_design_theme_script %> <%# Dark mode init script %>
+```
+
+**How it works:** CSS custom properties `--eden-primary-*` default to gold in `tokens.css`. The `eden_brand_style_tag` helper emits a `<style>` tag that overrides these variables when a non-gold brand is configured. All `primary-*` Tailwind classes flow through this indirection. No component changes needed.
 
 </eden_ui_conventions>

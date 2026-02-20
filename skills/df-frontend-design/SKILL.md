@@ -29,7 +29,7 @@ Build new UI, review existing code, or visually inspect rendered pages against e
 
 **Three modes:**
 
-**Build mode** — Generate Rails ERB views/partials using eden-ui components. Compose from the 150+ eden-ui helpers rather than writing raw Tailwind. Produces production-grade views that match the eden-ui design system (gold brand, dark mode, Stimulus interactivity).
+**Build mode** — Generate Rails ERB views/partials using eden-ui components. Compose from the 150+ eden-ui helpers rather than writing raw Tailwind. Produces production-grade views that match the eden-ui design system (configured brand palette, dark mode, Stimulus interactivity).
 
 **Review mode** — Audit existing views/partials for eden-ui compliance. Check for: raw HTML that should use eden-ui helpers, missing dark mode support, hardcoded colors instead of design tokens, incorrect component composition, accessibility gaps, missing Stimulus controllers for interactive patterns.
 
@@ -62,6 +62,8 @@ Mode + target: $ARGUMENTS
 
 ## Build Mode
 
+0. **Read project brand** — Check `config/initializers/eden_ui.rb` for `brand_color` and `font_preset` settings. This determines the primary palette (e.g., `:blue` means `primary-*` maps to blue shades, not gold). Use `primary-*` classes — never hardcode `gold-*` unless the brand is explicitly gold.
+
 1. **Understand the request** — What page/view/partial is needed? What data does it display? What actions does it support?
 
 2. **Check eden-ui for matching components** — Read `../eden-ui/app/helpers/eden_ui/component_helper.rb` to find the exact helper signatures for components you'll use. Read specific partials in `../eden-ui/app/views/eden_ui/components/` to understand accepted parameters and rendering behavior.
@@ -82,6 +84,8 @@ Mode + target: $ARGUMENTS
 5. **Verify** — Confirm all helper calls use valid parameters by cross-referencing eden-ui source. Check that Stimulus controllers referenced exist in the importmap.
 
 ## Review Mode
+
+0. **Read project brand** — Check `config/initializers/eden_ui.rb` for `brand_color` and `font_preset` settings. When brand is not `:gold`, flag any `gold-*` hardcodes as violations.
 
 1. **Discover target files** — Glob for `*.html.erb` in the specified paths. If no path given, scan `app/views/` excluding vendored/eden_ui engine views.
 
@@ -128,6 +132,8 @@ Mode + target: $ARGUMENTS
 Uses Playwright to load pages in a real browser and inspect the rendered output.
 
 ### Setup
+
+0. **Read project brand** — Check `config/initializers/eden_ui.rb` for `brand_color` and `font_preset` settings. This context informs what colors to expect when inspecting computed styles.
 
 1. **Confirm the app is running** — Ask the user for the base URL (default: `http://localhost:3000`). Verify the server responds before proceeding.
 
@@ -180,7 +186,7 @@ For each page, run this sequence:
    Take a screenshot in dark mode. Verify:
    - No white/light backgrounds bleeding through
    - Text remains readable (sufficient contrast)
-   - Brand gold (`primary-*`) colors render correctly on dark backgrounds
+   - Brand (`primary-*`) colors render correctly on dark backgrounds
    - Borders and dividers use appropriate dark variants
    - No missing `dark:` overrides (elements that look correct in light but break in dark)
 
