@@ -1,0 +1,95 @@
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="stat-label">Total</div>
+    <div class="stat-value"><%= stats[:total] %></div>
+    <div class="stat-detail">captured emails</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Unread</div>
+    <div class="stat-value"><%= stats[:unread] %></div>
+    <div class="stat-detail">new messages</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Today</div>
+    <div class="stat-value"><%= stats[:today] %></div>
+    <div class="stat-detail">received today</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">SMTP Server</div>
+    <div class="stat-value" style="font-size: 18px;">
+      <% if smtp_status[:status] == "running" %>
+        <span class="badge badge-success">Running</span>
+      <% elsif smtp_status[:status] == "error" %>
+        <span class="badge badge-danger">Error</span>
+      <% else %>
+        <span class="badge badge-neutral">Stopped</span>
+      <% end %>
+    </div>
+    <div class="stat-detail">port <%= smtp_status[:port] %></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Inbox</span>
+    <% if messages.any? %>
+      <%= button_to "Delete All", destroy_all_mail_messages_path, method: :delete, class: "btn btn-danger btn-sm", data: { turbo_confirm: "Delete all captured emails?" } %>
+    <% end %>
+  </div>
+  <% if messages.any? %>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th style="width: 30px;"></th>
+          <th>From</th>
+          <th>Subject</th>
+          <th>To</th>
+          <th>Size</th>
+          <th>Received</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% messages.each do |message| %>
+          <tr style="<%= message.read? ? '' : 'font-weight: 600;' %>">
+            <td style="text-align: center;">
+              <% unless message.read? %>
+                <div style="width: 8px; height: 8px; border-radius: 50%; background: var(--accent); display: inline-block;"></div>
+              <% end %>
+            </td>
+            <td class="text-mono" style="font-size: 12px;"><%= message.from_address || "—" %></td>
+            <td>
+              <a href="<%= mail_message_path(message) %>" data-turbo-frame="main-content" style="color: var(--text-primary); text-decoration: none;">
+                <%= message.subject || "(no subject)" %>
+                <% if message.attachments_count > 0 %>
+                  <span class="text-muted" style="font-size: 11px; font-weight: normal;">
+                    <%= render "shared/icon", name: "package" %>
+                    <%= message.attachments_count %>
+                  </span>
+                <% end %>
+              </a>
+            </td>
+            <td class="text-mono" style="font-size: 12px;"><%= message.recipients_summary %></td>
+            <td class="text-muted" style="font-size: 12px;"><%= message.formatted_size %></td>
+            <td class="text-muted" style="font-size: 12px;"><%= time_ago_in_words(message.created_at) %> ago</td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% else %>
+    <div class="empty-state">
+      <div class="empty-state-icon">
+        <%= render "shared/icon", name: "mail" %>
+      </div>
+      <div class="empty-state-title">No Emails Captured</div>
+      <div class="empty-state-text">
+        Configure your Rails app to send mail to <code class="text-mono">smtp://127.0.0.1:1025</code>
+      </div>
+    </div>
+  <% end %>
+</div>
+
+<% if smtp_status[:status] == "error" %>
+  <div class="alert alert-warning">
+    SMTP server error: <%= smtp_status[:error] %>. Another process may be using port <%= smtp_status[:port] %>.
+  </div>
+<% end %>

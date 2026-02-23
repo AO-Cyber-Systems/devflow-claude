@@ -1,0 +1,102 @@
+<div class="page-header">
+  <h1 class="page-title">Dashboard</h1>
+  <p class="page-subtitle">Developer environment overview</p>
+</div>
+
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="stat-label">Active Services</div>
+    <div class="stat-value"><%= @stats[:active_services] %></div>
+    <div class="stat-detail">of <%= @stats[:total_services] %> configured</div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-label">Puma-Dev Apps</div>
+    <div class="stat-value"><%= @stats[:puma_dev_apps] %></div>
+    <div class="stat-detail">linked applications</div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-label">Open Ports</div>
+    <div class="stat-value"><%= @stats[:open_ports] %></div>
+    <div class="stat-detail">listening processes</div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-label">Email Inbox</div>
+    <div class="stat-value"><%= @stats[:unread_emails] %></div>
+    <div class="stat-detail">
+      unread &middot;
+      <% if @smtp_status[:status] == "running" %>
+        <span class="text-success">SMTP running</span>
+      <% else %>
+        <span class="text-muted">SMTP stopped</span>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-label">Context Usage</div>
+    <div class="stat-value"><%= @stats[:context_usage] %>%</div>
+    <div class="stat-detail">
+      <div class="progress mt-4" style="height: 6px;">
+        <div class="progress-bar progress-<%= @context[:status_color] %>" style="width: <%= @context[:usage_percent] %>%"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Service Health</span>
+      <a href="<%= services_path %>" class="btn btn-secondary btn-sm">View All</a>
+    </div>
+    <div id="services-health" data-controller="polling" data-polling-interval-value="5000" data-polling-url-value="<%= services_path(format: :turbo_stream) %>">
+      <% @services.first(6).each do |service| %>
+        <div class="service-row">
+          <div class="service-info">
+            <div class="service-dot <%= service.started? ? 'running' : 'stopped' %>"></div>
+            <div>
+              <div class="service-name"><%= service.name %></div>
+              <div class="service-detail"><%= service.status %></div>
+            </div>
+          </div>
+          <span class="badge <%= service.started? ? 'badge-success' : 'badge-neutral' %>">
+            <%= service.status %>
+          </span>
+        </div>
+      <% end %>
+      <% if @services.empty? %>
+        <div class="empty-state">
+          <div class="empty-state-text">No brew services found</div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Puma-Dev Apps</span>
+      <a href="<%= puma_dev_apps_path %>" class="btn btn-secondary btn-sm">View All</a>
+    </div>
+    <div>
+      <% @puma_dev_apps.first(6).each do |app| %>
+        <div class="service-row">
+          <div class="service-info">
+            <div class="service-dot <%= app.app_exists? ? 'running' : 'stopped' %>"></div>
+            <div>
+              <div class="service-name"><%= app.name %></div>
+              <div class="service-detail text-mono"><%= app.url %></div>
+            </div>
+          </div>
+        </div>
+      <% end %>
+      <% if @puma_dev_apps.empty? %>
+        <div class="empty-state">
+          <div class="empty-state-text">No puma-dev apps linked</div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>

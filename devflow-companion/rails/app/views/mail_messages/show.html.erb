@@ -1,0 +1,90 @@
+<div class="page-header" style="display: flex; align-items: center; justify-content: space-between;">
+  <div>
+    <h1 class="page-title"><%= @message.subject || "(no subject)" %></h1>
+    <p class="page-subtitle">From <%= @message.from_address || "unknown" %> &middot; <%= time_ago_in_words(@message.created_at) %> ago</p>
+  </div>
+  <div class="btn-group">
+    <a href="<%= mail_messages_path %>" data-turbo-frame="main-content" class="btn btn-secondary btn-sm">Back</a>
+    <%= button_to @message.read? ? "Mark Unread" : "Mark Read", toggle_read_mail_message_path(@message), method: :post, class: "btn btn-secondary btn-sm" %>
+    <%= button_to "Delete", mail_message_path(@message), method: :delete, class: "btn btn-danger btn-sm", data: { turbo_confirm: "Delete this message?" } %>
+  </div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-body">
+    <div class="desc-list">
+      <div class="desc-item">
+        <div class="desc-key">From</div>
+        <div class="desc-value"><%= @message.from_address || "—" %></div>
+      </div>
+      <div class="desc-item">
+        <div class="desc-key">To</div>
+        <div class="desc-value"><%= Array(@message.to_addresses).join(", ").presence || "—" %></div>
+      </div>
+      <% if Array(@message.cc_addresses).any? %>
+        <div class="desc-item">
+          <div class="desc-key">CC</div>
+          <div class="desc-value"><%= Array(@message.cc_addresses).join(", ") %></div>
+        </div>
+      <% end %>
+      <div class="desc-item">
+        <div class="desc-key">Date</div>
+        <div class="desc-value"><%= @message.created_at.strftime("%b %d, %Y %H:%M:%S") %></div>
+      </div>
+      <div class="desc-item">
+        <div class="desc-key">Size</div>
+        <div class="desc-value"><%= @message.formatted_size %></div>
+      </div>
+      <% if @message.attachments_count > 0 %>
+        <div class="desc-item">
+          <div class="desc-key">Attachments</div>
+          <div class="desc-value"><%= @message.attachments_count %> file(s)</div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<div class="card" data-controller="mail-tabs">
+  <div class="tabs" style="padding: 0 20px;">
+    <a href="#" class="tab active" data-mail-tabs-target="tab" data-action="click->mail-tabs#switch">HTML</a>
+    <a href="#" class="tab" data-mail-tabs-target="tab" data-action="click->mail-tabs#switch">Text</a>
+    <a href="#" class="tab" data-mail-tabs-target="tab" data-action="click->mail-tabs#switch">Headers</a>
+    <a href="#" class="tab" data-mail-tabs-target="tab" data-action="click->mail-tabs#switch">Source</a>
+  </div>
+
+  <div class="card-body" data-mail-tabs-target="panel">
+    <% if @message.body_html.present? %>
+      <iframe src="<%= body_mail_message_path(@message) %>" sandbox="allow-same-origin" style="width: 100%; min-height: 400px; border: 1px solid var(--border); border-radius: var(--radius); background: white;"></iframe>
+    <% else %>
+      <p class="text-muted">No HTML body</p>
+    <% end %>
+  </div>
+
+  <div class="card-body" data-mail-tabs-target="panel" style="display: none;">
+    <% if @message.body_text.present? %>
+      <pre class="log-viewer"><%= @message.body_text %></pre>
+    <% else %>
+      <p class="text-muted">No text body</p>
+    <% end %>
+  </div>
+
+  <div class="card-body" data-mail-tabs-target="panel" style="display: none;">
+    <% if @message.headers_json.present? %>
+      <div class="desc-list">
+        <% @message.headers_json.each do |key, value| %>
+          <div class="desc-item">
+            <div class="desc-key"><%= key %></div>
+            <div class="desc-value"><%= value %></div>
+          </div>
+        <% end %>
+      </div>
+    <% else %>
+      <p class="text-muted">No headers available</p>
+    <% end %>
+  </div>
+
+  <div class="card-body" data-mail-tabs-target="panel" style="display: none;">
+    <pre class="log-viewer"><%= @message.raw_source %></pre>
+  </div>
+</div>

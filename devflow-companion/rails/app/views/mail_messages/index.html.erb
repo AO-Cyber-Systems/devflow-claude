@@ -1,0 +1,8 @@
+<div class="page-header">
+  <h1 class="page-title">Email</h1>
+  <p class="page-subtitle">Captured emails from local development</p>
+</div>
+
+<div id="mail-inbox" data-controller="polling" data-polling-interval-value="3000" data-polling-url-value="<%= mail_messages_path(format: :turbo_stream) %>">
+  <%= render "mail_messages/inbox", messages: @messages, stats: @stats, smtp_status: @smtp_status %>
+</div>
