@@ -1,0 +1,32 @@
+<div class="page-header">
+  <h1 class="page-title">Mise Tools</h1>
+  <p class="page-subtitle">Manage runtime versions installed via mise</p>
+</div>
+
+<div class="card" data-controller="package-search" data-package-search-search-url-value="<%= search_mise_tools_path %>" data-package-search-type-value="mise">
+  <div class="card-header">
+    <div class="flex items-center gap-2">
+      <input type="text"
+             class="form-input"
+             style="width: 260px;"
+             placeholder="Search tools..."
+             data-package-search-target="input"
+             data-action="input->package-search#onInput">
+    </div>
+  </div>
+
+  <turbo-frame id="mise-tools-installed" src="<%= installed_mise_tools_path %>">
+    <div class="prereq-loading">
+      <div class="prereq-spinner"></div>
+      <p class="prereq-loading-title">Loading mise tools...</p>
+    </div>
+  </turbo-frame>
+
+  <!-- Search results (hidden until search) -->
+  <div data-package-search-target="searchResults" style="display: none;">
+    <div style="padding: 12px 16px; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between;">
+      <span class="text-muted" style="font-size: 12px;">Registry results <span data-package-search-target="searchCount"></span></span>
+    </div>
+    <div data-package-search-target="searchList"></div>
+  </div>
+</div>

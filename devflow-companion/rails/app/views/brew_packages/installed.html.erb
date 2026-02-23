@@ -1,0 +1,90 @@
+<turbo-frame id="brew-packages-installed">
+  <!-- Stats bar -->
+  <div style="padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 16px;">
+    <span class="text-muted" style="font-size: 12px;">
+      <strong style="color: var(--text-primary);"><%= @packages.count %></strong> installed
+    </span>
+    <span class="text-muted" style="font-size: 12px;">
+      <strong style="color: var(--text-primary);"><%= @formulae_count %></strong> formulae
+    </span>
+    <span class="text-muted" style="font-size: 12px;">
+      <strong style="color: var(--text-primary);"><%= @casks_count %></strong> casks
+    </span>
+    <% if @outdated_count > 0 %>
+      <span style="font-size: 12px; color: var(--warning);">
+        <strong><%= @outdated_count %></strong> outdated
+      </span>
+    <% end %>
+    <% if @outdated_count > 0 %>
+      <div style="margin-left: auto;">
+        <button class="btn btn-sm btn-primary"
+                data-controller="package-action"
+                data-package-action-url-value="<%= upgrade_all_brew_packages_path %>"
+                data-package-action-confirm-value="Upgrade all outdated packages?"
+                data-action="package-action#run">
+          Upgrade All (<%= @outdated_count %>)
+        </button>
+      </div>
+    <% end %>
+  </div>
+
+  <div data-package-search-target="installedList">
+    <% if @packages.empty? %>
+      <div class="empty-state">
+        <div class="empty-state-icon">&#x1F4E6;</div>
+        <div class="empty-state-title">No packages installed</div>
+        <div class="empty-state-text">Use the search bar above to find and install packages</div>
+      </div>
+    <% else %>
+      <% @packages.each do |pkg| %>
+        <div class="service-row"
+             data-package-name="<%= pkg.name %>"
+             data-package-type="<%= pkg.type %>"
+             data-package-outdated="<%= pkg.outdated? %>">
+          <div class="service-info" style="min-width: 0; flex: 1;">
+            <div class="service-dot <%= pkg.outdated? ? 'stopped' : 'running' %>" style="<%= pkg.outdated? ? 'background: var(--warning); box-shadow: 0 0 6px rgba(234,179,8,0.4);' : '' %>"></div>
+            <div style="min-width: 0;">
+              <div class="flex items-center gap-2">
+                <span class="service-name"><%= pkg.name %></span>
+                <span class="badge badge-neutral"><%= pkg.type %></span>
+                <% if pkg.pinned %>
+                  <span class="badge badge-info">pinned</span>
+                <% end %>
+              </div>
+              <% if pkg.desc.present? %>
+                <div class="service-detail" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 400px;" title="<%= pkg.desc %>">
+                  <%= pkg.desc %>
+                </div>
+              <% end %>
+            </div>
+          </div>
+          <div class="flex items-center gap-2" style="flex-shrink: 0;">
+            <span class="text-muted" style="font-size: 12px; font-family: var(--font-mono);">
+              <%= pkg.installed_version %>
+              <% if pkg.outdated? && pkg.outdated_version %>
+                <span style="color: var(--warning);">&rarr; <%= pkg.outdated_version %></span>
+              <% end %>
+            </span>
+            <% if pkg.outdated? %>
+              <button class="btn btn-sm btn-primary"
+                      data-controller="package-action"
+                      data-package-action-url-value="<%= upgrade_package_brew_package_path(pkg.name) %>"
+                      data-package-action-params-value="<%= { cask: pkg.cask?.to_s }.to_json %>"
+                      data-action="package-action#run">
+                Upgrade
+              </button>
+            <% end %>
+            <button class="btn btn-sm btn-danger"
+                    data-controller="package-action"
+                    data-package-action-url-value="<%= uninstall_package_brew_package_path(pkg.name) %>"
+                    data-package-action-params-value="<%= { cask: pkg.cask?.to_s }.to_json %>"
+                    data-package-action-confirm-value="Uninstall <%= pkg.name %>?"
+                    data-action="package-action#run">
+              Uninstall
+            </button>
+          </div>
+        </div>
+      <% end %>
+    <% end %>
+  </div>
+</turbo-frame>

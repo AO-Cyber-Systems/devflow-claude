@@ -1,0 +1,49 @@
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Claude Code</span>
+    <span class="badge <%= data[:binary_found] ? 'badge-success' : 'badge-danger' %>">
+      <%= data[:binary_found] ? 'Detected' : 'Not Found' %>
+    </span>
+  </div>
+  <div class="card-body">
+    <div style="margin-bottom: 1rem;">
+      <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.375rem 0;">
+        <span style="color: <%= data[:binary_found] ? '#22c55e' : '#ef4444' %>;">
+          <%= data[:binary_found] ? '✓' : '✗' %>
+        </span>
+        <span>Claude Code binary</span>
+        <% if data[:binary_path] %>
+          <code class="text-muted" style="font-size: 0.75rem;"><%= data[:binary_path] %></code>
+        <% end %>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.375rem 0;">
+        <span style="color: <%= data[:config_dir_exist] ? '#22c55e' : '#eab308' %>;">
+          <%= data[:config_dir_exist] ? '✓' : '⚠' %>
+        </span>
+        <span>Config directory (~/.claude)</span>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.375rem 0;">
+        <span style="color: <%= data[:settings_exist] ? '#22c55e' : '#eab308' %>;">
+          <%= data[:settings_exist] ? '✓' : '⚠' %>
+        </span>
+        <span>settings.json</span>
+        <% if data[:settings_summary].any? %>
+          <span class="text-muted" style="font-size: 0.75rem;">(<%= data[:settings_summary].join(', ') %>)</span>
+        <% end %>
+      </div>
+    </div>
+
+    <% unless data[:binary_found] %>
+      <div class="alert alert-warning" style="margin-bottom: 1rem;">
+        Claude Code is not installed. Install it from <a href="https://claude.ai/download" target="_blank">claude.ai/download</a> and run <code>claude</code> once to set up the config directory.
+      </div>
+    <% end %>
+
+    <%= form_tag update_step_setup_path, method: :post do %>
+      <input type="hidden" name="step" value="claude_code">
+      <button type="submit" class="btn btn-primary">Continue</button>
+    <% end %>
+  </div>
+</div>

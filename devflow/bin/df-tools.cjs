@@ -125,6 +125,7 @@
  *   init todos [area]                  All context for todo workflows
  *   init milestone-op                  All context for milestone operations
  *   init map-codebase                  All context for map-codebase workflow
+ *   init security-audit                All context for security-audit workflow
  *   init progress                      All context for progress workflow
  */
 
@@ -146,6 +147,7 @@ const MODEL_PROFILES = {
   'df-verifier':             { quality: 'sonnet', balanced: 'sonnet', budget: 'haiku' },
   'df-job-checker':         { quality: 'sonnet', balanced: 'sonnet', budget: 'haiku' },
   'df-integration-checker':  { quality: 'sonnet', balanced: 'sonnet', budget: 'haiku' },
+  'df-security-auditor':     { quality: 'opus', balanced: 'sonnet', budget: 'sonnet' },
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -4805,6 +4807,47 @@ function cmdInitMapCodebase(cwd, raw) {
   output(result, raw);
 }
 
+function cmdInitSecurityAudit(cwd, raw) {
+  const config = loadConfig(cwd);
+
+  // Resolve auditor model
+  const auditorModel = resolveModelInternal(cwd, 'df-security-auditor');
+
+  // Check for existing audit report
+  const planningExists = pathExistsInternal(cwd, '.planning');
+  const outputDir = planningExists ? '.planning' : '.';
+  const reportPath = path.join(outputDir, 'SECURITY-AUDIT.md');
+  const existingReport = pathExistsInternal(cwd, reportPath);
+
+  // Check for stale temp dir
+  const tmpDir = '.security-audit-tmp';
+  const staleTmpExists = pathExistsInternal(cwd, tmpDir);
+
+  // Detect stack from common manifest files
+  const stack = [];
+  if (pathExistsInternal(cwd, 'package.json')) stack.push('javascript');
+  if (pathExistsInternal(cwd, 'tsconfig.json')) stack.push('typescript');
+  if (pathExistsInternal(cwd, 'requirements.txt') || pathExistsInternal(cwd, 'pyproject.toml') || pathExistsInternal(cwd, 'Pipfile')) stack.push('python');
+  if (pathExistsInternal(cwd, 'go.mod')) stack.push('go');
+  if (pathExistsInternal(cwd, 'Cargo.toml')) stack.push('rust');
+  if (pathExistsInternal(cwd, 'pom.xml') || pathExistsInternal(cwd, 'build.gradle')) stack.push('java');
+  if (pathExistsInternal(cwd, 'Gemfile')) stack.push('ruby');
+
+  const result = {
+    auditor_model: auditorModel,
+    parallelization: config.parallelization,
+    output_dir: outputDir,
+    report_path: reportPath,
+    existing_report: existingReport,
+    stale_tmp_exists: staleTmpExists,
+    tmp_dir: tmpDir,
+    stack: stack,
+    planning_exists: planningExists,
+  };
+
+  output(result, raw);
+}
+
 function cmdInitProgress(cwd, includes, raw) {
   const config = loadConfig(cwd);
   const milestone = getMilestoneInfo(cwd);
@@ -5747,11 +5790,14 @@ async function main() {
         case 'map-codebase':
           cmdInitMapCodebase(cwd, raw);
           break;
+        case 'security-audit':
+          cmdInitSecurityAudit(cwd, raw);
+          break;
         case 'progress':
           cmdInitProgress(cwd, includes, raw);
           break;
         default:
-          error(`Unknown init workflow: ${workflow}\nAvailable: execute-objective, plan-objective, new-project, new-milestone, quick, resume, verify-work, objective-op, todos, milestone-op, map-codebase, progress`);
+          error(`Unknown init workflow: ${workflow}\nAvailable: execute-objective, plan-objective, new-project, new-milestone, quick, resume, verify-work, objective-op, todos, milestone-op, map-codebase, security-audit, progress`);
       }
       break;
     }

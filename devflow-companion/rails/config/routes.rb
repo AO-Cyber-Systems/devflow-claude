@@ -13,6 +13,7 @@ Rails.application.routes.draw do
       get :results
       post :recheck
       post :dismiss
+      post :install
     end
   end
 
@@ -26,6 +27,12 @@ Rails.application.routes.draw do
 
   # Projects
   resources :projects, only: [:index, :create, :destroy] do
+    collection do
+      post :scan
+      post :adopt
+      post :add_scan_root
+      post :remove_scan_root
+    end
     member do
       post :activate
       post :onboard
@@ -38,6 +45,32 @@ Rails.application.routes.draw do
       post :start
       post :stop
       post :restart
+    end
+  end
+
+  resources :brew_packages, only: [:index] do
+    collection do
+      get :installed
+      get :search
+      post :upgrade_all
+    end
+    member do
+      post :install_package
+      post :uninstall_package
+      post :upgrade_package
+    end
+  end
+
+  resources :mise_tools, only: [:index] do
+    collection do
+      get :installed
+      get :search
+      get :versions
+    end
+    member do
+      post :install_tool
+      post :uninstall_tool
+      post :upgrade_tool
     end
   end
 
@@ -122,12 +155,13 @@ Rails.application.routes.draw do
     end
   end
 
-  # API for tray
+  # API for tray and Electron
   namespace :api do
     resource :tray_status, only: [:show] do
       post :service_action
       post :puma_dev_restart
       post :quick_action
     end
+    resources :settings, only: [:show], param: :key
   end
 end

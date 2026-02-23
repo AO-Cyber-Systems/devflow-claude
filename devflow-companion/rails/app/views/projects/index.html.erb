@@ -1,0 +1,183 @@
+<%
+  fw_badge = { "Rails" => "badge-danger", "Ruby" => "badge-danger", "Node" => "badge-success",
+               "Python" => "badge-warning", "Go" => "badge-info", "Elixir" => "badge-info",
+               "Rust" => "badge-info", "Java" => "badge-neutral" }
+%>
+<div class="page-header">
+  <h1 class="page-title">Projects</h1>
+  <p class="page-subtitle">Manage projects and launch DevFlow onboarding</p>
+</div>
+
+<!-- Project Scanner -->
+<div class="card mb-4">
+  <div class="card-header">
+    <span class="card-title">Project Scanner</span>
+  </div>
+  <div class="card-body">
+    <div style="margin-bottom: 12px;">
+      <%= form_with url: add_scan_root_projects_path, method: :post, local: true do %>
+        <div class="form-inline">
+          <div class="form-group" style="flex: 1; margin-bottom: 0;">
+            <input type="text" name="path" class="form-input" placeholder="~/dev or /Users/you/work" required>
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <button type="submit" class="btn btn-secondary">Add Root</button>
+          </div>
+        </div>
+      <% end %>
+    </div>
+
+    <% if @scan_roots.any? %>
+      <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px;">
+        <% @scan_roots.each do |root| %>
+          <span style="display: inline-flex; align-items: center; gap: 6px; background: var(--bg-tertiary); padding: 4px 10px; border-radius: var(--radius-sm); font-size: 12px; font-family: var(--font-mono);">
+            <%= root %>
+            <%= button_to remove_scan_root_projects_path(path: root), method: :post, style: "background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 0; font-size: 14px; line-height: 1;", data: { turbo_confirm: "Remove this scan root?" } do %>
+              &times;
+            <% end %>
+          </span>
+        <% end %>
+      </div>
+    <% end %>
+
+    <%= button_to "Scan Now", scan_projects_path, method: :post, class: "btn btn-primary" %>
+  </div>
+</div>
+
+<!-- Discovered Projects (shown after scan) -->
+<% if @scan_results %>
+  <div class="card mb-4">
+    <div class="card-header">
+      <span class="card-title">Discovered Projects</span>
+      <span class="badge badge-info"><%= @scan_results.count %> found</span>
+    </div>
+    <% if @scan_results.any? %>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Path</th>
+            <th>Frameworks</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @scan_results.each do |result| %>
+            <tr>
+              <td>
+                <strong><%= result.name %></strong>
+                <% if result.adopted %>
+                  <span class="badge badge-success" style="margin-left: 6px;">Adopted</span>
+                <% end %>
+              </td>
+              <td class="text-mono text-muted" style="font-size: 12px;"><%= result.path %></td>
+              <td>
+                <% result.frameworks.each do |fw| %>
+                  <span class="badge <%= fw_badge.fetch(fw, "badge-neutral") %>"><%= fw %></span>
+                <% end %>
+              </td>
+              <td>
+                <% if result.adopted %>
+                  <span class="text-muted" style="font-size: 12px;">Already added</span>
+                <% else %>
+                  <%= button_to "Adopt", adopt_projects_path(name: result.name, path: result.path), method: :post, class: "btn btn-primary btn-sm" %>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    <% else %>
+      <div class="empty-state">
+        <div class="empty-state-title">No Repos Found</div>
+        <div class="empty-state-text">No git repositories were found in the configured scan roots</div>
+      </div>
+    <% end %>
+  </div>
+<% end %>
+
+<!-- Add Project Manually -->
+<div class="card mb-4">
+  <div class="card-header">
+    <span class="card-title">Add Project Manually</span>
+  </div>
+  <div class="card-body">
+    <%= form_with url: projects_path, method: :post, local: true do |f| %>
+      <div class="form-inline">
+        <div class="form-group" style="flex: 1; margin-bottom: 0;">
+          <label class="form-label">Project Name</label>
+          <input type="text" name="name" class="form-input" placeholder="my-app" required>
+        </div>
+        <div class="form-group" style="flex: 2; margin-bottom: 0;">
+          <label class="form-label">Project Path</label>
+          <input type="text" name="path" class="form-input" placeholder="/Users/you/dev/my-app" required>
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label class="form-label">&nbsp;</label>
+          <button type="submit" class="btn btn-primary">Add</button>
+        </div>
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<!-- Projects Table -->
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Projects</span>
+    <span class="badge badge-info"><%= @projects.count %> projects</span>
+  </div>
+  <% if @projects.any? %>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Path</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% active_path = Setting.get("current_project_path") %>
+        <% @projects.each do |project| %>
+          <% is_active = project.path == active_path %>
+          <tr>
+            <td>
+              <strong><%= project.name %></strong>
+              <% if is_active %>
+                <span class="badge badge-success" style="margin-left: 6px;">Active</span>
+              <% end %>
+            </td>
+            <td class="text-mono text-muted" style="font-size: 12px;"><%= project.path %></td>
+            <td>
+              <% if !Dir.exist?(project.path) %>
+                <span class="badge badge-danger">Missing</span>
+              <% elsif project.has_devflow? %>
+                <span class="badge badge-success">DevFlow</span>
+              <% else %>
+                <span class="badge badge-neutral">No DevFlow</span>
+              <% end %>
+            </td>
+            <td>
+              <div class="btn-group">
+                <% unless is_active %>
+                  <%= button_to "Set Active", activate_project_path(project), method: :post, class: "btn btn-secondary btn-sm" %>
+                <% end %>
+                <% unless project.has_devflow? %>
+                  <%= button_to "Onboard", onboard_project_path(project), method: :post, class: "btn btn-primary btn-sm" %>
+                <% end %>
+                <%= button_to "Remove", project_path(project), method: :delete, class: "btn btn-danger btn-sm", data: { turbo_confirm: "Remove '#{project.name}'?" } %>
+              </div>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% else %>
+    <div class="empty-state">
+      <div class="empty-state-icon">&#x1F4C2;</div>
+      <div class="empty-state-title">No Projects</div>
+      <div class="empty-state-text">Add a project using the form above to get started</div>
+    </div>
+  <% end %>
+</div>

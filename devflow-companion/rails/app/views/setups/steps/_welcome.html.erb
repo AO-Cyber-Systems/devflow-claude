@@ -1,0 +1,21 @@
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Welcome to DevFlow Companion</span>
+  </div>
+  <div class="card-body">
+    <p style="margin-bottom: 1rem;">DevFlow Companion is your single entry point for managing Claude Code and the DevFlow development system.</p>
+
+    <p style="margin-bottom: 1rem;">This setup wizard will:</p>
+    <ul style="margin-bottom: 1.5rem; padding-left: 1.5rem;">
+      <li style="margin-bottom: 0.5rem;">Check system prerequisites</li>
+      <li style="margin-bottom: 0.5rem;">Detect your Claude Code installation</li>
+      <li style="margin-bottom: 0.5rem;">Install DevFlow skills, agents, and hooks</li>
+      <li style="margin-bottom: 0.5rem;">Configure your statusline and update hooks</li>
+    </ul>
+
+    <%= form_tag update_step_setup_path, method: :post do %>
+      <input type="hidden" name="step" value="welcome">
+      <button type="submit" class="btn btn-primary">Get Started</button>
+    <% end %>
+  </div>
+</div>

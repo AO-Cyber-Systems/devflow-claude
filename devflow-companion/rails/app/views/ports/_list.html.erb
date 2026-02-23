@@ -1,0 +1,31 @@
+<table class="data-table">
+  <thead>
+    <tr>
+      <th>Port</th>
+      <th>Process</th>
+      <th>PID</th>
+      <th>User</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    <% ports.each do |port| %>
+      <tr id="port-<%= port.pid %>-<%= port.port %>">
+        <td><strong class="text-mono"><%= port.port %></strong></td>
+        <td><%= port.command %></td>
+        <td class="text-mono text-muted"><%= port.pid %></td>
+        <td class="text-muted"><%= port.user %></td>
+        <td>
+          <%= button_to "Kill", kill_port_path(port.pid), method: :delete, class: "btn btn-danger btn-sm", data: { turbo_confirm: "Kill process #{port.command} (PID #{port.pid}) on port #{port.port}?" } %>
+        </td>
+      </tr>
+    <% end %>
+  </tbody>
+</table>
+<% if ports.empty? %>
+  <div class="empty-state">
+    <div class="empty-state-icon">&#x1F50C;</div>
+    <div class="empty-state-title">No Listening Ports</div>
+    <div class="empty-state-text">No TCP listeners found</div>
+  </div>
+<% end %>

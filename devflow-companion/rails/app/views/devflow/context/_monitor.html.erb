@@ -1,0 +1,80 @@
+<%
+  pct = context[:usage_percent] || 0
+  color = context[:status_color] || "green"
+%>
+
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="stat-label">Context Usage</div>
+    <div class="stat-value" style="color: var(--<%= color %>)"><%= pct %>%</div>
+    <div class="mt-4">
+      <div class="progress" style="height: 12px;">
+        <div class="progress-bar progress-<%= color %>" style="width: <%= pct %>%"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-label">Status</div>
+    <div class="stat-value">
+      <span class="badge badge-<%= color == 'green' ? 'success' : (color == 'red' ? 'danger' : 'warning') %>" style="font-size: 14px; padding: 4px 12px;">
+        <%= case color
+            when "green" then "Healthy"
+            when "yellow" then "Moderate"
+            when "orange" then "High"
+            when "red" then "Critical"
+            end %>
+      </span>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-label">Current Task</div>
+    <div style="font-size: 14px; margin-top: 8px;">
+      <% if context[:current_task] %>
+        <%= context[:current_task] %>
+      <% else %>
+        <span class="text-muted">No active task</span>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<!-- Thresholds Reference -->
+<div class="card mt-4">
+  <div class="card-header">
+    <span class="card-title">Threshold Reference</span>
+  </div>
+  <div class="card-body">
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;">
+      <div>
+        <div class="flex items-center gap-2 mb-2">
+          <div style="width: 12px; height: 12px; border-radius: 2px; background: var(--success);"></div>
+          <strong style="font-size: 13px;">Green</strong>
+        </div>
+        <div class="text-muted" style="font-size: 12px;">&lt; 63% — Plenty of room</div>
+      </div>
+      <div>
+        <div class="flex items-center gap-2 mb-2">
+          <div style="width: 12px; height: 12px; border-radius: 2px; background: var(--warning);"></div>
+          <strong style="font-size: 13px;">Yellow</strong>
+        </div>
+        <div class="text-muted" style="font-size: 12px;">&lt; 81% — Getting warm</div>
+      </div>
+      <div>
+        <div class="flex items-center gap-2 mb-2">
+          <div style="width: 12px; height: 12px; border-radius: 2px; background: var(--orange);"></div>
+          <strong style="font-size: 13px;">Orange</strong>
+        </div>
+        <div class="text-muted" style="font-size: 12px;">&lt; 95% — Consider checkpointing</div>
+      </div>
+      <div>
+        <div class="flex items-center gap-2 mb-2">
+          <div style="width: 12px; height: 12px; border-radius: 2px; background: var(--danger);"></div>
+          <strong style="font-size: 13px;">Red</strong>
+        </div>
+        <div class="text-muted" style="font-size: 12px;">95%+ — Checkpoint now</div>
+      </div>
+    </div>
+  </div>
+</div>

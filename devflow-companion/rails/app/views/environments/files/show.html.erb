@@ -1,0 +1,42 @@
+<div class="page-header">
+  <h1 class="page-title"><%= @file_name %></h1>
+  <p class="page-subtitle text-mono"><%= @file_path %></p>
+</div>
+
+<div class="card" data-controller="secret-toggle">
+  <div class="card-header">
+    <span class="card-title">Variables</span>
+    <div class="flex gap-2">
+      <button class="btn btn-secondary btn-sm" data-action="secret-toggle#toggle" data-secret-toggle-target="button">Reveal Secrets</button>
+      <a href="<%= environments_files_path %>" class="btn btn-secondary btn-sm">Back</a>
+    </div>
+  </div>
+  <div class="desc-list" style="padding: 0 20px;">
+    <% @entries.each do |entry| %>
+      <div class="desc-item">
+        <span class="desc-key"><%= entry[:key] %></span>
+        <span class="desc-value" data-secret-toggle-target="value" data-secret="<%= entry[:value] %>" data-revealed="<%= !entry[:secret] %>">
+          <% if entry[:secret] %>
+            &#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;
+          <% else %>
+            <%= entry[:value] %>
+          <% end %>
+        </span>
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<div class="card mt-4">
+  <div class="card-header">
+    <span class="card-title">Raw Editor</span>
+  </div>
+  <div class="card-body">
+    <%= form_with url: environments_file_path(path: params[:path]), method: :patch, local: true do %>
+      <div class="form-group">
+        <textarea name="content" class="form-textarea"><%= File.read(@file_path) %></textarea>
+      </div>
+      <button type="submit" class="btn btn-primary">Save</button>
+    <% end %>
+  </div>
+</div>

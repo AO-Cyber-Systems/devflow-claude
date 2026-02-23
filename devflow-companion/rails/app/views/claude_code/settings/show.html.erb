@@ -1,0 +1,44 @@
+<div class="page-header">
+  <h1 class="page-title">Claude Code Settings</h1>
+  <p class="page-subtitle">General settings and environment variables</p>
+</div>
+
+<%= form_tag claude_code_settings_path, method: :patch do %>
+  <div class="card" style="margin-bottom: 1.5rem;">
+    <div class="card-header">
+      <span class="card-title">Environment Variables</span>
+    </div>
+    <div class="card-body">
+      <p class="text-muted" style="margin-bottom: 1rem;">Environment variables passed to Claude Code sessions.</p>
+      <div id="env-vars">
+        <% @env_vars.each do |key, value| %>
+          <div class="form-row" style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+            <input type="text" name="env[<%= key %>]" value="<%= value %>" class="form-input" placeholder="Value" style="flex: 1;">
+            <span class="text-muted" style="align-self: center; min-width: 120px;"><%= key %></span>
+          </div>
+        <% end %>
+        <% if @env_vars.empty? %>
+          <p class="text-muted">No environment variables configured.</p>
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom: 1.5rem;">
+    <div class="card-header">
+      <span class="card-title">Attribution</span>
+    </div>
+    <div class="card-body">
+      <p class="text-muted" style="margin-bottom: 1rem;">Configure the Co-Authored-By line used in git commits.</p>
+      <div class="form-group">
+        <label class="form-label">Commit Attribution</label>
+        <input type="text" name="attribution[commit]" value="<%= @attribution['commit'] %>" class="form-input" placeholder="Leave empty to remove, blank to keep default">
+        <small class="text-muted">Leave blank to keep default. Set to empty string to remove Co-Authored-By lines.</small>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top: 1rem;">
+    <button type="submit" class="btn btn-primary">Save Settings</button>
+  </div>
+<% end %>

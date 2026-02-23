@@ -1,0 +1,27 @@
+<div class="page-header">
+  <h1 class="page-title">System Prerequisites</h1>
+  <p class="page-subtitle">Environment health check for DevFlow Companion</p>
+</div>
+
+<turbo-frame id="prerequisites-results" src="<%= results_prerequisites_path %>">
+  <div class="prereq-loading">
+    <div class="prereq-spinner"></div>
+    <p class="prereq-loading-title">Checking system prerequisites...</p>
+    <div class="prereq-loading-steps">
+      <span class="prereq-step" style="animation-delay: 0s;">Checking CLI tools</span>
+      <span class="prereq-step" style="animation-delay: 1.5s;">Checking services</span>
+      <span class="prereq-step" style="animation-delay: 3s;">Checking certificates</span>
+      <span class="prereq-step" style="animation-delay: 4.5s;">Checking configuration</span>
+    </div>
+
+    <!-- Skeleton cards -->
+    <div class="stat-grid mt-4">
+      <% 4.times do %>
+        <div class="stat-card">
+          <div class="skeleton skeleton-text" style="width: 80px; margin-bottom: 8px;"></div>
+          <div class="skeleton skeleton-value"></div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</turbo-frame>

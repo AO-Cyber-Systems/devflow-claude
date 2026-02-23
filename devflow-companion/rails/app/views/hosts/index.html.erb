@@ -1,0 +1,64 @@
+<div class="page-header">
+  <h1 class="page-title">Hosts File</h1>
+  <p class="page-subtitle">/etc/hosts management (requires admin privileges)</p>
+</div>
+
+<div class="card mb-4">
+  <div class="card-header">
+    <span class="card-title">Add Entry</span>
+  </div>
+  <div class="card-body">
+    <%= form_with url: hosts_path, method: :post, local: true, class: "form-inline" do |f| %>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">IP Address</label>
+          <input type="text" name="ip" class="form-input" placeholder="127.0.0.1" required>
+        </div>
+        <div class="form-group" style="flex: 2;">
+          <label class="form-label">Hostname</label>
+          <input type="text" name="hostname" class="form-input" placeholder="myapp.local" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Comment</label>
+          <input type="text" name="comment" class="form-input" placeholder="optional">
+        </div>
+        <div class="form-group" style="align-self: flex-end;">
+          <button type="submit" class="btn btn-primary">Add</button>
+        </div>
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Current Entries</span>
+    <span class="badge badge-info"><%= @entries.count %> entries</span>
+  </div>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>IP Address</th>
+        <th>Hostname</th>
+        <th>Comment</th>
+        <th>Line</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @entries.each do |entry| %>
+        <tr>
+          <td class="text-mono"><%= entry.ip %></td>
+          <td><strong><%= entry.hostname %></strong></td>
+          <td class="text-muted"><%= entry.comment %></td>
+          <td class="text-muted"><%= entry.line_number %></td>
+          <td>
+            <% unless entry.ip == "127.0.0.1" && entry.hostname == "localhost" %>
+              <%= button_to "Remove", host_path(entry.line_number), method: :delete, class: "btn btn-danger btn-sm", data: { turbo_confirm: "Remove #{entry.hostname}?" } %>
+            <% end %>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>

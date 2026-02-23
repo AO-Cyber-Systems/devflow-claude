@@ -1,0 +1,35 @@
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Hook Configuration</span>
+  </div>
+  <div class="card-body">
+    <p style="margin-bottom: 1rem;">Configure optional Claude Code hooks:</p>
+
+    <%= form_tag update_step_setup_path, method: :post do %>
+      <input type="hidden" name="step" value="hooks">
+
+      <div style="margin-bottom: 1rem;">
+        <label class="form-check">
+          <input type="checkbox" name="configure_statusline" value="true" <%= data[:has_statusline] ? '' : 'checked' %>>
+          <span>Enable DevFlow Statusline</span>
+        </label>
+        <small class="text-muted" style="display: block; margin-left: 1.5rem;">Shows model name, current task, and context window usage in the Claude Code status bar.</small>
+        <% if data[:has_statusline] %>
+          <small class="text-muted" style="display: block; margin-left: 1.5rem; color: #eab308;">A statusline is already configured. Check the box to replace it.</small>
+        <% end %>
+      </div>
+
+      <div style="margin-bottom: 1.5rem;">
+        <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.375rem 0;">
+          <span style="color: <%= data[:has_update_hook] ? '#22c55e' : '#94a3b8' %>;">
+            <%= data[:has_update_hook] ? '✓' : '○' %>
+          </span>
+          <span>Update check hook</span>
+          <span class="text-muted" style="font-size: 0.75rem;">(automatically configured during install)</span>
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary">Continue</button>
+    <% end %>
+  </div>
+</div>

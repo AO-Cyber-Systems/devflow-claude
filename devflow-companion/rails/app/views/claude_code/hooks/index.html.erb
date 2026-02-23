@@ -1,0 +1,77 @@
+<div class="page-header">
+  <h1 class="page-title">Hooks</h1>
+  <p class="page-subtitle">Manage Claude Code hook registrations by event type</p>
+</div>
+
+<% event_types = %w[SessionStart PreToolUse PostToolUse Stop Notification SubagentStop SubagentToolUse] %>
+
+<% event_types.each do |event_type| %>
+  <% entries = @hooks_by_event[event_type] || [] %>
+  <div class="card" style="margin-bottom: 1.5rem;">
+    <div class="card-header">
+      <span class="card-title"><%= event_type %></span>
+      <span class="badge badge-info"><%= entries.size %></span>
+    </div>
+    <div class="card-body">
+      <% if entries.any? %>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Command</th>
+              <th>Matcher</th>
+              <th>Timeout</th>
+              <th style="width: 100px;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% entries.each_with_index do |entry, idx| %>
+              <% entry["hooks"]&.each do |hook| %>
+                <tr>
+                  <td><code><%= hook["command"] %></code></td>
+                  <td><%= entry["matcher"] || "-" %></td>
+                  <td><%= hook["timeout"] ? "#{hook["timeout"]}ms" : "default" %></td>
+                  <td>
+                    <%= button_to "Remove", claude_code_hook_path(idx, event_type: event_type), method: :delete, class: "btn btn-sm btn-danger", data: { turbo_confirm: "Remove this hook?" } %>
+                  </td>
+                </tr>
+              <% end %>
+            <% end %>
+          </tbody>
+        </table>
+      <% else %>
+        <p class="text-muted">No hooks registered for this event.</p>
+      <% end %>
+    </div>
+  </div>
+<% end %>
+
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Add Hook</span>
+  </div>
+  <div class="card-body">
+    <%= form_tag claude_code_hooks_path, method: :post do %>
+      <div class="form-group">
+        <label class="form-label">Event Type</label>
+        <select name="event_type" class="form-input">
+          <% event_types.each do |et| %>
+            <option value="<%= et %>"><%= et %></option>
+          <% end %>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Command</label>
+        <input type="text" name="command" class="form-input" placeholder='node "/path/to/hook.js"' required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Matcher (optional)</label>
+        <input type="text" name="matcher" class="form-input" placeholder="Tool name pattern">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Timeout (ms, optional)</label>
+        <input type="number" name="timeout" class="form-input" placeholder="Default">
+      </div>
+      <button type="submit" class="btn btn-primary">Add Hook</button>
+    <% end %>
+  </div>
+</div>

@@ -1,0 +1,48 @@
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">DevFlow Installation</span>
+    <% if data[:installed] %>
+      <span class="badge badge-success">v<%= data[:installed_version] %></span>
+    <% else %>
+      <span class="badge badge-warning">Not Installed</span>
+    <% end %>
+  </div>
+  <div class="card-body">
+    <% if data[:installed] && !data[:needs_update] %>
+      <p style="margin-bottom: 1rem;">DevFlow v<%= data[:installed_version] %> is already installed and up to date.</p>
+      <%= form_tag update_step_setup_path, method: :post do %>
+        <input type="hidden" name="step" value="devflow">
+        <button type="submit" class="btn btn-primary">Continue</button>
+      <% end %>
+
+    <% elsif data[:installed] && data[:needs_update] %>
+      <p style="margin-bottom: 1rem;">DevFlow v<%= data[:installed_version] %> is installed. A newer version (v<%= data[:bundle_version] %>) is available.</p>
+      <%= form_tag update_step_setup_path, method: :post do %>
+        <input type="hidden" name="step" value="devflow">
+        <input type="hidden" name="install" value="true">
+        <button type="submit" class="btn btn-primary">Update to v<%= data[:bundle_version] %></button>
+      <% end %>
+      <%= form_tag update_step_setup_path, method: :post, style: "display: inline; margin-left: 0.5rem;" do %>
+        <input type="hidden" name="step" value="devflow">
+        <button type="submit" class="btn btn-secondary">Skip</button>
+      <% end %>
+
+    <% elsif data[:bundle_valid] %>
+      <p style="margin-bottom: 1rem;">DevFlow v<%= data[:bundle_version] %> will be installed to <code>~/.claude</code>. This includes skills, agents, hooks, and templates for spec-driven development.</p>
+      <%= form_tag update_step_setup_path, method: :post do %>
+        <input type="hidden" name="step" value="devflow">
+        <input type="hidden" name="install" value="true">
+        <button type="submit" class="btn btn-primary">Install DevFlow</button>
+      <% end %>
+
+    <% else %>
+      <div class="alert alert-danger" style="margin-bottom: 1rem;">
+        DevFlow bundle not found. The source files are missing from the app. Try reinstalling DevFlow Companion.
+      </div>
+      <%= form_tag update_step_setup_path, method: :post do %>
+        <input type="hidden" name="step" value="devflow">
+        <button type="submit" class="btn btn-secondary">Skip</button>
+      <% end %>
+    <% end %>
+  </div>
+</div>

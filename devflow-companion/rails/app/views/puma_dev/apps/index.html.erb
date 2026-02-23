@@ -1,0 +1,97 @@
+<div class="page-header flex justify-between items-center">
+  <div>
+    <h1 class="page-title">Puma-Dev</h1>
+    <p class="page-subtitle">Manage puma-dev application links</p>
+  </div>
+  <div class="flex gap-2 items-center">
+    <% if @ssl_status[:installed] %>
+      <span class="badge badge-success">SSL: expires <%= @ssl_status[:expires] %></span>
+    <% else %>
+      <span class="badge badge-warning">SSL not configured</span>
+    <% end %>
+  </div>
+</div>
+
+<!-- Add App Form -->
+<div class="card mb-4">
+  <div class="card-header">
+    <span class="card-title">Link New App</span>
+  </div>
+  <div class="card-body">
+    <%= form_with url: puma_dev_apps_path, method: :post, local: true do |f| %>
+      <div class="form-inline">
+        <div class="form-group" style="flex: 1;">
+          <label class="form-label">App Name</label>
+          <input type="text" name="name" class="form-input" placeholder="my-app" required>
+        </div>
+        <div class="form-group" style="flex: 2;">
+          <label class="form-label">Project Path</label>
+          <input type="text" name="path" class="form-input" placeholder="/Users/you/dev/my-app" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">&nbsp;</label>
+          <button type="submit" class="btn btn-primary">Link</button>
+        </div>
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<!-- Apps Table -->
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Linked Apps</span>
+    <span class="badge badge-info"><%= @apps.count %> apps</span>
+  </div>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Path</th>
+        <th>URL</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @apps.each do |app| %>
+        <tr id="puma-app-<%= app.name %>">
+          <td><strong><%= app.name %></strong></td>
+          <td class="text-mono text-muted" style="font-size: 12px;"><%= app.path %></td>
+          <td><a href="<%= app.url %>" class="text-mono" style="color: var(--accent); text-decoration: none;"><%= app.url %></a></td>
+          <td>
+            <% if app.app_exists? %>
+              <span class="badge badge-success">OK</span>
+            <% else %>
+              <span class="badge badge-danger">Missing</span>
+            <% end %>
+          </td>
+          <td>
+            <div class="btn-group">
+              <%= button_to "Restart", restart_puma_dev_app_path(app.name), method: :post, class: "btn btn-secondary btn-sm" %>
+              <%= button_to "Remove", puma_dev_app_path(app.name), method: :delete, class: "btn btn-danger btn-sm", data: { turbo_confirm: "Remove #{app.name}?" } %>
+            </div>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+  <% if @apps.empty? %>
+    <div class="empty-state">
+      <div class="empty-state-icon">&#x1F517;</div>
+      <div class="empty-state-title">No Apps Linked</div>
+      <div class="empty-state-text">Link a project using the form above</div>
+    </div>
+  <% end %>
+</div>
+
+<!-- Logs -->
+<div class="card mt-4">
+  <div class="card-header">
+    <span class="card-title">Puma-Dev Log</span>
+    <a href="<%= logs_puma_dev_apps_path %>" class="btn btn-secondary btn-sm">Refresh</a>
+  </div>
+  <div class="card-body" id="puma-dev-logs" data-controller="polling" data-polling-interval-value="10000" data-polling-url-value="<%= logs_puma_dev_apps_path(format: :turbo_stream) %>">
+    <%= render partial: "puma_dev/apps/logs", locals: { logs: PumaDevApp.tail_log(lines: 30) } %>
+  </div>
+</div>

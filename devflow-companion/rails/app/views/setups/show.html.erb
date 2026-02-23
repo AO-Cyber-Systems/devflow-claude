@@ -1,0 +1,14 @@
+<div class="page-header">
+  <h1 class="page-title">Setup</h1>
+  <p class="page-subtitle">Configure DevFlow Companion</p>
+</div>
+
+<div class="stepper" style="display: flex; gap: 0.25rem; margin-bottom: 2rem;">
+  <% @steps.each_with_index do |step, idx| %>
+    <div class="step <%= 'step-active' if idx == @step_index %> <%= 'step-completed' if idx < @step_index %>" style="flex: 1; text-align: center; padding: 0.5rem; border-radius: 0.375rem; font-size: 0.75rem; <%= idx == @step_index ? 'background: #3b82f6; color: white;' : idx < @step_index ? 'background: #22c55e; color: white;' : 'background: #1e293b; color: #94a3b8;' %>">
+      <%= step.titleize %>
+    </div>
+  <% end %>
+</div>
+
+<%= render partial: "setups/steps/#{@current_step}", locals: { data: @step_data } %>

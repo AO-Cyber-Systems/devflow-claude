@@ -1,0 +1,187 @@
+<div class="page-header">
+  <h1 class="page-title">Puma-Dev Configuration</h1>
+  <p class="page-subtitle">Manage puma-dev service, TLD, and SSL settings</p>
+</div>
+
+<% unless @config.plist_exists? %>
+  <div class="card mb-4">
+    <div class="card-body">
+      <p style="color: var(--warning);">LaunchAgent plist not found at <code>~/Library/LaunchAgents/io.puma.dev.plist</code>.</p>
+      <p class="text-muted">Run <code>sudo puma-dev -setup</code> to install puma-dev as a LaunchAgent.</p>
+    </div>
+  </div>
+<% end %>
+
+<!-- Card 1: Service Control -->
+<div class="card mb-4">
+  <div class="card-header">
+    <span class="card-title">Service Control</span>
+    <% if @config.plist_exists? %>
+      <% if @config.running? %>
+        <span class="badge badge-success">Running</span>
+      <% else %>
+        <span class="badge badge-danger">Stopped</span>
+      <% end %>
+    <% else %>
+      <span class="badge badge-warning">Not Installed</span>
+    <% end %>
+  </div>
+  <div class="card-body">
+    <% if @config.plist_exists? %>
+      <div class="btn-group">
+        <% unless @config.running? %>
+          <%= form_with url: puma_dev_config_path, method: :patch, local: true, style: "display: inline;" do %>
+            <input type="hidden" name="action_type" value="start">
+            <button type="submit" class="btn btn-primary btn-sm">Start</button>
+          <% end %>
+        <% end %>
+        <% if @config.running? %>
+          <%= form_with url: puma_dev_config_path, method: :patch, local: true, style: "display: inline;" do %>
+            <input type="hidden" name="action_type" value="stop">
+            <button type="submit" class="btn btn-danger btn-sm">Stop</button>
+          <% end %>
+        <% end %>
+        <%= form_with url: puma_dev_config_path, method: :patch, local: true, style: "display: inline;" do %>
+          <input type="hidden" name="action_type" value="restart">
+          <button type="submit" class="btn btn-secondary btn-sm">Restart</button>
+        <% end %>
+        <%= form_with url: puma_dev_config_path, method: :patch, local: true, style: "display: inline;" do %>
+          <input type="hidden" name="action_type" value="stop_all">
+          <button type="submit" class="btn btn-secondary btn-sm">Stop All Apps</button>
+        <% end %>
+      </div>
+    <% else %>
+      <p class="text-muted">Install puma-dev to manage the service.</p>
+    <% end %>
+  </div>
+</div>
+
+<!-- Card 2: TLD Configuration -->
+<div class="card mb-4">
+  <div class="card-header">
+    <span class="card-title">TLD Configuration</span>
+  </div>
+  <div class="card-body">
+    <p class="text-muted" style="margin-bottom: 1rem;">Current TLD(s): <strong><%= @config.tlds.join(", ") %></strong></p>
+
+    <!-- Resolver status -->
+    <div style="margin-bottom: 1rem;">
+      <% @resolver_status.each do |tld, exists| %>
+        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+          <% if exists %>
+            <span class="badge badge-success">OK</span>
+          <% else %>
+            <span class="badge badge-warning">Missing</span>
+          <% end %>
+          <span class="text-mono" style="font-size: 13px;">/etc/resolver/<%= tld %></span>
+        </div>
+      <% end %>
+    </div>
+
+    <% if @config.plist_exists? %>
+      <%= form_with url: puma_dev_config_path, method: :patch, local: true do %>
+        <input type="hidden" name="action_type" value="update_tld">
+        <div class="form-inline">
+          <div class="form-group" style="flex: 1;">
+            <label class="form-label">TLD(s)</label>
+            <input type="text" name="tld" class="form-input" value="<%= @config.tlds.join(":") %>" placeholder="test or dev:test">
+            <small class="text-muted">Separate multiple TLDs with colons (e.g., <code>dev:test</code>)</small>
+          </div>
+          <div class="form-group">
+            <label class="form-label">&nbsp;</label>
+            <button type="submit" class="btn btn-primary btn-sm">Update TLD</button>
+          </div>
+        </div>
+      <% end %>
+      <p class="text-muted" style="margin-top: 0.75rem; font-size: 13px;">After changing the TLD, you'll need to run <code>sudo puma-dev -setup -d &lt;tld&gt;</code> to configure DNS resolution.</p>
+    <% end %>
+  </div>
+</div>
+
+<!-- Card 3: Ports & Timeout -->
+<div class="card mb-4">
+  <div class="card-header">
+    <span class="card-title">Ports & Timeout</span>
+  </div>
+  <div class="card-body">
+    <table class="data-table" style="margin-bottom: 1rem;">
+      <thead>
+        <tr>
+          <th>Port</th>
+          <th>Value</th>
+          <th>Note</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>HTTP</td>
+          <td class="text-mono"><%= @config.http_port || "80 (default)" %></td>
+          <td class="text-muted">Configured via LaunchAgent Sockets</td>
+        </tr>
+        <tr>
+          <td>HTTPS</td>
+          <td class="text-mono"><%= @config.https_port || "443 (default)" %></td>
+          <td class="text-muted">Configured via LaunchAgent Sockets</td>
+        </tr>
+        <tr>
+          <td>DNS</td>
+          <td class="text-mono"><%= @config.dns_port || "9253 (default)" %></td>
+          <td class="text-muted">Internal DNS resolver port</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="text-muted" style="font-size: 13px; margin-bottom: 1rem;">Port changes require reinstalling the LaunchAgent (<code>sudo puma-dev -setup</code>).</p>
+
+    <% if @config.plist_exists? %>
+      <%= form_with url: puma_dev_config_path, method: :patch, local: true do %>
+        <input type="hidden" name="action_type" value="update_timeout">
+        <div class="form-inline">
+          <div class="form-group" style="flex: 1;">
+            <label class="form-label">App Timeout</label>
+            <input type="text" name="timeout" class="form-input" value="<%= @config.timeout_duration %>" placeholder="15m0s">
+            <small class="text-muted">Duration before idle apps are stopped (e.g., <code>15m0s</code>, <code>1h0m0s</code>)</small>
+          </div>
+          <div class="form-group">
+            <label class="form-label">&nbsp;</label>
+            <button type="submit" class="btn btn-primary btn-sm">Update Timeout</button>
+          </div>
+        </div>
+      <% end %>
+    <% end %>
+  </div>
+</div>
+
+<!-- Card 4: SSL Certificates -->
+<div class="card mb-4">
+  <div class="card-header">
+    <span class="card-title">SSL Certificates</span>
+    <% if @ssl_status[:installed] %>
+      <span class="badge badge-success">Installed</span>
+    <% else %>
+      <span class="badge badge-warning">Not Found</span>
+    <% end %>
+  </div>
+  <div class="card-body">
+    <% if @ssl_status[:installed] %>
+      <table class="data-table">
+        <tbody>
+          <tr>
+            <td style="width: 120px;"><strong>Status</strong></td>
+            <td>Installed</td>
+          </tr>
+          <tr>
+            <td><strong>Expires</strong></td>
+            <td><%= @ssl_status[:expires] %></td>
+          </tr>
+          <tr>
+            <td><strong>Cert Path</strong></td>
+            <td class="text-mono" style="font-size: 12px;"><%= @config.cert_path %></td>
+          </tr>
+        </tbody>
+      </table>
+    <% else %>
+      <p class="text-muted">No SSL certificate found. Run the command below to generate one.</p>
+    <% end %>
+    <p class="text-muted" style="margin-top: 0.75rem; font-size: 13px;">To regenerate SSL certificates: <code>sudo puma-dev -setup</code></p>
+  </div>
+</div>

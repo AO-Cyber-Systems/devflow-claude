@@ -1,0 +1,46 @@
+<div class="page-header">
+  <h1 class="page-title">Plugins</h1>
+  <p class="page-subtitle">View and manage installed Claude Code plugins</p>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Installed Plugins</span>
+    <span class="badge badge-info"><%= @plugins.size %></span>
+  </div>
+  <div class="card-body">
+    <% if @plugins.any? %>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Version</th>
+            <th>Marketplace</th>
+            <th>Installed</th>
+            <th style="width: 100px;">Enabled</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @plugins.each do |plugin| %>
+            <tr>
+              <td><%= plugin.name %></td>
+              <td><%= plugin.version || "-" %></td>
+              <td><%= plugin.marketplace || "-" %></td>
+              <td><%= plugin.install_date || "-" %></td>
+              <td>
+                <%= form_tag toggle_claude_code_plugin_path(plugin.id), method: :post, style: "display: inline;" do %>
+                  <input type="hidden" name="enabled" value="<%= !plugin.enabled %>">
+                  <button type="submit" class="btn btn-sm <%= plugin.enabled ? 'btn-success' : 'btn-secondary' %>">
+                    <%= plugin.enabled ? "On" : "Off" %>
+                  </button>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    <% else %>
+      <p class="text-muted">No plugins installed. Install plugins from the Claude Code CLI.</p>
+    <% end %>
+  </div>
+</div>

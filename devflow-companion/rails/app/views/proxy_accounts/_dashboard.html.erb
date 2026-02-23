@@ -1,0 +1,153 @@
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="stat-label">Active Accounts</div>
+    <div class="stat-value"><%= stats[:active_accounts] %></div>
+    <div class="stat-detail">of <%= accounts.count %> total</div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-label">Requests Today</div>
+    <div class="stat-value"><%= stats[:requests_today] %></div>
+    <div class="stat-detail">proxied API calls</div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-label">Avg Response Time</div>
+    <div class="stat-value"><%= stats[:avg_response_time] %><span style="font-size: 0.5em;">ms</span></div>
+    <div class="stat-detail">last 24 hours</div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-label">Error Rate</div>
+    <div class="stat-value"><%= stats[:error_rate] %>%</div>
+    <div class="stat-detail">last 24 hours</div>
+  </div>
+</div>
+
+<div class="card mt-4">
+  <div class="card-header">
+    <span class="card-title">Accounts</span>
+    <span class="badge badge-info"><%= accounts.count(&:paused?) == 0 ? "all active" : "#{accounts.count(&:paused?)} paused" %></span>
+  </div>
+  <% if accounts.any? %>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Status</th>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Rate Limit</th>
+          <th>Session</th>
+          <th>Requests</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% accounts.each do |account| %>
+          <tr>
+            <td>
+              <div class="service-dot <%= account.paused? ? 'stopped' : (account.rate_limited? ? 'stopped' : 'running') %>"></div>
+            </td>
+            <td><strong><%= account.name %></strong></td>
+            <td>
+              <% if account.oauth? %>
+                <span class="badge badge-info">Max</span>
+              <% else %>
+                <span class="badge badge-neutral">API Key</span>
+              <% end %>
+            </td>
+            <td>
+              <% if account.rate_limit_remaining && account.rate_limit_limit %>
+                <span class="badge <%= account.rate_limit_remaining > 0 ? 'badge-success' : 'badge-danger' %>">
+                  <%= account.rate_limit_remaining %>/<%= account.rate_limit_limit %>
+                </span>
+              <% else %>
+                <span class="text-muted">&mdash;</span>
+              <% end %>
+            </td>
+            <td>
+              <% if account.oauth? && account.token_expires_at %>
+                <% if account.token_expired? %>
+                  <span class="badge badge-danger">Expired</span>
+                <% elsif account.token_expiring_soon? %>
+                  <span class="badge badge-warning">Expires <%= time_ago_in_words(account.token_expires_at) %></span>
+                <% else %>
+                  <span class="text-muted"><%= distance_of_time_in_words_to_now(account.token_expires_at) %> left</span>
+                <% end %>
+              <% elsif account.session_start %>
+                <span class="text-muted"><%= time_ago_in_words(account.session_start) %> ago</span>
+              <% else %>
+                <span class="text-muted">&mdash;</span>
+              <% end %>
+            </td>
+            <td class="text-mono"><%= account.total_request_count %></td>
+            <td>
+              <div class="btn-group">
+                <% if account.paused? %>
+                  <%= button_to "Resume", unpause_proxy_account_path(account), method: :post, class: "btn btn-primary btn-sm" %>
+                <% else %>
+                  <%= button_to "Pause", pause_proxy_account_path(account), method: :post, class: "btn btn-secondary btn-sm" %>
+                <% end %>
+                <%= button_to "Test", test_connection_proxy_account_path(account), method: :post, class: "btn btn-secondary btn-sm" %>
+                <%= button_to "Remove", proxy_account_path(account), method: :delete, class: "btn btn-danger btn-sm", data: { turbo_confirm: "Remove account '#{account.name}'?" } %>
+              </div>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% else %>
+    <div class="empty-state">
+      <div class="empty-state-icon">&#x26A1;</div>
+      <div class="empty-state-title">No Proxy Accounts</div>
+      <div class="empty-state-text">Add a Claude Max account or API key above to get started</div>
+    </div>
+  <% end %>
+</div>
+
+<% if recent_requests.any? %>
+  <div class="card mt-4">
+    <div class="card-header">
+      <span class="card-title">Recent Requests</span>
+      <span class="badge badge-neutral">last 24h</span>
+    </div>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Account</th>
+          <th>Model</th>
+          <th>Status</th>
+          <th>Response Time</th>
+          <th>Tokens</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% recent_requests.each do |req| %>
+          <tr>
+            <td class="text-muted"><%= time_ago_in_words(req.created_at) %> ago</td>
+            <td><%= req.proxy_account&.name || "—" %></td>
+            <td class="text-mono"><%= req.model || "—" %></td>
+            <td>
+              <span class="badge <%= (200..299).include?(req.status_code.to_i) ? 'badge-success' : 'badge-danger' %>">
+                <%= req.status_code %>
+              </span>
+            </td>
+            <td class="text-mono"><%= req.response_time_ms ? "#{req.response_time_ms}ms" : "—" %></td>
+            <td class="text-mono">
+              <% if req.input_tokens || req.output_tokens %>
+                <%= req.input_tokens || 0 %> / <%= req.output_tokens || 0 %>
+              <% else %>
+                <% if req.streamed? %>
+                  <span class="text-muted">streamed</span>
+                <% else %>
+                  —
+                <% end %>
+              <% end %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+<% end %>

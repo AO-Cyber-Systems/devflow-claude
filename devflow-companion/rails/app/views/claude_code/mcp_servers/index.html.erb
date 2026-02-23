@@ -1,0 +1,76 @@
+<div class="page-header">
+  <h1 class="page-title">MCP Servers</h1>
+  <p class="page-subtitle">Manage Model Context Protocol server configurations</p>
+</div>
+
+<div class="card-grid">
+  <% @mcp_servers.each do |name, config| %>
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title"><%= name %></span>
+        <%= button_to "Remove", claude_code_mcp_server_path(name), method: :delete, class: "btn btn-sm btn-danger", data: { turbo_confirm: "Remove #{name}?" } %>
+      </div>
+      <div class="card-body">
+        <div class="detail-row">
+          <span class="detail-label">Command</span>
+          <code><%= config["command"] %></code>
+        </div>
+        <% if config["args"]&.any? %>
+          <div class="detail-row">
+            <span class="detail-label">Args</span>
+            <code><%= config["args"].join(" ") %></code>
+          </div>
+        <% end %>
+        <% if config["env"]&.any? %>
+          <div class="detail-row">
+            <span class="detail-label">Env</span>
+            <div>
+              <% config["env"].each do |k, v| %>
+                <div><code><%= k %>=<%= v.to_s.length > 20 ? v.to_s[0..17] + "..." : v %></code></div>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+</div>
+
+<% if @mcp_servers.empty? %>
+  <div class="card" style="margin-bottom: 1.5rem;">
+    <div class="card-body">
+      <p class="text-muted">No MCP servers configured.</p>
+    </div>
+  </div>
+<% end %>
+
+<div class="card" style="margin-top: 1.5rem;">
+  <div class="card-header">
+    <span class="card-title">Add MCP Server</span>
+  </div>
+  <div class="card-body">
+    <%= form_tag claude_code_mcp_servers_path, method: :post do %>
+      <div class="form-group">
+        <label class="form-label">Name</label>
+        <input type="text" name="name" class="form-input" placeholder="my-server" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Command</label>
+        <input type="text" name="command" class="form-input" placeholder="npx" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Arguments (one per line)</label>
+        <textarea name="args" class="form-input" rows="3" placeholder="-y&#10;@modelcontextprotocol/server-name"></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Environment Keys (one per line)</label>
+        <textarea name="env_keys" class="form-input" rows="2" placeholder="API_KEY"></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Environment Values (one per line, matching keys)</label>
+        <textarea name="env_values" class="form-input" rows="2" placeholder="sk-..."></textarea>
+      </div>
+      <button type="submit" class="btn btn-primary">Add Server</button>
+    <% end %>
+  </div>
+</div>

@@ -1,0 +1,107 @@
+<turbo-frame id="prerequisites-results">
+  <!-- Summary Cards -->
+  <div class="stat-grid">
+    <div class="stat-card">
+      <div class="stat-label">Total Checks</div>
+      <div class="stat-value"><%= @summary[:total] %></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Passing</div>
+      <div class="stat-value text-success"><%= @summary[:ok] %></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Warnings</div>
+      <div class="stat-value" style="color: var(--warning)"><%= @summary[:warnings] %></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Missing</div>
+      <div class="stat-value text-danger"><%= @summary[:missing] %></div>
+    </div>
+  </div>
+
+  <% if @summary[:missing] > 0 %>
+    <div class="alert alert-danger mb-4">
+      <strong><%= @summary[:missing] %> required prerequisite(s) missing.</strong> Install them before using DevFlow Companion.
+    </div>
+  <% elsif @summary[:warnings] > 0 %>
+    <div class="alert alert-warning mb-4">
+      All required tools present. <strong><%= @summary[:warnings] %> optional item(s)</strong> have warnings.
+    </div>
+  <% else %>
+    <div class="alert alert-success mb-4">
+      All prerequisites satisfied. Your environment is fully configured.
+    </div>
+  <% end %>
+
+  <!-- Checks by Category -->
+  <% @checks_by_category.each do |category, checks| %>
+    <div class="card mb-4">
+      <div class="card-header">
+        <span class="card-title"><%= category %></span>
+        <%
+          cat_ok = checks.count(&:ok?)
+          cat_total = checks.count
+        %>
+        <span class="badge <%= cat_ok == cat_total ? 'badge-success' : (checks.any?(&:missing?) ? 'badge-danger' : 'badge-warning') %>">
+          <%= cat_ok %>/<%= cat_total %> passing
+        </span>
+      </div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th style="width: 40px;">Status</th>
+            <th>Check</th>
+            <th>Detail</th>
+            <th>Fix</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% checks.each do |check| %>
+            <tr>
+              <td>
+                <% case check.status %>
+                <% when :ok %>
+                  <span style="color: var(--success); font-size: 16px;">&#x2713;</span>
+                <% when :warning %>
+                  <span style="color: var(--warning); font-size: 16px;">&#x26A0;</span>
+                <% when :missing %>
+                  <span style="color: var(--danger); font-size: 16px;">&#x2717;</span>
+                <% end %>
+              </td>
+              <td><strong><%= check.name %></strong></td>
+              <td class="text-muted" style="font-size: 12px;"><%= check.detail %></td>
+              <td>
+                <% if check.installable? %>
+                  <% recipe = PrerequisiteCheck::INSTALL_RECIPES[check.install_recipe] %>
+                  <% if recipe %>
+                    <button class="btn btn-primary btn-sm"
+                            data-controller="prereq-install"
+                            data-prereq-install-recipe-value="<%= check.install_recipe %>"
+                            data-prereq-install-steps-value="<%= recipe[:steps].to_json %>"
+                            data-prereq-install-url-value="<%= install_prerequisites_path %>"
+                            data-action="prereq-install#run">
+                      Install
+                    </button>
+                  <% elsif check.fix_hint %>
+                    <code style="font-size: 11px; background: var(--bg-primary); padding: 2px 6px; border-radius: 3px;"><%= check.fix_hint %></code>
+                  <% end %>
+                <% elsif check.fix_hint %>
+                  <code style="font-size: 11px; background: var(--bg-primary); padding: 2px 6px; border-radius: 3px;"><%= check.fix_hint %></code>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+
+  <div class="flex gap-2">
+    <%= button_to "Re-check", recheck_prerequisites_path, method: :post, class: "btn btn-primary", data: { turbo_frame: "_top" } %>
+    <% if @summary[:missing] == 0 %>
+      <%= button_to "Continue to Dashboard", dismiss_prerequisites_path, method: :post, class: "btn btn-primary", data: { turbo_frame: "_top" } %>
+    <% else %>
+      <%= button_to "Continue Anyway", dismiss_prerequisites_path, method: :post, class: "btn btn-secondary", data: { turbo_frame: "_top" } %>
+    <% end %>
+  </div>
+</turbo-frame>

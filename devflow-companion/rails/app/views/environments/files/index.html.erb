@@ -1,0 +1,52 @@
+<div class="page-header">
+  <h1 class="page-title">Environment Variables</h1>
+  <p class="page-subtitle">Per-project .env file management</p>
+</div>
+
+<% if @current_project %>
+  <div class="card mb-4">
+    <div class="card-header">
+      <span class="card-title">Project: <%= @current_project.name %></span>
+      <span class="text-mono text-muted" style="font-size: 12px;"><%= @current_project.path %></span>
+    </div>
+  </div>
+
+  <% if @env_files.any? %>
+    <div class="tabs">
+      <% @env_files.each do |file| %>
+        <a href="<%= environments_file_path(path: file[:encoded_path]) %>" class="tab"><%= file[:name] %></a>
+      <% end %>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <p class="text-muted">Select an env file above to view and edit</p>
+      </div>
+    </div>
+  <% else %>
+    <div class="empty-state">
+      <div class="empty-state-icon">&#x1F4C4;</div>
+      <div class="empty-state-title">No .env Files</div>
+      <div class="empty-state-text">No .env files found in project directory</div>
+    </div>
+  <% end %>
+<% else %>
+  <div class="alert alert-warning">
+    No project selected. Register a project from the DevFlow Dashboard.
+  </div>
+  <% if @projects.any? %>
+    <div class="card">
+      <div class="card-header"><span class="card-title">Registered Projects</span></div>
+      <% @projects.each do |project| %>
+        <div class="service-row">
+          <div class="service-info">
+            <div>
+              <div class="service-name"><%= project.name %></div>
+              <div class="service-detail text-mono"><%= project.path %></div>
+            </div>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+<% end %>

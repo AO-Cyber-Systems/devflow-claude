@@ -32,6 +32,8 @@ class ApplicationController < ActionController::Base
           { name: "Puma-Dev", path: puma_dev_apps_path, icon: "server" },
           { name: "Puma-Dev Config", path: puma_dev_config_path, icon: "wrench" },
           { name: "Services", path: services_path, icon: "activity" },
+          { name: "Homebrew", path: brew_packages_path, icon: "box" },
+          { name: "Mise", path: mise_tools_path, icon: "layers" },
           { name: "Ports", path: ports_path, icon: "radio" },
           { name: "Hosts", path: hosts_path, icon: "globe" },
           { name: "Email", path: mail_messages_path, icon: "mail" },

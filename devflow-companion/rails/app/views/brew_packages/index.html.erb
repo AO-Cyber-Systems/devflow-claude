@@ -1,0 +1,39 @@
+<div class="page-header">
+  <h1 class="page-title">Homebrew Packages</h1>
+  <p class="page-subtitle">Manage installed formulae and casks</p>
+</div>
+
+<div class="card" data-controller="package-search" data-package-search-search-url-value="<%= search_brew_packages_path %>" data-package-search-type-value="brew">
+  <div class="card-header">
+    <div class="flex items-center gap-2">
+      <input type="text"
+             class="form-input"
+             style="width: 260px;"
+             placeholder="Search packages..."
+             data-package-search-target="input"
+             data-action="input->package-search#onInput">
+      <div class="btn-group" data-package-search-target="filters">
+        <button class="btn btn-sm btn-secondary active" data-action="package-search#filterAll" data-package-search-target="filterAll">All</button>
+        <button class="btn btn-sm btn-secondary" data-action="package-search#filterFormulae" data-package-search-target="filterFormulae">Formulae</button>
+        <button class="btn btn-sm btn-secondary" data-action="package-search#filterCasks" data-package-search-target="filterCasks">Casks</button>
+        <button class="btn btn-sm btn-secondary" data-action="package-search#filterOutdated" data-package-search-target="filterOutdated">Outdated</button>
+      </div>
+    </div>
+  </div>
+
+  <turbo-frame id="brew-packages-installed" src="<%= installed_brew_packages_path %>">
+    <div class="prereq-loading">
+      <div class="prereq-spinner"></div>
+      <p class="prereq-loading-title">Loading Homebrew packages...</p>
+      <p class="text-muted" style="font-size: 13px;">This may take a few seconds</p>
+    </div>
+  </turbo-frame>
+
+  <!-- Search results (hidden until search) -->
+  <div data-package-search-target="searchResults" style="display: none;">
+    <div style="padding: 12px 16px; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between;">
+      <span class="text-muted" style="font-size: 12px;">Search results <span data-package-search-target="searchCount"></span></span>
+    </div>
+    <div data-package-search-target="searchList"></div>
+  </div>
+</div>

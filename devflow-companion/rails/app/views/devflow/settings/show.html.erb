@@ -1,0 +1,105 @@
+<div class="page-header">
+  <h1 class="page-title">DevFlow Settings</h1>
+  <p class="page-subtitle">Visual editor for .planning/config.json</p>
+</div>
+
+<% if @config.any? %>
+  <%= form_with url: devflow_settings_path, method: :patch, local: true do %>
+    <!-- Workflow Settings -->
+    <div class="card mb-4">
+      <div class="card-header">
+        <span class="card-title">Workflow</span>
+      </div>
+      <div class="card-body">
+        <% %w[mode depth].each do |key| %>
+          <% next unless @config.key?(key) %>
+          <div class="form-group">
+            <label class="form-label"><%= key.titleize %></label>
+            <% if key == "mode" %>
+              <select name="config[<%= key %>]" class="form-select">
+                <% %w[full guided quick].each do |opt| %>
+                  <option value="<%= opt %>" <%= @config[key] == opt ? "selected" : "" %>><%= opt.titleize %></option>
+                <% end %>
+              </select>
+            <% else %>
+              <input type="text" name="config[<%= key %>]" class="form-input" value="<%= @config[key] %>">
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+
+    <!-- Model Profile -->
+    <div class="card mb-4">
+      <div class="card-header">
+        <span class="card-title">Model Profile</span>
+      </div>
+      <div class="card-body">
+        <% if @config["model_profile"] %>
+          <div class="form-group">
+            <label class="form-label">Active Profile</label>
+            <select name="config[model_profile]" class="form-select">
+              <% %w[quality balanced budget].each do |profile| %>
+                <option value="<%= profile %>" <%= @config["model_profile"] == profile ? "selected" : "" %>><%= profile.titleize %></option>
+              <% end %>
+            </select>
+          </div>
+        <% end %>
+      </div>
+    </div>
+
+    <!-- Gates -->
+    <% if @config["gates"].is_a?(Hash) %>
+      <div class="card mb-4">
+        <div class="card-header">
+          <span class="card-title">Quality Gates</span>
+        </div>
+        <div class="card-body">
+          <% @config["gates"].each do |gate, enabled| %>
+            <div class="form-group flex items-center gap-4">
+              <label class="toggle">
+                <input type="hidden" name="config[gates.<%= gate %>]" value="false">
+                <input type="checkbox" name="config[gates.<%= gate %>]" value="true" <%= enabled ? "checked" : "" %>>
+                <span class="toggle-slider"></span>
+              </label>
+              <span><%= gate.titleize %></span>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+
+    <!-- Parallelization -->
+    <% if @config["parallelization"].is_a?(Hash) %>
+      <div class="card mb-4">
+        <div class="card-header">
+          <span class="card-title">Parallelization</span>
+        </div>
+        <div class="card-body">
+          <% @config["parallelization"].each do |key, value| %>
+            <div class="form-group">
+              <label class="form-label"><%= key.titleize %></label>
+              <% if value.is_a?(TrueClass) || value.is_a?(FalseClass) %>
+                <label class="toggle">
+                  <input type="hidden" name="config[parallelization.<%= key %>]" value="false">
+                  <input type="checkbox" name="config[parallelization.<%= key %>]" value="true" <%= value ? "checked" : "" %>>
+                  <span class="toggle-slider"></span>
+                </label>
+              <% else %>
+                <input type="text" name="config[parallelization.<%= key %>]" class="form-input" value="<%= value %>">
+              <% end %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+
+    <button type="submit" class="btn btn-primary">Save Settings</button>
+  <% end %>
+<% else %>
+  <div class="empty-state">
+    <div class="empty-state-icon">&#x2699;</div>
+    <div class="empty-state-title">No DevFlow Config</div>
+    <div class="empty-state-text">No .planning/config.json found for the current project</div>
+  </div>
+<% end %>

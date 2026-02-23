@@ -1,0 +1,13 @@
+{
+  "name": "devflow-companion",
+  "version": "0.1.0",
+  "private": true,
+  "description": "macOS Developer Environment Manager for DevFlow",
+  "scripts": {
+    "start": "cd electron && npm start",
+    "install:electron": "cd electron && npm install",
+    "install:rails": "cd rails && bundle install",
+    "install:all": "npm run install:electron && npm run install:rails",
+    "setup": "npm run install:all && cd rails && bin/rails db:prepare"
+  }
+}

@@ -1,0 +1,65 @@
+<div class="page-header">
+  <h1 class="page-title">Claude Proxy</h1>
+  <p class="page-subtitle">Multi-account load balancing for Claude Max and API key accounts</p>
+</div>
+
+<div id="proxy-dashboard" data-controller="polling" data-polling-interval-value="5000" data-polling-url-value="<%= stats_proxy_accounts_path(format: :turbo_stream) %>">
+  <%= render partial: "proxy_accounts/dashboard", locals: { accounts: @accounts, recent_requests: @recent_requests, stats: @stats } %>
+</div>
+
+<div class="card mt-4" data-controller="oauth-flow" data-oauth-flow-authorize-url-value="<%= authorize_proxy_accounts_path %>" data-oauth-flow-status-url-value="<%= oauth_status_proxy_accounts_path %>">
+  <div class="card-header">
+    <span class="card-title">Add Claude Max Account</span>
+    <span class="badge badge-info">OAuth</span>
+  </div>
+  <div class="card-body">
+    <p class="text-muted" style="margin-bottom: 12px;">Connect a Claude Max/Pro subscription account via OAuth. A browser window will open for authorization.</p>
+    <button type="button" class="btn btn-primary" data-action="oauth-flow#start" data-oauth-flow-target="startBtn">
+      Add Claude Max Account
+    </button>
+    <div data-oauth-flow-target="status" style="display: none; margin-top: 12px;">
+      <div class="flex items-center gap-2">
+        <span class="spinner"></span>
+        <span data-oauth-flow-target="statusText">Waiting for authorization...</span>
+      </div>
+    </div>
+    <div data-oauth-flow-target="error" style="display: none; margin-top: 12px;" class="text-danger"></div>
+  </div>
+</div>
+
+<details class="card mt-4">
+  <summary class="card-header" style="cursor: pointer; list-style: none;">
+    <span class="card-title">Add API Key Account</span>
+    <span class="badge badge-neutral">Advanced</span>
+  </summary>
+  <div class="card-body">
+    <%= form_with model: ProxyAccount.new, url: proxy_accounts_path, method: :post, local: true, class: "form-inline" do |f| %>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Name</label>
+          <%= f.text_field :name, class: "form-input", placeholder: "Personal, Team, etc.", required: true %>
+        </div>
+        <div class="form-group" style="flex: 2;" data-controller="secret-toggle">
+          <label class="form-label">API Key</label>
+          <div class="flex items-center gap-2">
+            <%= f.password_field :api_key, class: "form-input", placeholder: "sk-ant-...", required: true, data: { secret_toggle_target: "input" } %>
+            <button type="button" class="btn btn-secondary btn-sm" data-action="secret-toggle#toggle" data-secret-toggle-target="button">Show</button>
+          </div>
+        </div>
+        <div class="form-group" style="align-self: flex-end;">
+          <button type="submit" class="btn btn-secondary">Add API Key Account</button>
+        </div>
+      </div>
+    <% end %>
+  </div>
+</details>
+
+<div class="card mt-4">
+  <div class="card-header">
+    <span class="card-title">Usage</span>
+  </div>
+  <div class="card-body">
+    <p class="text-muted">Configure Claude Code to use this proxy:</p>
+    <pre class="text-mono" style="background: var(--bg-secondary); padding: 12px; border-radius: 6px; margin-top: 8px;">export ANTHROPIC_BASE_URL=https://devflow.dev/claude</pre>
+  </div>
+</div>

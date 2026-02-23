@@ -1,7 +1,7 @@
 {
   "name": "@ao-cyber-systems/devflow-cc",
-  "version": "1.21.0",
-  "description": "A meta-prompting, context engineering and spec-driven development system for Claude Code, OpenCode and Gemini by AO Cyber Systems.",
+  "version": "1.22.0",
+  "description": "A meta-prompting, context engineering and spec-driven development system for Claude Code by AO Cyber Systems.",
   "bin": {
     "devflow-cc": "bin/install.js"
   },
@@ -20,8 +20,6 @@
     "meta-prompting",
     "context-engineering",
     "spec-driven-development",
-    "gemini",
-    "gemini-cli",
     "devflow"
   ],
   "author": "AO Cyber Systems",

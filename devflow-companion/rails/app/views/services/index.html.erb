@@ -1,0 +1,14 @@
+<div class="page-header">
+  <h1 class="page-title">Local Services</h1>
+  <p class="page-subtitle">Manage Homebrew services</p>
+</div>
+
+<div class="card" data-controller="polling" data-polling-interval-value="5000" data-polling-url-value="<%= services_path(format: :turbo_stream) %>">
+  <div class="card-header">
+    <span class="card-title">Brew Services</span>
+    <span class="badge badge-info"><%= @services.count(&:started?) %> running</span>
+  </div>
+  <div id="services-list">
+    <%= render partial: "services/list", locals: { services: @services } %>
+  </div>
+</div>

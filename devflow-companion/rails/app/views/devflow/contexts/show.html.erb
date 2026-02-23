@@ -1,0 +1,8 @@
+<div class="page-header">
+  <h1 class="page-title">Context Window Monitor</h1>
+  <p class="page-subtitle">Real-time Claude context usage tracking</p>
+</div>
+
+<div id="context-monitor" data-controller="polling" data-polling-interval-value="3000" data-polling-url-value="<%= devflow_context_path(format: :turbo_stream) %>">
+  <%= render partial: "devflow/context/monitor", locals: { context: @context } %>
+</div>

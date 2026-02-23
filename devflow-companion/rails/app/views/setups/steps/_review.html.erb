@@ -1,0 +1,66 @@
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Setup Summary</span>
+  </div>
+  <div class="card-body">
+    <div style="margin-bottom: 1.5rem;">
+      <h3 style="font-size: 0.875rem; color: #94a3b8; margin-bottom: 0.5rem;">Claude Code</h3>
+      <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0;">
+        <span style="color: <%= data[:claude_code][:binary_found] ? '#22c55e' : '#ef4444' %>;">
+          <%= data[:claude_code][:binary_found] ? '✓' : '✗' %>
+        </span>
+        <span>Binary detected</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0;">
+        <span style="color: <%= data[:claude_code][:settings_exist] ? '#22c55e' : '#eab308' %>;">
+          <%= data[:claude_code][:settings_exist] ? '✓' : '⚠' %>
+        </span>
+        <span>Settings configured</span>
+      </div>
+    </div>
+
+    <div style="margin-bottom: 1.5rem;">
+      <h3 style="font-size: 0.875rem; color: #94a3b8; margin-bottom: 0.5rem;">DevFlow</h3>
+      <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0;">
+        <span style="color: <%= data[:devflow][:installed] ? '#22c55e' : '#eab308' %>;">
+          <%= data[:devflow][:installed] ? '✓' : '⚠' %>
+        </span>
+        <span>
+          <% if data[:devflow][:installed] %>
+            Installed (v<%= data[:devflow][:installed_version] %>)
+          <% else %>
+            Not installed
+          <% end %>
+        </span>
+      </div>
+    </div>
+
+    <div style="margin-bottom: 1.5rem;">
+      <h3 style="font-size: 0.875rem; color: #94a3b8; margin-bottom: 0.5rem;">Hooks</h3>
+      <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0;">
+        <span style="color: <%= data[:hooks][:statusline] ? '#22c55e' : '#94a3b8' %>;">
+          <%= data[:hooks][:statusline] ? '✓' : '○' %>
+        </span>
+        <span>Statusline</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0;">
+        <span style="color: <%= data[:hooks][:update_hook] ? '#22c55e' : '#94a3b8' %>;">
+          <%= data[:hooks][:update_hook] ? '✓' : '○' %>
+        </span>
+        <span>Update check</span>
+      </div>
+    </div>
+
+    <div style="margin-bottom: 1rem;">
+      <h3 style="font-size: 0.875rem; color: #94a3b8; margin-bottom: 0.5rem;">Prerequisites</h3>
+      <span class="badge <%= data[:prerequisites][:missing] > 0 ? 'badge-warning' : 'badge-success' %>">
+        <%= data[:prerequisites][:ok] %>/<%= data[:prerequisites][:total] %> passing
+      </span>
+    </div>
+
+    <%= form_tag update_step_setup_path, method: :post, style: "margin-top: 1.5rem;" do %>
+      <input type="hidden" name="step" value="review">
+      <button type="submit" class="btn btn-primary">Complete Setup</button>
+    <% end %>
+  </div>
+</div>

@@ -1,0 +1,115 @@
+<div class="page-header">
+  <h1 class="page-title">DevFlow Project State</h1>
+  <p class="page-subtitle">Workflow position and objective progress</p>
+</div>
+
+<% if @devflow %>
+  <%
+    steps = %w[new-project discuss plan execute verify complete]
+    current_step = @state[:workflow_step] || "new-project"
+    current_idx = steps.index(current_step) || 0
+  %>
+
+  <!-- Workflow Stepper -->
+  <div class="card mb-4">
+    <div class="card-header">
+      <span class="card-title">Workflow Position</span>
+      <% if @state[:current_objective] %>
+        <span class="badge badge-info">Objective <%= @state[:current_objective] %></span>
+      <% end %>
+    </div>
+    <div class="card-body">
+      <div class="stepper">
+        <% steps.each_with_index do |step, idx| %>
+          <div class="stepper-step <%= idx < current_idx ? 'completed' : (idx == current_idx ? 'active' : '') %>">
+            <div class="stepper-dot">
+              <% if idx < current_idx %>&#x2713;<% else %><%= idx + 1 %><% end %>
+            </div>
+            <span class="stepper-label"><%= step.titleize %></span>
+          </div>
+          <% unless idx == steps.length - 1 %>
+            <div class="stepper-line <%= idx < current_idx ? 'completed' : '' %>"></div>
+          <% end %>
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <!-- Objectives Progress -->
+  <div class="card mb-4">
+    <div class="card-header">
+      <span class="card-title">Objectives</span>
+      <span class="badge badge-info"><%= @roadmap[:objectives].count(&->(o) { o[:status] == "complete" }) %> / <%= @roadmap[:objectives].count %> complete</span>
+    </div>
+    <div class="card-body">
+      <% @roadmap[:objectives].each do |obj| %>
+        <div style="margin-bottom: 16px;">
+          <div class="flex justify-between items-center mb-2">
+            <div>
+              <strong>Objective <%= obj[:number] %></strong>
+              <span class="text-muted" style="margin-left: 8px;"><%= obj[:title] %></span>
+            </div>
+            <span class="badge <%= obj[:status] == 'complete' ? 'badge-success' : (obj[:status] == 'active' ? 'badge-info' : 'badge-neutral') %>">
+              <%= obj[:status] %>
+            </span>
+          </div>
+          <div class="progress">
+            <div class="progress-bar progress-blue" style="width: <%= obj[:progress] %>%"></div>
+          </div>
+          <div class="text-muted" style="font-size: 12px; margin-top: 4px;">
+            <%= obj[:complete_jobs] %> / <%= obj[:total_jobs] %> jobs &middot; <%= obj[:progress] %>%
+          </div>
+        </div>
+      <% end %>
+      <% if @roadmap[:objectives].empty? %>
+        <div class="empty-state">
+          <div class="empty-state-text">No objectives found in ROADMAP.md</div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <!-- Raw State -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">State Details</span>
+    </div>
+    <div class="card-body">
+      <div class="desc-list">
+        <% @state.except(:raw).each do |key, value| %>
+          <div class="desc-item">
+            <span class="desc-key"><%= key.to_s.titleize %></span>
+            <span class="desc-value"><%= value %></span>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+<% else %>
+  <% if current_project %>
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Project Needs Onboarding</span>
+        <span class="badge badge-warning">No .planning/</span>
+      </div>
+      <div class="card-body" style="text-align: center; padding: 32px;">
+        <div style="font-size: 36px; margin-bottom: 12px;">&#x1F680;</div>
+        <h3 style="margin-bottom: 8px;"><%= current_project.name %></h3>
+        <p class="text-muted" style="margin-bottom: 16px;">This project hasn't been onboarded with DevFlow yet. Launch Claude Code to run <code>/df:new-project</code> and set up planning files.</p>
+        <div class="btn-group" style="justify-content: center;">
+          <%= button_to "Launch Onboarding", onboard_project_path(current_project), method: :post, class: "btn btn-primary" %>
+          <a href="<%= projects_path %>" class="btn btn-secondary">Manage Projects</a>
+        </div>
+      </div>
+    </div>
+  <% else %>
+    <div class="card">
+      <div class="card-body" style="text-align: center; padding: 32px;">
+        <div style="font-size: 36px; margin-bottom: 12px;">&#x1F4C2;</div>
+        <h3 style="margin-bottom: 8px;">No Project Selected</h3>
+        <p class="text-muted" style="margin-bottom: 16px;">Add a project and set it as active to view DevFlow state.</p>
+        <a href="<%= projects_path %>" class="btn btn-primary">Go to Projects</a>
+      </div>
+    </div>
+  <% end %>
+<% end %>

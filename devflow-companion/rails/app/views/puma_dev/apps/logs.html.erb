@@ -1,0 +1,14 @@
+<div class="page-header">
+  <h1 class="page-title">Puma-Dev Logs</h1>
+  <p class="page-subtitle">Live log output from puma-dev</p>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Log Output</span>
+    <a href="<%= puma_dev_apps_path %>" class="btn btn-secondary btn-sm">Back to Apps</a>
+  </div>
+  <div class="card-body" id="puma-dev-logs" data-controller="polling" data-polling-interval-value="3000" data-polling-url-value="<%= logs_puma_dev_apps_path(format: :turbo_stream) %>">
+    <%= render partial: "puma_dev/apps/logs", locals: { logs: @logs } %>
+  </div>
+</div>

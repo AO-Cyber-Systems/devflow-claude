@@ -1,0 +1,14 @@
+<div class="page-header">
+  <h1 class="page-title">Port Manager</h1>
+  <p class="page-subtitle">Active TCP listeners</p>
+</div>
+
+<div class="card" data-controller="polling" data-polling-interval-value="10000" data-polling-url-value="<%= ports_path(format: :turbo_stream) %>">
+  <div class="card-header">
+    <span class="card-title">Listening Ports</span>
+    <span class="badge badge-info"><%= @ports.count %> active</span>
+  </div>
+  <div id="ports-list">
+    <%= render partial: "ports/list", locals: { ports: @ports } %>
+  </div>
+</div>

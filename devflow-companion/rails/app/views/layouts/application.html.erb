@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DevFlow Companion</title>
+  <%= csrf_meta_tags %>
+  <%= csp_meta_tag %>
+  <%= javascript_importmap_tags %>
+  <style>
+    <%= render "shared/styles" %>
+  </style>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <span class="brand-icon">&#x25C6;</span>
+        <span class="brand-text">DevFlow</span>
+      </div>
+      <nav class="sidebar-nav">
+        <% sidebar_items.each do |group| %>
+          <div class="nav-group">
+            <div class="nav-group-label"><%= group[:group] %></div>
+            <% group[:items].each do |item| %>
+              <a href="<%= item[:path] %>" data-turbo-frame="main-content" class="nav-item <%= 'active' if request.path == item[:path] || (item[:path] != '/' && request.path.start_with?(item[:path])) %>">
+                <span class="nav-icon"><%= render "shared/icon", name: item[:icon] %></span>
+                <span><%= item[:name] %></span>
+              </a>
+            <% end %>
+          </div>
+        <% end %>
+      </nav>
+    </aside>
+    <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+      <div data-controller="update-banner">
+        <div data-update-banner-target="banner" class="update-banner" style="display: none;">
+          <span data-update-banner-target="message"></span>
+          <div data-update-banner-target="progress" style="display: none;">
+            <div class="progress" style="height: 4px; width: 120px;">
+              <div class="progress-bar progress-blue" style="width: 0%"></div>
+            </div>
+          </div>
+          <button data-update-banner-target="action" data-action="update-banner#install"
+                  class="btn btn-sm btn-primary" style="display: none;">Install & Restart</button>
+          <button data-action="update-banner#hideBanner" class="update-banner-dismiss">&times;</button>
+        </div>
+      </div>
+      <main class="main-content">
+        <turbo-frame id="main-content" data-turbo-action="advance">
+          <% if flash[:notice] %>
+            <div class="alert alert-success"><%= flash[:notice] %></div>
+          <% end %>
+          <% if flash[:alert] %>
+            <div class="alert alert-danger"><%= flash[:alert] %></div>
+          <% end %>
+          <%= yield %>
+        </turbo-frame>
+      </main>
+    </div>
+  </div>
+  <script>
+    document.addEventListener('turbo:frame-render', (event) => {
+      if (event.target.id !== 'main-content') return;
+      const path = window.location.pathname;
+      document.querySelectorAll('.nav-item').forEach(link => {
+        const href = link.getAttribute('href');
+        const isActive = path === href || (href !== '/' && path.startsWith(href));
+        link.classList.toggle('active', isActive);
+      });
+    });
+  </script>
+</body>
+</html>
