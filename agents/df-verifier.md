@@ -52,7 +52,7 @@ Set `is_re_verification = false`, proceed with Step 1.
 ## Step 1: Load Context (Initial Mode Only)
 
 ```bash
-ls "$OBJECTIVE_DIR"/*-JOB.md 2>/dev/null
+ls "$OBJECTIVE_DIR"/*-TRD.md "$OBJECTIVE_DIR"/*-JOB.md 2>/dev/null
 ls "$OBJECTIVE_DIR"/*-SUMMARY.md 2>/dev/null
 node ~/.claude/devflow/bin/df-tools.cjs roadmap get-objective "$OBJECTIVE_NUM"
 grep -E "^| $OBJECTIVE_NUM" .planning/REQUIREMENTS.md 2>/dev/null
@@ -64,10 +64,10 @@ Extract objective goal from ROADMAP.md — this is the outcome to verify, not th
 
 In re-verification mode, must-haves come from Step 0.
 
-**Option A: Must-haves in JOB frontmatter**
+**Option A: Must-haves in TRD/JOB frontmatter**
 
 ```bash
-grep -l "must_haves:" "$OBJECTIVE_DIR"/*-JOB.md 2>/dev/null
+grep -l "must_haves:" "$OBJECTIVE_DIR"/*-TRD.md "$OBJECTIVE_DIR"/*-JOB.md 2>/dev/null
 ```
 
 If found, extract and use:
@@ -233,10 +233,10 @@ Status: WIRED (state displayed) | NOT_WIRED (state exists, not rendered)
 
 ## Step 6: Check Requirements Coverage
 
-**6a. Extract requirement IDs from JOB frontmatter:**
+**6a. Extract requirement IDs from TRD/JOB frontmatter:**
 
 ```bash
-grep -A5 "^requirements:" "$OBJECTIVE_DIR"/*-JOB.md 2>/dev/null
+grep -A5 "^requirements:" "$OBJECTIVE_DIR"/*-TRD.md "$OBJECTIVE_DIR"/*-JOB.md 2>/dev/null
 ```
 
 Collect ALL requirement IDs declared across plans for this objective.

@@ -133,10 +133,11 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
        </objective>
 
        <execution_context>
-       @~/.claude/devflow/workflows/execute-job.md
+       @~/.claude/devflow/workflows/execute-trd.md
        @~/.claude/devflow/templates/summary.md
        @~/.claude/devflow/references/checkpoints.md
        @~/.claude/devflow/references/tdd.md
+       @~/.claude/devflow/references/anti-patterns.md
        </execution_context>
 
        <files_to_read>
@@ -373,7 +374,7 @@ Objective directory: {objective_dir}
 Objective goal: {goal from ROADMAP.md}
 Objective requirement IDs: {objective_req_ids}
 Check must_haves against actual codebase.
-Cross-reference requirement IDs from JOB frontmatter against REQUIREMENTS.md — every ID MUST be accounted for.
+Cross-reference requirement IDs from TRD/JOB frontmatter against REQUIREMENTS.md — every ID MUST be accounted for.
 Create VERIFICATION.md.",
   subagent_type="df-verifier",
   model="{verifier_model}"
@@ -389,7 +390,7 @@ grep "^status:" "$OBJECTIVE_DIR"/*-VERIFICATION.md | cut -d: -f2 | tr -d ' '
 |--------|--------|
 | `passed` | → update_roadmap |
 | `human_needed` | Present items for human testing, get approval or feedback |
-| `gaps_found` | Present gap summary, offer `/df:plan-objective {objective} --gaps` |
+| `gaps_found` | → auto_gap_closure |
 
 **If human_needed:**
 
@@ -407,30 +408,77 @@ AskUserQuestion(
 )
 ```
 
-If "Issue found": follow up with freeform "Describe the issue:" prompt. Collect all responses and route accordingly: all verified → continue. Any issues → gap closure path.
+If "Issue found": follow up with freeform "Describe the issue:" prompt. Collect all responses and route accordingly: all verified → continue. Any issues → auto_gap_closure.
 
-**If gaps_found:**
+**If gaps_found → auto_gap_closure:**
+
+Automatically generate fix TRDs and execute them (replaces manual 3-command gap-closure).
+
 ```
-## ⚠ Objective {X}: {Name} — Gaps Found
+GAP_CLOSURE_CYCLE=0
+MAX_GAP_CYCLES=2
+```
+
+**While gaps exist AND GAP_CLOSURE_CYCLE < MAX_GAP_CYCLES:**
+
+1. **Generate fix TRDs:**
+   ```
+   GAP_CLOSURE_CYCLE=$((GAP_CLOSURE_CYCLE + 1))
+   ```
+
+   Display:
+   ```
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    DF ► AUTO-FIXING GAPS (Cycle {GAP_CLOSURE_CYCLE}/{MAX_GAP_CYCLES})
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ```
+
+   Spawn df-planner with `--gaps` flag:
+   ```
+   Task(
+     prompt="First, read ~/.claude/agents/df-planner.md for your role and instructions.\n\n
+     <planning_context>
+     **Objective:** {objective_number}
+     **Mode:** gap_closure
+     **Gap Closure:** {verification_content}
+     **State:** {state_content}
+     **Roadmap:** {roadmap_content}
+     </planning_context>",
+     subagent_type="general-purpose",
+     model="{planner_model}",
+     description="Plan gap closure for Objective {objective_number}"
+   )
+   ```
+
+2. **Execute fix TRDs:**
+   Spawn executor agents for gap-closure TRDs (same wave-based execution as main execute step).
+
+3. **Re-verify:**
+   Re-run verification. Read new status.
+
+   - `passed` → Break loop, continue to update_roadmap
+   - `gaps_found` → Continue loop (next cycle)
+
+**If still failing after MAX_GAP_CYCLES:**
+
+```
+## ⚠ Objective {X}: {Name} — Gaps Remain After 2 Auto-Fix Cycles
 
 **Score:** {N}/{M} must-haves verified
 **Report:** {objective_dir}/{phase_num}-VERIFICATION.md
 
-### What's Missing
+### Remaining Gaps
 {Gap summaries from VERIFICATION.md}
 
----
-## ▶ Next Up
+Auto-fix could not resolve all gaps. Manual intervention needed.
 
-`/df:plan-objective {X} --gaps`
-
-<sub>`/clear` first → fresh context window</sub>
-
-Also: `cat {objective_dir}/{phase_num}-VERIFICATION.md` — full report
-Also: `/df:verify-work {X}` — manual testing first
+Options:
+- `/df:plan-objective {X} --gaps` — Manual gap closure planning
+- `/df:verify-work {X}` — Manual testing
+- `cat {objective_dir}/{phase_num}-VERIFICATION.md` — Full report
 ```
 
-Gap closure cycle: `/df:plan-objective {X} --gaps` reads VERIFICATION.md → creates gap plans with `gap_closure: true` → user runs `/df:execute-objective {X} --gaps-only` → verifier re-runs.
+Stop auto-advance chain at this point.
 </step>
 
 <step name="update_roadmap">

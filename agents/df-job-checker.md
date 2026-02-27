@@ -352,7 +352,7 @@ Extract from init JSON: `objective_dir`, `objective_number`, `has_jobs`, `job_co
 Orchestrator provides CONTEXT.md content in the verification prompt. If provided, parse for locked decisions, discretion areas, deferred ideas.
 
 ```bash
-ls "$objective_dir"/*-JOB.md 2>/dev/null
+ls "$objective_dir"/*-TRD.md "$objective_dir"/*-JOB.md 2>/dev/null
 node ~/.claude/devflow/bin/df-tools.cjs roadmap get-objective "$objective_number"
 ls "$objective_dir"/*-BRIEF.md 2>/dev/null
 ```
@@ -364,7 +364,7 @@ ls "$objective_dir"/*-BRIEF.md 2>/dev/null
 Use df-tools to validate job structure:
 
 ```bash
-for plan in "$OBJECTIVE_DIR"/*-JOB.md; do
+for plan in "$OBJECTIVE_DIR"/*-TRD.md "$OBJECTIVE_DIR"/*-JOB.md; do
   echo "=== $job ==="
   PLAN_STRUCTURE=$(node ~/.claude/devflow/bin/df-tools.cjs verify job-structure "$job")
   echo "$JOB_STRUCTURE"
@@ -440,13 +440,13 @@ The `tasks` array in the result shows each task's completeness:
 
 **For manual validation of specificity** (df-tools checks structure, not content quality):
 ```bash
-grep -B5 "</task>" "$OBJECTIVE_DIR"/*-JOB.md | grep -v "<verify>"
+grep -B5 "</task>" "$OBJECTIVE_DIR"/*-TRD.md "$OBJECTIVE_DIR"/*-JOB.md 2>/dev/null | grep -v "<verify>"
 ```
 
 ## Step 6: Verify Dependency Graph
 
 ```bash
-for plan in "$OBJECTIVE_DIR"/*-JOB.md; do
+for plan in "$OBJECTIVE_DIR"/*-TRD.md "$OBJECTIVE_DIR"/*-JOB.md; do
   grep "depends_on:" "$job"
 done
 ```
@@ -466,8 +466,8 @@ Missing: No mention of fetch/API call → Issue: Key link not planned
 ## Step 8: Assess Scope
 
 ```bash
-grep -c "<task" "$OBJECTIVE_DIR"/$OBJECTIVE-01-JOB.md
-grep "files_modified:" "$OBJECTIVE_DIR"/$OBJECTIVE-01-JOB.md
+grep -c "<task" "$OBJECTIVE_DIR"/$OBJECTIVE-01-TRD.md "$OBJECTIVE_DIR"/$OBJECTIVE-01-JOB.md 2>/dev/null
+grep "files_modified:" "$OBJECTIVE_DIR"/$OBJECTIVE-01-TRD.md "$OBJECTIVE_DIR"/$OBJECTIVE-01-JOB.md 2>/dev/null
 ```
 
 Thresholds: 2-3 tasks/plan good, 4 warning, 5+ blocker (split required).
@@ -670,8 +670,8 @@ Plans verified. Run `/df:execute-objective {objective}` to proceed.
 Plan verification complete when:
 
 - [ ] Objective goal extracted from ROADMAP.md
-- [ ] All JOB.md files in objective directory loaded
-- [ ] must_haves parsed from each job frontmatter
+- [ ] All TRD.md/JOB.md files in objective directory loaded
+- [ ] must_haves parsed from each plan frontmatter
 - [ ] Requirement coverage checked (all requirements have tasks)
 - [ ] Task completeness validated (all required fields present)
 - [ ] Dependency graph verified (no cycles, valid references)

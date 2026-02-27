@@ -1,11 +1,11 @@
 {
-  "mode": "interactive",
+  "mode": "yolo",
   "depth": "standard",
   "workflow": {
     "research": true,
     "job_check": true,
     "verifier": true,
-    "auto_advance": false
+    "auto_advance": true
   },
   "planning": {
     "commit_docs": true,
@@ -20,6 +20,8 @@
     "min_jobs_for_parallel": 2
   },
   "gates": {
+    "require_verification": true,
+    "require_tests": true,
     "confirm_project": true,
     "confirm_objectives": true,
     "confirm_roadmap": true,

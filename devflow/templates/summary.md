@@ -1,6 +1,6 @@
 # Summary Template
 
-Template for `.planning/objectives/XX-name/{objective}-{job}-SUMMARY.md` - objective completion documentation.
+Template for `.planning/objectives/XX-name/{objective}-{trd}-SUMMARY.md` - task completion documentation with evidence.
 
 ---
 
@@ -38,7 +38,15 @@ patterns-established:
   - "Pattern 1: description"
   - "Pattern 2: description"
 
-requirements-completed: []  # REQUIRED — Copy ALL requirement IDs from this job's `requirements` frontmatter field.
+requirements-completed: []  # REQUIRED — Copy ALL requirement IDs from this TRD's `requirements` frontmatter field.
+
+# Verification evidence
+verification:
+  gates_defined: 3          # Number of validation gates in TRD
+  gates_passed: 3           # Number that passed
+  auto_fix_cycles: 0        # 0, 1, or 2 auto-fix cycles used
+  tdd_evidence: false       # true if type: tdd with RED/GREEN/REFACTOR evidence
+  test_pairing: true        # true if all source files have test pairs
 
 # Metrics
 duration: Xmin
@@ -62,6 +70,14 @@ completed: YYYY-MM-DD
 - [Second key accomplishment]
 - [Third if applicable]
 
+## Task Evidence
+
+| Task | Verify Command | Exit Code | Status |
+|---|---|---|---|
+| 1: [task name] | `[verify command]` | 0 | PASS |
+| 2: [task name] | `[verify command]` | 0 | PASS |
+| 3: [task name] | `[verify command]` | 0 | PASS |
+
 ## Task Commits
 
 Each task was committed atomically:
@@ -74,6 +90,33 @@ Each task was committed atomically:
 
 _Note: TDD tasks may have multiple commits (test → feat → refactor)_
 
+## Validation Gate Results
+
+| Gate | Command | Exit Code | Status |
+|---|---|---|---|
+| lint | `[lint command]` | 0 | PASS |
+| test | `[test command]` | 0 | PASS |
+| build | `[build command]` | 0 | PASS |
+
+## TDD Evidence
+<!-- Only include for type: tdd TRDs -->
+
+| Phase | Command | Exit Code | Expected |
+|---|---|---|---|
+| RED | `[test command]` | 1 | FAIL (correct) |
+| GREEN | `[test command]` | 0 | PASS (correct) |
+| REFACTOR | `[test command]` | 0 | PASS (correct) |
+
+## Post-TRD Verification
+
+- **Auto-fix cycles used:** [0|1|2]
+- **Must-haves verified:** [N]/[M]
+- **Gate failures:** [list or "None"]
+
+## TDD Exceptions
+<!-- Only include if TDD-EXCEPTION markers were used -->
+[List any tasks that used TDD exceptions with reasons]
+
 ## Files Created/Modified
 - `path/to/file.ts` - What it does
 - `path/to/another.ts` - What it does
@@ -83,7 +126,7 @@ _Note: TDD tasks may have multiple commits (test → feat → refactor)_
 
 ## Deviations from Plan
 
-[If no deviations: "None - job executed exactly as written"]
+[If no deviations: "None - TRD executed exactly as written"]
 
 [If deviations occurred:]
 
@@ -106,8 +149,6 @@ _Note: TDD tasks may have multiple commits (test → feat → refactor)_
 
 ## Issues Encountered
 [Problems and how they were resolved, or "None"]
-
-[Note: "Deviations from Plan" documents unplanned work that was handled automatically via deviation rules. "Issues Encountered" documents problems during planned work that required problem-solving.]
 
 ## User Setup Required
 
@@ -132,19 +173,17 @@ None - no external service configuration required.
 <frontmatter_guidance>
 **Purpose:** Enable automatic context assembly via dependency graph. Frontmatter makes summary metadata machine-readable so plan-objective can scan all summaries quickly and select relevant ones based on dependencies.
 
-**Fast scanning:** Frontmatter is first ~25 lines, cheap to scan across all summaries without reading full content.
+**Fast scanning:** Frontmatter is first ~30 lines, cheap to scan across all summaries without reading full content.
 
 **Dependency graph:** `requires`/`provides`/`affects` create explicit links between objectives, enabling transitive closure for context selection.
 
-**Subsystem:** Primary categorization (auth, payments, ui, api, database, infra, testing) for detecting related objectives.
+**Verification fields:** `verification` section tracks evidence completeness — gates defined vs passed, auto-fix cycles, TDD evidence, test pairing.
 
-**Tags:** Searchable technical keywords (libraries, frameworks, tools) for tech stack awareness.
-
-**Key-files:** Important files for @context references in JOB.md.
+**Key-files:** Important files for @context references in TRD.md.
 
 **Patterns:** Established conventions future objectives should maintain.
 
-**Population:** Frontmatter is populated during summary creation in execute-job.md. See `<step name="create_summary">` for field-by-field guidance.
+**Population:** Frontmatter is populated during summary creation. See `<step name="create_summary">` for field-by-field guidance.
 </frontmatter_guidance>
 
 <one_liner_rules>
@@ -163,6 +202,29 @@ The one-liner MUST be substantive:
 
 The one-liner should tell someone what actually shipped.
 </one_liner_rules>
+
+<evidence_rules>
+## Evidence Requirements
+
+**Task Evidence table is MANDATORY.** Every task must have:
+- Verify command that was run
+- Exit code (0 = pass, non-zero = fail)
+- Status (PASS/FAIL)
+
+**Validation Gate Results are MANDATORY** when gates are defined in the TRD.
+
+**TDD Evidence is MANDATORY** for `type: tdd` TRDs:
+- RED phase: test command, exit code (must be non-zero), output
+- GREEN phase: test command, exit code (must be 0), output
+- REFACTOR phase: test command, exit code (must be 0), output
+
+**Post-TRD Verification is MANDATORY:**
+- Auto-fix cycles used (0, 1, or 2)
+- Must-haves verified count
+- Any gate failures
+
+**Prohibited:** Summary claiming completion without evidence tables populated.
+</evidence_rules>
 
 <example>
 ```markdown
@@ -184,6 +246,29 @@ The one-liner should tell someone what actually shipped.
 - Protected route middleware checking token validity
 - Refresh token rotation on each request
 
+## Task Evidence
+
+| Task | Verify Command | Exit Code | Status |
+|---|---|---|---|
+| 1: Prisma schema | `npx prisma db push` | 0 | PASS |
+| 2: Login endpoint | `curl -s -o /dev/null -w "%{http_code}" -X POST localhost:3000/api/auth/login` | 0 | PASS |
+| 3: JWT helpers | `npm test -- --grep "jwt"` | 0 | PASS |
+| 4: Auth middleware | `npm test -- --grep "auth"` | 0 | PASS |
+| 5: Logout endpoint | `curl -s -o /dev/null -w "%{http_code}" -X POST localhost:3000/api/auth/logout` | 0 | PASS |
+
+## Validation Gate Results
+
+| Gate | Command | Exit Code | Status |
+|---|---|---|---|
+| test | `npm test` | 0 | PASS |
+| build | `npm run build` | 0 | PASS |
+
+## Post-TRD Verification
+
+- **Auto-fix cycles used:** 0
+- **Must-haves verified:** 5/5
+- **Gate failures:** None
+
 ## Files Created/Modified
 - `prisma/schema.prisma` - User and Session models
 - `src/app/api/auth/login/route.ts` - Login endpoint
@@ -202,31 +287,22 @@ The one-liner should tell someone what actually shipped.
 
 **1. [Rule 2 - Missing Critical] Added password hashing with bcrypt**
 - **Found during:** Task 2 (Login endpoint implementation)
-- **Issue:** Plan didn't specify password hashing - storing plaintext would be critical security flaw
-- **Fix:** Added bcrypt hashing on registration, comparison on login with salt rounds 10
+- **Issue:** Plan didn't specify password hashing
+- **Fix:** Added bcrypt hashing on registration, comparison on login
 - **Files modified:** src/app/api/auth/login/route.ts, src/lib/auth.ts
-- **Verification:** Password hash test passes, plaintext never stored
+- **Verification:** Password hash test passes
 - **Committed in:** abc123f (Task 2 commit)
-
-**2. [Rule 3 - Blocking] Installed missing jose dependency**
-- **Found during:** Task 4 (JWT token generation)
-- **Issue:** jose package not in package.json, import failing
-- **Fix:** Ran `npm install jose`
-- **Files modified:** package.json, package-lock.json
-- **Verification:** Import succeeds, build passes
-- **Committed in:** def456g (Task 4 commit)
 
 ---
 
-**Total deviations:** 2 auto-fixed (1 missing critical, 1 blocking)
-**Impact on plan:** Both auto-fixes essential for security and functionality. No scope creep.
+**Total deviations:** 1 auto-fixed (1 missing critical)
+**Impact on plan:** Essential for security. No scope creep.
 
 ## Issues Encountered
-- jsonwebtoken CommonJS import failed in Edge runtime - switched to jose (planned library change, worked as expected)
+None
 
 ## Next Objective Readiness
 - Auth foundation complete, ready for feature development
-- User registration endpoint needed before public launch
 
 ---
 *Objective: 01-foundation*
@@ -235,7 +311,9 @@ The one-liner should tell someone what actually shipped.
 </example>
 
 <guidelines>
-**Frontmatter:** MANDATORY - complete all fields. Enables automatic context assembly for future planning.
+**Frontmatter:** MANDATORY - complete all fields including verification section. Enables automatic context assembly and evidence tracking.
+
+**Evidence:** MANDATORY - Task Evidence table, Validation Gate Results, Post-TRD Verification. No evidence = incomplete summary.
 
 **One-liner:** Must be substantive. "JWT auth with refresh rotation using jose library" not "Authentication implemented".
 

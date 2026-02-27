@@ -14,7 +14,7 @@ The git log should read like a changelog of what shipped, not a diary of plannin
 | Event                   | Commit? | Why                                              |
 | ----------------------- | ------- | ------------------------------------------------ |
 | BRIEF + ROADMAP created | YES     | Project initialization                           |
-| JOB.md created         | NO      | Intermediate - commit with plan completion       |
+| TRD.md created         | NO      | Intermediate - commit with plan completion       |
 | RESEARCH.md created     | NO      | Intermediate                                     |
 | DISCOVERY.md created    | NO      | Intermediate                                     |
 | **Task completed**      | YES     | Atomic unit of work (1 commit per task)         |
@@ -62,7 +62,7 @@ node ~/.claude/devflow/bin/df-tools.cjs commit "docs: initialize [project-name] 
 Each task gets its own commit immediately after completion.
 
 ```
-{type}({objective}-{job}): {task-name}
+{type}({objective}-{trd}): {task-name}
 
 - [Key change 1]
 - [Key change 2]
@@ -116,20 +116,20 @@ git commit -m "feat(07-02): implement JWT generation
 After all tasks committed, one final metadata commit captures plan completion.
 
 ```
-docs({objective}-{job}): complete [plan-name] plan
+docs({objective}-{trd}): complete [plan-name] plan
 
 Tasks completed: [N]/[N]
 - [Task 1 name]
 - [Task 2 name]
 - [Task 3 name]
 
-SUMMARY: .planning/objectives/XX-name/{objective}-{job}-SUMMARY.md
+SUMMARY: .planning/objectives/XX-name/{objective}-{trd}-SUMMARY.md
 ```
 
 What to commit:
 
 ```bash
-node ~/.claude/devflow/bin/df-tools.cjs commit "docs({objective}-{job}): complete [plan-name] plan" --files .planning/objectives/XX-name/{objective}-{job}-JOB.md .planning/objectives/XX-name/{objective}-{job}-SUMMARY.md .planning/STATE.md .planning/ROADMAP.md
+node ~/.claude/devflow/bin/df-tools.cjs commit "docs({objective}-{trd}): complete [plan-name] plan" --files .planning/objectives/XX-name/{objective}-{trd}-TRD.md .planning/objectives/XX-name/{objective}-{trd}-SUMMARY.md .planning/STATE.md .planning/ROADMAP.md
 ```
 
 **Note:** Code files NOT included - already committed per-task.
@@ -198,14 +198,14 @@ a7f2d1 feat(checkout): Stripe payments with webhook verification
 5c6d7e docs: initialize ecommerce-app (5 objectives)
 ```
 
-Each job produces 2-4 commits (tasks + metadata). Clear, granular, bisectable.
+Each TRD produces 2-4 commits (tasks + metadata). Clear, granular, bisectable.
 
 </example_log>
 
 <anti_patterns>
 
 **Still don't commit (intermediate artifacts):**
-- JOB.md creation (commit with plan completion)
+- TRD.md creation (commit with plan completion)
 - RESEARCH.md (intermediate)
 - DISCOVERY.md (intermediate)
 - Minor planning tweaks
@@ -226,7 +226,7 @@ Each job produces 2-4 commits (tasks + metadata). Clear, granular, bisectable.
 
 **Context engineering for AI:**
 - Git history becomes primary context source for future Claude sessions
-- `git log --grep="{objective}-{job}"` shows all work for a plan
+- `git log --grep="{objective}-{trd}"` shows all work for a plan
 - `git diff <hash>^..<hash>` shows exact changes per task
 - Less reliance on parsing SUMMARY.md = more context for actual work
 

@@ -345,56 +345,46 @@ node ~/.claude/devflow/bin/df-tools.cjs commit "docs: initialize project" --file
 
 **If auto mode:** Skip — config was collected in Step 2a. Proceed to Step 5.5.
 
-**Check for global defaults** at `~/.devflow/defaults.json`. If the file exists, offer to use saved defaults:
+**Smart defaults approach:** Show a single summary of defaults, then offer to customize.
 
 ```
-AskUserQuestion([
-  {
-    question: "Use your saved default settings? (from ~/.devflow/defaults.json)",
-    header: "Defaults",
-    multiSelect: false,
-    options: [
-      { label: "Yes (Recommended)", description: "Use saved defaults, skip settings questions" },
-      { label: "No", description: "Configure settings manually" }
-    ]
-  }
-])
+Using smart defaults:
+- Mode: YOLO (auto-approve, just execute)
+- Auto-advance: Enabled (phases chain automatically)
+- TDD: Enforced (failing test before implementation)
+- Verification: Required (evidence for every task)
+- Parallelization: Enabled
+- Git tracking: Yes
+
+Run `/df:settings` anytime to customize.
 ```
 
-If "Yes": read `~/.devflow/defaults.json`, use those values for config.json, and skip directly to **Commit config.json** below.
+**Check for `--interactive` flag:** If present, expand the full question flow below. Otherwise, use defaults.
 
-If "No" or `~/.devflow/defaults.json` doesn't exist: proceed with the questions below.
+**If `--interactive` flag OR user wants to customize:**
 
-**Round 1 — Core workflow settings (4 questions):**
+Use AskUserQuestion:
 
 ```
 questions: [
-  {
-    header: "Mode",
-    question: "How do you want to work?",
-    multiSelect: false,
-    options: [
-      { label: "YOLO (Recommended)", description: "Auto-approve, just execute" },
-      { label: "Interactive", description: "Confirm at each step" }
-    ]
-  },
   {
     header: "Depth",
     question: "How thorough should planning be?",
     multiSelect: false,
     options: [
-      { label: "Quick", description: "Ship fast (3-5 objectives, 1-3 jobs each)" },
-      { label: "Standard", description: "Balanced scope and speed (5-8 objectives, 3-5 jobs each)" },
-      { label: "Comprehensive", description: "Thorough coverage (8-12 objectives, 5-10 jobs each)" }
+      { label: "Quick (Recommended)", description: "Ship fast (3-5 objectives, 1-3 TRDs each)" },
+      { label: "Standard", description: "Balanced scope and speed (5-8 objectives, 3-5 TRDs each)" },
+      { label: "Comprehensive", description: "Thorough coverage (8-12 objectives, 5-10 TRDs each)" }
     ]
   },
   {
-    header: "Execution",
-    question: "Run plans in parallel?",
+    header: "AI Models",
+    question: "Which AI models for planning agents?",
     multiSelect: false,
     options: [
-      { label: "Parallel (Recommended)", description: "Independent plans run simultaneously" },
-      { label: "Sequential", description: "One plan at a time" }
+      { label: "Balanced (Recommended)", description: "Sonnet for most agents — good quality/cost ratio" },
+      { label: "Quality", description: "Opus for research/roadmap — higher cost, deeper analysis" },
+      { label: "Budget", description: "Haiku where possible — fastest, lowest cost" }
     ]
   },
   {
@@ -409,73 +399,24 @@ questions: [
 ]
 ```
 
-**Round 2 — Workflow agents:**
-
-These spawn additional agents during planning/execution. They add tokens and time but improve quality.
-
-| Agent | When it runs | What it does |
-|-------|--------------|--------------|
-| **Researcher** | Before planning each objective | Investigates domain, finds patterns, surfaces gotchas |
-| **Plan Checker** | After plan is created | Verifies plan actually achieves the objective goal |
-| **Verifier** | After objective execution | Confirms must-haves were delivered |
-
-All recommended for important projects. Skip for quick experiments.
-
-```
-questions: [
-  {
-    header: "Research",
-    question: "Research before planning each objective? (adds tokens/time)",
-    multiSelect: false,
-    options: [
-      { label: "Yes (Recommended)", description: "Investigate domain, find patterns, surface gotchas" },
-      { label: "No", description: "Plan directly from requirements" }
-    ]
-  },
-  {
-    header: "Plan Check",
-    question: "Verify plans will achieve their goals? (adds tokens/time)",
-    multiSelect: false,
-    options: [
-      { label: "Yes (Recommended)", description: "Catch gaps before execution starts" },
-      { label: "No", description: "Execute plans without verification" }
-    ]
-  },
-  {
-    header: "Verifier",
-    question: "Verify work satisfies requirements after each objective? (adds tokens/time)",
-    multiSelect: false,
-    options: [
-      { label: "Yes (Recommended)", description: "Confirm deliverables match objective goals" },
-      { label: "No", description: "Trust execution, skip verification" }
-    ]
-  },
-  {
-    header: "AI Models",
-    question: "Which AI models for planning agents?",
-    multiSelect: false,
-    options: [
-      { label: "Balanced (Recommended)", description: "Sonnet for most agents — good quality/cost ratio" },
-      { label: "Quality", description: "Opus for research/roadmap — higher cost, deeper analysis" },
-      { label: "Budget", description: "Haiku where possible — fastest, lowest cost" }
-    ]
-  }
-]
-```
-
-Create `.planning/config.json` with all settings:
+Create `.planning/config.json` with settings (defaults + any overrides):
 
 ```json
 {
-  "mode": "yolo|interactive",
+  "mode": "yolo",
   "depth": "quick|standard|comprehensive",
-  "parallelization": true|false,
+  "parallelization": true,
   "commit_docs": true|false,
   "model_profile": "quality|balanced|budget",
   "workflow": {
-    "research": true|false,
-    "job_check": true|false,
-    "verifier": true|false
+    "research": true,
+    "job_check": true,
+    "verifier": true,
+    "auto_advance": true
+  },
+  "gates": {
+    "require_verification": true,
+    "require_tests": true
   }
 }
 ```
@@ -1094,11 +1035,11 @@ Present completion summary:
 
 ```
 ╔══════════════════════════════════════════╗
-║  AUTO-ADVANCING → DISCUSS OBJECTIVE 1        ║
+║  AUTO-ADVANCING → PLAN OBJECTIVE 1           ║
 ╚══════════════════════════════════════════╝
 ```
 
-Exit skill and invoke SlashCommand("/df:discuss-objective 1 --auto")
+Exit skill and invoke SlashCommand("/df:plan-objective 1 --auto")
 
 **If interactive mode:**
 
@@ -1109,14 +1050,13 @@ Exit skill and invoke SlashCommand("/df:discuss-objective 1 --auto")
 
 **Objective 1: [Objective Name]** — [Goal from ROADMAP.md]
 
-/df:discuss-objective 1 — gather context and clarify approach
+/df:plan-objective 1 — plan the first objective
 
-<sub>/clear first → fresh context window</sub>
 
 ---
 
 **Also available:**
-- /df:plan-objective 1 — skip discussion, plan directly
+- /df:build 1 — plan and execute in one command
 
 ───────────────────────────────────────────────────────────────
 ```
@@ -1157,7 +1097,7 @@ Exit skill and invoke SlashCommand("/df:discuss-objective 1 --auto")
 - [ ] ROADMAP.md created with objectives, requirement mappings, success criteria
 - [ ] STATE.md initialized
 - [ ] REQUIREMENTS.md traceability updated
-- [ ] User knows next step is `/df:discuss-objective 1`
+- [ ] User knows next step is `/df:plan-objective 1`
 
 **Atomic commits:** Each objective commits its artifacts immediately. If context is lost, artifacts persist.
 

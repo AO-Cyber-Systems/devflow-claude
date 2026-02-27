@@ -392,7 +392,7 @@ function uninstall(isGlobal) {
   // 4. Remove DevFlow hooks
   const hooksDir = path.join(targetDir, 'hooks');
   if (fs.existsSync(hooksDir)) {
-    const dfHooks = ['df-statusline.js', 'df-check-update.js', 'df-check-update.sh'];
+    const dfHooks = ['df-statusline.js', 'df-check-update.js', 'df-check-update.sh', 'df-verify-completion.js', 'df-verify-commits.js'];
     let hookCount = 0;
     for (const hook of dfHooks) {
       const hookPath = path.join(hooksDir, hook);
@@ -435,25 +435,33 @@ function uninstall(isGlobal) {
       console.log(`  ${green}✓${reset} Removed DevFlow statusline from settings`);
     }
 
-    if (settings.hooks && settings.hooks.SessionStart) {
-      const before = settings.hooks.SessionStart.length;
-      settings.hooks.SessionStart = settings.hooks.SessionStart.filter(entry => {
-        if (entry.hooks && Array.isArray(entry.hooks)) {
-          const hasDfHook = entry.hooks.some(h =>
-            h.command && (h.command.includes('df-check-update') || h.command.includes('df-statusline'))
-          );
-          return !hasDfHook;
+    if (settings.hooks) {
+      // Remove DevFlow hooks from all event types
+      const dfHookPatterns = ['df-check-update', 'df-statusline', 'df-verify-completion', 'df-verify-commits'];
+      for (const eventType of ['SessionStart', 'Stop', 'SubagentStop']) {
+        if (settings.hooks[eventType]) {
+          const before = settings.hooks[eventType].length;
+          settings.hooks[eventType] = settings.hooks[eventType].filter(entry => {
+            if (entry.hooks && Array.isArray(entry.hooks)) {
+              const hasDfHook = entry.hooks.some(h =>
+                h.command && dfHookPatterns.some(p => h.command.includes(p))
+              );
+              return !hasDfHook;
+            }
+            return true;
+          });
+          if (settings.hooks[eventType].length < before) {
+            settingsModified = true;
+          }
+          if (settings.hooks[eventType].length === 0) {
+            delete settings.hooks[eventType];
+          }
         }
-        return true;
-      });
-      if (settings.hooks.SessionStart.length < before) {
-        settingsModified = true;
+      }
+      if (settingsModified) {
         console.log(`  ${green}✓${reset} Removed DevFlow hooks from settings`);
       }
-      if (settings.hooks.SessionStart.length === 0) {
-        delete settings.hooks.SessionStart;
-      }
-      if (Object.keys(settings.hooks).length === 0) {
+      if (settings.hooks && Object.keys(settings.hooks).length === 0) {
         delete settings.hooks;
       }
     }
@@ -813,6 +821,56 @@ function install(isGlobal) {
       ]
     });
     console.log(`  ${green}✓${reset} Configured update check hook`);
+  }
+
+  // Configure Stop hook for completion verification
+  const verifyCompletionCommand = isGlobal
+    ? buildHookCommand(targetDir, 'df-verify-completion.js')
+    : 'node .claude/hooks/df-verify-completion.js';
+
+  if (!settings.hooks.Stop) {
+    settings.hooks.Stop = [];
+  }
+
+  const hasCompletionHook = settings.hooks.Stop.some(entry =>
+    entry.hooks && entry.hooks.some(h => h.command && h.command.includes('df-verify-completion'))
+  );
+
+  if (!hasCompletionHook) {
+    settings.hooks.Stop.push({
+      hooks: [
+        {
+          type: 'command',
+          command: verifyCompletionCommand
+        }
+      ]
+    });
+    console.log(`  ${green}✓${reset} Configured completion verification hook`);
+  }
+
+  // Configure SubagentStop hook for commit verification
+  const verifyCommitsCommand = isGlobal
+    ? buildHookCommand(targetDir, 'df-verify-commits.js')
+    : 'node .claude/hooks/df-verify-commits.js';
+
+  if (!settings.hooks.SubagentStop) {
+    settings.hooks.SubagentStop = [];
+  }
+
+  const hasCommitsHook = settings.hooks.SubagentStop.some(entry =>
+    entry.hooks && entry.hooks.some(h => h.command && h.command.includes('df-verify-commits'))
+  );
+
+  if (!hasCommitsHook) {
+    settings.hooks.SubagentStop.push({
+      hooks: [
+        {
+          type: 'command',
+          command: verifyCommitsCommand
+        }
+      ]
+    });
+    console.log(`  ${green}✓${reset} Configured commit verification hook`);
   }
 
   // Write file manifest for future modification detection

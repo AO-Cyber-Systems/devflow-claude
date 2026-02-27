@@ -5,7 +5,7 @@
 1. `.planning/STATE.md`
 2. `.planning/PROJECT.md`
 3. `.planning/ROADMAP.md`
-4. Current objective's job files (`*-JOB.md`)
+4. Current objective's job files (`*-TRD.md`)
 5. Current objective's summary files (`*-SUMMARY.md`)
 
 </required_reading>
@@ -39,7 +39,7 @@ Note accumulated context that may need updating after transition.
 Check current objective has all plan summaries:
 
 ```bash
-ls .planning/objectives/XX-current/*-JOB.md 2>/dev/null | sort
+ls .planning/objectives/XX-current/*-TRD.md 2>/dev/null | sort
 ls .planning/objectives/XX-current/*-SUMMARY.md 2>/dev/null | sort
 ```
 
@@ -406,36 +406,20 @@ ls .planning/objectives/*[X+1]*/*-CONTEXT.md 2>/dev/null
 
 <if mode="yolo">
 
-**If CONTEXT.md exists:**
-
 ```
 Objective [X] marked complete.
 
 Next: Objective [X+1] — [Name]
 
-⚡ Auto-continuing: Plan Objective [X+1] in detail
+⚡ Auto-continuing: Plan Objective [X+1]
 ```
 
 Exit skill and invoke SlashCommand("/df:plan-objective [X+1] --auto")
-
-**If CONTEXT.md does NOT exist:**
-
-```
-Objective [X] marked complete.
-
-Next: Objective [X+1] — [Name]
-
-⚡ Auto-continuing: Discuss Objective [X+1] first
-```
-
-Exit skill and invoke SlashCommand("/df:discuss-objective [X+1] --auto")
 
 </if>
 
 <if mode="interactive" OR="custom with gates.confirm_transition true">
 
-**If CONTEXT.md does NOT exist:**
-
 ```
 ## ✓ Objective [X] Complete
 
@@ -444,41 +428,13 @@ Exit skill and invoke SlashCommand("/df:discuss-objective [X+1] --auto")
 ## ▶ Next Up
 
 **Objective [X+1]: [Name]** — [Goal from ROADMAP.md]
-
-`/df:discuss-objective [X+1]` — gather context and clarify approach
-
-<sub>`/clear` first → fresh context window</sub>
-
----
-
-**Also available:**
-- `/df:plan-objective [X+1]` — skip discussion, plan directly
-- `/df:research-objective [X+1]` — investigate unknowns
-
----
-```
-
-**If CONTEXT.md exists:**
-
-```
-## ✓ Objective [X] Complete
-
----
-
-## ▶ Next Up
-
-**Objective [X+1]: [Name]** — [Goal from ROADMAP.md]
-<sub>✓ Context gathered, ready to plan</sub>
 
 `/df:plan-objective [X+1]`
 
-<sub>`/clear` first → fresh context window</sub>
-
 ---
 
 **Also available:**
-- `/df:discuss-objective [X+1]` — revisit context
-- `/df:research-objective [X+1]` — investigate unknowns
+- `/df:research-objective [X+1]` — investigate unknowns first
 
 ---
 ```
@@ -523,7 +479,6 @@ Exit skill and invoke SlashCommand("/df:complete-milestone {version}")
 
 `/df:complete-milestone {version}`
 
-<sub>`/clear` first → fresh context window</sub>
 
 ---
 

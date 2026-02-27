@@ -17,6 +17,16 @@ Template for generating `CLAUDE.md` at project root — synthesized from `.plann
 
 [1-3 lines: what this project is, primary language/framework, runtime]
 
+# Development Rules
+
+- TDD: Write failing test before implementation (see .claude/devflow/references/tdd.md)
+- Verification: Every task needs evidence (command output + exit code)
+- Auto-advance: Phases chain automatically unless --pause flag used
+- Anti-patterns: See .claude/devflow/references/anti-patterns.md for prohibited shortcuts
+- Commits: Atomic per-task commits with `{type}({scope}): {description}` format
+- No placeholders: Every file must contain real implementation, not stubs
+- Test pairing: Source files with logic need corresponding test files
+
 # Code Style
 
 [Prescriptive rules from CONVENTIONS.md — naming, formatting, imports, error handling]
@@ -41,22 +51,14 @@ Template for generating `CLAUDE.md` at project root — synthesized from `.plann
 
 [From PATTERNS.md — representative code snippets showing "this is how we write code here"]
 [Include 2-3 most important patterns with brief file references]
-[Example: "Service pattern — see src/services/user.service.ts", "Test pattern — see src/services/user.service.test.ts"]
-
-# External Integrations
-
-[From INTEGRATIONS.md — APIs, databases, auth providers, key patterns]
-[Only include if meaningful integrations exist. Skip for simple projects.]
 
 # Critical Warnings
 
 [From CONCERNS.md + INTEGRATIONS.md — things that break easily, tech debt traps]
-[Example: "Never modify the auth middleware without updating both API and webhook paths"]
 
 # Common Commands
 
 [From STACK.md — build, test, lint, dev server commands]
-[Example: "npm run dev — start dev server", "npm test — run all tests"]
 
 <!-- DEVFLOW:END -->
 ```
@@ -71,6 +73,16 @@ Template for generating `CLAUDE.md` at project root — synthesized from `.plann
 # Project Overview
 
 Task management API built with TypeScript + Express on Node.js 20. PostgreSQL database with Prisma ORM. Deployed to AWS ECS.
+
+# Development Rules
+
+- TDD: Write failing test before implementation (see .claude/devflow/references/tdd.md)
+- Verification: Every task needs evidence (command output + exit code)
+- Auto-advance: Phases chain automatically unless --pause flag used
+- Anti-patterns: See .claude/devflow/references/anti-patterns.md for prohibited shortcuts
+- Commits: Atomic per-task commits with `{type}({scope}): {description}` format
+- No placeholders: Every file must contain real implementation, not stubs
+- Test pairing: Source files with logic need corresponding test files
 
 # Code Style
 
@@ -117,8 +129,7 @@ Task management API built with TypeScript + Express on Node.js 20. PostgreSQL da
 
 - The `src/middleware/auth.ts` rate limiter shares state with `src/routes/webhook.routes.ts` — changing rate limits affects both API and webhook paths
 - Prisma migrations must run before deploy — `npx prisma migrate deploy` in CI
-- The `LEGACY_` prefixed environment variables are read by the billing service — do not remove without coordinating with billing team
-- `src/services/notification.service.ts` has a retry queue that silently drops messages after 3 failures — add monitoring before relying on it for critical notifications
+- `src/services/notification.service.ts` has a retry queue that silently drops messages after 3 failures
 
 # Common Commands
 
@@ -128,7 +139,6 @@ Task management API built with TypeScript + Express on Node.js 20. PostgreSQL da
 - `npm run lint` — run ESLint
 - `npm run build` — compile TypeScript to dist/
 - `npx prisma migrate dev` — create and apply new migration
-- `npx prisma studio` — open database GUI
 
 <!-- DEVFLOW:END -->
 ```
@@ -141,14 +151,13 @@ Task management API built with TypeScript + Express on Node.js 20. PostgreSQL da
 - Write rules, not observations
 - Good: "Use camelCase for functions"
 - Bad: "The codebase uses camelCase for functions"
-- Good: "Never import Prisma directly in services — use repositories"
-- Bad: "Prisma is accessed through repository classes"
 
 **Brevity matters:**
 - CLAUDE.md is auto-loaded every session — every line costs context tokens
-- Aim for 80-150 lines total
+- Aim for 60-100 lines total
 - One rule per bullet point, no multi-paragraph explanations
-- Skip sections that have nothing meaningful to say (e.g., no integrations = skip that section)
+- Skip sections that have nothing meaningful to say
+- Use pointers to reference files instead of inline content
 
 **Concreteness wins:**
 - Include actual file paths: `src/services/`, not "the services directory"
@@ -160,18 +169,19 @@ Task management API built with TypeScript + Express on Node.js 20. PostgreSQL da
 - Include: Rules that Claude would otherwise guess wrong about
 - Include: Patterns that differ from common defaults
 - Include: Things that break if done wrong (Critical Warnings)
+- Include: Development Rules section (always — points to DevFlow references)
 - Skip: Obvious conventions (e.g., "use TypeScript" in a TS project)
 - Skip: Rarely relevant details (deployment infra, CI pipeline specifics)
 - Skip: Sections where the codebase has nothing notable
 
 **Source mapping (which docs inform which sections):**
 - Project Overview ← STACK.md, ARCHITECTURE.md
+- Development Rules ← Always included (DevFlow standard)
 - Code Style ← CONVENTIONS.md
 - Architecture Rules ← ARCHITECTURE.md
 - File Placement ← STRUCTURE.md
 - Testing Requirements ← TESTING.md
 - Code Patterns ← PATTERNS.md
-- External Integrations ← INTEGRATIONS.md
 - Critical Warnings ← CONCERNS.md, INTEGRATIONS.md
 - Common Commands ← STACK.md
 

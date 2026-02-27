@@ -149,7 +149,7 @@ CONTEXT: [✓ if has_context | - if not]
 List files in the current objective directory:
 
 ```bash
-ls -1 .planning/objectives/[current-objective-dir]/*-JOB.md 2>/dev/null | wc -l
+ls -1 .planning/objectives/[current-objective-dir]/*-TRD.md 2>/dev/null | wc -l
 ls -1 .planning/objectives/[current-objective-dir]/*-SUMMARY.md 2>/dev/null | wc -l
 ls -1 .planning/objectives/[current-objective-dir]/*-UAT.md 2>/dev/null | wc -l
 ```
@@ -193,7 +193,6 @@ Read its `<objective>` section.
 
 `/df:execute-objective {objective}`
 
-<sub>`/clear` first → fresh context window</sub>
 
 ---
 ```
@@ -216,7 +215,6 @@ Check if `{phase_num}-CONTEXT.md` exists in objective directory.
 
 `/df:plan-objective {phase-number}`
 
-<sub>`/clear` first → fresh context window</sub>
 
 ---
 ```
@@ -230,9 +228,8 @@ Check if `{phase_num}-CONTEXT.md` exists in objective directory.
 
 **Objective {N}: {Name}** — {Goal from ROADMAP.md}
 
-`/df:discuss-objective {objective}` — gather context and clarify approach
+`/df:plan-objective {objective}` — plan the objective
 
-<sub>`/clear` first → fresh context window</sub>
 
 ---
 
@@ -258,7 +255,6 @@ UAT.md exists with gaps (diagnosed issues). User needs to plan fixes.
 
 `/df:plan-objective {objective} --gaps`
 
-<sub>`/clear` first → fresh context window</sub>
 
 ---
 
@@ -303,9 +299,8 @@ Read ROADMAP.md to get the next objective's name and goal.
 
 **Objective {Z+1}: {Name}** — {Goal from ROADMAP.md}
 
-`/df:discuss-objective {Z+1}` — gather context and clarify approach
+`/df:plan-objective {Z+1}` — plan the next objective
 
-<sub>`/clear` first → fresh context window</sub>
 
 ---
 
@@ -333,7 +328,6 @@ All {N} objectives finished!
 
 `/df:complete-milestone`
 
-<sub>`/clear` first → fresh context window</sub>
 
 ---
 
@@ -364,7 +358,6 @@ Ready to plan the next milestone.
 
 `/df:new-milestone`
 
-<sub>`/clear` first → fresh context window</sub>
 
 ---
 ```

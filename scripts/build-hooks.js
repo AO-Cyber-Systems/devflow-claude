@@ -12,7 +12,9 @@ const DIST_DIR = path.join(HOOKS_DIR, 'dist');
 // Hooks to copy (pure Node.js, no bundling needed)
 const HOOKS_TO_COPY = [
   'df-check-update.js',
-  'df-statusline.js'
+  'df-statusline.js',
+  'df-verify-completion.js',
+  'df-verify-commits.js'
 ];
 
 function build() {

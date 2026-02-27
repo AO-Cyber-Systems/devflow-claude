@@ -594,6 +594,129 @@ Some things can't be verified programmatically. Flag these for human testing:
 
 </human_verification_triggers>
 
+<per_task_verification_protocol>
+
+## Per-Task Verification Protocol
+
+Every task completion claim requires evidence. No exceptions.
+
+**After EVERY task, before committing:**
+
+1. **Run the verification command** from the task's `<verify>` element
+2. **Capture the output** — full command, stdout, and exit code
+3. **Record as evidence:**
+
+```markdown
+### Task {N} Evidence
+
+**Command:** `npm test -- --grep "auth"`
+**Exit code:** 0
+**Output:**
+```
+PASS src/auth.test.ts
+  Authentication
+    ✓ rejects invalid credentials (12ms)
+    ✓ accepts valid credentials (8ms)
+    ✓ rotates refresh token (15ms)
+
+Tests: 3 passed, 3 total
+```
+```
+
+4. **If verification fails:** Do NOT proceed. Fix the issue, re-verify, then commit.
+5. **If verification is impossible** (e.g., visual-only): Document why and flag for human verification.
+
+**Evidence is mandatory. Claims without evidence are rejected.**
+
+### Prohibited Completion Language
+
+These phrases indicate missing evidence — grep for them:
+
+```bash
+grep -iE "(should work|probably passes|I believe|looks correct|seems to|appears to|ought to)" SUMMARY.md
+```
+
+Replace with concrete evidence: commands, outputs, exit codes.
+
+</per_task_verification_protocol>
+
+<test_pairing_checks>
+
+## Test Pairing Validation
+
+Every source file that contains testable logic should have a corresponding test file.
+
+**Check during planning:**
+
+```bash
+# For each source file in files_modified:
+for src in ${FILES_MODIFIED[@]}; do
+  # Skip non-source files
+  [[ "$src" =~ \.(test|spec)\. ]] && continue
+  [[ "$src" =~ \.(md|json|yaml|yml|css|html)$ ]] && continue
+
+  # Derive expected test file
+  test_file="${src%.*}.test.${src##*.}"
+  spec_file="${src%.*}.spec.${src##*.}"
+
+  if [ ! -f "$test_file" ] && [ ! -f "$spec_file" ]; then
+    echo "UNPAIRED: $src has no test file"
+  fi
+done
+```
+
+**When to flag:**
+- Source file contains functions, classes, or exports
+- Source file has business logic (not pure config/types)
+- Source file is in files_modified for the current TRD
+
+**When to skip:**
+- Type definition files (`.d.ts`, `types.ts`)
+- Configuration files
+- Migration files
+- Generated code
+- Pure styling (CSS modules)
+
+</test_pairing_checks>
+
+<evidence_requirements>
+
+## Evidence Requirements
+
+### Required Format
+
+Every piece of verification evidence MUST include:
+
+| Field | Required | Example |
+|---|---|---|
+| Command | Yes | `npm test` |
+| Exit code | Yes | `0` |
+| Output (relevant) | Yes | `Tests: 12 passed` |
+| Timestamp | No | `2025-01-15T14:22:10Z` |
+
+### Evidence Table (for SUMMARY.md)
+
+```markdown
+## Task Evidence
+
+| Task | Verify Command | Exit Code | Status |
+|---|---|---|---|
+| 1: Create model | `npm run build` | 0 | PASS |
+| 2: Add API route | `curl -s localhost:3000/api/users \| jq .` | 0 | PASS |
+| 3: Wire frontend | `npm test` | 0 | PASS |
+```
+
+### Prohibited Patterns
+
+```bash
+# Grep for evidence-free completion claims
+grep -iE "(task (complete|done|finished)|all tasks|implementation (complete|finished))" SUMMARY.md | grep -viE "(exit code|command|output|evidence|verified)"
+```
+
+If matches found: evidence is missing. Go back and add it.
+
+</evidence_requirements>
+
 <checkpoint_automation_reference>
 
 ## Pre-Checkpoint Automation

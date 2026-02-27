@@ -1,5 +1,5 @@
 <purpose>
-Create executable objective prompts (JOB.md files) for a roadmap objective with integrated research and verification. Default flow: Research (if needed) -> Plan -> Verify -> Done. Orchestrates df-objective-researcher, df-planner, and df-job-checker agents with a revision loop (max 3 iterations).
+Create executable objective prompts (TRD.md files) for a roadmap objective with optional inline discussion, integrated research, and verification. Default flow: Discuss (brief, optional) -> Research (if needed) -> Plan -> Verify -> Done. Orchestrates df-objective-researcher, df-planner, and df-job-checker agents with a revision loop (max 3 iterations).
 </purpose>
 
 <required_reading>
@@ -28,6 +28,8 @@ fi
 
 Parse JSON for: `researcher_model`, `planner_model`, `checker_model`, `research_enabled`, `job_checker_enabled`, `commit_docs`, `objective_found`, `objective_dir`, `objective_number`, `objective_name`, `objective_slug`, `padded_objective`, `has_research`, `has_context`, `has_jobs`, `job_count`, `planning_exists`, `roadmap_exists`.
 
+> **Note:** `has_jobs` and `job_count` cover both TRD.md and legacy JOB.md files via `findPlanFiles()` in df-tools.
+
 **File contents (from --include):** `state_content`, `roadmap_content`, `requirements_content`, `context_content`, `research_content`, `verification_content`, `uat_content`. These are null if files don't exist.
 
 **If `planning_exists` is false:** Error — run `/df:new-project` first.
@@ -43,7 +45,7 @@ Extract from $ARGUMENTS: objective number (integer or decimal like `2.1`), flags
 mkdir -p ".planning/objectives/${padded_objective}-${objective_slug}"
 ```
 
-**Existing artifacts from init:** `has_research`, `has_jobs`, `job_count`.
+**Existing artifacts from init:** `has_research`, `has_jobs` (covers TRD + JOB files), `job_count`.
 
 ## 3. Validate Objective
 
@@ -53,25 +55,40 @@ OBJECTIVE_INFO=$(node ~/.claude/devflow/bin/df-tools.cjs roadmap get-objective "
 
 **If `found` is false:** Error with available objectives. **If `found` is true:** Extract `objective_number`, `objective_name`, `goal` from JSON.
 
-## 4. Load CONTEXT.md
+## 4. Brief Inline Discussion (Optional)
 
-Use `context_content` from init JSON (already loaded via `--include context`).
+**If `context_content` is not null** (existing CONTEXT.md from a prior discussion):
+Display: `Using objective context from: ${objective_dir}/*-CONTEXT.md`
+Pass `context_content` to researcher, planner, checker, and revision agents. Skip to step 5.
 
-**CRITICAL:** Use `context_content` from INIT — pass to researcher, planner, checker, and revision agents.
+**If `context_content` is null AND `--skip-discuss` flag is NOT set:**
 
-If `context_content` is not null, display: `Using objective context from: ${objective_dir}/*-CONTEXT.md`
+Ask 2-3 brief clarifying questions using AskUserQuestion to capture key preferences before planning. Focus on:
+1. **Key design choice** — if the objective has an obvious fork (e.g., "REST vs GraphQL", "client vs server rendering")
+2. **Scope constraint** — anything the user wants explicitly in or out of scope
+3. **Priority** — if multiple sub-features, which matters most
 
-**If `context_content` is null (no CONTEXT.md exists):**
+Example:
+```
+AskUserQuestion(
+  questions=[{
+    header: "Approach",
+    question: "For Objective {X}: {objective_name} — any preferences on approach or scope?",
+    options: [
+      { label: "You decide", description: "Use your best judgment based on research" },
+      { label: "Let me specify", description: "I'll provide specific preferences" }
+    ],
+    multiSelect: false
+  }]
+)
+```
 
-Use AskUserQuestion:
-- header: "No context"
-- question: "No CONTEXT.md found for Objective {X}. Plans will use research and requirements only — your design preferences won't be included. Continue or capture context first?"
-- options:
-  - "Continue without context" — Plan using research + requirements only
-  - "Run discuss-objective first" — Capture design decisions before planning
+If user selects "You decide": Note `user_preferences: "Agent discretion"` and proceed to step 5.
+If user selects "Let me specify": Capture their response as `user_preferences` text. Use this in planner/researcher prompts where `context_content` would go.
 
-If "Continue without context": Proceed to step 5.
-If "Run discuss-objective first": Display `/df:discuss-objective {X}` and exit workflow.
+**If `--skip-discuss` flag is set:** Skip discussion, proceed directly to step 5.
+
+> **Legacy CONTEXT.md support:** If a CONTEXT.md exists from a prior `/df:discuss-objective` session, it is still loaded and honored. New projects use inline discussion instead.
 
 ## 5. Handle Research
 
@@ -126,12 +143,12 @@ Answer: "What do I need to know to plan this objective well?"
 </objective>
 
 <phase_context>
-IMPORTANT: If CONTEXT.md exists below, it contains user decisions from /df:discuss-objective.
+If context/preferences exist below, they contain user decisions.
 - **Decisions** = Locked — research THESE deeply, no alternatives
-- **Claude's Discretion** = Freedom areas — research options, recommend
-- **Deferred Ideas** = Out of scope — ignore
+- **Discretion areas** = Freedom — research options, recommend
+- **Out of scope** = Ignore
 
-{context_content}
+{context_content or user_preferences}
 </phase_context>
 
 <additional_context>
@@ -165,13 +182,13 @@ TaskUpdate(taskId=research_task_id, status="completed")
 - **`## RESEARCH COMPLETE`:** Display confirmation, continue to step 6
 - **`## RESEARCH BLOCKED`:** Display blocker, offer: 1) Provide context, 2) Skip research, 3) Abort
 
-## 6. Check Existing Jobs
+## 6. Check Existing TRDs
 
 ```bash
-ls "${OBJECTIVE_DIR}"/*-JOB.md 2>/dev/null
+ls "${OBJECTIVE_DIR}"/*-TRD.md "${OBJECTIVE_DIR}"/*-JOB.md 2>/dev/null
 ```
 
-**If exists:** Offer: 1) Add more plans, 2) View existing, 3) Replan from scratch.
+**If exists:** Offer: 1) Add more TRDs, 2) View existing, 3) Replan from scratch.
 
 ## 7. Use Context Files from INIT
 
@@ -221,16 +238,16 @@ Planner prompt:
 
 **Project State:** {state_content}
 **Roadmap:** {roadmap_content}
-**Objective requirement IDs (every ID MUST appear in a job's `requirements` field):** {objective_req_ids}
+**Objective requirement IDs (every ID MUST appear in a TRD's `requirements` field):** {objective_req_ids}
 **Requirements:** {requirements_content}
 
-**Objective Context:**
-IMPORTANT: If context exists below, it contains USER DECISIONS from /df:discuss-objective.
-- **Decisions** = LOCKED — honor exactly, do not revisit
-- **Claude's Discretion** = Freedom — make implementation choices
-- **Deferred Ideas** = Out of scope — do NOT include
+**Objective Context/Preferences:**
+If context exists below, it contains user decisions. Honor them exactly.
+- **Decisions** = LOCKED — implement exactly, do not revisit
+- **Discretion areas** = Freedom — make implementation choices
+- **Out of scope** = Do NOT include
 
-{context_content}
+{context_content or user_preferences}
 
 **Research:** {research_content}
 **Gap Closure (if --gaps):** {verification_content} {uat_content}
@@ -245,8 +262,8 @@ Output consumed by /df:execute-objective. Plans need:
 </downstream_consumer>
 
 <quality_gate>
-- [ ] JOB.md files created in objective directory
-- [ ] Each job has valid frontmatter
+- [ ] TRD.md files created in objective directory
+- [ ] Each TRD has valid frontmatter
 - [ ] Tasks are specific and actionable
 - [ ] Dependencies correctly identified
 - [ ] Waves assigned for parallel execution
@@ -270,7 +287,7 @@ Task(
 TaskUpdate(taskId=plan_task_id, status="completed")
 ```
 
-- **`## PLANNING COMPLETE`:** Display job count. If `--skip-verify` or `job_checker_enabled` is false (from init): skip to step 13. Otherwise: step 10.
+- **`## PLANNING COMPLETE`:** Display TRD count. If `--skip-verify` or `job_checker_enabled` is false (from init): skip to step 13. Otherwise: step 10.
 - **`## CHECKPOINT REACHED`:** Present to user, get response, spawn continuation (step 12)
 - **`## PLANNING INCONCLUSIVE`:** Show attempts, offer: Add context / Retry / Manual
 
@@ -282,7 +299,7 @@ Display banner:
  DF ► VERIFYING PLANS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-◆ Spawning job checker...
+◆ Spawning plan checker...
 ```
 
 **Progress tracking (if available):**
@@ -295,7 +312,7 @@ TaskCreate(
 ```
 
 ```bash
-PLANS_CONTENT=$(cat "${OBJECTIVE_DIR}"/*-JOB.md 2>/dev/null)
+PLANS_CONTENT=$(cat "${OBJECTIVE_DIR}"/*-TRD.md "${OBJECTIVE_DIR}"/*-JOB.md 2>/dev/null)
 ```
 
 Checker prompt:
@@ -309,13 +326,13 @@ Checker prompt:
 **Objective requirement IDs (MUST ALL be covered):** {objective_req_ids}
 **Requirements:** {requirements_content}
 
-**Objective Context:**
-IMPORTANT: Plans MUST honor user decisions. Flag as issue if plans contradict.
+**Objective Context/Preferences:**
+Plans MUST honor user decisions. Flag as issue if plans contradict.
 - **Decisions** = LOCKED — plans must implement exactly
-- **Claude's Discretion** = Freedom areas — plans can choose approach
-- **Deferred Ideas** = Out of scope — plans must NOT include
+- **Discretion areas** = Freedom — plans can choose approach
+- **Out of scope** = Plans must NOT include
 
-{context_content}
+{context_content or user_preferences}
 </verification_context>
 
 <expected_output>
@@ -361,7 +378,7 @@ TaskUpdate(taskId=plan_task_id, description="Revision iteration {N}/3 — addres
 If `iteration_count == 3` (final attempt): upgrade planner model to opus regardless of profile. The repeated failures suggest subtlety that needs stronger reasoning. Log: `Model override: df-planner {planner_model} → opus (reason: 3rd revision attempt)`
 
 ```bash
-PLANS_CONTENT=$(cat "${OBJECTIVE_DIR}"/*-JOB.md 2>/dev/null)
+PLANS_CONTENT=$(cat "${OBJECTIVE_DIR}"/*-TRD.md "${OBJECTIVE_DIR}"/*-JOB.md 2>/dev/null)
 ```
 
 Revision prompt:
@@ -371,12 +388,12 @@ Revision prompt:
 **Objective:** {objective_number}
 **Mode:** revision
 
-**Existing jobs:** {plans_content}
+**Existing TRDs:** {plans_content}
 **Checker issues:** {structured_issues_from_checker}
 
-**Objective Context:**
+**Objective Context/Preferences:**
 Revisions MUST still honor user decisions.
-{context_content}
+{context_content or user_preferences}
 </revision_context>
 
 <instructions>
@@ -446,7 +463,7 @@ Task(
 
   Auto-advance pipeline finished.
 
-  Next: /df:discuss-objective ${NEXT_PHASE} --auto
+  Next: /df:plan-objective ${NEXT_PHASE} --auto
   ```
 - **GAPS FOUND / VERIFICATION FAILED** → Display result, stop chain:
   ```
@@ -487,12 +504,10 @@ Confidence: {Display confidence scores if checker ran, e.g., "01: 8/10, 02: 7/10
 
 /df:execute-objective {X}
 
-<sub>/clear first → fresh context window</sub>
-
 ───────────────────────────────────────────────────────────────
 
 **Also available:**
-- cat .planning/objectives/{objective-dir}/*-JOB.md — review plans
+- cat .planning/objectives/{objective-dir}/*-TRD.md — review plans
 - /df:plan-objective {X} --research — re-research first
 
 ───────────────────────────────────────────────────────────────

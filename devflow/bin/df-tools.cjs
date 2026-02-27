@@ -39,7 +39,7 @@
  * Roadmap Operations:
  *   roadmap get-objective <objective>          Extract objective section from ROADMAP.md
  *   roadmap analyze                    Full roadmap parse with disk status
- *   roadmap update-job-progress <N>   Update progress table row from disk (JOB vs SUMMARY counts)
+ *   roadmap update-job-progress <N>   Update progress table row from disk (TRD/JOB vs SUMMARY counts)
  *
  * Requirements Operations:
  *   requirements mark-complete <ids>   Mark requirement IDs as complete in REQUIREMENTS.md
@@ -82,7 +82,7 @@
  *     --schema job|summary|verification
  *
  * Verification Suite:
- *   verify job-structure <file>       Check JOB.md structure + tasks
+ *   verify job-structure <file>       Check TRD.md/JOB.md structure + tasks
  *   verify objective-completeness <objective>  Check all jobs have summaries
  *   verify references <file>           Check @-refs + paths resolve
  *   verify commits <h1> [h2] ...      Batch verify commit hashes
@@ -93,7 +93,7 @@
  *   template fill summary --objective N    Create pre-filled SUMMARY.md
  *     [--job M] [--name "..."]
  *     [--fields '{json}']
- *   template fill job --objective N       Create pre-filled JOB.md
+ *   template fill job --objective N       Create pre-filled TRD.md (or JOB.md)
  *     [--job M] [--type execute|tdd]
  *     [--wave N] [--fields '{json}']
  *   template fill verification         Create pre-filled VERIFICATION.md
@@ -168,11 +168,32 @@ function safeReadFile(filePath) {
   }
 }
 
+// ─── TRD/JOB Dual-Pattern Helpers ────────────────────────────────────────────
+
+function findPlanFiles(dirFiles) {
+  const trdFiles = dirFiles.filter(f => f.endsWith('-TRD.md') || f === 'TRD.md');
+  const jobFiles = dirFiles.filter(f => f.endsWith('-JOB.md') || f === 'JOB.md');
+  return trdFiles.length > 0 ? trdFiles : jobFiles;
+}
+
+function stripPlanSuffix(filename) {
+  return filename.replace(/-?TRD\.md$/, '').replace(/-?JOB\.md$/, '');
+}
+
+function isTaskDoc(filename) {
+  return filename.endsWith('-TRD.md') || filename.endsWith('-JOB.md') ||
+         filename === 'TRD.md' || filename === 'JOB.md';
+}
+
 function loadConfig(cwd) {
   const configPath = path.join(cwd, '.planning', 'config.json');
   const defaults = {
+    mode: 'yolo',
+    auto_advance: true,
     model_profile: 'balanced',
     commit_docs: true,
+    require_verification: true,
+    require_tests: true,
     search_gitignored: false,
     branching_strategy: 'none',
     objective_branch_template: 'df/objective-{objective}-{slug}',
@@ -204,8 +225,12 @@ function loadConfig(cwd) {
     })();
 
     return {
+      mode: get('mode', { section: 'workflow', field: 'mode' }) ?? defaults.mode,
+      auto_advance: get('auto_advance', { section: 'workflow', field: 'auto_advance' }) ?? defaults.auto_advance,
       model_profile: get('model_profile') ?? defaults.model_profile,
       commit_docs: get('commit_docs', { section: 'planning', field: 'commit_docs' }) ?? defaults.commit_docs,
+      require_verification: get('require_verification', { section: 'workflow', field: 'require_verification' }) ?? defaults.require_verification,
+      require_tests: get('require_tests', { section: 'workflow', field: 'require_tests' }) ?? defaults.require_tests,
       search_gitignored: get('search_gitignored', { section: 'planning', field: 'search_gitignored' }) ?? defaults.search_gitignored,
       branching_strategy: get('branching_strategy', { section: 'git', field: 'branching_strategy' }) ?? defaults.branching_strategy,
       objective_branch_template: get('objective_branch_template', { section: 'git', field: 'objective_branch_template' }) ?? defaults.objective_branch_template,
@@ -894,7 +919,7 @@ function cmdObjectivesList(cwd, options, raw) {
 
         let filtered;
         if (type === 'jobs') {
-          filtered = dirFiles.filter(f => f.endsWith('-JOB.md') || f === 'JOB.md');
+          filtered = findPlanFiles(dirFiles);
         } else if (type === 'summaries') {
           filtered = dirFiles.filter(f => f.endsWith('-SUMMARY.md') || f === 'SUMMARY.md');
         } else {
@@ -1300,7 +1325,7 @@ function cmdStateUpdateProgress(cwd, raw) {
       .filter(e => e.isDirectory()).map(e => e.name);
     for (const dir of objectiveDirs) {
       const files = fs.readdirSync(path.join(objectivesDir, dir));
-      totalJobs += files.filter(f => f.match(/-JOB\.md$/i)).length;
+      totalJobs += findPlanFiles(files).length;
       totalSummaries += files.filter(f => f.match(/-SUMMARY\.md$/i)).length;
     }
   }
@@ -1485,7 +1510,7 @@ function cmdFindObjective(cwd, objective, raw) {
 
     const objectiveDir = path.join(objectivesDir, match);
     const objectiveFiles = fs.readdirSync(objectiveDir);
-    const plans = objectiveFiles.filter(f => f.endsWith('-JOB.md') || f === 'JOB.md').sort();
+    const plans = findPlanFiles(objectiveFiles).sort();
     const summaries = objectiveFiles.filter(f => f.endsWith('-SUMMARY.md') || f === 'SUMMARY.md').sort();
 
     const result = {
@@ -1801,7 +1826,7 @@ function cmdTemplateFill(cwd, templateType, options, raw) {
         '- [ ] [Criterion 1]',
         '- [ ] [Criterion 2]',
       ].join('\n');
-      fileName = `${padded}-${jobNum}-JOB.md`;
+      fileName = `${padded}-${jobNum}-TRD.md`;
       break;
     }
     case 'verification': {
@@ -1889,7 +1914,7 @@ function cmdObjectiveJobIndex(cwd, objective, raw) {
 
   // Get all files in objective directory
   const objectiveFiles = fs.readdirSync(objectiveDir);
-  const jobFiles = objectiveFiles.filter(f => f.endsWith('-JOB.md') || f === 'JOB.md').sort();
+  const jobFiles = findPlanFiles(objectiveFiles).sort();
   const summaryFiles = objectiveFiles.filter(f => f.endsWith('-SUMMARY.md') || f === 'SUMMARY.md');
 
   // Build set of job IDs with summaries
@@ -1903,7 +1928,7 @@ function cmdObjectiveJobIndex(cwd, objective, raw) {
   let hasCheckpoints = false;
 
   for (const jobFile of jobFiles) {
-    const jobId = jobFile.replace('-JOB.md', '').replace('JOB.md', '');
+    const jobId = stripPlanSuffix(jobFile);
     const jobPath = path.join(objectiveDir, jobFile);
     const content = fs.readFileSync(jobPath, 'utf-8');
     const fm = extractFrontmatter(content);
@@ -2330,11 +2355,11 @@ function cmdVerifyObjectiveCompleteness(cwd, objective, raw) {
   let files;
   try { files = fs.readdirSync(objectiveDir); } catch { output({ error: 'Cannot read objective directory' }, raw); return; }
 
-  const plans = files.filter(f => f.match(/-JOB\.md$/i));
+  const plans = files.filter(f => f.match(/-(TRD|JOB)\.md$/i));
   const summaries = files.filter(f => f.match(/-SUMMARY\.md$/i));
 
-  // Extract plan IDs (everything before -JOB.md)
-  const jobIds = new Set(plans.map(p => p.replace(/-JOB\.md$/i, '')));
+  // Extract plan IDs (everything before -TRD.md or -JOB.md)
+  const jobIds = new Set(plans.map(p => stripPlanSuffix(p)));
   const summaryIds = new Set(summaries.map(s => s.replace(/-SUMMARY\.md$/i, '')));
 
   // Plans without summaries
@@ -2593,7 +2618,7 @@ function cmdRoadmapAnalyze(cwd, raw) {
 
       if (dirMatch) {
         const objectiveFiles = fs.readdirSync(path.join(objectivesDir, dirMatch));
-        jobCount = objectiveFiles.filter(f => f.endsWith('-JOB.md') || f === 'JOB.md').length;
+        jobCount = findPlanFiles(objectiveFiles).length;
         summaryCount = objectiveFiles.filter(f => f.endsWith('-SUMMARY.md') || f === 'SUMMARY.md').length;
         hasContext = objectiveFiles.some(f => f.endsWith('-CONTEXT.md') || f === 'CONTEXT.md');
         hasResearch = objectiveFiles.some(f => f.endsWith('-RESEARCH.md') || f === 'RESEARCH.md');
@@ -3414,7 +3439,7 @@ function cmdMilestoneComplete(cwd, version, options, raw) {
     for (const dir of dirs) {
       objectiveCount++;
       const objectiveFiles = fs.readdirSync(path.join(objectivesDir, dir));
-      const plans = objectiveFiles.filter(f => f.endsWith('-JOB.md') || f === 'JOB.md');
+      const plans = findPlanFiles(objectiveFiles);
       const summaries = objectiveFiles.filter(f => f.endsWith('-SUMMARY.md') || f === 'SUMMARY.md');
       totalJobs += plans.length;
 
@@ -3589,11 +3614,11 @@ function cmdValidateConsistency(cwd, raw) {
 
     for (const dir of dirs) {
       const objectiveFiles = fs.readdirSync(path.join(objectivesDir, dir));
-      const plans = objectiveFiles.filter(f => f.endsWith('-JOB.md')).sort();
+      const plans = findPlanFiles(objectiveFiles).sort();
 
       // Extract job numbers
       const jobNums = plans.map(p => {
-        const pm = p.match(/-(\d{2})-JOB\.md$/);
+        const pm = p.match(/-(\d{2})-(TRD|JOB)\.md$/);
         return pm ? parseInt(pm[1], 10) : null;
       }).filter(n => n !== null);
 
@@ -3605,13 +3630,13 @@ function cmdValidateConsistency(cwd, raw) {
 
       // Check: plans without summaries (completed plans)
       const summaries = objectiveFiles.filter(f => f.endsWith('-SUMMARY.md'));
-      const jobIds = new Set(plans.map(p => p.replace('-JOB.md', '')));
+      const jobIds = new Set(plans.map(p => stripPlanSuffix(p)));
       const summaryIds = new Set(summaries.map(s => s.replace('-SUMMARY.md', '')));
 
       // Summary without matching job is suspicious
       for (const sid of summaryIds) {
         if (!jobIds.has(sid)) {
-          warnings.push(`Summary ${sid}-SUMMARY.md in ${dir} has no matching JOB.md`);
+          warnings.push(`Summary ${sid}-SUMMARY.md in ${dir} has no matching TRD.md or JOB.md`);
         }
       }
     }
@@ -3624,7 +3649,7 @@ function cmdValidateConsistency(cwd, raw) {
 
     for (const dir of dirs) {
       const objectiveFiles = fs.readdirSync(path.join(objectivesDir, dir));
-      const plans = objectiveFiles.filter(f => f.endsWith('-JOB.md'));
+      const plans = findPlanFiles(objectiveFiles);
 
       for (const jobFile of plans) {
         const content = fs.readFileSync(path.join(objectivesDir, dir, jobFile), 'utf-8');
@@ -3762,12 +3787,12 @@ function cmdValidateHealth(cwd, options, raw) {
     for (const e of entries) {
       if (!e.isDirectory()) continue;
       const objectiveFiles = fs.readdirSync(path.join(objectivesDir, e.name));
-      const plans = objectiveFiles.filter(f => f.endsWith('-JOB.md') || f === 'JOB.md');
+      const plans = findPlanFiles(objectiveFiles);
       const summaries = objectiveFiles.filter(f => f.endsWith('-SUMMARY.md') || f === 'SUMMARY.md');
       const summaryBases = new Set(summaries.map(s => s.replace('-SUMMARY.md', '').replace('SUMMARY.md', '')));
 
       for (const jobFile of plans) {
-        const jobBase = jobFile.replace('-JOB.md', '').replace('JOB.md', '');
+        const jobBase = stripPlanSuffix(jobFile);
         if (!summaryBases.has(jobBase)) {
           addIssue('info', 'I001', `${e.name}/${job} has no SUMMARY.md`, 'May be in progress');
         }
@@ -3906,7 +3931,7 @@ function cmdProgressRender(cwd, format, raw) {
       const objectiveNum = dm ? dm[1] : dir;
       const objectiveName = dm && dm[2] ? dm[2].replace(/-/g, ' ') : '';
       const objectiveFiles = fs.readdirSync(path.join(objectivesDir, dir));
-      const plans = objectiveFiles.filter(f => f.endsWith('-JOB.md') || f === 'JOB.md').length;
+      const plans = findPlanFiles(objectiveFiles).length;
       const summaries = objectiveFiles.filter(f => f.endsWith('-SUMMARY.md') || f === 'SUMMARY.md').length;
 
       totalJobs += plans;
@@ -4112,7 +4137,7 @@ function searchObjectiveInDir(baseDir, relBase, normalized) {
     const objectiveDir = path.join(baseDir, match);
     const objectiveFiles = fs.readdirSync(objectiveDir);
 
-    const plans = objectiveFiles.filter(f => f.endsWith('-JOB.md') || f === 'JOB.md').sort();
+    const plans = findPlanFiles(objectiveFiles).sort();
     const summaries = objectiveFiles.filter(f => f.endsWith('-SUMMARY.md') || f === 'SUMMARY.md').sort();
     const hasResearch = objectiveFiles.some(f => f.endsWith('-RESEARCH.md') || f === 'RESEARCH.md');
     const hasContext = objectiveFiles.some(f => f.endsWith('-CONTEXT.md') || f === 'CONTEXT.md');
@@ -4122,7 +4147,7 @@ function searchObjectiveInDir(baseDir, relBase, normalized) {
       summaries.map(s => s.replace('-SUMMARY.md', '').replace('SUMMARY.md', ''))
     );
     const incompleteJobs = plans.filter(p => {
-      const jobId = p.replace('-JOB.md', '').replace('JOB.md', '');
+      const jobId = stripPlanSuffix(p);
       return !completedJobIds.has(jobId);
     });
 
@@ -4870,7 +4895,7 @@ function cmdInitProgress(cwd, includes, raw) {
       const objectivePath = path.join(objectivesDir, dir);
       const objectiveFiles = fs.readdirSync(objectivePath);
 
-      const plans = objectiveFiles.filter(f => f.endsWith('-JOB.md') || f === 'JOB.md');
+      const plans = findPlanFiles(objectiveFiles);
       const summaries = objectiveFiles.filter(f => f.endsWith('-SUMMARY.md') || f === 'SUMMARY.md');
       const hasResearch = objectiveFiles.some(f => f.endsWith('-RESEARCH.md') || f === 'RESEARCH.md');
 
@@ -5012,7 +5037,7 @@ function cmdWorkstreamsAnalyze(cwd, raw) {
       const dirMatch = dirs.find(d => d.startsWith(normalized + '-') || d === normalized);
       if (dirMatch) {
         const objectiveFiles = fs.readdirSync(path.join(objectivesDir, dirMatch));
-        const jobCount = objectiveFiles.filter(f => f.endsWith('-JOB.md') || f === 'JOB.md').length;
+        const jobCount = findPlanFiles(objectiveFiles).length;
         const summaryCount = objectiveFiles.filter(f => f.endsWith('-SUMMARY.md') || f === 'SUMMARY.md').length;
         diskComplete = summaryCount >= jobCount && jobCount > 0;
       }
@@ -5255,7 +5280,7 @@ function cmdWorkstreamsReconcile(cwd, raw) {
 
         if (dirMatch) {
           const objectiveFiles = fs.readdirSync(path.join(objectivesDir, dirMatch));
-          const jobCount = objectiveFiles.filter(f => f.endsWith('-JOB.md') || f === 'JOB.md').length;
+          const jobCount = findPlanFiles(objectiveFiles).length;
           const summaryCount = objectiveFiles.filter(f => f.endsWith('-SUMMARY.md') || f === 'SUMMARY.md').length;
           reconciledPhases.push({
             objective: objectiveNum,
