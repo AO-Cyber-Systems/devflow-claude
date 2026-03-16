@@ -10,7 +10,22 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2024_01_03_000005) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_15_000006) do
+  create_table "auto_response_logs", id: :string, force: :cascade do |t|
+    t.string "autonomy_level", null: false
+    t.string "classification", null: false
+    t.string "command"
+    t.datetime "created_at", null: false
+    t.string "decision", null: false
+    t.string "event_id", null: false
+    t.string "relay_session_id", null: false
+    t.string "tool_name"
+    t.datetime "updated_at", null: false
+    t.index ["event_id"], name: "index_auto_response_logs_on_event_id"
+    t.index ["relay_session_id", "created_at"], name: "idx_auto_logs_session_time"
+    t.index ["relay_session_id"], name: "index_auto_response_logs_on_relay_session_id"
+  end
+
   create_table "devflow_installations", force: :cascade do |t|
     t.string "config_dir", null: false
     t.datetime "created_at", null: false
@@ -34,6 +49,28 @@ ActiveRecord::Schema[8.1].define(version: 2024_01_03_000005) do
     t.index ["name"], name: "index_env_templates_on_name", unique: true
   end
 
+  create_table "events", id: :string, force: :cascade do |t|
+    t.json "action_data", default: {}
+    t.string "agent", default: "claude-code"
+    t.string "classification"
+    t.string "command"
+    t.datetime "created_at", null: false
+    t.datetime "decided_at"
+    t.string "decided_by"
+    t.string "decision"
+    t.string "decision_reason"
+    t.string "event_type", null: false
+    t.string "relay_session_id", null: false
+    t.json "response_data", default: {}
+    t.string "tool_name"
+    t.datetime "updated_at", null: false
+    t.index ["classification"], name: "index_events_on_classification"
+    t.index ["created_at"], name: "index_events_on_created_at"
+    t.index ["event_type"], name: "index_events_on_event_type"
+    t.index ["relay_session_id", "decision"], name: "idx_events_session_decision"
+    t.index ["relay_session_id"], name: "index_events_on_relay_session_id"
+  end
+
   create_table "mail_messages", force: :cascade do |t|
     t.integer "attachments_count", default: 0
     t.text "body_html"
@@ -53,6 +90,21 @@ ActiveRecord::Schema[8.1].define(version: 2024_01_03_000005) do
     t.index ["read"], name: "index_mail_messages_on_read"
   end
 
+  create_table "notification_sends", id: :string, force: :cascade do |t|
+    t.string "channel", null: false
+    t.datetime "created_at", null: false
+    t.datetime "delivered_at"
+    t.text "error_message"
+    t.string "event_id", null: false
+    t.json "metadata", default: {}
+    t.datetime "sent_at"
+    t.string "status", default: "pending"
+    t.datetime "updated_at", null: false
+    t.index ["event_id", "channel"], name: "index_notification_sends_on_event_id_and_channel"
+    t.index ["event_id"], name: "index_notification_sends_on_event_id"
+    t.index ["status"], name: "index_notification_sends_on_status"
+  end
+
   create_table "projects", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "name", null: false
@@ -60,6 +112,23 @@ ActiveRecord::Schema[8.1].define(version: 2024_01_03_000005) do
     t.string "path", null: false
     t.datetime "updated_at", null: false
     t.index ["path"], name: "index_projects_on_path", unique: true
+  end
+
+  create_table "prompt_runs", id: :string, force: :cascade do |t|
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.string "log_path"
+    t.json "metadata", default: {}
+    t.string "mode", default: "continue"
+    t.integer "pid"
+    t.text "prompt", null: false
+    t.string "relay_session_id", null: false
+    t.text "result"
+    t.datetime "started_at"
+    t.string "status", default: "queued"
+    t.datetime "updated_at", null: false
+    t.index ["relay_session_id"], name: "index_prompt_runs_on_relay_session_id"
+    t.index ["status"], name: "index_prompt_runs_on_status"
   end
 
   create_table "proxy_accounts", force: :cascade do |t|
@@ -99,6 +168,31 @@ ActiveRecord::Schema[8.1].define(version: 2024_01_03_000005) do
     t.index ["proxy_account_id"], name: "index_proxy_requests_on_proxy_account_id"
   end
 
+  create_table "relay_sessions", id: :string, force: :cascade do |t|
+    t.string "agent", default: "claude-code"
+    t.string "autonomy_level", default: "assisted", null: false
+    t.string "branch"
+    t.string "claude_session_id"
+    t.datetime "created_at", null: false
+    t.string "cwd"
+    t.string "ide"
+    t.boolean "imessage_enabled", default: false, null: false
+    t.datetime "last_activity_at"
+    t.json "metadata", default: {}
+    t.string "name", null: false
+    t.integer "pending_requests_count", default: 0, null: false
+    t.string "project_name"
+    t.boolean "remote_enabled", default: false, null: false
+    t.string "session_color"
+    t.string "session_key", null: false
+    t.string "status", default: "active", null: false
+    t.datetime "updated_at", null: false
+    t.index ["claude_session_id"], name: "index_relay_sessions_on_claude_session_id", unique: true
+    t.index ["project_name"], name: "index_relay_sessions_on_project_name"
+    t.index ["session_key"], name: "index_relay_sessions_on_session_key", unique: true
+    t.index ["status"], name: "index_relay_sessions_on_status"
+  end
+
   create_table "settings", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "key", null: false
@@ -106,4 +200,24 @@ ActiveRecord::Schema[8.1].define(version: 2024_01_03_000005) do
     t.text "value"
     t.index ["key"], name: "index_settings_on_key", unique: true
   end
+
+  create_table "work_summaries", id: :string, force: :cascade do |t|
+    t.text "content", null: false
+    t.datetime "created_at", null: false
+    t.json "metadata", default: {}
+    t.boolean "read", default: false, null: false
+    t.string "relay_session_id", null: false
+    t.string "summary_type", default: "stop"
+    t.datetime "updated_at", null: false
+    t.index ["created_at"], name: "index_work_summaries_on_created_at"
+    t.index ["relay_session_id", "read"], name: "idx_summaries_session_read"
+    t.index ["relay_session_id"], name: "index_work_summaries_on_relay_session_id"
+  end
+
+  add_foreign_key "auto_response_logs", "events"
+  add_foreign_key "auto_response_logs", "relay_sessions"
+  add_foreign_key "events", "relay_sessions"
+  add_foreign_key "notification_sends", "events"
+  add_foreign_key "prompt_runs", "relay_sessions"
+  add_foreign_key "work_summaries", "relay_sessions"
 end

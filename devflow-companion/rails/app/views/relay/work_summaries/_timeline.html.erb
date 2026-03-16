@@ -1,0 +1,26 @@
+<div id="work-summaries">
+  <% if summaries.any? %>
+    <%# Show latest summary fully %>
+    <div class="p-3 border-l-2 border-blue-500 mb-2 <%= summaries.first.read? ? 'opacity-60' : '' %>">
+      <div class="text-xs text-gray-500 mb-1"><%= time_ago_in_words(summaries.first.created_at) %> ago</div>
+      <div class="text-sm text-gray-300"><%= simple_format(summaries.first.content) %></div>
+    </div>
+
+    <% if summaries.size > 1 %>
+      <details class="mb-2">
+        <summary class="text-xs text-gray-500 cursor-pointer hover:text-gray-400 px-3 py-1">
+          Show <%= summaries.size - 1 %> more
+        </summary>
+        <div class="mt-1">
+          <% summaries.drop(1).each do |summary| %>
+            <%= render "relay/work_summaries/summary", summary: summary %>
+          <% end %>
+        </div>
+      </details>
+    <% end %>
+  <% else %>
+    <div class="text-center py-6 text-gray-500 text-sm">
+      No work summaries yet
+    </div>
+  <% end %>
+</div>

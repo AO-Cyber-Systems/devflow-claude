@@ -23,3 +23,6 @@ application.register("package-search", PackageSearchController)
 
 import PackageActionController from "controllers/package_action_controller"
 application.register("package-action", PackageActionController)
+
+import RelayController from "controllers/relay_controller"
+application.register("relay", RelayController)

@@ -1,0 +1,10 @@
+<div id="pending-requests" class="flex flex-col">
+  <% events.each do |event| %>
+    <%= render "relay/events/event", event: event %>
+  <% end %>
+  <% if events.empty? %>
+    <div class="text-center py-6 text-gray-500 text-sm">
+      No pending requests
+    </div>
+  <% end %>
+</div>

@@ -1,0 +1,26 @@
+<div class="p-4">
+  <%= turbo_stream_from "relay_dashboard" %>
+
+  <div class="mb-6">
+    <h2 class="text-lg font-semibold mb-1">Active Sessions</h2>
+    <p class="text-sm text-gray-400">
+      <%= @sessions.count %> session(s) active
+      <% if @total_pending > 0 %>
+        &middot; <span class="text-amber-400"><%= @total_pending %> pending</span>
+      <% end %>
+    </p>
+  </div>
+
+  <div id="active-sessions">
+    <% @sessions.each do |session| %>
+      <%= render "relay/sessions/card", session: session %>
+    <% end %>
+  </div>
+
+  <% if @sessions.empty? %>
+    <div class="text-center py-12 text-gray-500">
+      <p class="text-lg">No active sessions</p>
+      <p class="text-sm mt-1">Start a Claude Code session with relay hooks installed</p>
+    </div>
+  <% end %>
+</div>

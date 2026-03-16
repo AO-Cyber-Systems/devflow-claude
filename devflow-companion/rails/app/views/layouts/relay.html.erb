@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>DevFlow Remote</title>
+  <%= csrf_meta_tags %>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#030712">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <script src="/tailwind.js"></script>
+  <%= action_cable_meta_tag %>
+  <%= javascript_importmap_tags %>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/service_worker.js', { scope: '/relay' });
+    }
+  </script>
+</head>
+<body class="bg-gray-950 text-gray-100 h-full" data-controller="relay">
+  <nav class="sticky top-0 bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center justify-between z-50">
+    <a href="/relay" class="text-lg font-bold text-white">DevFlow Remote</a>
+    <div class="flex items-center gap-3">
+      <a href="/relay/settings" class="text-gray-400 hover:text-white transition-colors" title="Settings">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+        </svg>
+      </a>
+      <span id="connection-status" class="w-2 h-2 rounded-full bg-green-500"></span>
+    </div>
+  </nav>
+  <main class="max-w-lg mx-auto pb-20">
+    <% if flash[:notice] %>
+      <div class="mx-4 mt-2 p-3 rounded-lg bg-green-900 text-green-300 text-sm"><%= flash[:notice] %></div>
+    <% end %>
+    <% if flash[:alert] %>
+      <div class="mx-4 mt-2 p-3 rounded-lg bg-red-900 text-red-300 text-sm"><%= flash[:alert] %></div>
+    <% end %>
+    <%= yield %>
+  </main>
+</body>
+</html>

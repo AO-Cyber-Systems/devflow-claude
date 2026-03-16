@@ -1,6 +1,7 @@
 Rails.application.routes.draw do
-  # Health check for Electron startup
+  # Health checks
   get "health", to: "health#show"
+  get "up", to: "health#show"
 
   # Setup wizard
   resource :setup, only: [:show] do
@@ -155,6 +156,23 @@ Rails.application.routes.draw do
     end
   end
 
+  # Relay web UI (mobile-first dashboard)
+  namespace :relay do
+    root "dashboard#index"
+    resources :sessions, only: [:show, :update]
+    resources :events, only: [] do
+      member do
+        patch :resolve
+      end
+    end
+    resources :prompts, only: [:create]
+    resources :settings, only: [:index] do
+      collection do
+        patch :update
+      end
+    end
+  end
+
   # API for tray and Electron
   namespace :api do
     resource :tray_status, only: [:show] do
@@ -163,5 +181,20 @@ Rails.application.routes.draw do
       post :quick_action
     end
     resources :settings, only: [:show], param: :key
+
+    # Relay API (bearer token auth, ActionController::API)
+    namespace :v1 do
+      resources :events, only: [:create, :index, :show] do
+        member do
+          patch :resolve
+        end
+      end
+      resources :relay_sessions, only: [:index, :show, :update, :destroy]
+      resources :work_summaries, only: [:create, :index] do
+        member do
+          patch :mark_read
+        end
+      end
+    end
   end
 end

@@ -1,0 +1,23 @@
+{
+  "name": "DevFlow Remote",
+  "short_name": "DevFlow",
+  "description": "Remote control for Claude Code sessions",
+  "start_url": "/relay",
+  "scope": "/relay",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#030712",
+  "theme_color": "#030712",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

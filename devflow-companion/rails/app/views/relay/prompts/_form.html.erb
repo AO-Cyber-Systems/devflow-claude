@@ -1,0 +1,10 @@
+<%= form_with url: relay_prompts_path, method: :post, class: "sticky bottom-0 bg-gray-950 border-t border-gray-800 p-4" do |f| %>
+  <%= f.hidden_field :session_id, value: session.id %>
+  <%= f.text_area :prompt, placeholder: "What should Claude work on?",
+      rows: 3, class: "w-full p-3 rounded-lg bg-gray-900 border border-gray-700 text-white text-sm resize-none" %>
+  <div class="flex items-center justify-between mt-2">
+    <%= f.select :mode, [["Continue session", "continue"], ["New conversation", "fresh"]],
+        {}, class: "px-3 py-2 rounded bg-gray-900 border border-gray-700 text-sm text-gray-300" %>
+    <%= f.submit "Send to Claude", class: "px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium cursor-pointer" %>
+  </div>
+<% end %>

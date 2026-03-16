@@ -1,0 +1,92 @@
+<div class="p-4">
+  <%= turbo_stream_from "relay_session_#{@session.id}" %>
+
+  <%# Session identity header %>
+  <div class="mb-6">
+    <div class="flex items-center gap-3 mb-3">
+      <a href="/relay" class="text-gray-400 hover:text-white text-sm">&larr; Back</a>
+    </div>
+    <div class="flex items-center gap-3">
+      <span class="w-4 h-4 rounded-full" style="background-color: <%= @session.session_color || '#6366F1' %>"></span>
+      <h2 class="text-lg font-semibold"><%= @session.project_name || @session.name %></h2>
+      <% if @session.branch.present? %>
+        <span class="text-sm text-gray-400">(<%= @session.branch %>)</span>
+      <% end %>
+    </div>
+    <div class="mt-1 text-sm text-gray-400">
+      <%= @session.ide %> &middot; <%= @session.status %>
+    </div>
+  </div>
+
+  <%# Autonomy toggle %>
+  <div class="mb-6 p-4 rounded-xl bg-gray-900 border border-gray-800">
+    <h3 class="text-sm font-semibold text-gray-300 mb-3">Autonomy Level</h3>
+    <%= form_with model: @session, url: relay_session_path(@session), method: :patch, class: "flex gap-2" do |f| %>
+      <% %w[supervised assisted autonomous].each do |level| %>
+        <label class="flex-1 cursor-pointer">
+          <%= f.radio_button :autonomy_level, level,
+              class: "hidden peer",
+              onchange: "this.form.requestSubmit()" %>
+          <span class="block text-center px-3 py-2 rounded-lg text-sm border transition
+            peer-checked:bg-blue-600 peer-checked:border-blue-500 peer-checked:text-white
+            border-gray-700 text-gray-400 hover:border-gray-600">
+            <%= level.capitalize %>
+          </span>
+        </label>
+      <% end %>
+    <% end %>
+  </div>
+
+  <%# Pending requests %>
+  <div class="mb-6">
+    <h3 class="text-sm font-semibold text-gray-300 mb-3">
+      Pending Requests
+      <% if @pending_events.any? %>
+        <span class="ml-1 px-2 py-0.5 rounded-full bg-amber-900 text-amber-300 text-xs"><%= @pending_events.count %></span>
+      <% end %>
+    </h3>
+    <%= render "relay/events/pending_stack", events: @pending_events %>
+  </div>
+
+  <%# Recent resolved events %>
+  <% if @recent_events.any? %>
+    <div class="mb-6">
+      <details>
+        <summary class="text-sm font-semibold text-gray-300 cursor-pointer hover:text-gray-200">
+          Recent Activity (<%= @recent_events.count %>)
+        </summary>
+        <div class="mt-2">
+          <% @recent_events.each do |event| %>
+            <%= render "relay/events/event", event: event %>
+          <% end %>
+        </div>
+      </details>
+    </div>
+  <% end %>
+
+  <%# Work summaries %>
+  <div class="mb-6">
+    <h3 class="text-sm font-semibold text-gray-300 mb-3">
+      Work Summaries
+      <% if @unread_count > 0 %>
+        <span class="ml-1 px-2 py-0.5 rounded-full bg-blue-900 text-blue-300 text-xs"><%= @unread_count %> unread</span>
+      <% end %>
+    </h3>
+    <%= render "relay/work_summaries/timeline", summaries: @work_summaries %>
+  </div>
+
+  <%# Recent prompt runs %>
+  <% if @prompt_runs.any? %>
+    <div class="mb-6">
+      <h3 class="text-sm font-semibold text-gray-300 mb-3">Recent Prompts</h3>
+      <div id="prompt-runs">
+        <% @prompt_runs.each do |pr| %>
+          <%= render "relay/prompts/run", prompt_run: pr %>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
+  <%# Prompt form (sticky at bottom) %>
+  <%= render "relay/prompts/form", session: @session %>
+</div>

@@ -1,0 +1,55 @@
+<%= turbo_frame_tag "relay-event-#{event.id}" do %>
+  <div class="p-3 rounded-lg border mb-2 <%= event.classification == 'destructive' ? 'border-red-500 bg-red-950' : 'border-gray-700 bg-gray-900' %>"
+       style="order: <%= event.classification == 'destructive' ? '0' : '1' %>">
+    <div class="flex items-center gap-2 mb-1">
+      <span class="text-xs px-1.5 py-0.5 rounded font-mono
+        <%= case event.classification
+            when 'safe' then 'bg-green-900 text-green-300'
+            when 'scoped' then 'bg-blue-900 text-blue-300'
+            when 'review' then 'bg-amber-900 text-amber-300'
+            when 'destructive' then 'bg-red-900 text-red-300'
+            else 'bg-gray-800 text-gray-400'
+            end %>">
+        <%= event.classification || 'unknown' %>
+      </span>
+      <span class="text-sm font-mono text-gray-300"><%= event.tool_name %></span>
+    </div>
+
+    <% if event.command.present? %>
+      <pre class="text-xs text-gray-400 mt-1 overflow-x-auto"><%= event.command.truncate(200) %></pre>
+    <% end %>
+
+    <% if event.event_type == "question" && event.action_data&.dig("question").present? %>
+      <p class="text-sm text-gray-300 mt-2"><%= event.action_data["question"] %></p>
+      <% if event.action_data["options"]&.any? %>
+        <div class="mt-2 space-y-1">
+          <% event.action_data["options"].each_with_index do |opt, i| %>
+            <%= button_to opt, resolve_relay_event_path(event, decision: "approve", response_data: { value: opt, index: i }),
+                method: :patch, class: "w-full text-left px-3 py-2 rounded bg-gray-800 hover:bg-gray-700 text-sm text-gray-200" %>
+          <% end %>
+        </div>
+      <% end %>
+      <%# Free-text response for custom questions %>
+      <%= form_with url: resolve_relay_event_path(event), method: :patch, class: "mt-2 flex gap-2" do |f| %>
+        <%= f.hidden_field :decision, value: "approve" %>
+        <%= f.text_field :response_value, placeholder: "Type response...", class: "flex-1 px-3 py-2 rounded bg-gray-800 border border-gray-700 text-sm text-white" %>
+        <%= f.submit "Send", class: "px-4 py-2 rounded bg-blue-600 text-white text-sm font-medium" %>
+      <% end %>
+    <% end %>
+
+    <% if event.decision == "pending" && event.event_type == "action_request" %>
+      <div class="mt-2 flex gap-2">
+        <%= button_to "Approve", resolve_relay_event_path(event, decision: "approve"),
+            method: :patch, class: "flex-1 px-3 py-2 rounded bg-green-700 hover:bg-green-600 text-white text-sm font-medium" %>
+        <%= button_to "Block", resolve_relay_event_path(event, decision: "block"),
+            method: :patch, class: "flex-1 px-3 py-2 rounded bg-red-700 hover:bg-red-600 text-white text-sm font-medium" %>
+      </div>
+    <% end %>
+
+    <% unless event.decision == "pending" %>
+      <div class="mt-1 text-xs text-gray-500">
+        <%= event.decision %> by <%= event.decided_by %> at <%= event.decided_at&.strftime("%H:%M") %>
+      </div>
+    <% end %>
+  </div>
+<% end %>

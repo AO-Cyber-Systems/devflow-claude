@@ -1,0 +1,87 @@
+<div class="p-4 space-y-6">
+  <h1 class="text-xl font-bold">Settings</h1>
+
+  <%= form_with url: update_relay_settings_path, method: :patch, class: "space-y-6" do |f| %>
+
+    <!-- Timeout Configuration -->
+    <div class="bg-gray-900 rounded-xl p-4 space-y-4">
+      <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider">Timeout Escalation</h2>
+
+      <div>
+        <label class="block text-sm text-gray-300 mb-1">First escalation (minutes)</label>
+        <input type="number" name="settings[timeout_first_minutes]"
+               value="<%= @settings[:timeout_first_minutes] %>"
+               min="1" max="60"
+               class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        <p class="text-xs text-gray-500 mt-1">Time before first reminder notification</p>
+      </div>
+
+      <div>
+        <label class="block text-sm text-gray-300 mb-1">Second escalation (minutes)</label>
+        <input type="number" name="settings[timeout_second_minutes]"
+               value="<%= @settings[:timeout_second_minutes] %>"
+               min="1" max="120"
+               class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        <p class="text-xs text-gray-500 mt-1">Time before second reminder notification</p>
+      </div>
+    </div>
+
+    <!-- iMessage Configuration -->
+    <div class="bg-gray-900 rounded-xl p-4 space-y-4">
+      <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider">iMessage Bridge</h2>
+
+      <div>
+        <label class="block text-sm text-gray-300 mb-1">iMessage recipient</label>
+        <input type="text" name="settings[imessage_recipient]"
+               value="<%= @settings[:imessage_recipient] %>"
+               placeholder="phone number or email"
+               class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        <p class="text-xs text-gray-500 mt-1">Phone number or Apple ID email for iMessage notifications. Leave blank to disable.</p>
+      </div>
+
+      <div class="text-xs text-gray-500 bg-gray-800/50 rounded-lg p-3">
+        <p class="font-medium text-gray-400 mb-1">Note</p>
+        <p>iMessage bridge requires macOS with Messages.app configured. Toggle iMessage per-session from the session detail page.</p>
+      </div>
+    </div>
+
+    <!-- Tunnel Configuration -->
+    <div class="bg-gray-900 rounded-xl p-4 space-y-4">
+      <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider">Cloudflare Tunnel</h2>
+
+      <div>
+        <label class="block text-sm text-gray-300 mb-1">Tunnel URL</label>
+        <div class="flex gap-2">
+          <input type="text" name="settings[tunnel_url]"
+                 value="<%= @settings[:tunnel_url] %>"
+                 placeholder="https://devflow-relay.example.com"
+                 class="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+        <p class="text-xs text-gray-500 mt-1">Your Cloudflare Tunnel URL for remote access</p>
+      </div>
+
+      <div>
+        <label class="block text-sm text-gray-300 mb-1">Auth token</label>
+        <div class="flex gap-2">
+          <input type="text" value="<%= @settings[:auth_token] %>" readonly
+                 class="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-400 font-mono text-sm">
+          <button type="button" onclick="navigator.clipboard.writeText(this.previousElementSibling.value)"
+                  class="px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm text-gray-300 transition-colors">
+            Copy
+          </button>
+        </div>
+        <p class="text-xs text-gray-500 mt-1">Bearer token for API authentication (read-only)</p>
+      </div>
+    </div>
+
+    <div class="flex gap-3">
+      <button type="submit"
+              class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-3 rounded-xl transition-colors">
+        Save Settings
+      </button>
+      <a href="/relay" class="px-6 py-3 bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium rounded-xl transition-colors text-center">
+        Cancel
+      </a>
+    </div>
+  <% end %>
+</div>
