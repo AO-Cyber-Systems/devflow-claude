@@ -582,121 +582,21 @@ audit_logs
 
 ### AI Providers & Local Models (Layer 1)
 
+**AOSentry Integration**: AOSentry (the LLM gateway at `/Users/markemerson/Source/aosentry-rails/`)
+already handles cloud AI usage tracking, cost calculation, budget enforcement, and rate limiting
+as a transparent proxy. Hub does NOT duplicate this — it queries AOSentry's spend API for
+dashboards and focuses on what AOSentry doesn't cover: local models and routing preferences.
+
 ```
-ai_providers
-  id              uuid PK
-  name            string NOT NULL          -- "Anthropic", "OpenAI", "Google", "Local (Ollama)"
-  provider_type   string NOT NULL          -- anthropic, openai, google, local, custom
-  base_url        string                   -- API endpoint (null for local)
-  status          string DEFAULT 'active'  -- active, rate_limited, paused, expired
-  metadata        jsonb DEFAULT {}
-  created_at      datetime
-  updated_at      datetime
-  UNIQUE(provider_type)
-
-  Layer: 1
-  Note: Registry of AI providers the developer has access to.
-
-ai_subscriptions
-  id              uuid PK
-  ai_provider_id  uuid FK -> ai_providers
-  developer_id    uuid FK -> developers
-  plan_name       string NOT NULL          -- "Pro", "Max", "Plus", "Team", "Enterprise", "Free"
-  plan_type       string NOT NULL          -- subscription, api_key, free, trial
-  auth_method     string NOT NULL          -- api_key, oauth, local
-  api_key         string                   -- encrypted, nullable
-  access_token    string                   -- encrypted, nullable (OAuth)
-  refresh_token   string                   -- encrypted, nullable
-  token_expires_at datetime
-  status          string DEFAULT 'active'  -- active, expired, rate_limited, paused, cancelled
-  paused          boolean DEFAULT false
-  billing_cycle   string                   -- monthly, annual, usage_based, none
-  renewal_date    date                     -- when plan renews
-  metadata        jsonb DEFAULT {}         -- plan-specific fields
-  created_at      datetime
-  updated_at      datetime
-  INDEX(ai_provider_id)
-  INDEX(status)
-
-  Layer: 1
-  Note: Replaces proxy_accounts with a broader concept. One developer can
-  have multiple subscriptions (Claude Pro + OpenAI API key + local Ollama).
-
-ai_models
-  id              uuid PK
-  ai_provider_id  uuid FK -> ai_providers
-  model_id        string NOT NULL          -- "claude-opus-4-6", "gpt-4o", "llama3.3:70b"
-  display_name    string NOT NULL          -- "Claude Opus 4.6", "GPT-4o", "Llama 3.3 70B"
-  model_type      string NOT NULL          -- chat, embedding, code, vision, reasoning
-  context_window  integer                  -- max tokens
-  input_cost_per_mtok  decimal             -- $ per million input tokens (null for local)
-  output_cost_per_mtok decimal             -- $ per million output tokens
-  is_local        boolean DEFAULT false
-  status          string DEFAULT 'available' -- available, downloading, loaded, unloaded, error
-  metadata        jsonb DEFAULT {}         -- capabilities, quantization, etc.
-  created_at      datetime
-  updated_at      datetime
-  INDEX(ai_provider_id)
-  INDEX(model_type)
-  INDEX(is_local)
-
-  Layer: 1
-  Note: Both cloud and local models in one registry. Local models have
-  lifecycle states (downloading, loaded, unloaded).
-
-ai_usage_records
-  id              uuid PK
-  ai_subscription_id uuid FK -> ai_subscriptions
-  ai_model_id     uuid FK -> ai_models
-  agent_session_id uuid FK -> agent_sessions (nullable)
-  developer_id    uuid FK -> developers
-  request_type    string NOT NULL          -- chat, embedding, completion, tool_use
-  input_tokens    integer DEFAULT 0
-  output_tokens   integer DEFAULT 0
-  total_tokens    integer DEFAULT 0
-  cost_usd        decimal                  -- estimated cost (null for local)
-  latency_ms      integer
-  status_code     integer
-  error_type      string
-  streamed        boolean DEFAULT false
-  metadata        jsonb DEFAULT {}         -- request path, cache hit, etc.
-  created_at      datetime
-  INDEX(ai_subscription_id, created_at)
-  INDEX(ai_model_id, created_at)
-  INDEX(agent_session_id)
-  INDEX(developer_id, created_at)
-
-  Layer: 1
-  Note: Replaces proxy_requests with richer metering. Every API call or local
-  inference is tracked. Powers usage dashboards, cost estimates, quota warnings.
-
-ai_usage_limits
-  id              uuid PK
-  ai_subscription_id uuid FK -> ai_subscriptions
-  limit_type      string NOT NULL          -- daily_tokens, monthly_tokens, requests_per_minute, concurrent_requests, daily_cost
-  limit_value     decimal NOT NULL         -- the cap
-  current_value   decimal DEFAULT 0        -- current usage against this limit
-  resets_at       datetime                 -- when counter resets
-  warning_threshold decimal                -- alert at this % (e.g. 0.8 = 80%)
-  status          string DEFAULT 'ok'      -- ok, warning, exceeded
-  metadata        jsonb DEFAULT {}
-  created_at      datetime
-  updated_at      datetime
-  INDEX(ai_subscription_id)
-  INDEX(status)
-
-  Layer: 1
-  Note: Tracks rate limits, quota caps, and budget limits per subscription.
-  Hub can warn before you hit a wall and route to alternatives.
-
 ai_routing_rules
   id              uuid PK
   developer_id    uuid FK -> developers
   task_type       string NOT NULL          -- embedding, classification, code_search, chat, code_generation, review
-  preferred_model_id uuid FK -> ai_models (nullable)
-  fallback_model_id uuid FK -> ai_models (nullable)
+  preferred_model string NOT NULL          -- model ID (e.g. "nomic-embed-text", "claude-opus-4-6")
+  preferred_provider string NOT NULL       -- ollama, anthropic, openai, etc.
+  fallback_model  string                   -- fallback model ID
+  fallback_provider string                 -- fallback provider
   prefer_local    boolean DEFAULT true     -- try local first for this task type
-  max_cost_per_request decimal             -- budget cap per request
   priority        integer DEFAULT 0        -- higher = checked first
   active          boolean DEFAULT true
   metadata        jsonb DEFAULT {}
@@ -708,46 +608,66 @@ ai_routing_rules
   Layer: 1
   Note: "Use local Llama for embeddings, Claude for code generation,
   GPT-4o as fallback when Claude is rate-limited." Developer-configurable.
+  Model/provider are strings (not FKs) — models come from Ollama + AOSentry,
+  not a local registry.
 
 local_model_instances
   id              uuid PK
-  ai_model_id     uuid FK -> ai_models
+  model_name      string NOT NULL          -- Ollama model name (e.g. "llama3.3:70b", "nomic-embed-text")
   runtime         string NOT NULL          -- ollama, llama_cpp, mlx, vllm
   status          string DEFAULT 'stopped' -- stopped, starting, running, error, downloading
-  pid             integer                  -- OS process ID
   port            integer                  -- inference endpoint port
-  gpu_layers      integer                  -- layers offloaded to GPU
-  vram_usage_mb   integer                  -- current VRAM usage
-  ram_usage_mb    integer                  -- current RAM usage
   quantization    string                   -- Q4_K_M, Q8_0, F16, etc.
-  download_progress float                  -- 0.0 to 1.0 during download
-  last_inference_at datetime
-  avg_tokens_per_sec float                 -- performance metric
+  auto_start      boolean DEFAULT false    -- start on Hub launch
+  resource_limit_mb integer               -- max VRAM/RAM to use
+  avg_tokens_per_sec float                 -- performance metric (updated from Flutter)
   metadata        jsonb DEFAULT {}
   created_at      datetime
   updated_at      datetime
   INDEX(status)
-  INDEX(ai_model_id)
 
   Layer: 1
-  Note: Runtime state of locally-running models. Hub monitors resource usage,
-  can start/stop models, tracks performance. One ai_model can have multiple
-  instances (different quantizations).
+  Note: Catalog of local models the developer has configured. Flutter manages
+  lifecycle directly via Ollama API — this table tracks config and preferences.
+  Runtime state (pid, vram, gpu_layers) is read live from Ollama, not stored.
 ```
+
+#### What lives where
+
+```
+AOSentry (already built)              Hub (new)                     Flutter (direct)
+────────────────────────              ─────────                     ────────────────
+Cloud usage tracking (spend_logs)     Routing rules (task → model)  Ollama inference
+Cost calculation (per-model pricing)  Local model config            Ollama pull/start/stop
+Budget enforcement (per-key/team)     AOSentry API key (in settings)GPU/VRAM monitoring
+Rate limiting (RPM/TPM)
+Provider health (error_logs)
+Usage analytics API (/spend/*)
+Model registry (proxy_models)
+
+Hub AI dashboard = AOSentry /spend/* API + Flutter local model status
+```
+
+#### Removed tables (handled by AOSentry)
+
+- ~~`ai_providers`~~ → AOSentry's provider registry
+- ~~`ai_subscriptions`~~ → AOSentry's `api_keys` with budget/plan info
+- ~~`ai_models`~~ → AOSentry's `proxy_models` catalog
+- ~~`ai_usage_records`~~ → AOSentry's `spend_logs`
+- ~~`ai_usage_limits`~~ → AOSentry's budget enforcement
+- ~~`provider_health_checks`~~ → AOSentry's `error_logs`
 
 ### Dev Environment (Layer 1, already built)
 
 ```
 -- These stay as-is from existing schema:
-settings              -- key/value store
+settings              -- key/value store (includes AOSentry connection URL)
 devflow_installations -- DevFlow version tracking
 env_templates         -- .env file templates
 mail_messages         -- SMTP mail catcher
 
--- proxy_accounts and proxy_requests are SUPERSEDED by:
---   ai_providers + ai_subscriptions + ai_usage_records
--- Migration: data from proxy_accounts → ai_subscriptions
---            data from proxy_requests → ai_usage_records
+-- proxy_accounts and proxy_requests are SUPERSEDED by AOSentry.
+-- Migration: remove after confirming AOSentry covers all use cases.
 -- Keep old tables temporarily for backward compat.
 
 -- Brew, Mise, Ports, Hosts, SSH, Git, Puma-dev are
@@ -800,7 +720,7 @@ mail_messages         -- SMTP mail catcher
   /plugins                       -- Plugin management
   /permissions                   -- Permission lists
 
-/api/v1/ai/                      -- AI provider management
+/api/v1/ai/                      -- AI routing, local models, usage (via AOSentry)
   /providers                     -- Provider registry
   /subscriptions                 -- Subscription CRUD + status
   /models                        -- Model catalog (cloud + local)
@@ -920,66 +840,40 @@ PATCH  /api/v1/notification_rules/:id      -- Update rule
 DELETE /api/v1/notification_rules/:id      -- Remove rule
 ```
 
-#### Layer 1: AI Providers & Local Models
+#### Layer 1: AI — Routing & Local Models
+
+Cloud usage tracking, cost calculation, budgets, and rate limiting are handled by
+**AOSentry** (LLM gateway). Hub queries AOSentry's `/spend/*` API for dashboards
+and manages only what AOSentry doesn't cover: local models and routing preferences.
 
 ```
-# Providers
-GET    /api/v1/ai/providers                -- List configured providers
-POST   /api/v1/ai/providers                -- Add provider
-PATCH  /api/v1/ai/providers/:id            -- Update provider
+# Usage (proxy to AOSentry /spend/* API)
+GET    /api/v1/ai/usage                    -- Proxies to AOSentry /spend/logs
+GET    /api/v1/ai/usage/dashboard          -- Aggregates AOSentry /spend/report + local model stats
+GET    /api/v1/ai/usage/providers          -- Proxies to AOSentry /spend/provider
+GET    /api/v1/ai/usage/models             -- Proxies to AOSentry /spend/models
 
-# Subscriptions
-GET    /api/v1/ai/subscriptions            -- List all subscriptions
-POST   /api/v1/ai/subscriptions            -- Add subscription (API key, OAuth, local)
-PATCH  /api/v1/ai/subscriptions/:id        -- Update (pause, credentials, plan)
-DELETE /api/v1/ai/subscriptions/:id        -- Remove subscription
-POST   /api/v1/ai/subscriptions/:id/test   -- Test connection
-POST   /api/v1/ai/subscriptions/:id/refresh -- Refresh OAuth token
-
-# Models
-GET    /api/v1/ai/models                   -- List all models (cloud + local)
-GET    /api/v1/ai/models/:id               -- Model detail + capabilities
-POST   /api/v1/ai/models/sync              -- Refresh model catalog from providers
-
-# Usage
-GET    /api/v1/ai/usage                    -- Usage summary (filterable by provider, model, session, date range)
-GET    /api/v1/ai/usage/dashboard          -- Aggregated stats for Flutter dashboard
-  Response: {
-    today: { tokens, cost, requests, by_provider: [...] },
-    this_month: { tokens, cost, requests, by_provider: [...] },
-    by_model: [{ model, tokens, cost, requests }],
-    by_session: [{ session, tokens, cost }],
-    trend: [{ date, tokens, cost }]
-  }
-GET    /api/v1/ai/usage/cost_estimate      -- Projected monthly cost at current rate
-
-# Limits
-GET    /api/v1/ai/limits                   -- All limits with current status
-GET    /api/v1/ai/limits/warnings          -- Only limits at warning/exceeded
-PATCH  /api/v1/ai/limits/:id              -- Update limit thresholds
-
-# Routing Rules
+# Routing Rules (Hub-owned)
 GET    /api/v1/ai/routing                  -- List routing rules
 POST   /api/v1/ai/routing                  -- Create rule
 PATCH  /api/v1/ai/routing/:id              -- Update rule
 DELETE /api/v1/ai/routing/:id              -- Remove rule
 POST   /api/v1/ai/routing/resolve          -- Given a task_type, return which model to use
-  body: { task_type: "embedding", fallback: true }
-  Response: { model_id, provider, reason: "local preferred, model loaded" }
+  body: { task_type: "embedding" }
+  Response: { model: "nomic-embed-text", provider: "ollama", endpoint: "localhost:11434", reason: "local preferred, model loaded" }
 
 # Local Models (catalog in Rails, lifecycle in Flutter)
-# Flutter talks to Ollama directly for pull/start/stop/resources.
-# Rails tracks what's installed and configured.
-GET    /api/v1/ai/local_models             -- List known local models + config
-POST   /api/v1/ai/local_models             -- Register a local model in catalog
+# Flutter talks to Ollama directly for pull/start/stop/inference.
+# Rails tracks config and preferences only.
+GET    /api/v1/ai/local_models             -- List configured local models
+POST   /api/v1/ai/local_models             -- Register a local model
 PATCH  /api/v1/ai/local_models/:id         -- Update config (auto-start, resource limits)
 DELETE /api/v1/ai/local_models/:id         -- Remove from catalog
-POST   /api/v1/ai/local_models/:id/sync    -- Sync status from Ollama → Rails catalog
 
-# Remote-only (used when developer is away from desk):
-POST   /api/v1/ai/local_models/:id/pull    -- Rails → Ollama pull (relay mode)
-POST   /api/v1/ai/local_models/:id/start   -- Rails → Ollama start (relay mode)
-POST   /api/v1/ai/local_models/:id/stop    -- Rails → Ollama stop (relay mode)
+# Remote-only (relay mode — developer away from desk):
+POST   /api/v1/ai/local_models/:id/pull    -- Rails → Ollama pull
+POST   /api/v1/ai/local_models/:id/start   -- Rails → Ollama start
+POST   /api/v1/ai/local_models/:id/stop    -- Rails → Ollama stop
 ```
 
 #### Layer 2: Knowledge & Context
@@ -1167,20 +1061,17 @@ devflow_hub/
         ports_tab.dart
         tools_tab.dart
 
-      ai/                        -- AI providers & models
-        ai_dashboard_screen.dart     -- Usage overview, cost tracking, limit warnings
-        providers_screen.dart        -- Provider list + subscription management
-        subscription_detail.dart     -- Single subscription: credentials, plan, usage
-        models_screen.dart           -- Model catalog (cloud + local)
+      ai/                        -- AI routing & local models
+        ai_dashboard_screen.dart     -- Usage overview (AOSentry) + local model status
         local_models_screen.dart     -- Local model lifecycle: pull, start, stop, resources
         routing_rules_screen.dart    -- Task-type → model routing configuration
-        usage_detail_screen.dart     -- Deep usage analytics by provider/model/session
+        usage_detail_screen.dart     -- Deep usage analytics (AOSentry /spend/* API)
         widgets/
-          usage_chart.dart           -- Token/cost over time
-          limit_gauge.dart           -- Quota progress bar with warning thresholds
-          model_status_card.dart     -- Cloud model status or local model with VRAM/perf
-          resource_monitor.dart      -- GPU/VRAM/RAM live display
-          cost_ticker.dart           -- Today's spend, projected monthly
+          usage_chart.dart           -- Token/cost over time (data from AOSentry)
+          budget_gauge.dart          -- Budget progress bar (data from AOSentry)
+          model_status_card.dart     -- Local model with VRAM/perf (data from Ollama)
+          resource_monitor.dart      -- GPU/VRAM/RAM live display (direct system access)
+          cost_ticker.dart           -- Today's spend, projected monthly (AOSentry)
 
       environments/              -- Test environments
         environment_list_screen.dart   -- All environments, status, actions
@@ -1318,30 +1209,34 @@ Build decision log UI.
 
 Rails **does not proxy AI traffic**. Claude Code already talks directly to Anthropic. Ollama runs locally. Putting Rails in the middle adds latency to the most performance-sensitive interactions.
 
-Instead, Rails is the **bookkeeper and rule engine**:
-
 ### How It Works
 
 ```
-Claude Code ──direct──► Anthropic API    (fastest path, no proxy)
-Flutter     ──direct──► Ollama :11434    (local inference, no proxy)
+Claude Code ──► AOSentry ──► Anthropic/OpenAI    (usage tracked by AOSentry)
+Flutter     ──direct──► Ollama :11434             (local inference, no proxy)
 
-Meanwhile:
+Hub reads from both:
 
-Claude Code ──hook──► Rails              (records usage from hook metadata)
-Flutter     ──HTTP──► Rails              (posts usage after local inference)
-                        │
-                        ▼
-              ┌──────────────────┐
-              │ Rails Bookkeeper │
-              │                  │
-              │ ai_usage_records │ ← logs tokens, cost, latency
-              │ ai_usage_limits  │ ← warns at 80%, blocks at 100%
-              │ ai_routing_rules │ ← resolves task_type → model
-              │ ai_subscriptions │ ← keys, OAuth, plan details
-              │ model_catalog    │ ← what's available
-              │ local_models     │ ← what's installed + config
-              └──────────────────┘
+Flutter ──► AOSentry /spend/* API     (cloud usage, costs, budgets)
+Flutter ──► Ollama :11434/api/tags    (local model status, resources)
+Flutter ──► Rails /api/v1/ai/routing  (which model to use for what)
+
+              ┌──────────────────────┐
+              │ AOSentry (LLM GW)    │
+              │                      │
+              │ spend_logs           │ ← per-request token/cost tracking
+              │ api_keys + budgets   │ ← budget enforcement, rate limiting
+              │ proxy_models         │ ← model registry + pricing
+              │ error_logs           │ ← provider health
+              └──────────────────────┘
+
+              ┌──────────────────────┐
+              │ Hub Rails            │
+              │                      │
+              │ ai_routing_rules     │ ← task_type → model preferences
+              │ local_model_instances│ ← Ollama model config
+              │ settings             │ ← AOSentry connection URL
+              └──────────────────────┘
 ```
 
 **Routing resolution** is a read-only lookup, not a proxy hop:
@@ -1349,7 +1244,6 @@ Flutter     ──HTTP──► Rails              (posts usage after local infe
 Flutter: POST /api/v1/ai/routing/resolve { task_type: "embedding" }
 Rails:   → { model: "nomic-embed-text", provider: "ollama", endpoint: "localhost:11434", reason: "local preferred, model loaded" }
 Flutter: → talks to Ollama directly using the resolved endpoint
-Flutter: POST /api/v1/ai/usage { model, tokens, latency_ms }
 ```
 
 ### Default Routing (Developer Can Override)
@@ -1374,10 +1268,16 @@ Flutter: POST /api/v1/ai/usage { model, tokens, latency_ms }
 
 ### Usage Dashboard Shows
 
+Flutter composes this from two sources:
+
+**From AOSentry `/spend/*` API** (cloud usage):
 - **Today / This Month**: tokens consumed, estimated cost, requests
-- **By Provider**: breakdown across Anthropic, OpenAI, local
+- **By Provider**: breakdown across Anthropic, OpenAI, Google, etc.
 - **By Model**: which models are burning tokens
-- **By Session**: which Claude Code session is the heaviest user
-- **Rate Limit Status**: per-subscription remaining quota, reset time
 - **Cost Projection**: "at current rate, you'll spend $X this month"
+- **Budget Status**: per-key and per-team budget remaining
+
+**From Flutter direct** (local models):
 - **Local Model Performance**: tokens/sec, VRAM usage, GPU utilization
+- **Resource Monitor**: GPU/VRAM/RAM live display
+- **Model Status**: which models are loaded, downloading, idle
