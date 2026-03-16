@@ -69,21 +69,19 @@ For each selected server, add an entry using absolute paths:
 {
   "mcpServers": {
     "aosentry-media": {
-      "command": "bundle",
-      "args": ["exec", "ruby", "<HOME>/.claude/mcp_servers/media/server.rb"],
+      "command": "<HOME>/.claude/mcp_servers/media/run.sh",
+      "args": [],
       "env": {
         "AOSENTRY_URL": "<user-provided-url>",
-        "AOSENTRY_API_KEY": "<user-provided-key>",
-        "BUNDLE_GEMFILE": "<HOME>/.claude/mcp_servers/media/Gemfile"
+        "AOSENTRY_API_KEY": "<user-provided-key>"
       }
     },
     "aosentry-management": {
-      "command": "bundle",
-      "args": ["exec", "ruby", "<HOME>/.claude/mcp_servers/management/server.rb"],
+      "command": "<HOME>/.claude/mcp_servers/management/run.sh",
+      "args": [],
       "env": {
         "AOSENTRY_URL": "<user-provided-url>",
-        "AOSENTRY_API_KEY": "<user-provided-key>",
-        "BUNDLE_GEMFILE": "<HOME>/.claude/mcp_servers/management/Gemfile"
+        "AOSENTRY_API_KEY": "<user-provided-key>"
       }
     }
   }
