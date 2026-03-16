@@ -133,6 +133,7 @@ projects
   framework       string          -- rails, node, python, go, rust, etc.
   default_branch  string DEFAULT 'main'
   git_remote_url  string          -- origin URL
+  github_repo     string          -- "owner/repo" (e.g. "AOCyber/trades") for CI integration
   active          boolean DEFAULT false  -- "current project" for this developer
   developer_id    uuid FK -> developers  -- who adopted this project
   metadata        jsonb DEFAULT {}
@@ -559,6 +560,78 @@ project_dependencies
   shared interface in project A, Hub flags: "Project B depends on this — run its tests."
 ```
 
+### CI/CD Awareness (Layer 1 events, Layer 2 knowledge)
+
+GitHub Actions failures and fixes flow through the event pipeline. Over time, the
+failure→resolution pairs build institutional knowledge that Claude Code sessions
+can query via MCP: "we've seen this test failure before, here's how it was fixed."
+
+```
+ci_incidents
+  id              uuid PK
+  project_id      integer FK -> projects
+  source          string NOT NULL          -- github_actions, digitalocean, custom
+  external_id     string                   -- GitHub workflow run ID, DO deploy ID
+  external_url    string                   -- link to CI run / deploy
+  incident_type   string NOT NULL          -- test_failure, build_failure, deploy_failure, lint_error
+  workflow_name   string                   -- "CI", "Deploy Production", etc.
+  branch          string
+  commit_sha      string
+  error_summary   string NOT NULL          -- concise description of what failed
+  error_detail    text                     -- full error output (truncated)
+  failing_tests   jsonb DEFAULT []         -- ["test/models/user_test.rb:45", ...]
+  status          string DEFAULT 'open'    -- open, resolved, ignored
+  resolved_at     datetime
+  resolved_by     string                   -- commit SHA that fixed it
+  resolution_summary text                  -- what fixed it (auto-generated from commit/PR)
+  resolution_pr   string                   -- PR number/URL that resolved it
+  metadata        jsonb DEFAULT {}         -- workflow inputs, runner info, etc.
+  created_at      datetime
+  updated_at      datetime
+  INDEX(project_id, status)
+  INDEX(incident_type)
+  INDEX(status, created_at)
+
+  Layer: 1 (capture incidents), Layer 2 (searchable knowledge)
+  Note: When a CI run fails, an event (event_type: "ci_failure") is created AND
+  a ci_incident is opened. When the same workflow later passes on the same branch,
+  the incident auto-resolves and captures the fixing commit/PR. Over time, this
+  becomes a searchable knowledge base of "what breaks and why."
+
+  Resolution detection:
+  - Same workflow + same branch passes → auto-resolve, link fixing commit
+  - PR merged that references the failure → link PR as resolution
+  - Manual resolution via Flutter UI or MCP tool
+```
+
+#### GitHub Integration Flow
+
+```
+GitHub webhook (workflow_run.completed)
+  │
+  ▼
+POST /api/v1/webhooks/github
+  │
+  ├── conclusion: "failure"
+  │     → Create event (type: ci_failure, classification: review)
+  │     → Create/update ci_incident (status: open)
+  │     → Notify via existing notification pipeline
+  │
+  └── conclusion: "success" + open incident exists for this workflow+branch
+        → Create event (type: ci_resolved, classification: safe)
+        → Resolve ci_incident (link fixing commit)
+        → Auto-generate resolution_summary from commit diff
+```
+
+#### What Hub Does NOT Do
+
+- No pipeline management — use GitHub Actions UI for that
+- No build logs storage — link to GitHub, don't duplicate
+- No deployment orchestration — DigitalOcean handles deploys
+- No re-run triggers — developer does that in GitHub
+
+Hub is awareness only: "something broke, here's context, here's how similar things were fixed before."
+
 ### Audit Trail (Layer 3)
 
 ```
@@ -695,6 +768,8 @@ mail_messages         -- SMTP mail catcher
   /knowledge                     -- Knowledge CRUD + search (Layer 2)
   /decisions                     -- Decision log (Layer 2)
   /dependencies                  -- Cross-project dependencies (Layer 2)
+  /ci                            -- CI/CD incidents + knowledge
+  /webhooks                      -- Inbound webhooks (GitHub, etc.)
   /tasks                         -- Task board (Layer 3)
   /conflicts                     -- Conflict detection (Layer 3)
   /audit                         -- Audit trail (Layer 3)
@@ -721,13 +796,9 @@ mail_messages         -- SMTP mail catcher
   /permissions                   -- Permission lists
 
 /api/v1/ai/                      -- AI routing, local models, usage (via AOSentry)
-  /providers                     -- Provider registry
-  /subscriptions                 -- Subscription CRUD + status
-  /models                        -- Model catalog (cloud + local)
-  /usage                         -- Usage records + aggregates
-  /limits                        -- Quota/limit tracking
-  /routing                       -- Task-type routing rules
-  /local_models                  -- Local model lifecycle
+  /usage                         -- Proxied from AOSentry /spend/* API
+  /routing                       -- Task-type → model routing rules
+  /local_models                  -- Local model config + remote lifecycle
 
 /api/v1/proxy/                   -- Claude API proxy (passthrough)
   /messages                      -- Forward to provider (legacy compat)
@@ -904,6 +975,20 @@ DELETE /api/v1/dependencies/:id            -- Remove dependency
 POST   /api/v1/dependencies/scan           -- Re-scan all projects for auto-detection
 GET    /api/v1/dependencies/impact/:project_id  -- "If I change project X, what's affected?"
 
+# CI/CD Incidents
+GET    /api/v1/ci/incidents                -- List incidents (filterable by project, status, type)
+GET    /api/v1/ci/incidents/:id            -- Incident detail
+PATCH  /api/v1/ci/incidents/:id            -- Manual resolve / ignore
+GET    /api/v1/ci/incidents/open           -- All open incidents across projects
+GET    /api/v1/ci/incidents/similar        -- Search past incidents by error message
+  body: { error_summary, project_id, limit }
+  Response: [{ incident, resolution_summary, resolved_by_commit, similarity }]
+
+# Inbound Webhooks
+POST   /api/v1/webhooks/github            -- GitHub webhook receiver (workflow_run, check_suite, deployment_status)
+  Verified via webhook secret in settings.
+  Creates events + ci_incidents automatically.
+
 # MCP Interface (SSE transport)
 GET    /api/v1/mcp/tools                   -- Discover available tools
 POST   /api/v1/mcp/execute                 -- Execute tool
@@ -917,6 +1002,9 @@ POST   /api/v1/mcp/execute                 -- Execute tool
     - hub_detect_conflicts(session_id, files)
     - hub_get_dependencies(project_id)
     - hub_get_planning_state(project_id)
+    - hub_get_ci_status(project_id)              -- Open CI failures for this project
+    - hub_search_ci_incidents(error_summary)     -- "Have we seen this failure before?"
+    - hub_resolve_ci_incident(incident_id, summary)  -- Mark resolved with context
 ```
 
 #### Layer 3: Multi-Developer Orchestration
@@ -1011,6 +1099,7 @@ devflow_hub/
       notification_rule.dart       -- User notification preferences
       knowledge_source.dart        -- Layer 2
       decision.dart                -- Layer 2
+      ci_incident.dart               -- CI failure→resolution lifecycle
       project_dependency.dart      -- Layer 2: cross-project deps
       task_board_item.dart         -- Layer 3
       conflict.dart                -- Layer 3
@@ -1020,6 +1109,8 @@ devflow_hub/
       session_service.dart       -- Session state (talks to Rails)
       event_service.dart         -- Event pipeline (talks to Rails)
       notification_service.dart  -- Notification rules (talks to Rails)
+      ci_service.dart            -- CI incidents + similar search (talks to Rails)
+      aosentry_client.dart       -- AOSentry /spend/* API client
       knowledge_service.dart     -- Layer 2 (talks to Rails)
       task_service.dart          -- Layer 3 (talks to Rails)
 
@@ -1040,6 +1131,7 @@ devflow_hub/
           session_card.dart
           system_status.dart
           pending_events.dart
+          ci_summary.dart            -- Open CI failures across all projects
 
       sessions/                  -- Agent session list + detail
         session_list_screen.dart
@@ -1052,7 +1144,10 @@ devflow_hub/
 
       projects/                  -- Project registry
         project_list_screen.dart
-        project_detail_screen.dart
+        project_detail_screen.dart   -- includes CI status badge + recent incidents
+        widgets/
+          ci_status_badge.dart       -- green/red/yellow per-project CI status
+          incident_list.dart         -- recent CI incidents for project
 
       system/                    -- Dev environment
         system_screen.dart
