@@ -13,10 +13,79 @@ DevFlow Hub is the local-first control plane for AI-assisted development. It pro
 ### Design Principles
 
 1. **Design for Layer 4, build for Layer 1** — schema and API support multi-developer from day one
-2. **Rails is the brain, Flutter is the face** — all logic in Rails, Flutter is a native API client
+2. **Flutter owns the machine, Rails owns the state** — Flutter talks directly to local systems (Ollama, brew, git, filesystem). Rails stores history, coordinates teams, and processes events. Hub never sits in the critical path of local development.
 3. **MCP is the integration point** — Claude Code sessions connect to Hub via MCP, not just hooks
 4. **Events are the source of truth** — everything that happens flows through the event system
-5. **Offline-first Flutter** — app works when Rails is starting up, caches aggressively
+5. **Offline-first Flutter** — app works when Rails is down, caches aggressively
+6. **Same Flutter, local or hosted** — Flutter always talks directly to local systems and posts summaries to Rails. The only difference between L1 and L4 is whether Rails is on localhost or a team server.
+
+### Responsibility Split: Flutter vs Rails
+
+The Hub should never be in the way of development. The test: **if Rails is restarting, what breaks?** Only team visibility and event processing pause — local development continues uninterrupted.
+
+#### Flutter Owns (Direct to Local Systems)
+
+| Domain | What Flutter Does | Why Direct |
+|--------|------------------|------------|
+| Local models | Talks to Ollama/MLX on :11434 — pull, start, stop, inference, GPU/VRAM monitoring | Latency-sensitive, works without Rails |
+| Service lifecycle | Starts/stops brew services, puma-dev, Redis, Postgres via launchctl/brew | Rails can't manage its own restart |
+| Git operations | Reads repo status, diffs, branch info, changeset detection | Purely local filesystem, frequent |
+| File watching | Watches `.planning/` for roadmap/objective state changes | Native `dart:io` watcher, no network hop |
+| Brew/Mise | Package install, upgrade, list when at desk | Shell commands, no reason to proxy |
+| System resources | GPU/VRAM/RAM/disk monitoring | Direct hardware access |
+
+#### Rails Owns (Shared State + Coordination)
+
+| Domain | What Rails Does | Why Rails |
+|--------|----------------|-----------|
+| Event pipeline | Receives hooks, classifies, auto-responds | Central event processor, needs history |
+| MCP server | Serves knowledge, decisions, context to Claude Code sessions | Shared knowledge base |
+| Session state | Stores session metadata, work summaries, changesets, metrics | Persistence + team aggregation in L4 |
+| AI usage metering | Records token counts, costs, limit tracking | Usage history from hook events, not proxied traffic |
+| AI key management | Stores API keys, OAuth tokens, subscription details | Secrets stay server-side |
+| Routing rules | Resolves task-type → model mapping | Configuration, not hot-path |
+| Knowledge base | Indexes docs, serves search, stores decisions | Shared across sessions (and team in L4) |
+| Task board | Kanban items, assignments, conflict detection | Team coordination in L3+ |
+| Notifications | Delivery rules, iMessage/push dispatch | Server-side delivery |
+| Audit trail | Immutable event + change history | Compliance, team visibility |
+
+#### Remote Operations (Phone/Relay)
+
+When the developer is away from their desk, Rails becomes the executor for operations that Flutter normally handles directly:
+
+| Operation | At Desk (Flutter) | Remote (Rails) |
+|-----------|-------------------|----------------|
+| Start service | Flutter → launchctl | Phone → Rails → launchctl |
+| Pull model | Flutter → Ollama API | Phone → Rails → Ollama API |
+| Brew install | Flutter → shell | Phone → Rails → shell |
+| Approve event | Flutter → Rails API | Phone → Rails API (same) |
+
+Flutter detects remote mode and delegates to Rails. Rails exposes these as API endpoints regardless, but they're only used remotely in L1-3.
+
+#### Local vs Hosted (L4) Matrix
+
+When Rails moves to a team server, the split stays clean:
+
+```
+                        Local (L1-3)           Hosted (L4)
+                        ────────────           ───────────
+Service lifecycle       Flutter direct          N/A (server has no dev services)
+Local models            Flutter → Ollama        Flutter → Ollama (still local)
+Git operations          Flutter direct          Flutter direct (still local repos)
+File watching           Flutter direct          Flutter direct (still local files)
+Brew/Mise               Flutter direct          N/A
+
+Event pipeline          Flutter → Rails         Flutter → Rails (same)
+MCP server              Claude → Rails          Claude → Rails (same)
+Session state           Flutter → Rails         Flutter → Rails (team-wide)
+Knowledge base          Rails                   Rails (shared across team)
+Usage metering          Rails                   Rails (team budgets)
+Task board              Rails                   Rails (cross-developer)
+Conflict detection      Rails                   Rails (cross-developer)
+Audit trail             Rails                   Rails (compliance)
+```
+
+Flutter doesn't change behavior between modes — it always talks directly to local systems and posts summaries to Rails. The only difference is whether Rails is on `:3100` or `hub.yourcompany.dev`, and what it aggregates.
 
 ---
 
@@ -788,20 +857,23 @@ POST   /api/v1/projects/scan              -- Scan filesystem
 PATCH  /api/v1/projects/:id/activate      -- Set as current
 
 # System (dev environment)
+# Flutter manages these directly when at desk (shell commands, launchctl).
+# Rails exposes them as API for remote/relay operations only.
+# All endpoints are pass-through to local system commands.
 GET    /api/v1/system/services             -- List brew services
-POST   /api/v1/system/services/:name/start
-POST   /api/v1/system/services/:name/stop
-POST   /api/v1/system/services/:name/restart
+POST   /api/v1/system/services/:name/start   -- (remote only)
+POST   /api/v1/system/services/:name/stop    -- (remote only)
+POST   /api/v1/system/services/:name/restart -- (remote only)
 GET    /api/v1/system/ports                -- List listening ports
-DELETE /api/v1/system/ports/:pid           -- Kill process
+DELETE /api/v1/system/ports/:pid           -- Kill process (remote only)
 GET    /api/v1/system/packages             -- List brew packages
-POST   /api/v1/system/packages/:name/install
-POST   /api/v1/system/packages/:name/uninstall
+POST   /api/v1/system/packages/:name/install   -- (remote only)
+POST   /api/v1/system/packages/:name/uninstall -- (remote only)
 GET    /api/v1/system/tools                -- List mise tools
-POST   /api/v1/system/tools/:name/install
+POST   /api/v1/system/tools/:name/install  -- (remote only)
 GET    /api/v1/system/hosts                -- List hosts entries
-POST   /api/v1/system/hosts               -- Add entry
-DELETE /api/v1/system/hosts/:id            -- Remove entry
+POST   /api/v1/system/hosts               -- Add entry (remote only)
+DELETE /api/v1/system/hosts/:id            -- Remove entry (remote only)
 GET    /api/v1/system/ssh_keys             -- List SSH keys
 GET    /api/v1/system/puma_dev             -- List puma-dev apps
 
@@ -895,18 +967,19 @@ POST   /api/v1/ai/routing/resolve          -- Given a task_type, return which mo
   body: { task_type: "embedding", fallback: true }
   Response: { model_id, provider, reason: "local preferred, model loaded" }
 
-# Local Models
-GET    /api/v1/ai/local_models             -- List local model instances + status
-POST   /api/v1/ai/local_models/:id/pull    -- Download/pull model
-POST   /api/v1/ai/local_models/:id/start   -- Start inference server
-POST   /api/v1/ai/local_models/:id/stop    -- Stop inference server
-DELETE /api/v1/ai/local_models/:id         -- Remove model from disk
-GET    /api/v1/ai/local_models/resources   -- GPU/VRAM/RAM status
-  Response: {
-    gpu: { name, vram_total_mb, vram_used_mb, utilization_pct },
-    ram: { total_mb, available_mb },
-    models_loaded: [{ model, vram_mb, ram_mb, tokens_per_sec }]
-  }
+# Local Models (catalog in Rails, lifecycle in Flutter)
+# Flutter talks to Ollama directly for pull/start/stop/resources.
+# Rails tracks what's installed and configured.
+GET    /api/v1/ai/local_models             -- List known local models + config
+POST   /api/v1/ai/local_models             -- Register a local model in catalog
+PATCH  /api/v1/ai/local_models/:id         -- Update config (auto-start, resource limits)
+DELETE /api/v1/ai/local_models/:id         -- Remove from catalog
+POST   /api/v1/ai/local_models/:id/sync    -- Sync status from Ollama → Rails catalog
+
+# Remote-only (used when developer is away from desk):
+POST   /api/v1/ai/local_models/:id/pull    -- Rails → Ollama pull (relay mode)
+POST   /api/v1/ai/local_models/:id/start   -- Rails → Ollama start (relay mode)
+POST   /api/v1/ai/local_models/:id/stop    -- Rails → Ollama stop (relay mode)
 ```
 
 #### Layer 2: Knowledge & Context
@@ -1050,14 +1123,21 @@ devflow_hub/
       audit_log.dart               -- Layer 3
 
     services/                    -- Business logic
-      session_service.dart
-      event_service.dart
-      system_service.dart
-      environment_service.dart   -- Test environment lifecycle
-      planning_service.dart      -- .planning/ file watcher bridge
-      notification_service.dart  -- Notification rules + delivery
-      knowledge_service.dart     -- Layer 2
-      task_service.dart          -- Layer 3
+      session_service.dart       -- Session state (talks to Rails)
+      event_service.dart         -- Event pipeline (talks to Rails)
+      notification_service.dart  -- Notification rules (talks to Rails)
+      knowledge_service.dart     -- Layer 2 (talks to Rails)
+      task_service.dart          -- Layer 3 (talks to Rails)
+
+    local/                       -- Direct system access (no Rails)
+      ollama_client.dart         -- Ollama REST API on :11434
+      brew_service.dart          -- brew commands via shell
+      mise_service.dart          -- mise commands via shell
+      launchctl_service.dart     -- Service start/stop
+      git_service.dart           -- Git status, diff, changeset detection
+      planning_watcher.dart      -- FileSystemEntity watcher on .planning/
+      resource_monitor.dart      -- GPU/VRAM/RAM via sysctl/IOKit
+      environment_service.dart   -- Test env lifecycle (pg_dump, Docker)
 
     screens/
       dashboard/                 -- Home: active sessions, system status, pending events
@@ -1224,50 +1304,63 @@ Build decision log UI.
 
 7. **Events are append-only** — never delete events. Decision resolution updates the existing record but the event itself persists forever. This is the audit trail.
 
-8. **Local models are first-class** — not an afterthought. The Hub routes embeddings, classification, and code search to local models by default, burning cloud tokens only when necessary.
+8. **Local models are first-class** — not an afterthought. Embeddings, classification, and code search default to local models, burning cloud tokens only when necessary. Flutter talks to Ollama/MLX directly — Rails never proxies inference traffic.
 
 9. **AI usage is visible** — every token, every dollar, every rate limit. The developer always knows what they're spending and where. No surprise bills, no silent throttling.
+
+10. **Rails never proxies hot-path traffic** — Cloud AI calls go direct (Claude Code → Anthropic). Local model calls go direct (Flutter → Ollama). Rails records usage from hook events and Flutter posts, not by sitting in the middle. This means Rails can restart without interrupting any active work.
+
+11. **Flutter direct, Rails remote** — When at desk, Flutter executes system operations directly (shell, launchctl, git). When away, the same operations route through Rails API for relay access. Same UI, different execution path.
 
 ---
 
 ## AI Provider Integration
 
-The Hub acts as an **intelligent router** between AI consumers (Claude Code sessions, MCP tools, knowledge indexing) and AI providers (Anthropic, OpenAI, local models). This replaces the simple proxy_accounts/proxy_requests system with a full provider management layer.
+Rails **does not proxy AI traffic**. Claude Code already talks directly to Anthropic. Ollama runs locally. Putting Rails in the middle adds latency to the most performance-sensitive interactions.
+
+Instead, Rails is the **bookkeeper and rule engine**:
 
 ### How It Works
 
 ```
-Consumer (Claude Code / MCP / Knowledge Indexer)
-  ↓ request: { task_type: "embedding", content: "..." }
-  ↓
-Hub Routing Engine (ai_routing_rules)
-  ↓ resolves: local Llama → loaded? yes → use it
-  ↓           fallback: OpenAI text-embedding-3-small
-  ↓
-Provider Adapter
-  ├── OllamaAdapter     → localhost:11434
-  ├── AnthropicAdapter   → api.anthropic.com
-  ├── OpenAIAdapter      → api.openai.com
-  └── CustomAdapter      → any OpenAI-compatible endpoint
-  ↓
-Response + Usage Tracking (ai_usage_records)
-  ↓ tokens, latency, cost logged
-  ↓
-Limit Checker (ai_usage_limits)
-  ↓ warning at 80%? exceeded? switch to fallback?
-  ↓
-Result returned to consumer
+Claude Code ──direct──► Anthropic API    (fastest path, no proxy)
+Flutter     ──direct──► Ollama :11434    (local inference, no proxy)
+
+Meanwhile:
+
+Claude Code ──hook──► Rails              (records usage from hook metadata)
+Flutter     ──HTTP──► Rails              (posts usage after local inference)
+                        │
+                        ▼
+              ┌──────────────────┐
+              │ Rails Bookkeeper │
+              │                  │
+              │ ai_usage_records │ ← logs tokens, cost, latency
+              │ ai_usage_limits  │ ← warns at 80%, blocks at 100%
+              │ ai_routing_rules │ ← resolves task_type → model
+              │ ai_subscriptions │ ← keys, OAuth, plan details
+              │ model_catalog    │ ← what's available
+              │ local_models     │ ← what's installed + config
+              └──────────────────┘
+```
+
+**Routing resolution** is a read-only lookup, not a proxy hop:
+```
+Flutter: POST /api/v1/ai/routing/resolve { task_type: "embedding" }
+Rails:   → { model: "nomic-embed-text", provider: "ollama", endpoint: "localhost:11434", reason: "local preferred, model loaded" }
+Flutter: → talks to Ollama directly using the resolved endpoint
+Flutter: POST /api/v1/ai/usage { model, tokens, latency_ms }
 ```
 
 ### Default Routing (Developer Can Override)
 
-| Task Type | Primary | Fallback | Rationale |
-|-----------|---------|----------|-----------|
-| embedding | Local (nomic-embed-text) | OpenAI text-embedding-3-small | Free, fast, private |
-| classification | Local (small LLM) | Rules-based (ActionClassifier) | Real-time, no latency |
-| code_search | Local (code model) | Cloud model | Frequent, latency-sensitive |
-| chat / code_generation | Claude (subscription) | OpenAI / local large model | Quality matters most |
-| review | Claude (subscription) | OpenAI | Needs strong reasoning |
+| Task Type | Primary | Fallback | Who Executes |
+|-----------|---------|----------|-------------|
+| embedding | Local (nomic-embed-text) | OpenAI text-embedding-3-small | Flutter → Ollama |
+| classification | Local (small LLM) | Rules-based (ActionClassifier) | Flutter → Ollama |
+| code_search | Local (code model) | Cloud model | Flutter → Ollama |
+| chat / code_generation | Claude (subscription) | OpenAI / local large | Claude Code → Anthropic (direct) |
+| review | Claude (subscription) | OpenAI | Claude Code → Anthropic (direct) |
 
 ### Subscription Types Supported
 
