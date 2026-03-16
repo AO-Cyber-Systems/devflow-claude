@@ -324,6 +324,193 @@ conflicts
   Note: Detected automatically when two sessions touch the same files/ports.
 ```
 
+### Session Intelligence (Layer 1)
+
+```
+session_changesets
+  id              uuid PK
+  agent_session_id uuid FK -> agent_sessions
+  project_id      integer FK -> projects
+  changeset_type  string NOT NULL  -- commit, unstaged_change, migration, dependency_change
+  ref             string           -- git SHA, file path, migration name
+  file_path       string           -- affected file (for unstaged changes)
+  summary         text             -- commit message or change description
+  diff_stats      jsonb DEFAULT {} -- { files_changed: 5, insertions: 120, deletions: 30 }
+  metadata        jsonb DEFAULT {}
+  created_at      datetime
+  INDEX(agent_session_id)
+  INDEX(project_id, created_at)
+
+  Layer: 1
+  Note: Captured on session end via git diff (committed + uncommitted).
+  Answers "what did this session actually change?" the next morning.
+
+session_metrics
+  id              uuid PK
+  agent_session_id uuid FK -> agent_sessions
+  duration_minutes integer
+  events_total    integer
+  events_auto_approved integer
+  events_human_decided integer
+  events_rejected integer
+  commits_made    integer
+  tests_run       integer
+  tests_passed    integer
+  tests_failed    integer
+  files_modified  integer
+  tokens_consumed integer
+  cost_usd        decimal
+  outcome         string           -- completed, abandoned, blocked, error
+  outcome_summary text
+  created_at      datetime
+  INDEX(agent_session_id)
+
+  Layer: 1
+  Note: Aggregated on session end. Powers effectiveness dashboards:
+  "78% completion rate, avg $2.40/session, most failures: test failures."
+```
+
+### Environments (Layer 1)
+
+```
+environments
+  id              uuid PK
+  project_id      integer FK -> projects
+  developer_id    uuid FK -> developers
+  name            string NOT NULL       -- "feature-auth-rewrite", "clean-baseline", "e2e-stable"
+  environment_type string NOT NULL      -- snapshot, branch, compose_profile, lightweight
+  branch          string                -- git branch (if branch-scoped)
+  status          string DEFAULT 'stopped'  -- stopped, starting, running, error, archived
+  config          jsonb DEFAULT {}      -- ports, env vars, seed dataset name, docker profile
+  snapshot_path   string                -- path to DB dump / state archive
+  notes           text
+  last_used_at    datetime
+  metadata        jsonb DEFAULT {}
+  created_at      datetime
+  updated_at      datetime
+  INDEX(project_id)
+  INDEX(status)
+  UNIQUE(project_id, name)
+
+  Layer: 1
+  Note: Scales from lightweight (pg_dump/restore) to full compose orchestration
+  depending on environment_type. Developer chooses the level of isolation needed.
+
+environment_services
+  id              uuid PK
+  environment_id  uuid FK -> environments
+  service_name    string NOT NULL       -- postgres, redis, elasticsearch, mailcatcher
+  service_type    string NOT NULL       -- docker, brew, process
+  container_id    string                -- Docker container ID (if docker)
+  port            integer
+  status          string DEFAULT 'stopped'
+  config          jsonb DEFAULT {}      -- image, volumes, env vars
+  metadata        jsonb DEFAULT {}
+  created_at      datetime
+  updated_at      datetime
+  INDEX(environment_id)
+
+  Layer: 1
+  Note: Services that make up an environment. Could be Docker containers,
+  brew services, or raw processes. Flexible to support the testing level needed.
+```
+
+### Planning Integration (Layer 1)
+
+```
+planning_snapshots
+  id              uuid PK
+  project_id      integer FK -> projects
+  objective       string                -- "2.1"
+  objective_name  string
+  status          string                -- planned, in_progress, completed, blocked
+  wave_count      integer
+  job_count       integer
+  jobs_completed  integer
+  current_wave    integer
+  state_hash      string                -- SHA256 of STATE.md for change detection
+  state_content   text                  -- raw STATE.md content
+  roadmap_hash    string                -- SHA256 of ROADMAP.md
+  roadmap_content text                  -- raw ROADMAP.md content
+  captured_at     datetime
+  metadata        jsonb DEFAULT {}
+  created_at      datetime
+  INDEX(project_id)
+  INDEX(captured_at)
+
+  Layer: 1
+  Note: Synced from .planning/ filesystem via file watcher (fswatch).
+  Layer 2 adds hook-driven events from devflow-claude skills for precise updates.
+  Watcher compares content hashes to avoid redundant updates.
+```
+
+### Notifications (Layer 1)
+
+```
+notification_rules
+  id              uuid PK
+  developer_id    uuid FK -> developers
+  channel         string NOT NULL       -- imessage, web_push, slack, email
+  min_severity    string DEFAULT 'review'  -- safe, scoped, review, destructive
+  event_types     jsonb DEFAULT []      -- filter by event type, empty = all
+  project_id      integer FK -> projects (nullable, null = all projects)
+  quiet_start     time                  -- e.g. 22:00
+  quiet_end       time                  -- e.g. 07:00
+  active          boolean DEFAULT true
+  metadata        jsonb DEFAULT {}
+  created_at      datetime
+  updated_at      datetime
+  INDEX(developer_id, active)
+
+  Layer: 1 (iMessage + PWA only), Layer 3+ (Slack, email, team channels)
+  Note: Layer 1 keeps it simple — iMessage for destructive, PWA badge for all.
+  Complex team notifications (Slack channels, @mentions) deferred to Layer 3.
+```
+
+### Cross-Project Awareness (Layer 2)
+
+```
+project_dependencies
+  id              uuid PK
+  project_id      integer FK -> projects     -- the dependent project
+  depends_on_id   integer FK -> projects     -- what it depends on
+  dependency_type string NOT NULL            -- api, package, shared_schema, deploy_order, monorepo
+  auto_detected   boolean DEFAULT false      -- true if inferred from code
+  description     text
+  detection_source string                    -- package.json, Gemfile, import_map, manual
+  metadata        jsonb DEFAULT {}
+  created_at      datetime
+  updated_at      datetime
+  UNIQUE(project_id, depends_on_id, dependency_type)
+  INDEX(depends_on_id)
+
+  Layer: 2
+  Note: Auto-inferred from package.json, Gemfile, import paths on project scan.
+  Developer can declare missed dependencies manually. When an agent modifies a
+  shared interface in project A, Hub flags: "Project B depends on this — run its tests."
+```
+
+### Audit Trail (Layer 3)
+
+```
+audit_logs
+  id              uuid PK
+  developer_id    uuid FK -> developers
+  action          string NOT NULL       -- created, updated, deleted, resolved, paused, started, stopped
+  resource_type   string NOT NULL       -- ai_subscription, agent_session, environment, routing_rule, notification_rule
+  resource_id     string NOT NULL
+  changes         jsonb DEFAULT {}      -- { field: [old_value, new_value] }
+  ip_address      string
+  user_agent      string
+  created_at      datetime
+  INDEX(resource_type, resource_id)
+  INDEX(developer_id, created_at)
+
+  Layer: 3
+  Note: Tracks human actions in the Hub itself. Essential for multi-developer:
+  "Who changed the routing rules? Who paused the Anthropic subscription?"
+```
+
 ### AI Providers & Local Models (Layer 1)
 
 ```
@@ -513,10 +700,15 @@ mail_messages         -- SMTP mail catcher
   /prompt_runs                   -- Remote prompt execution
   /projects                      -- Project registry
   /developers                    -- Developer identity
+  /environments                  -- Test environment management
+  /planning                      -- DevFlow planning state
+  /activity                      -- Activity feed / briefing
   /knowledge                     -- Knowledge CRUD + search (Layer 2)
   /decisions                     -- Decision log (Layer 2)
+  /dependencies                  -- Cross-project dependencies (Layer 2)
   /tasks                         -- Task board (Layer 3)
   /conflicts                     -- Conflict detection (Layer 3)
+  /audit                         -- Audit trail (Layer 3)
 
 /api/v1/mcp/                     -- MCP tool endpoint (Layer 2)
   /tools                         -- Tool discovery
@@ -615,6 +807,45 @@ GET    /api/v1/system/puma_dev             -- List puma-dev apps
 
 # Dashboard aggregate
 GET    /api/v1/dashboard                   -- Combined stats for Flutter home
+
+# Activity Feed / Morning Briefing
+GET    /api/v1/activity                    -- Chronological feed across all sessions/projects
+  params: { since, project_id, limit }
+  Response: synthesized narrative entries (not raw events)
+GET    /api/v1/activity/briefing           -- "What happened while I was gone?"
+  Response: {
+    sessions_since_last_visit: [...],
+    pending_actions: [...],
+    completed_work: [...],
+    warnings: [...],          -- limit warnings, failed sessions, unresolved conflicts
+    summary: "3 sessions ran overnight..."
+  }
+
+# Session Intelligence
+GET    /api/v1/agent_sessions/:id/changesets  -- What this session changed
+GET    /api/v1/agent_sessions/:id/metrics     -- Session effectiveness stats
+
+# Environments
+GET    /api/v1/environments                -- List environments for a project
+POST   /api/v1/environments                -- Create environment
+PATCH  /api/v1/environments/:id            -- Update config
+DELETE /api/v1/environments/:id            -- Remove environment
+POST   /api/v1/environments/:id/start      -- Start environment
+POST   /api/v1/environments/:id/stop       -- Stop environment
+POST   /api/v1/environments/:id/snapshot   -- Capture current state as snapshot
+POST   /api/v1/environments/:id/restore    -- Restore from snapshot
+GET    /api/v1/environments/:id/services   -- List services in environment
+
+# Planning State
+GET    /api/v1/planning/:project_id        -- Current planning state for project
+GET    /api/v1/planning/:project_id/objectives  -- Objectives with progress
+POST   /api/v1/planning/:project_id/sync   -- Force re-sync from filesystem
+
+# Notification Rules
+GET    /api/v1/notification_rules          -- List rules
+POST   /api/v1/notification_rules          -- Create rule
+PATCH  /api/v1/notification_rules/:id      -- Update rule
+DELETE /api/v1/notification_rules/:id      -- Remove rule
 ```
 
 #### Layer 1: AI Providers & Local Models
@@ -698,6 +929,14 @@ POST   /api/v1/decisions                   -- Record decision
 PATCH  /api/v1/decisions/:id               -- Update/supersede
 GET    /api/v1/decisions/for_project/:id   -- Decisions for a project
 
+# Cross-Project Dependencies
+GET    /api/v1/dependencies                -- List all dependencies
+GET    /api/v1/dependencies/for/:project_id -- Dependencies for a project
+POST   /api/v1/dependencies                -- Declare dependency manually
+DELETE /api/v1/dependencies/:id            -- Remove dependency
+POST   /api/v1/dependencies/scan           -- Re-scan all projects for auto-detection
+GET    /api/v1/dependencies/impact/:project_id  -- "If I change project X, what's affected?"
+
 # MCP Interface (SSE transport)
 GET    /api/v1/mcp/tools                   -- Discover available tools
 POST   /api/v1/mcp/execute                 -- Execute tool
@@ -709,6 +948,8 @@ POST   /api/v1/mcp/execute                 -- Execute tool
     - hub_report_status(session_id, status, summary)
     - hub_get_active_sessions(project_id)
     - hub_detect_conflicts(session_id, files)
+    - hub_get_dependencies(project_id)
+    - hub_get_planning_state(project_id)
 ```
 
 #### Layer 3: Multi-Developer Orchestration
@@ -796,15 +1037,25 @@ devflow_hub/
       work_summary.dart
       project.dart
       developer.dart
-      knowledge_source.dart      -- Layer 2
-      decision.dart              -- Layer 2
-      task_board_item.dart       -- Layer 3
-      conflict.dart              -- Layer 3
+      environment.dart             -- Test environment + services
+      session_changeset.dart       -- What a session changed (files, tests, migrations)
+      session_metric.dart          -- Session effectiveness metrics
+      planning_snapshot.dart       -- Planning state from .planning/
+      notification_rule.dart       -- User notification preferences
+      knowledge_source.dart        -- Layer 2
+      decision.dart                -- Layer 2
+      project_dependency.dart      -- Layer 2: cross-project deps
+      task_board_item.dart         -- Layer 3
+      conflict.dart                -- Layer 3
+      audit_log.dart               -- Layer 3
 
     services/                    -- Business logic
       session_service.dart
       event_service.dart
       system_service.dart
+      environment_service.dart   -- Test environment lifecycle
+      planning_service.dart      -- .planning/ file watcher bridge
+      notification_service.dart  -- Notification rules + delivery
       knowledge_service.dart     -- Layer 2
       task_service.dart          -- Layer 3
 
@@ -850,6 +1101,33 @@ devflow_hub/
           model_status_card.dart     -- Cloud model status or local model with VRAM/perf
           resource_monitor.dart      -- GPU/VRAM/RAM live display
           cost_ticker.dart           -- Today's spend, projected monthly
+
+      environments/              -- Test environments
+        environment_list_screen.dart   -- All environments, status, actions
+        environment_detail_screen.dart -- Services, logs, snapshot/restore
+        widgets/
+          service_status_card.dart     -- Per-service status + logs
+          snapshot_list.dart           -- Snapshot history with restore action
+
+      activity/                  -- Session intelligence & briefing
+        activity_feed_screen.dart      -- Cross-session recent activity
+        morning_briefing_screen.dart   -- Morning context: overnight changes, pending items
+        session_metrics_screen.dart    -- Effectiveness analytics per session
+        widgets/
+          changeset_diff.dart          -- Visual diff of session changes
+          metric_chart.dart            -- Effectiveness over time
+
+      planning/                  -- Planning state viewer
+        planning_overview_screen.dart  -- Current planning state from .planning/
+        objective_detail_screen.dart   -- Single objective status + tasks
+        widgets/
+          roadmap_progress.dart        -- Visual roadmap with completion %
+          state_badge.dart             -- Objective/task state indicator
+
+      notifications/             -- Notification preferences
+        notification_rules_screen.dart -- Rule list + create/edit
+        widgets/
+          rule_form.dart               -- Condition builder for notification rules
 
       knowledge/                 -- Layer 2
         knowledge_screen.dart
