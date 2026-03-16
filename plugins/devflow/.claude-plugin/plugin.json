@@ -1,0 +1,9 @@
+{
+  "name": "devflow",
+  "description": "Meta-prompting, context engineering, and spec-driven development system. 34 skills, 12 agents, wave-based parallelization, atomic commits, and persistent state across context resets.",
+  "version": "1.22.0",
+  "author": {
+    "name": "AO Cyber Systems",
+    "email": "dev@aocodex.ai"
+  }
+}
