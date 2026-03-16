@@ -20,8 +20,8 @@ Dir[File.join(__dir__, "lib", "tools", "*.rb")].each { |f| require f }
 
 # Configure AOSentry client from environment
 AOSentry.configure do |config|
-  config.base_url = ENV.fetch("AOSENTRY_URL")
-  config.api_key = ENV.fetch("AOSENTRY_API_KEY")
+  config.base_url = ENV.fetch("AOSENTRY_URL", "https://aosentry.aocodex.ai")
+  config.api_key = ENV.fetch("AOSENTRY_API_KEY", "")
 end
 
 # Initialize and start the MCP server
