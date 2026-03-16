@@ -1,0 +1,1012 @@
+# DevFlow Hub — Architecture Design
+
+**Status:** Design
+**Date:** March 15, 2026
+**Stack:** Flutter (macOS native) + Rails API (localhost:3100) + SQLite + ActionCable
+
+---
+
+## Product Vision
+
+DevFlow Hub is the local-first control plane for AI-assisted development. It provides knowledge management, agent orchestration visibility, and environment coordination — first for a single developer, eventually for teams.
+
+### Design Principles
+
+1. **Design for Layer 4, build for Layer 1** — schema and API support multi-developer from day one
+2. **Rails is the brain, Flutter is the face** — all logic in Rails, Flutter is a native API client
+3. **MCP is the integration point** — Claude Code sessions connect to Hub via MCP, not just hooks
+4. **Events are the source of truth** — everything that happens flows through the event system
+5. **Offline-first Flutter** — app works when Rails is starting up, caches aggressively
+
+---
+
+## Layer Roadmap
+
+| Layer | Name | Scope | Key Capability |
+|-------|------|-------|----------------|
+| 1 | Agent Control Plane | Single developer, multiple sessions | Relay, event pipeline, dev tools, session monitoring |
+| 2 | Knowledge & Context | MCP server for Claude sessions | Project knowledge, shared decisions, architecture context |
+| 3 | Multi-Developer | Multiple developers' sessions | Conflict detection, shared kanban, team visibility |
+| 4 | Hosted Hub | Team server deployment | Shared knowledge, cross-machine coordination |
+
+---
+
+## Data Model
+
+### Core Domain: Identity & Tenancy
+
+```
+developers
+  id              uuid PK
+  name            string NOT NULL
+  email           string
+  machine_id      string          -- hardware identifier
+  ssh_public_key  text            -- for hosted mode auth
+  role            string DEFAULT 'developer'  -- developer, admin
+  status          string DEFAULT 'active'
+  preferences     jsonb DEFAULT {}
+  created_at      datetime
+  updated_at      datetime
+  UNIQUE(email)
+  UNIQUE(machine_id)
+
+  Layer: 1 (single row, "me"), 3+ (multiple developers)
+```
+
+### Core Domain: Projects
+
+```
+projects
+  id              integer PK
+  name            string NOT NULL
+  path            string NOT NULL  -- absolute filesystem path
+  notes           text
+  framework       string          -- rails, node, python, go, rust, etc.
+  default_branch  string DEFAULT 'main'
+  git_remote_url  string          -- origin URL
+  active          boolean DEFAULT false  -- "current project" for this developer
+  developer_id    uuid FK -> developers  -- who adopted this project
+  metadata        jsonb DEFAULT {}
+  last_scanned_at datetime
+  created_at      datetime
+  updated_at      datetime
+  UNIQUE(path, developer_id)
+
+  Layer: 1 (local projects), 3+ (shared project registry)
+```
+
+### Core Domain: Agent Sessions
+
+```
+agent_sessions
+  id              uuid PK
+  developer_id    uuid FK -> developers
+  project_id      integer FK -> projects (nullable)
+  session_key     string NOT NULL UNIQUE  -- hook-generated identifier
+  claude_session_id string UNIQUE         -- Claude's internal session ID
+  name            string NOT NULL         -- display name
+  ide             string                  -- vscode, cursor, terminal, jetbrains
+  branch          string
+  cwd             string                  -- working directory
+  agent           string DEFAULT 'claude-code'  -- claude-code, opencode, etc.
+  status          string DEFAULT 'active' NOT NULL  -- active, idle, completed, abandoned
+  autonomy_level  string DEFAULT 'assisted' NOT NULL -- supervised, assisted, autonomous
+  remote_enabled  boolean DEFAULT false
+  imessage_enabled boolean DEFAULT false
+  session_color   string                  -- visual identity
+  pending_count   integer DEFAULT 0
+  last_activity_at datetime
+  metadata        jsonb DEFAULT {}
+  created_at      datetime
+  updated_at      datetime
+  INDEX(status)
+  INDEX(developer_id, status)
+  INDEX(project_id)
+
+  Layer: 1 (rename from relay_sessions)
+  Note: Replaces relay_sessions table. Same data, better name.
+```
+
+### Core Domain: Events
+
+```
+events
+  id              uuid PK
+  agent_session_id uuid FK -> agent_sessions
+  developer_id    uuid FK -> developers (nullable, for Layer 3+ audit)
+  event_type      string NOT NULL  -- action_request, question, status, session_start, session_end, knowledge_query, task_update, conflict_detected
+  tool_name       string
+  command         string
+  classification  string          -- safe, scoped, review, destructive
+  decision        string          -- pending, approved, rejected, modified, auto_approved
+  decision_reason string
+  decided_by      string          -- auto, developer_name, timeout
+  decided_at      datetime
+  action_data     jsonb DEFAULT {}
+  response_data   jsonb DEFAULT {}
+  created_at      datetime
+  updated_at      datetime
+  INDEX(agent_session_id, decision)
+  INDEX(event_type)
+  INDEX(classification)
+  INDEX(created_at)
+
+  Layer: 1 (relay events), 2 (knowledge queries), 3 (conflict events)
+```
+
+### Core Domain: Work Summaries
+
+```
+work_summaries
+  id              uuid PK
+  agent_session_id uuid FK -> agent_sessions
+  developer_id    uuid FK -> developers (nullable)
+  content         text NOT NULL
+  summary_type    string DEFAULT 'stop'  -- stop, checkpoint, milestone, manual
+  read            boolean DEFAULT false
+  metadata        jsonb DEFAULT {}
+  created_at      datetime
+  updated_at      datetime
+  INDEX(agent_session_id, read)
+  INDEX(created_at)
+
+  Layer: 1
+```
+
+### Decision Engine
+
+```
+auto_response_logs
+  id              uuid PK
+  event_id        uuid FK -> events
+  agent_session_id uuid FK -> agent_sessions
+  classification  string NOT NULL
+  autonomy_level  string NOT NULL
+  decision        string NOT NULL
+  tool_name       string
+  command         string
+  created_at      datetime
+  updated_at      datetime
+  INDEX(agent_session_id, created_at)
+
+  Layer: 1
+
+prompt_runs
+  id              uuid PK
+  agent_session_id uuid FK -> agent_sessions
+  developer_id    uuid FK -> developers
+  prompt          text NOT NULL
+  mode            string DEFAULT 'continue'  -- continue, fresh
+  status          string DEFAULT 'queued'    -- queued, running, completed, failed
+  pid             integer
+  log_path        string
+  result          text
+  started_at      datetime
+  completed_at    datetime
+  metadata        jsonb DEFAULT {}
+  created_at      datetime
+  updated_at      datetime
+  INDEX(status)
+  INDEX(agent_session_id)
+
+  Layer: 1
+
+notification_sends
+  id              uuid PK
+  event_id        uuid FK -> events
+  channel         string NOT NULL  -- imessage, web_push, slack, email
+  status          string DEFAULT 'pending'  -- pending, sent, delivered, failed
+  sent_at         datetime
+  delivered_at    datetime
+  error_message   text
+  metadata        jsonb DEFAULT {}
+  created_at      datetime
+  updated_at      datetime
+  INDEX(event_id, channel)
+  INDEX(status)
+
+  Layer: 1
+```
+
+### Knowledge Layer (Layer 2+)
+
+```
+knowledge_sources
+  id              uuid PK
+  project_id      integer FK -> projects (nullable, null = global)
+  developer_id    uuid FK -> developers (who added it)
+  source_type     string NOT NULL  -- claude_md, adr, doc, web, code_pattern, decision
+  title           string NOT NULL
+  description     text
+  origin_path     string          -- file path or URL
+  content_hash    string          -- SHA256 for change detection
+  tags            jsonb DEFAULT []
+  priority        integer DEFAULT 5  -- 1-10, affects search ranking
+  status          string DEFAULT 'active'  -- active, indexing, stale, error
+  last_synced_at  datetime
+  metadata        jsonb DEFAULT {}
+  created_at      datetime
+  updated_at      datetime
+  INDEX(project_id)
+  INDEX(source_type)
+  INDEX(status)
+
+  Layer: 2 (structured docs), future (RAG with vector store)
+
+knowledge_chunks
+  id              uuid PK
+  knowledge_source_id uuid FK -> knowledge_sources
+  content         text NOT NULL
+  section_path    string          -- e.g. "## Architecture > ### Database"
+  position        integer         -- order within source
+  token_count     integer
+  has_code        boolean DEFAULT false
+  language        string          -- for code chunks
+  embedding       blob            -- SQLite blob for local vector (nullable, Layer 2+)
+  metadata        jsonb DEFAULT {}
+  created_at      datetime
+  INDEX(knowledge_source_id, position)
+  INDEX(has_code)
+
+  Layer: 2
+
+decisions
+  id              uuid PK
+  project_id      integer FK -> projects
+  developer_id    uuid FK -> developers
+  agent_session_id uuid FK -> agent_sessions (nullable)
+  title           string NOT NULL
+  description     text NOT NULL
+  rationale       text
+  decision_type   string NOT NULL  -- architecture, library, pattern, convention, scope
+  status          string DEFAULT 'active'  -- active, superseded, reverted
+  superseded_by   uuid FK -> decisions (nullable)
+  tags            jsonb DEFAULT []
+  metadata        jsonb DEFAULT {}
+  created_at      datetime
+  updated_at      datetime
+  INDEX(project_id, status)
+  INDEX(decision_type)
+
+  Layer: 2
+  Note: Captures "why" decisions that CLAUDE.md files can't — with provenance.
+```
+
+### Orchestration Layer (Layer 3+)
+
+```
+task_board_items
+  id              uuid PK
+  project_id      integer FK -> projects
+  developer_id    uuid FK -> developers (nullable, unassigned)
+  agent_session_id uuid FK -> agent_sessions (nullable)
+  title           string NOT NULL
+  description     text
+  phase           string NOT NULL  -- analysis, implementation, validation, review
+  status          string DEFAULT 'backlog'  -- backlog, ready, in_progress, review, done, failed
+  priority        string DEFAULT 'medium'   -- critical, high, medium, low
+  blocked_by      jsonb DEFAULT []          -- array of task_board_item UUIDs
+  tags            jsonb DEFAULT []
+  result          text
+  claimed_at      datetime
+  completed_at    datetime
+  metadata        jsonb DEFAULT {}
+  created_at      datetime
+  updated_at      datetime
+  INDEX(project_id, status)
+  INDEX(developer_id)
+  INDEX(agent_session_id)
+
+  Layer: 3
+  Note: Not the DevFlow planning system (TRDs/JOBs). This is real-time coordination
+  for who is working on what RIGHT NOW.
+
+conflicts
+  id              uuid PK
+  project_id      integer FK -> projects
+  conflict_type   string NOT NULL  -- file_collision, port_contention, migration_race, branch_conflict
+  description     text NOT NULL
+  severity        string DEFAULT 'warning'  -- info, warning, critical
+  status          string DEFAULT 'open'     -- open, resolved, ignored
+  session_a_id    uuid FK -> agent_sessions
+  session_b_id    uuid FK -> agent_sessions (nullable)
+  affected_files  jsonb DEFAULT []
+  resolution      text
+  resolved_by     string
+  resolved_at     datetime
+  metadata        jsonb DEFAULT {}
+  created_at      datetime
+  updated_at      datetime
+  INDEX(project_id, status)
+  INDEX(severity)
+
+  Layer: 3
+  Note: Detected automatically when two sessions touch the same files/ports.
+```
+
+### AI Providers & Local Models (Layer 1)
+
+```
+ai_providers
+  id              uuid PK
+  name            string NOT NULL          -- "Anthropic", "OpenAI", "Google", "Local (Ollama)"
+  provider_type   string NOT NULL          -- anthropic, openai, google, local, custom
+  base_url        string                   -- API endpoint (null for local)
+  status          string DEFAULT 'active'  -- active, rate_limited, paused, expired
+  metadata        jsonb DEFAULT {}
+  created_at      datetime
+  updated_at      datetime
+  UNIQUE(provider_type)
+
+  Layer: 1
+  Note: Registry of AI providers the developer has access to.
+
+ai_subscriptions
+  id              uuid PK
+  ai_provider_id  uuid FK -> ai_providers
+  developer_id    uuid FK -> developers
+  plan_name       string NOT NULL          -- "Pro", "Max", "Plus", "Team", "Enterprise", "Free"
+  plan_type       string NOT NULL          -- subscription, api_key, free, trial
+  auth_method     string NOT NULL          -- api_key, oauth, local
+  api_key         string                   -- encrypted, nullable
+  access_token    string                   -- encrypted, nullable (OAuth)
+  refresh_token   string                   -- encrypted, nullable
+  token_expires_at datetime
+  status          string DEFAULT 'active'  -- active, expired, rate_limited, paused, cancelled
+  paused          boolean DEFAULT false
+  billing_cycle   string                   -- monthly, annual, usage_based, none
+  renewal_date    date                     -- when plan renews
+  metadata        jsonb DEFAULT {}         -- plan-specific fields
+  created_at      datetime
+  updated_at      datetime
+  INDEX(ai_provider_id)
+  INDEX(status)
+
+  Layer: 1
+  Note: Replaces proxy_accounts with a broader concept. One developer can
+  have multiple subscriptions (Claude Pro + OpenAI API key + local Ollama).
+
+ai_models
+  id              uuid PK
+  ai_provider_id  uuid FK -> ai_providers
+  model_id        string NOT NULL          -- "claude-opus-4-6", "gpt-4o", "llama3.3:70b"
+  display_name    string NOT NULL          -- "Claude Opus 4.6", "GPT-4o", "Llama 3.3 70B"
+  model_type      string NOT NULL          -- chat, embedding, code, vision, reasoning
+  context_window  integer                  -- max tokens
+  input_cost_per_mtok  decimal             -- $ per million input tokens (null for local)
+  output_cost_per_mtok decimal             -- $ per million output tokens
+  is_local        boolean DEFAULT false
+  status          string DEFAULT 'available' -- available, downloading, loaded, unloaded, error
+  metadata        jsonb DEFAULT {}         -- capabilities, quantization, etc.
+  created_at      datetime
+  updated_at      datetime
+  INDEX(ai_provider_id)
+  INDEX(model_type)
+  INDEX(is_local)
+
+  Layer: 1
+  Note: Both cloud and local models in one registry. Local models have
+  lifecycle states (downloading, loaded, unloaded).
+
+ai_usage_records
+  id              uuid PK
+  ai_subscription_id uuid FK -> ai_subscriptions
+  ai_model_id     uuid FK -> ai_models
+  agent_session_id uuid FK -> agent_sessions (nullable)
+  developer_id    uuid FK -> developers
+  request_type    string NOT NULL          -- chat, embedding, completion, tool_use
+  input_tokens    integer DEFAULT 0
+  output_tokens   integer DEFAULT 0
+  total_tokens    integer DEFAULT 0
+  cost_usd        decimal                  -- estimated cost (null for local)
+  latency_ms      integer
+  status_code     integer
+  error_type      string
+  streamed        boolean DEFAULT false
+  metadata        jsonb DEFAULT {}         -- request path, cache hit, etc.
+  created_at      datetime
+  INDEX(ai_subscription_id, created_at)
+  INDEX(ai_model_id, created_at)
+  INDEX(agent_session_id)
+  INDEX(developer_id, created_at)
+
+  Layer: 1
+  Note: Replaces proxy_requests with richer metering. Every API call or local
+  inference is tracked. Powers usage dashboards, cost estimates, quota warnings.
+
+ai_usage_limits
+  id              uuid PK
+  ai_subscription_id uuid FK -> ai_subscriptions
+  limit_type      string NOT NULL          -- daily_tokens, monthly_tokens, requests_per_minute, concurrent_requests, daily_cost
+  limit_value     decimal NOT NULL         -- the cap
+  current_value   decimal DEFAULT 0        -- current usage against this limit
+  resets_at       datetime                 -- when counter resets
+  warning_threshold decimal                -- alert at this % (e.g. 0.8 = 80%)
+  status          string DEFAULT 'ok'      -- ok, warning, exceeded
+  metadata        jsonb DEFAULT {}
+  created_at      datetime
+  updated_at      datetime
+  INDEX(ai_subscription_id)
+  INDEX(status)
+
+  Layer: 1
+  Note: Tracks rate limits, quota caps, and budget limits per subscription.
+  Hub can warn before you hit a wall and route to alternatives.
+
+ai_routing_rules
+  id              uuid PK
+  developer_id    uuid FK -> developers
+  task_type       string NOT NULL          -- embedding, classification, code_search, chat, code_generation, review
+  preferred_model_id uuid FK -> ai_models (nullable)
+  fallback_model_id uuid FK -> ai_models (nullable)
+  prefer_local    boolean DEFAULT true     -- try local first for this task type
+  max_cost_per_request decimal             -- budget cap per request
+  priority        integer DEFAULT 0        -- higher = checked first
+  active          boolean DEFAULT true
+  metadata        jsonb DEFAULT {}
+  created_at      datetime
+  updated_at      datetime
+  INDEX(developer_id, task_type)
+  INDEX(active)
+
+  Layer: 1
+  Note: "Use local Llama for embeddings, Claude for code generation,
+  GPT-4o as fallback when Claude is rate-limited." Developer-configurable.
+
+local_model_instances
+  id              uuid PK
+  ai_model_id     uuid FK -> ai_models
+  runtime         string NOT NULL          -- ollama, llama_cpp, mlx, vllm
+  status          string DEFAULT 'stopped' -- stopped, starting, running, error, downloading
+  pid             integer                  -- OS process ID
+  port            integer                  -- inference endpoint port
+  gpu_layers      integer                  -- layers offloaded to GPU
+  vram_usage_mb   integer                  -- current VRAM usage
+  ram_usage_mb    integer                  -- current RAM usage
+  quantization    string                   -- Q4_K_M, Q8_0, F16, etc.
+  download_progress float                  -- 0.0 to 1.0 during download
+  last_inference_at datetime
+  avg_tokens_per_sec float                 -- performance metric
+  metadata        jsonb DEFAULT {}
+  created_at      datetime
+  updated_at      datetime
+  INDEX(status)
+  INDEX(ai_model_id)
+
+  Layer: 1
+  Note: Runtime state of locally-running models. Hub monitors resource usage,
+  can start/stop models, tracks performance. One ai_model can have multiple
+  instances (different quantizations).
+```
+
+### Dev Environment (Layer 1, already built)
+
+```
+-- These stay as-is from existing schema:
+settings              -- key/value store
+devflow_installations -- DevFlow version tracking
+env_templates         -- .env file templates
+mail_messages         -- SMTP mail catcher
+
+-- proxy_accounts and proxy_requests are SUPERSEDED by:
+--   ai_providers + ai_subscriptions + ai_usage_records
+-- Migration: data from proxy_accounts → ai_subscriptions
+--            data from proxy_requests → ai_usage_records
+-- Keep old tables temporarily for backward compat.
+
+-- Brew, Mise, Ports, Hosts, SSH, Git, Puma-dev are
+-- in-memory models (no database tables), which is correct.
+-- They read live system state on each request.
+```
+
+---
+
+## API Surface
+
+### Namespace Structure
+
+```
+/api/v1/                         -- Machine API (hooks, MCP, Flutter)
+  /agent_sessions                -- Session lifecycle
+  /events                        -- Event pipeline
+  /work_summaries                -- Session reports
+  /prompt_runs                   -- Remote prompt execution
+  /projects                      -- Project registry
+  /developers                    -- Developer identity
+  /knowledge                     -- Knowledge CRUD + search (Layer 2)
+  /decisions                     -- Decision log (Layer 2)
+  /tasks                         -- Task board (Layer 3)
+  /conflicts                     -- Conflict detection (Layer 3)
+
+/api/v1/mcp/                     -- MCP tool endpoint (Layer 2)
+  /tools                         -- Tool discovery
+  /execute                       -- Tool execution
+
+/api/v1/system/                  -- Dev environment
+  /services                      -- Brew services
+  /packages                      -- Brew packages
+  /tools                         -- Mise tools
+  /ports                         -- Listening ports
+  /hosts                         -- /etc/hosts
+  /ssh_keys                      -- SSH key management
+  /git_config                    -- Git configuration
+  /puma_dev                      -- Puma-dev apps
+
+/api/v1/claude_code/             -- Claude Code config
+  /settings                      -- settings.json management
+  /hooks                         -- Hook configuration
+  /mcp_servers                   -- MCP server config
+  /plugins                       -- Plugin management
+  /permissions                   -- Permission lists
+
+/api/v1/ai/                      -- AI provider management
+  /providers                     -- Provider registry
+  /subscriptions                 -- Subscription CRUD + status
+  /models                        -- Model catalog (cloud + local)
+  /usage                         -- Usage records + aggregates
+  /limits                        -- Quota/limit tracking
+  /routing                       -- Task-type routing rules
+  /local_models                  -- Local model lifecycle
+
+/api/v1/proxy/                   -- Claude API proxy (passthrough)
+  /messages                      -- Forward to provider (legacy compat)
+
+/api/v1/devflow/                 -- DevFlow integration
+  /state                         -- .planning/ state
+  /installations                 -- Version management
+
+/health                          -- Health check
+/up                              -- Uptime check
+```
+
+### Key Endpoints by Layer
+
+#### Layer 1: Agent Control Plane
+
+```
+# Agent Sessions
+POST   /api/v1/agent_sessions              -- Register session (from hook)
+GET    /api/v1/agent_sessions              -- List sessions (Flutter dashboard)
+GET    /api/v1/agent_sessions/:id          -- Session detail
+PATCH  /api/v1/agent_sessions/:id          -- Update (autonomy, remote, etc.)
+DELETE /api/v1/agent_sessions/:id          -- End session
+
+# Events
+POST   /api/v1/events                      -- Create event (from hook)
+GET    /api/v1/events                      -- List events (filterable)
+GET    /api/v1/events/:id                  -- Event detail
+PATCH  /api/v1/events/:id/resolve          -- Human decision
+GET    /api/v1/events/pending              -- All pending across sessions
+
+# Work Summaries
+POST   /api/v1/work_summaries             -- Create (from stop hook)
+GET    /api/v1/work_summaries             -- List (filterable by session)
+PATCH  /api/v1/work_summaries/:id/read    -- Mark read
+
+# Prompt Runs
+POST   /api/v1/prompt_runs                -- Queue prompt (from phone)
+GET    /api/v1/prompt_runs                -- List runs
+GET    /api/v1/prompt_runs/:id            -- Run detail + output
+
+# Projects
+GET    /api/v1/projects                   -- List adopted projects
+POST   /api/v1/projects                   -- Adopt project
+DELETE /api/v1/projects/:id               -- Remove project
+POST   /api/v1/projects/scan              -- Scan filesystem
+PATCH  /api/v1/projects/:id/activate      -- Set as current
+
+# System (dev environment)
+GET    /api/v1/system/services             -- List brew services
+POST   /api/v1/system/services/:name/start
+POST   /api/v1/system/services/:name/stop
+POST   /api/v1/system/services/:name/restart
+GET    /api/v1/system/ports                -- List listening ports
+DELETE /api/v1/system/ports/:pid           -- Kill process
+GET    /api/v1/system/packages             -- List brew packages
+POST   /api/v1/system/packages/:name/install
+POST   /api/v1/system/packages/:name/uninstall
+GET    /api/v1/system/tools                -- List mise tools
+POST   /api/v1/system/tools/:name/install
+GET    /api/v1/system/hosts                -- List hosts entries
+POST   /api/v1/system/hosts               -- Add entry
+DELETE /api/v1/system/hosts/:id            -- Remove entry
+GET    /api/v1/system/ssh_keys             -- List SSH keys
+GET    /api/v1/system/puma_dev             -- List puma-dev apps
+
+# Dashboard aggregate
+GET    /api/v1/dashboard                   -- Combined stats for Flutter home
+```
+
+#### Layer 1: AI Providers & Local Models
+
+```
+# Providers
+GET    /api/v1/ai/providers                -- List configured providers
+POST   /api/v1/ai/providers                -- Add provider
+PATCH  /api/v1/ai/providers/:id            -- Update provider
+
+# Subscriptions
+GET    /api/v1/ai/subscriptions            -- List all subscriptions
+POST   /api/v1/ai/subscriptions            -- Add subscription (API key, OAuth, local)
+PATCH  /api/v1/ai/subscriptions/:id        -- Update (pause, credentials, plan)
+DELETE /api/v1/ai/subscriptions/:id        -- Remove subscription
+POST   /api/v1/ai/subscriptions/:id/test   -- Test connection
+POST   /api/v1/ai/subscriptions/:id/refresh -- Refresh OAuth token
+
+# Models
+GET    /api/v1/ai/models                   -- List all models (cloud + local)
+GET    /api/v1/ai/models/:id               -- Model detail + capabilities
+POST   /api/v1/ai/models/sync              -- Refresh model catalog from providers
+
+# Usage
+GET    /api/v1/ai/usage                    -- Usage summary (filterable by provider, model, session, date range)
+GET    /api/v1/ai/usage/dashboard          -- Aggregated stats for Flutter dashboard
+  Response: {
+    today: { tokens, cost, requests, by_provider: [...] },
+    this_month: { tokens, cost, requests, by_provider: [...] },
+    by_model: [{ model, tokens, cost, requests }],
+    by_session: [{ session, tokens, cost }],
+    trend: [{ date, tokens, cost }]
+  }
+GET    /api/v1/ai/usage/cost_estimate      -- Projected monthly cost at current rate
+
+# Limits
+GET    /api/v1/ai/limits                   -- All limits with current status
+GET    /api/v1/ai/limits/warnings          -- Only limits at warning/exceeded
+PATCH  /api/v1/ai/limits/:id              -- Update limit thresholds
+
+# Routing Rules
+GET    /api/v1/ai/routing                  -- List routing rules
+POST   /api/v1/ai/routing                  -- Create rule
+PATCH  /api/v1/ai/routing/:id              -- Update rule
+DELETE /api/v1/ai/routing/:id              -- Remove rule
+POST   /api/v1/ai/routing/resolve          -- Given a task_type, return which model to use
+  body: { task_type: "embedding", fallback: true }
+  Response: { model_id, provider, reason: "local preferred, model loaded" }
+
+# Local Models
+GET    /api/v1/ai/local_models             -- List local model instances + status
+POST   /api/v1/ai/local_models/:id/pull    -- Download/pull model
+POST   /api/v1/ai/local_models/:id/start   -- Start inference server
+POST   /api/v1/ai/local_models/:id/stop    -- Stop inference server
+DELETE /api/v1/ai/local_models/:id         -- Remove model from disk
+GET    /api/v1/ai/local_models/resources   -- GPU/VRAM/RAM status
+  Response: {
+    gpu: { name, vram_total_mb, vram_used_mb, utilization_pct },
+    ram: { total_mb, available_mb },
+    models_loaded: [{ model, vram_mb, ram_mb, tokens_per_sec }]
+  }
+```
+
+#### Layer 2: Knowledge & Context
+
+```
+# Knowledge Sources
+GET    /api/v1/knowledge/sources           -- List sources
+POST   /api/v1/knowledge/sources           -- Add source (file, URL, manual)
+PATCH  /api/v1/knowledge/sources/:id       -- Update metadata
+DELETE /api/v1/knowledge/sources/:id       -- Remove source + chunks
+POST   /api/v1/knowledge/sources/:id/sync  -- Re-sync from origin
+
+# Knowledge Search
+POST   /api/v1/knowledge/search            -- Search chunks
+  body: { query, project_id, tags, source_types, top_k, include_code }
+
+# Decisions
+GET    /api/v1/decisions                   -- List decisions
+POST   /api/v1/decisions                   -- Record decision
+PATCH  /api/v1/decisions/:id               -- Update/supersede
+GET    /api/v1/decisions/for_project/:id   -- Decisions for a project
+
+# MCP Interface (SSE transport)
+GET    /api/v1/mcp/tools                   -- Discover available tools
+POST   /api/v1/mcp/execute                 -- Execute tool
+  Exposed MCP tools:
+    - hub_search_knowledge(query, project_id, top_k)
+    - hub_get_decisions(project_id, type)
+    - hub_record_decision(project_id, title, description, rationale, type)
+    - hub_get_project_context(project_id)
+    - hub_report_status(session_id, status, summary)
+    - hub_get_active_sessions(project_id)
+    - hub_detect_conflicts(session_id, files)
+```
+
+#### Layer 3: Multi-Developer Orchestration
+
+```
+# Developers
+GET    /api/v1/developers                  -- List developers
+POST   /api/v1/developers                  -- Register developer
+PATCH  /api/v1/developers/:id              -- Update profile
+
+# Task Board
+GET    /api/v1/tasks                       -- List tasks (filterable)
+POST   /api/v1/tasks                       -- Create task
+PATCH  /api/v1/tasks/:id                   -- Update task
+POST   /api/v1/tasks/:id/claim             -- Claim task (assign to session)
+POST   /api/v1/tasks/:id/complete          -- Mark done
+GET    /api/v1/tasks/board                 -- Kanban board view
+
+# Conflicts
+GET    /api/v1/conflicts                   -- List conflicts
+POST   /api/v1/conflicts                   -- Report conflict (auto-detected)
+PATCH  /api/v1/conflicts/:id/resolve       -- Resolve conflict
+GET    /api/v1/conflicts/active            -- Currently open conflicts
+```
+
+#### Layer 4: Hosted Mode Extensions
+
+```
+# Auth (not needed for local, required for hosted)
+POST   /api/v1/auth/register               -- Developer registration
+POST   /api/v1/auth/login                  -- JWT login
+POST   /api/v1/auth/refresh                -- Token refresh
+
+# Team management
+GET    /api/v1/team                        -- Team members + online status
+POST   /api/v1/team/invite                 -- Invite developer
+
+# Cross-machine sync
+POST   /api/v1/sync/knowledge              -- Push local knowledge to hub
+GET    /api/v1/sync/knowledge              -- Pull shared knowledge
+POST   /api/v1/sync/decisions              -- Push decisions
+```
+
+---
+
+## WebSocket Channels (ActionCable)
+
+```
+AgentSessionChannel
+  - Subscribes to: session updates, new events, event resolutions
+  - Broadcasts: session_updated, event_created, event_resolved, summary_created
+
+DashboardChannel
+  - Subscribes to: aggregate stats, system status
+  - Broadcasts: stats_updated, service_changed, session_started, session_ended
+
+ProjectChannel (Layer 2+)
+  - Subscribes to: project-scoped events
+  - Broadcasts: knowledge_updated, decision_recorded, conflict_detected
+
+TaskBoardChannel (Layer 3+)
+  - Subscribes to: task board changes
+  - Broadcasts: task_created, task_claimed, task_completed, task_blocked
+```
+
+---
+
+## Flutter App Structure
+
+```
+devflow_hub/
+  lib/
+    main.dart                    -- App entry, tray setup
+    app.dart                     -- MaterialApp, routing, theme
+
+    core/
+      api_client.dart            -- HTTP client for Rails API
+      websocket_client.dart      -- ActionCable connection
+      cache.dart                 -- Local cache (SQLite or Hive)
+      theme.dart                 -- macOS-native theme
+
+    models/                      -- Dart data classes (from API)
+      agent_session.dart
+      event.dart
+      work_summary.dart
+      project.dart
+      developer.dart
+      knowledge_source.dart      -- Layer 2
+      decision.dart              -- Layer 2
+      task_board_item.dart       -- Layer 3
+      conflict.dart              -- Layer 3
+
+    services/                    -- Business logic
+      session_service.dart
+      event_service.dart
+      system_service.dart
+      knowledge_service.dart     -- Layer 2
+      task_service.dart          -- Layer 3
+
+    screens/
+      dashboard/                 -- Home: active sessions, system status, pending events
+        dashboard_screen.dart
+        widgets/
+          session_card.dart
+          system_status.dart
+          pending_events.dart
+
+      sessions/                  -- Agent session list + detail
+        session_list_screen.dart
+        session_detail_screen.dart
+        widgets/
+          event_timeline.dart
+          event_resolver.dart
+          work_summary_card.dart
+          prompt_form.dart
+
+      projects/                  -- Project registry
+        project_list_screen.dart
+        project_detail_screen.dart
+
+      system/                    -- Dev environment
+        system_screen.dart
+        services_tab.dart
+        packages_tab.dart
+        ports_tab.dart
+        tools_tab.dart
+
+      ai/                        -- AI providers & models
+        ai_dashboard_screen.dart     -- Usage overview, cost tracking, limit warnings
+        providers_screen.dart        -- Provider list + subscription management
+        subscription_detail.dart     -- Single subscription: credentials, plan, usage
+        models_screen.dart           -- Model catalog (cloud + local)
+        local_models_screen.dart     -- Local model lifecycle: pull, start, stop, resources
+        routing_rules_screen.dart    -- Task-type → model routing configuration
+        usage_detail_screen.dart     -- Deep usage analytics by provider/model/session
+        widgets/
+          usage_chart.dart           -- Token/cost over time
+          limit_gauge.dart           -- Quota progress bar with warning thresholds
+          model_status_card.dart     -- Cloud model status or local model with VRAM/perf
+          resource_monitor.dart      -- GPU/VRAM/RAM live display
+          cost_ticker.dart           -- Today's spend, projected monthly
+
+      knowledge/                 -- Layer 2
+        knowledge_screen.dart
+        source_list.dart
+        search_screen.dart
+        decision_log.dart
+
+      tasks/                     -- Layer 3
+        kanban_board_screen.dart
+        task_detail_screen.dart
+
+      settings/
+        settings_screen.dart
+        claude_code_settings.dart
+        devflow_settings.dart
+
+    tray/                        -- macOS menu bar
+      tray_manager.dart
+      tray_menu.dart
+```
+
+---
+
+## Migration Strategy
+
+### Phase 1: Schema Migration (Rails)
+
+Rename `relay_sessions` → `agent_sessions` with alias for backward compat.
+Add `developers` table with single "me" row.
+Add `developer_id` FK to existing tables (nullable, backfill later).
+Add Layer 2 tables (knowledge_sources, knowledge_chunks, decisions) as empty.
+Add Layer 3 tables (task_board_items, conflicts) as empty.
+Move all routes under `/api/v1/` namespace.
+Keep ERB views temporarily (dual-serve until Flutter is ready).
+
+### Phase 2: Flutter Shell (macOS)
+
+Create Flutter project with macos target.
+Implement core API client + WebSocket connection.
+Build dashboard screen (sessions + system status).
+Build session detail screen (events + resolver).
+Build system screen (services, ports, packages).
+Implement tray icon with session count.
+
+### Phase 3: Drop Electron + ERB
+
+Remove Electron app entirely.
+Remove ERB views and Turbo dependencies.
+Rails becomes pure API server.
+Flutter handles all UI.
+
+### Phase 4: Knowledge Layer
+
+Implement knowledge source ingestion (CLAUDE.md, ADRs, docs).
+Build MCP server endpoint in Rails.
+Configure Claude Code to connect to Hub MCP.
+Build knowledge search UI in Flutter.
+Build decision log UI.
+
+---
+
+## Authentication Model
+
+### Local Mode (Layers 1-2)
+- No auth on API — single machine, single user
+- Bearer token on hook endpoints (existing DEVFLOW_RELAY_TOKEN)
+- Flutter connects to localhost:3100 directly
+
+### Team Mode (Layer 3)
+- Developer identity via machine_id (auto-detected)
+- Optional bearer token per developer
+- No passwords — trust the network (local/VPN)
+
+### Hosted Mode (Layer 4)
+- JWT authentication (Devise + doorkeeper)
+- OAuth for team SSO
+- API keys for CI/CD integration
+
+---
+
+## Key Design Decisions
+
+1. **UUID primary keys on new tables** — required for Layer 4 sync. Existing integer PKs on settings/projects/etc. stay as-is.
+
+2. **jsonb for flexible fields** — metadata, action_data, response_data, tags. Avoids migration churn as we learn what's needed.
+
+3. **SQLite stays for Layers 1-3** — PostgreSQL only required for Layer 4 (hosted). Local dev tool shouldn't need Postgres.
+
+4. **No vector store for Layer 2** — start with full-text search on knowledge_chunks. SQLite FTS5 is sufficient for structured knowledge. Add Qdrant/pgvector only if search quality demands it.
+
+5. **ActionCable over REST polling** — Flutter connects via WebSocket for real-time. Events, session updates, and task changes broadcast immediately.
+
+6. **MCP via HTTP, not stdio** — Hub runs as a network MCP server. Claude Code connects via SSE transport. This allows multiple sessions to share one Hub instance.
+
+7. **Events are append-only** — never delete events. Decision resolution updates the existing record but the event itself persists forever. This is the audit trail.
+
+8. **Local models are first-class** — not an afterthought. The Hub routes embeddings, classification, and code search to local models by default, burning cloud tokens only when necessary.
+
+9. **AI usage is visible** — every token, every dollar, every rate limit. The developer always knows what they're spending and where. No surprise bills, no silent throttling.
+
+---
+
+## AI Provider Integration
+
+The Hub acts as an **intelligent router** between AI consumers (Claude Code sessions, MCP tools, knowledge indexing) and AI providers (Anthropic, OpenAI, local models). This replaces the simple proxy_accounts/proxy_requests system with a full provider management layer.
+
+### How It Works
+
+```
+Consumer (Claude Code / MCP / Knowledge Indexer)
+  ↓ request: { task_type: "embedding", content: "..." }
+  ↓
+Hub Routing Engine (ai_routing_rules)
+  ↓ resolves: local Llama → loaded? yes → use it
+  ↓           fallback: OpenAI text-embedding-3-small
+  ↓
+Provider Adapter
+  ├── OllamaAdapter     → localhost:11434
+  ├── AnthropicAdapter   → api.anthropic.com
+  ├── OpenAIAdapter      → api.openai.com
+  └── CustomAdapter      → any OpenAI-compatible endpoint
+  ↓
+Response + Usage Tracking (ai_usage_records)
+  ↓ tokens, latency, cost logged
+  ↓
+Limit Checker (ai_usage_limits)
+  ↓ warning at 80%? exceeded? switch to fallback?
+  ↓
+Result returned to consumer
+```
+
+### Default Routing (Developer Can Override)
+
+| Task Type | Primary | Fallback | Rationale |
+|-----------|---------|----------|-----------|
+| embedding | Local (nomic-embed-text) | OpenAI text-embedding-3-small | Free, fast, private |
+| classification | Local (small LLM) | Rules-based (ActionClassifier) | Real-time, no latency |
+| code_search | Local (code model) | Cloud model | Frequent, latency-sensitive |
+| chat / code_generation | Claude (subscription) | OpenAI / local large model | Quality matters most |
+| review | Claude (subscription) | OpenAI | Needs strong reasoning |
+
+### Subscription Types Supported
+
+| Provider | Auth Method | Plan Types |
+|----------|------------|------------|
+| Anthropic | API key, OAuth | Pro, Max, Team, Enterprise, API |
+| OpenAI | API key | Plus, Pro, Team, API |
+| Google | API key, OAuth | Gemini Advanced, API |
+| Local (Ollama) | None | Free (self-hosted) |
+| Custom | API key | Any OpenAI-compatible endpoint |
+
+### Usage Dashboard Shows
+
+- **Today / This Month**: tokens consumed, estimated cost, requests
+- **By Provider**: breakdown across Anthropic, OpenAI, local
+- **By Model**: which models are burning tokens
+- **By Session**: which Claude Code session is the heaviest user
+- **Rate Limit Status**: per-subscription remaining quota, reset time
+- **Cost Projection**: "at current rate, you'll spend $X this month"
+- **Local Model Performance**: tokens/sec, VRAM usage, GPU utilization
