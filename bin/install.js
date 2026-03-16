@@ -731,6 +731,18 @@ function install(isGlobal) {
     }
   }
 
+  // Copy MCP servers (aosentry-media, aosentry-management)
+  const mcpSrc = path.join(src, 'mcp_servers');
+  if (fs.existsSync(mcpSrc)) {
+    const mcpDest = path.join(targetDir, 'mcp_servers');
+    copyWithPathReplacement(mcpSrc, mcpDest, pathPrefix);
+    if (verifyInstalled(mcpDest, 'mcp_servers')) {
+      console.log(`  ${green}✓${reset} Installed MCP servers (aosentry-media, aosentry-management)`);
+    } else {
+      failures.push('mcp_servers');
+    }
+  }
+
   // Copy CHANGELOG.md
   const changelogSrc = path.join(src, 'CHANGELOG.md');
   const changelogDest = path.join(targetDir, 'devflow', 'CHANGELOG.md');

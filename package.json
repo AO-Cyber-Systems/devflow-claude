@@ -11,7 +11,8 @@
     "devflow",
     "agents",
     "hooks/dist",
-    "scripts"
+    "scripts",
+    "mcp_servers"
   ],
   "keywords": [
     "claude",

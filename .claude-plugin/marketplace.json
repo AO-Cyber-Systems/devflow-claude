@@ -1,0 +1,45 @@
+{
+  "name": "devflow",
+  "owner": {
+    "name": "AO Cyber Systems",
+    "email": "dev@aocodex.ai"
+  },
+  "metadata": {
+    "description": "DevFlow autonomous development system and AOSentry AI gateway tools for Claude Code",
+    "version": "1.22.0"
+  },
+  "plugins": [
+    {
+      "name": "devflow",
+      "source": ".",
+      "description": "Meta-prompting, context engineering, and spec-driven development system. 34 skills, 12 agents, wave-based parallelization, atomic commits, and persistent state across context resets.",
+      "version": "1.22.0",
+      "author": {
+        "name": "AO Cyber Systems",
+        "email": "dev@aocodex.ai"
+      },
+      "homepage": "https://github.com/AO-Cyber-Systems/devflow-claude",
+      "repository": "https://github.com/AO-Cyber-Systems/devflow-claude",
+      "license": "MIT",
+      "keywords": ["devflow", "meta-prompting", "context-engineering", "spec-driven-development", "autonomous-agent"],
+      "category": "development",
+      "tags": ["planning", "execution", "debugging", "security-audit", "codebase-mapping"]
+    },
+    {
+      "name": "aosentry-mcp",
+      "source": ".",
+      "description": "AOSentry AI gateway MCP servers. 45 tools: image generation, vision analysis, TTS, transcription, spend analytics, API key management, guardrails, model routing, user/team/org management, budgets, and health monitoring.",
+      "version": "1.0.0",
+      "author": {
+        "name": "AO Cyber Systems",
+        "email": "dev@aocodex.ai"
+      },
+      "homepage": "https://aosentry.ai",
+      "repository": "https://github.com/AO-Cyber-Systems/devflow-claude",
+      "license": "MIT",
+      "keywords": ["aosentry", "mcp", "ai-gateway", "guardrails", "llm-proxy", "media", "spend-tracking"],
+      "category": "ai-tools",
+      "tags": ["mcp-server", "image-generation", "tts", "transcription", "api-management"]
+    }
+  ]
+}
