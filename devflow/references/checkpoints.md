@@ -489,6 +489,40 @@ timeout 30 bash -c 'until curl -s localhost:3000 > /dev/null 2>&1; do sleep 1; d
 | Auth error | Create auth gate checkpoint |
 | Network timeout | Retry with backoff, then checkpoint if persistent |
 
+## Browser Pre-Verification Before Checkpoints
+
+Before presenting a `checkpoint:human-verify` for UI features, use Playwright MCP to pre-verify:
+
+```
+# Navigate to the page being verified
+browser_navigate(url="http://localhost:3000/{route}")
+
+# Get accessibility tree to verify content renders
+browser_snapshot()
+
+# Take screenshot for evidence
+browser_take_screenshot()
+
+# Test key interactions
+browser_click(element="button", ref="{key-element}")
+browser_snapshot()  # Verify state changed
+```
+
+**If pre-verification fails:** Fix the issue before presenting the checkpoint. The user should only see working features.
+
+**If pre-verification passes:** Present the checkpoint with pre-verification evidence:
+```
+I've pre-verified this renders correctly:
+- Page loads at {url}
+- Key elements present: {list from snapshot}
+- {interaction} works: {result}
+
+Please verify the visual design and UX quality:
+{original how-to-verify steps}
+```
+
+This reduces checkpoint friction — the user focuses on subjective quality, not basic functionality.
+
 **Never present a checkpoint with broken verification environment.** If `curl localhost:3000` fails, don't ask user to "visit localhost:3000".
 
 ```xml
@@ -527,8 +561,10 @@ timeout 30 bash -c 'until curl -s localhost:3000 > /dev/null 2>&1; do sleep 1; d
 | Click email verification link | No | NO |
 | Enter credit card with 3DS | No | NO |
 | Complete OAuth in browser | No | NO |
-| Visually verify UI looks correct | No | NO |
-| Test interactive user flows | No | NO |
+| Pre-verify UI renders correctly | Yes (Playwright) | YES |
+| Pre-verify interactive flows work | Yes (Playwright) | YES |
+| Verify visual design quality | No | NO |
+| Verify animation smoothness | No | NO |
 
 </automation_reference>
 

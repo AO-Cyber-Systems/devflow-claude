@@ -408,7 +408,7 @@ AskUserQuestion(
 )
 ```
 
-If "Issue found": follow up with freeform "Describe the issue:" prompt. Collect all responses and route accordingly: all verified → continue. Any issues → auto_gap_closure.
+If "Issue found": follow up with freeform "Describe the issue:" prompt. Collect all responses and route accordingly: all verified → proceed to `update_roadmap`. Any issues → `auto_gap_closure`.
 
 **If gaps_found → auto_gap_closure:**
 

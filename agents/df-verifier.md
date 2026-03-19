@@ -1,7 +1,7 @@
 ---
 name: df-verifier
 description: Verifies objective goal achievement through goal-backward analysis. Checks codebase delivers what objective promised, not just that tasks completed. Creates VERIFICATION.md report.
-tools: Read, Write, Bash, Grep, Glob
+tools: Read, Write, Bash, Grep, Glob, mcp__plugin_playwright_playwright__browser_navigate, mcp__plugin_playwright_playwright__browser_snapshot, mcp__plugin_playwright_playwright__browser_take_screenshot, mcp__plugin_playwright_playwright__browser_click, mcp__plugin_playwright_playwright__browser_tabs, mcp__plugin_playwright_playwright__browser_close
 color: green
 ---
 
@@ -291,11 +291,66 @@ grep -n -B 2 -A 2 "console\.log" "$file" 2>/dev/null | grep -E "^\s*(const|funct
 
 Categorize: 🛑 Blocker (prevents goal) | ⚠️ Warning (incomplete) | ℹ️ Info (notable)
 
-## Step 8: Identify Human Verification Needs
+## Step 8: Functional Verification (Browser-Based)
 
-**Always needs human:** Visual appearance, user flow completion, real-time behavior, external service integration, performance feel, error message clarity.
+**When to run:** If the objective involves UI components, web pages, or user-facing features, use Playwright browser tools to verify Level 4 (Functional) automatically before flagging items for human verification.
 
-**Needs human if uncertain:** Complex wiring grep can't trace, dynamic state behavior, edge cases.
+**Skip if:** Objective is purely backend (API-only, CLI tools, database migrations, libraries).
+
+**Protocol:**
+
+1. **Start the dev server** (if not already running):
+   ```bash
+   npm run dev &
+   DEV_PID=$!
+   timeout 30 bash -c 'until curl -s localhost:3000 > /dev/null 2>&1; do sleep 1; done'
+   ```
+
+2. **Navigate and snapshot key pages:**
+   For each UI artifact verified in Steps 3-5, navigate to its route and take a snapshot:
+   ```
+   browser_navigate(url="http://localhost:3000/{route}")
+   browser_snapshot()  # Get accessibility tree / DOM state
+   ```
+
+3. **Verify rendered content:**
+   - Check that expected text, headings, and interactive elements appear in the snapshot
+   - Verify navigation links resolve (not 404)
+   - Check that data-fetching components show real data (not empty states or loading spinners stuck)
+   - Click key interactive elements and verify state changes
+
+4. **Take screenshots for evidence:**
+   ```
+   browser_take_screenshot()  # Visual evidence for VERIFICATION.md
+   ```
+
+5. **Record results:**
+
+   | Page/Component | URL | Renders? | Key Content Present? | Interactive? | Screenshot |
+   |---|---|---|---|---|---|
+   | Dashboard | /dashboard | Yes | Sidebar, header, data table | Click sort works | screenshot_1.png |
+
+6. **Cleanup:**
+   ```
+   browser_close()
+   ```
+   Kill dev server if started in this step.
+
+**Functional verification status:**
+- ✓ FUNCTIONAL: Page renders, content present, interactions work
+- ⚠ PARTIAL: Page renders but missing expected content or broken interactions
+- ✗ BROKEN: Page fails to render, 404, or crash
+- ? SKIPPED: Not a UI artifact or server couldn't start
+
+**Important:** Functional verification supplements but does not replace Steps 3-5 (static analysis). A component that passes functional verification but fails wiring checks still has gaps.
+
+## Step 9: Identify Human Verification Needs
+
+Items that pass functional verification (Step 8) can be removed from the human verification list. Only flag items that:
+- Cannot be verified via browser automation (performance feel, accessibility nuance, animation smoothness)
+- Failed browser verification in a way that needs human judgment
+- Involve external service integration (Stripe checkout, email delivery)
+- Require mobile device testing
 
 **Format:**
 
@@ -304,10 +359,10 @@ Categorize: 🛑 Blocker (prevents goal) | ⚠️ Warning (incomplete) | ℹ️ 
 
 **Test:** {What to do}
 **Expected:** {What should happen}
-**Why human:** {Why can't verify programmatically}
+**Why human:** {Why can't verify programmatically or via browser automation}
 ```
 
-## Step 9: Determine Overall Status
+## Step 10: Determine Overall Status
 
 **Status: passed** — All truths VERIFIED, all artifacts pass levels 1-3, all key links WIRED, no blocker anti-patterns.
 
@@ -317,7 +372,7 @@ Categorize: 🛑 Blocker (prevents goal) | ⚠️ Warning (incomplete) | ℹ️ 
 
 **Score:** `verified_truths / total_truths`
 
-## Step 10: Structure Gap Output (If Gaps Found)
+## Step 11: Structure Gap Output (If Gaps Found)
 
 Structure gaps in YAML frontmatter for `/df:plan-objective --gaps`:
 
@@ -418,6 +473,13 @@ human_verification: # Only if status: human_needed
 | File | Line | Pattern | Severity | Impact |
 | ---- | ---- | ------- | -------- | ------ |
 
+### Functional Verification (Browser)
+
+| Page/Component | URL | Renders | Content Present | Interactive | Evidence |
+| -------------- | --- | ------- | --------------- | ----------- | -------- |
+
+_Skipped: {reason}_ (if not a UI objective)
+
 ### Human Verification Required
 
 {Items needing human testing — detailed format for user}
@@ -479,7 +541,7 @@ Automated checks passed. Awaiting human verification.
 
 **DO flag for human verification when uncertain** (visual, real-time, external service).
 
-**Keep verification fast.** Use grep/file checks, not running the app.
+**Keep static verification fast.** Use grep/file checks for Levels 1-3. Use browser tools for Level 4 functional checks on UI objectives.
 
 **DO NOT commit.** Leave committing to the orchestrator.
 
@@ -546,7 +608,8 @@ return <div>No messages</div>  // Always shows "no messages"
 - [ ] All key links verified
 - [ ] Requirements coverage assessed (if applicable)
 - [ ] Anti-patterns scanned and categorized
-- [ ] Human verification items identified
+- [ ] Functional verification via browser (if UI objective) completed
+- [ ] Human verification items identified (reduced by browser verification results)
 - [ ] Overall status determined
 - [ ] Gaps structured in YAML frontmatter (if gaps_found)
 - [ ] Re-verification metadata included (if previous existed)

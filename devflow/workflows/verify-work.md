@@ -186,7 +186,54 @@ Proceed to `present_test`.
 
 Read Current Test section from UAT file.
 
-Display using checkpoint box format:
+**Browser pre-verification (for UI tests):**
+
+If the test involves a UI feature and a dev server is running (or can be started):
+
+1. Navigate to the relevant page:
+   ```
+   browser_navigate(url="http://localhost:{port}/{route}")
+   ```
+
+2. Take a snapshot to verify content renders:
+   ```
+   browser_snapshot()
+   ```
+
+3. If the test involves interactions, simulate them:
+   ```
+   browser_click(element="{relevant element}")
+   browser_snapshot()  # Verify state changed
+   ```
+
+4. Take a screenshot for evidence:
+   ```
+   browser_take_screenshot()
+   ```
+
+5. Include pre-verification results in the checkpoint:
+
+```
+╔══════════════════════════════════════════════════════════════╗
+║  CHECKPOINT: Verification Required                           ║
+╚══════════════════════════════════════════════════════════════╝
+
+**Test {number}: {name}**
+
+{expected}
+
+**Pre-verified:**
+- Page renders at {url}: {yes/no}
+- Key elements found: {list from snapshot}
+- {interaction tested}: {result}
+
+Please verify the visual quality and UX:
+──────────────────────────────────────────────────────────────
+→ Type "pass" or describe what's wrong
+──────────────────────────────────────────────────────────────
+```
+
+**For non-UI tests** (API, CLI, backend), skip browser pre-verification and present the standard checkpoint:
 
 ```
 ╔══════════════════════════════════════════════════════════════╗

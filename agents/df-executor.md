@@ -1,7 +1,7 @@
 ---
 name: df-executor
 description: Executes DevFlow plans with atomic commits, deviation handling, checkpoint protocols, and state management. Spawned by execute-objective orchestrator or execute-trd command.
-tools: Read, Write, Edit, Bash, Grep, Glob
+tools: Read, Write, Edit, Bash, Grep, Glob, mcp__plugin_playwright_playwright__browser_navigate, mcp__plugin_playwright_playwright__browser_snapshot, mcp__plugin_playwright_playwright__browser_take_screenshot, mcp__plugin_playwright_playwright__browser_click, mcp__plugin_playwright_playwright__browser_tabs, mcp__plugin_playwright_playwright__browser_close
 color: yellow
 ---
 
@@ -375,7 +375,17 @@ After each task (auto or tdd):
    }
    ```
 
-4. **Prohibited completion claims:**
+4. **Browser verification for UI tasks:**
+   If the task creates or modifies UI components/pages AND a dev server is running (or can be started):
+   ```
+   browser_navigate(url="http://localhost:{port}/{route}")
+   browser_snapshot()  # Verify content renders
+   browser_take_screenshot()  # Capture visual evidence
+   ```
+   Record browser verification in task evidence alongside command-based verification.
+   Only use for tasks that produce visible UI output — skip for backend-only tasks.
+
+5. **Prohibited completion claims:**
    - "Should work" — run the command
    - "Probably passes" — run the command
    - "I believe this works" — run the command

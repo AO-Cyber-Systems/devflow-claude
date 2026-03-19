@@ -11,7 +11,7 @@ A file existing does not mean the feature works. Verification must check:
 3. **Wired** - Connected to the rest of the system
 4. **Functional** - Actually works when invoked
 
-Levels 1-3 can be checked programmatically. Level 4 often requires human verification.
+Levels 1-3 can be checked via static analysis. Level 4 can be partially automated via browser tools (Playwright MCP) and may require human verification for subjective qualities.
 </core_principle>
 
 <stub_detection>
@@ -105,11 +105,23 @@ grep -E "\{ .* \}.*props|\bprops\.[a-zA-Z]+" "$component_path"
 grep -E "fetch\(|axios\.|useSWR|useQuery|getServerSideProps|getStaticProps" "$component_path"
 ```
 
-**Functional verification (human required):**
-- Does the component render visible content?
-- Do interactive elements respond to clicks?
-- Does data load and display?
-- Do error states show appropriately?
+**Functional verification (browser automation + human):**
+
+*Automated via Playwright MCP:*
+```
+browser_navigate(url="http://localhost:3000/{route}")
+browser_snapshot()  # Check rendered content in accessibility tree
+browser_take_screenshot()  # Visual evidence
+browser_click(element="button", ref="submit-btn")  # Test interactions
+```
+- Does the component render visible content? (check snapshot for expected text/elements)
+- Do interactive elements respond to clicks? (click and verify state change in snapshot)
+- Does data load and display? (check snapshot for data, not loading spinners)
+
+*Human required:*
+- Does it look visually correct? (layout, spacing, colors)
+- Do error states show appropriately? (requires triggering error conditions)
+- Animation/transition smoothness
 
 </react_components>
 
@@ -178,11 +190,17 @@ grep -E "req\.json\(\)|req\.body|request\.json\(\)" "$route_path"
 grep -E "schema\.parse|validate|zod|yup|joi" "$route_path"
 ```
 
-**Functional verification (human or automated):**
+**Functional verification (automated):**
+```bash
+# API routes can be fully verified via CLI
+curl -s http://localhost:3000/api/$route | jq .  # Check response structure
+curl -s -X POST http://localhost:3000/api/$route -d '{"test":"data"}' -H 'Content-Type: application/json'  # Test mutations
+curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/$route  # Check status codes
+```
 - Does GET return real data from database?
 - Does POST actually create a record?
 - Does error response have correct status code?
-- Are auth checks actually enforced?
+- Are auth checks actually enforced? (test without auth header → expect 401)
 
 </api_routes>
 
@@ -560,22 +578,29 @@ Run these checks against each must-have artifact. Aggregate results into VERIFIC
 
 ## When to Require Human Verification
 
-Some things can't be verified programmatically. Flag these for human testing:
+Use browser automation (Playwright MCP) first to reduce the human verification burden. Only flag items for human testing that truly require subjective judgment.
 
-**Always human:**
-- Visual appearance (does it look right?)
-- User flow completion (can you actually do the thing?)
-- Real-time behavior (WebSocket, SSE)
-- External service integration (Stripe, email sending)
-- Error message clarity (is the message helpful?)
-- Performance feel (does it feel fast?)
+**Automate with browser tools first:**
+- Page renders correctly (navigate + snapshot + screenshot)
+- Interactive elements respond to clicks (click + verify snapshot changes)
+- Data loads and displays (check snapshot for real content vs loading/empty states)
+- Navigation works (click links + verify new page loads)
+- Forms submit successfully (fill form + submit + verify response)
+- User flow completion (multi-step navigation with click/fill/verify)
+
+**Always human (cannot automate):**
+- Visual design quality (does it look *good*? spacing, alignment, colors)
+- Animation/transition smoothness
+- Real-time behavior feel (WebSocket, SSE responsiveness)
+- External service integration (Stripe checkout, email delivery)
+- Performance feel (does it feel fast/responsive?)
+- Accessibility with assistive technology
 
 **Human if uncertain:**
-- Complex wiring that grep can't trace
-- Dynamic behavior depending on state
-- Edge cases and error states
-- Mobile responsiveness
-- Accessibility
+- Complex dynamic behavior depending on state
+- Edge cases and error states requiring specific triggers
+- Mobile device-specific behavior (vs responsive layout which can be checked via browser resize)
+- Audio/video playback quality
 
 **Format for human verification request:**
 ```markdown
