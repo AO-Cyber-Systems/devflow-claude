@@ -1,3 +1,6 @@
+---
+status: active
+---
 <purpose>
 Surface Claude's assumptions about an objective before planning, enabling users to correct misconceptions early.
 

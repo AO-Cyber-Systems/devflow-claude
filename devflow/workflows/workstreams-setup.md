@@ -1,3 +1,6 @@
+---
+status: active
+---
 <purpose>
 
 Analyze ROADMAP.md dependency graph, identify independent objectives, create git worktrees for parallel execution, and provision each worktree with filtered `.planning/` context.

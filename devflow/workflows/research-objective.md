@@ -1,3 +1,6 @@
+---
+status: active
+---
 <purpose>
 Research how to implement an objective. Spawns df-objective-researcher with objective context.
 

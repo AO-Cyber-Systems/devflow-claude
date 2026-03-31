@@ -1,3 +1,6 @@
+---
+status: active
+---
 <purpose>
 Insert a decimal objective for urgent work discovered mid-milestone between existing integer objectives. Uses decimal numbering (72.1, 72.2, etc.) to preserve the logical sequence of planned objectives while accommodating urgent insertions without renumbering the entire roadmap.
 </purpose>

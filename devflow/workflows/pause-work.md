@@ -1,3 +1,6 @@
+---
+status: active
+---
 <purpose>
 Create `.continue-here.md` handoff file to preserve complete work state across sessions. Enables seamless resumption with full context restoration.
 </purpose>

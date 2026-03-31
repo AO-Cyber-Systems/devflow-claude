@@ -1,3 +1,6 @@
+---
+status: active
+---
 <purpose>
 Interactive configuration of DevFlow workflow agents (research, job_check, verifier) and model profile selection via multi-question prompt. Updates .planning/config.json with user preferences. Optionally saves settings as global defaults (~/.devflow/defaults.json) for future projects.
 </purpose>

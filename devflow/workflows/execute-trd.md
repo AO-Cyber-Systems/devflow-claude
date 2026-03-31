@@ -1,3 +1,6 @@
+---
+status: active
+---
 <purpose>
 Execute a Task Requirements Document (TRD.md) with integrated TDD enforcement, per-task verification evidence, and post-job verification loop. Also supports legacy JOB.md files.
 </purpose>

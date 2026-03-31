@@ -2,6 +2,8 @@
 
 Model profiles control which Claude model each DevFlow agent uses. This allows balancing quality vs token spend.
 
+> **Source of truth:** `devflow/references/model-profiles.json` — the table below is derived from that file. To add a new agent or change tier assignments, edit the JSON; do not change `df-tools.cjs`.
+
 ## Profile Definitions
 
 | Agent | `quality` | `balanced` | `budget` |
@@ -49,19 +51,21 @@ Orchestrators resolve model before spawning:
 
 ## Per-Agent Overrides
 
-Override specific agents without changing the entire profile:
+Override specific agents without changing the entire profile using `agent_models` in `.planning/config.json`. Partial overrides are supported — only specified agents/tiers are replaced:
 
 ```json
 {
   "model_profile": "balanced",
-  "model_overrides": {
-    "df-executor": "opus",
-    "df-planner": "haiku"
+  "agent_models": {
+    "df-planner": { "quality": "sonnet" },
+    "df-executor": { "balanced": "opus", "budget": "sonnet" }
   }
 }
 ```
 
-Overrides take precedence over the profile. Valid values: `opus`, `sonnet`, `haiku`.
+Overrides take precedence over the package defaults. Valid tier values: `opus`, `sonnet`, `haiku`.
+
+> **Legacy:** `model_overrides` (flat string values) is still supported but `agent_models` is preferred as it supports per-tier granularity.
 
 ## Switching Profiles
 

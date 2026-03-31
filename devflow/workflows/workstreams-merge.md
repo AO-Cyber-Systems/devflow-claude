@@ -1,3 +1,6 @@
+---
+status: active
+---
 <purpose>
 
 Merge completed workstream branches back to main, reconcile `.planning/` state, clean up worktrees, and prepare for the join objective.

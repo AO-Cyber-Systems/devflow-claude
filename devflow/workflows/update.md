@@ -1,3 +1,6 @@
+---
+status: active
+---
 <purpose>
 Check for DevFlow updates via npm, display changelog for versions between installed and latest, obtain user confirmation, and execute clean installation with cache clearing.
 </purpose>
