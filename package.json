@@ -41,7 +41,8 @@
   },
   "scripts": {
     "build:hooks": "node scripts/build-hooks.js",
-    "prepublishOnly": "npm run build:hooks",
+    "build:plugin": "node scripts/build-plugin.js",
+    "prepublishOnly": "npm run build:hooks && npm run build:plugin",
     "test": "node --test devflow/bin/df-tools.test.cjs"
   }
 }
