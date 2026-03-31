@@ -9,9 +9,9 @@ Display the complete DevFlow command reference. Output ONLY the reference conten
 
 ## Quick Start
 
-1. `/df:new-project` - Initialize project (includes research, requirements, roadmap)
-2. `/df:plan-objective 1` - Create detailed plan for first objective
-3. `/df:execute-objective 1` - Execute the objective
+1. `/new-project` - Initialize project (includes research, requirements, roadmap)
+2. `/plan-objective 1` - Create detailed plan for first objective
+3. `/execute-objective 1` - Execute the objective
 
 ## Staying Updated
 
@@ -24,12 +24,12 @@ npx @ao-cyber-systems/devflow-cc@latest
 ## Core Workflow
 
 ```
-/df:new-project → /df:plan-objective → /df:execute-objective → repeat
+/new-project → /plan-objective → /execute-objective → repeat
 ```
 
 ### Project Initialization
 
-**`/df:new-project`**
+**`/new-project`**
 Initialize new project through unified flow.
 
 One command takes you from idea to ready-for-planning:
@@ -46,30 +46,30 @@ Creates all `.planning/` artifacts:
 - `ROADMAP.md` — objectives mapped to requirements
 - `STATE.md` — project memory
 
-Usage: `/df:new-project`
+Usage: `/new-project`
 
-**`/df:map-codebase`**
+**`/map-codebase`**
 Map an existing codebase for brownfield projects.
 
 - Analyzes codebase with parallel Explore agents
 - Creates `.planning/codebase/` with 7 focused documents
 - Covers stack, architecture, structure, conventions, testing, integrations, concerns
-- Use before `/df:new-project` on existing codebases
+- Use before `/new-project` on existing codebases
 
-Usage: `/df:map-codebase`
+Usage: `/map-codebase`
 
 ### Objective Planning
 
-**`/df:discuss-objective <number>`**
+**`/discuss-objective <number>`**
 Help articulate your vision for an objective before planning.
 
 - Captures how you imagine this objective working
 - Creates CONTEXT.md with your vision, essentials, and boundaries
 - Use when you have ideas about how something should look/feel
 
-Usage: `/df:discuss-objective 2`
+Usage: `/discuss-objective 2`
 
-**`/df:research-objective <number>`**
+**`/research-objective <number>`**
 Comprehensive ecosystem research for niche/complex domains.
 
 - Discovers standard stack, architecture patterns, pitfalls
@@ -77,18 +77,18 @@ Comprehensive ecosystem research for niche/complex domains.
 - Use for 3D, games, audio, shaders, ML, and other specialized domains
 - Goes beyond "which library" to ecosystem knowledge
 
-Usage: `/df:research-objective 3`
+Usage: `/research-objective 3`
 
-**`/df:list-objective-assumptions <number>`**
+**`/list-objective-assumptions <number>`**
 See what Claude is planning to do before it starts.
 
 - Shows Claude's intended approach for an objective
 - Lets you course-correct if Claude misunderstood your vision
 - No files created - conversational output only
 
-Usage: `/df:list-objective-assumptions 3`
+Usage: `/list-objective-assumptions 3`
 
-**`/df:plan-objective <number>`**
+**`/plan-objective <number>`**
 Create detailed execution plan for a specific objective.
 
 - Generates `.planning/objectives/XX-phase-name/XX-YY-JOB.md`
@@ -96,12 +96,12 @@ Create detailed execution plan for a specific objective.
 - Includes verification criteria and success measures
 - Multiple plans per objective supported (XX-01, XX-02, etc.)
 
-Usage: `/df:plan-objective 1`
+Usage: `/plan-objective 1`
 Result: Creates `.planning/objectives/01-foundation/01-01-JOB.md`
 
 ### Execution
 
-**`/df:execute-objective <phase-number>`**
+**`/execute-objective <phase-number>`**
 Execute all jobs in an objective.
 
 - Groups plans by wave (from frontmatter), executes waves sequentially
@@ -109,11 +109,11 @@ Execute all jobs in an objective.
 - Verifies objective goal after all jobs complete
 - Updates REQUIREMENTS.md, ROADMAP.md, STATE.md
 
-Usage: `/df:execute-objective 5`
+Usage: `/execute-objective 5`
 
 ### Quick Mode
 
-**`/df:quick`**
+**`/quick`**
 Execute small, ad-hoc tasks with DevFlow guarantees but skip optional agents.
 
 Quick mode uses the same system with a shorter path:
@@ -123,31 +123,31 @@ Quick mode uses the same system with a shorter path:
 
 Use when you know exactly what to do and the task is small enough to not need research or verification.
 
-Usage: `/df:quick`
+Usage: `/quick`
 Result: Creates `.planning/quick/NNN-slug/JOB.md`, `.planning/quick/NNN-slug/SUMMARY.md`
 
 ### Roadmap Management
 
-**`/df:add-objective <description>`**
+**`/add-objective <description>`**
 Add new objective to end of current milestone.
 
 - Appends to ROADMAP.md
 - Uses next sequential number
 - Updates objective directory structure
 
-Usage: `/df:add-objective "Add admin dashboard"`
+Usage: `/add-objective "Add admin dashboard"`
 
-**`/df:insert-objective <after> <description>`**
+**`/insert-objective <after> <description>`**
 Insert urgent work as decimal objective between existing objectives.
 
 - Creates intermediate objective (e.g., 7.1 between 7 and 8)
 - Useful for discovered work that must happen mid-milestone
 - Maintains objective ordering
 
-Usage: `/df:insert-objective 7 "Fix critical auth bug"`
+Usage: `/insert-objective 7 "Fix critical auth bug"`
 Result: Creates Objective 7.1
 
-**`/df:remove-objective <number>`**
+**`/remove-objective <number>`**
 Remove a future objective and renumber subsequent objectives.
 
 - Deletes objective directory and all references
@@ -155,12 +155,12 @@ Remove a future objective and renumber subsequent objectives.
 - Only works on future (unstarted) objectives
 - Git commit preserves historical record
 
-Usage: `/df:remove-objective 17`
+Usage: `/remove-objective 17`
 Result: Objective 17 deleted, objectives 18-20 become 17-19
 
 ### Parallel Workstreams
 
-**`/df:workstreams setup`**
+**`/workstreams setup`**
 Create parallel worktrees for independent objectives.
 
 - Analyzes ROADMAP.md dependency graph for non-linear dependencies
@@ -168,18 +168,18 @@ Create parallel worktrees for independent objectives.
 - Provisions `.planning/` context per worktree (filtered state, marker)
 - Each worktree runs normal DevFlow commands in its own Claude session
 
-Usage: `/df:workstreams setup`
+Usage: `/workstreams setup`
 
-**`/df:workstreams status`**
+**`/workstreams status`**
 Check progress across all active workstreams.
 
 - Reads each worktree's STATE.md and git branch activity
 - Shows completion status per workstream
 - Indicates when join objective is ready
 
-Usage: `/df:workstreams status`
+Usage: `/workstreams status`
 
-**`/df:workstreams merge`**
+**`/workstreams merge`**
 Merge completed workstreams back to main.
 
 - Squash-merges each workstream branch
@@ -188,11 +188,11 @@ Merge completed workstreams back to main.
 - Cleans up worktrees and branches
 - Advances to the join objective
 
-Usage: `/df:workstreams merge`
+Usage: `/workstreams merge`
 
 ### Milestone Management
 
-**`/df:new-milestone <name>`**
+**`/new-milestone <name>`**
 Start a new milestone through unified flow.
 
 - Deep questioning to understand what you're building next
@@ -200,11 +200,11 @@ Start a new milestone through unified flow.
 - Requirements definition with scoping
 - Roadmap creation with objective breakdown
 
-Mirrors `/df:new-project` flow for brownfield projects (existing PROJECT.md).
+Mirrors `/new-project` flow for brownfield projects (existing PROJECT.md).
 
-Usage: `/df:new-milestone "v2.0 Features"`
+Usage: `/new-milestone "v2.0 Features"`
 
-**`/df:complete-milestone <version>`**
+**`/complete-milestone <version>`**
 Archive completed milestone and prepare for next version.
 
 - Creates MILESTONES.md entry with stats
@@ -212,11 +212,11 @@ Archive completed milestone and prepare for next version.
 - Creates git tag for the release
 - Prepares workspace for next version
 
-Usage: `/df:complete-milestone 1.0.0`
+Usage: `/complete-milestone 1.0.0`
 
 ### Progress Tracking
 
-**`/df:progress`**
+**`/progress`**
 Check project status and intelligently route to next action.
 
 - Shows visual progress bar and completion percentage
@@ -226,45 +226,45 @@ Check project status and intelligently route to next action.
 - Offers to execute next job or create it if missing
 - Detects 100% milestone completion
 
-Usage: `/df:progress`
+Usage: `/progress`
 
 ### Session Management
 
-**`/df:resume-work`**
+**`/resume-work`**
 Resume work from previous session with full context restoration.
 
 - Reads STATE.md for project context
 - Shows current position and recent progress
 - Offers next actions based on project state
 
-Usage: `/df:resume-work`
+Usage: `/resume-work`
 
-**`/df:pause-work`**
+**`/pause-work`**
 Create context handoff when pausing work mid-objective.
 
 - Creates .continue-here file with current state
 - Updates STATE.md session continuity section
 - Captures in-progress work context
 
-Usage: `/df:pause-work`
+Usage: `/pause-work`
 
 ### Debugging
 
-**`/df:debug [issue description]`**
+**`/debug [issue description]`**
 Systematic debugging with persistent state across context resets.
 
 - Gathers symptoms through adaptive questioning
 - Creates `.planning/debug/[slug].md` to track investigation
 - Investigates using scientific method (evidence → hypothesis → test)
-- Survives `/clear` — run `/df:debug` with no args to resume
+- Survives `/clear` — run `/debug` with no args to resume
 - Archives resolved issues to `.planning/debug/resolved/`
 
-Usage: `/df:debug "login button doesn't work"`
-Usage: `/df:debug` (resume active session)
+Usage: `/debug "login button doesn't work"`
+Usage: `/debug` (resume active session)
 
 ### Todo Management
 
-**`/df:add-todo [description]`**
+**`/add-todo [description]`**
 Capture idea or task as todo from current conversation.
 
 - Extracts context from conversation (or uses provided description)
@@ -273,24 +273,24 @@ Capture idea or task as todo from current conversation.
 - Checks for duplicates before creating
 - Updates STATE.md todo count
 
-Usage: `/df:add-todo` (infers from conversation)
-Usage: `/df:add-todo Add auth token refresh`
+Usage: `/add-todo` (infers from conversation)
+Usage: `/add-todo Add auth token refresh`
 
-**`/df:check-todos [area]`**
+**`/check-todos [area]`**
 List pending todos and select one to work on.
 
 - Lists all pending todos with title, area, age
-- Optional area filter (e.g., `/df:check-todos api`)
+- Optional area filter (e.g., `/check-todos api`)
 - Loads full context for selected todo
 - Routes to appropriate action (work now, add to objective, brainstorm)
 - Moves todo to done/ when work begins
 
-Usage: `/df:check-todos`
-Usage: `/df:check-todos api`
+Usage: `/check-todos`
+Usage: `/check-todos api`
 
 ### User Acceptance Testing
 
-**`/df:verify-work [objective]`**
+**`/verify-work [objective]`**
 Validate built features through conversational UAT.
 
 - Extracts testable deliverables from SUMMARY.md files
@@ -298,11 +298,11 @@ Validate built features through conversational UAT.
 - Automatically diagnoses failures and creates fix plans
 - Ready for re-execution if issues found
 
-Usage: `/df:verify-work 3`
+Usage: `/verify-work 3`
 
 ### Milestone Auditing
 
-**`/df:audit-milestone [version]`**
+**`/audit-milestone [version]`**
 Audit milestone completion against original intent.
 
 - Reads all objective VERIFICATION.md files
@@ -310,41 +310,41 @@ Audit milestone completion against original intent.
 - Spawns integration checker for cross-objective wiring
 - Creates MILESTONE-AUDIT.md with gaps and tech debt
 
-Usage: `/df:audit-milestone`
+Usage: `/audit-milestone`
 
-**`/df:plan-milestone-gaps`**
+**`/plan-milestone-gaps`**
 Create objectives to close gaps identified by audit.
 
 - Reads MILESTONE-AUDIT.md and groups gaps into objectives
 - Prioritizes by requirement priority (must/should/nice)
 - Adds gap closure objectives to ROADMAP.md
-- Ready for `/df:plan-objective` on new objectives
+- Ready for `/plan-objective` on new objectives
 
-Usage: `/df:plan-milestone-gaps`
+Usage: `/plan-milestone-gaps`
 
 ### Configuration
 
-**`/df:settings`**
+**`/settings`**
 Configure workflow toggles and model profile interactively.
 
 - Toggle researcher, job checker, verifier agents
 - Select model profile (quality/balanced/budget)
 - Updates `.planning/config.json`
 
-Usage: `/df:settings`
+Usage: `/settings`
 
-**`/df:set-profile <profile>`**
+**`/set-profile <profile>`**
 Quick switch model profile for DevFlow agents.
 
 - `quality` — Opus everywhere except verification
 - `balanced` — Opus for planning, Sonnet for execution (default)
 - `budget` — Sonnet for writing, Haiku for research/verification
 
-Usage: `/df:set-profile budget`
+Usage: `/set-profile budget`
 
 ### Utility Commands
 
-**`/df:cleanup`**
+**`/cleanup`**
 Archive accumulated objective directories from completed milestones.
 
 - Identifies objectives from completed milestones still in `.planning/objectives/`
@@ -352,12 +352,12 @@ Archive accumulated objective directories from completed milestones.
 - Moves objective dirs to `.planning/milestones/v{X.Y}-objectives/`
 - Use after multiple milestones to reduce `.planning/objectives/` clutter
 
-Usage: `/df:cleanup`
+Usage: `/cleanup`
 
-**`/df:help`**
+**`/help`**
 Show this command reference.
 
-**`/df:update`**
+**`/update`**
 Update DevFlow to latest version with changelog preview.
 
 - Shows installed vs latest version comparison
@@ -366,15 +366,15 @@ Update DevFlow to latest version with changelog preview.
 - Confirms before running install
 - Better than raw `npx devflow-cc`
 
-Usage: `/df:update`
+Usage: `/update`
 
-**`/df:join-discord`**
+**`/join-discord`**
 Join the DevFlow Discord community.
 
 - Get help, share what you're building, stay updated
 - Connect with other DevFlow users
 
-Usage: `/df:join-discord`
+Usage: `/join-discord`
 
 ## Files & Structure
 
@@ -392,7 +392,7 @@ Usage: `/df:join-discord`
 ├── milestones/
 │   ├── v1.0-ROADMAP.md       # Archived roadmap snapshot
 │   ├── v1.0-REQUIREMENTS.md  # Archived requirements
-│   └── v1.0-objectives/          # Archived objective dirs (via /df:cleanup or --archive-objectives)
+│   └── v1.0-objectives/          # Archived objective dirs (via /cleanup or --archive-objectives)
 │       ├── 01-foundation/
 │       └── 02-core-features/
 ├── codebase/             # Codebase map (brownfield projects)
@@ -414,7 +414,7 @@ Usage: `/df:join-discord`
 
 ## Workflow Modes
 
-Set during `/df:new-project`:
+Set during `/new-project`:
 
 **Interactive Mode**
 
@@ -462,66 +462,84 @@ Example config:
 **Starting a new project:**
 
 ```
-/df:new-project        # Unified flow: questioning → research → requirements → roadmap
+/new-project        # Unified flow: questioning → research → requirements → roadmap
 /clear
-/df:plan-objective 1       # Create plans for first objective
+/plan-objective 1       # Create plans for first objective
 /clear
-/df:execute-objective 1    # Execute all jobs in objective
+/execute-objective 1    # Execute all jobs in objective
 ```
 
 **Resuming work after a break:**
 
 ```
-/df:progress  # See where you left off and continue
+/progress  # See where you left off and continue
 ```
 
 **Adding urgent mid-milestone work:**
 
 ```
-/df:insert-objective 5 "Critical security fix"
-/df:plan-objective 5.1
-/df:execute-objective 5.1
+/insert-objective 5 "Critical security fix"
+/plan-objective 5.1
+/execute-objective 5.1
 ```
 
 **Running independent objectives in parallel:**
 
 ```
-/df:workstreams setup     # Analyze deps, create worktrees
+/workstreams setup     # Analyze deps, create worktrees
 # Open terminals in each worktree, run plan-objective + execute-objective
-/df:workstreams status    # Check progress
-/df:workstreams merge     # Merge when done, advance to join objective
+/workstreams status    # Check progress
+/workstreams merge     # Merge when done, advance to join objective
 ```
 
 **Completing a milestone:**
 
 ```
-/df:complete-milestone 1.0.0
+/complete-milestone 1.0.0
 /clear
-/df:new-milestone  # Start next milestone (questioning → research → requirements → roadmap)
+/new-milestone  # Start next milestone (questioning → research → requirements → roadmap)
 ```
 
 **Capturing ideas during work:**
 
 ```
-/df:add-todo                    # Capture from conversation context
-/df:add-todo Fix modal z-index  # Capture with explicit description
-/df:check-todos                 # Review and work on todos
-/df:check-todos api             # Filter by area
+/add-todo                    # Capture from conversation context
+/add-todo Fix modal z-index  # Capture with explicit description
+/check-todos                 # Review and work on todos
+/check-todos api             # Filter by area
 ```
 
 **Debugging an issue:**
 
 ```
-/df:debug "form submission fails silently"  # Start debug session
+/debug "form submission fails silently"  # Start debug session
 # ... investigation happens, context fills up ...
 /clear
-/df:debug                                    # Resume from where you left off
+/debug                                    # Resume from where you left off
 ```
+
+## Built-in Claude Code Integrations
+
+DevFlow works alongside Claude Code's built-in features:
+
+**`/loop` — Recurring monitoring:**
+
+```
+/loop 10m /progress       # Check project status every 10 minutes
+/loop 5m /health          # Monitor .planning/ integrity during builds
+/loop 15m /check-todos    # Periodic todo reminders
+```
+
+Use `/loop` during long `/execute-objective` runs to track progress without switching context.
+
+**Plan Mode — Pre-build alignment:**
+
+Claude Code's built-in plan mode (`EnterPlanMode`) is used by `/build` and `/plan-objective` to present the execution strategy before spawning expensive agent pipelines. This lets you review and approve the approach (objective scope, agent assignments, research decisions) before any work begins.
 
 ## Getting Help
 
 - Read `.planning/PROJECT.md` for project vision
 - Read `.planning/STATE.md` for current context
 - Check `.planning/ROADMAP.md` for objective status
-- Run `/df:progress` to check where you're up to
+- Run `/progress` to check where you're up to
 </reference>

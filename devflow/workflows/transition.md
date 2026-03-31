@@ -384,8 +384,8 @@ cd {main_worktree_path}
 ```
 
 Then run:
-- `/df:workstreams status` — see all workstream progress
-- `/df:workstreams merge` — merge when all workstreams are done
+- `/workstreams status` — see all workstream progress
+- `/workstreams merge` — merge when all workstreams are done
 ```
 
 Do NOT offer to plan the next sequential objective — this worktree only owns its assigned objectives. The join objective will be planned from the main worktree after merge.
@@ -414,7 +414,7 @@ Next: Objective [X+1] — [Name]
 ⚡ Auto-continuing: Plan Objective [X+1]
 ```
 
-Exit skill and invoke SlashCommand("/df:plan-objective [X+1] --auto")
+Exit skill and invoke SlashCommand("/plan-objective [X+1] --auto")
 
 </if>
 
@@ -429,12 +429,12 @@ Exit skill and invoke SlashCommand("/df:plan-objective [X+1] --auto")
 
 **Objective [X+1]: [Name]** — [Goal from ROADMAP.md]
 
-`/df:plan-objective [X+1]`
+`/plan-objective [X+1]`
 
 ---
 
 **Also available:**
-- `/df:research-objective [X+1]` — investigate unknowns first
+- `/research-objective [X+1]` — investigate unknowns first
 
 ---
 ```
@@ -460,7 +460,7 @@ Objective {X} marked complete.
 ⚡ Auto-continuing: Complete milestone and archive
 ```
 
-Exit skill and invoke SlashCommand("/df:complete-milestone {version}")
+Exit skill and invoke SlashCommand("/complete-milestone {version}")
 
 </if>
 
@@ -477,7 +477,7 @@ Exit skill and invoke SlashCommand("/df:complete-milestone {version}")
 
 **Complete Milestone {version}** — archive and prepare for next
 
-`/df:complete-milestone {version}`
+`/complete-milestone {version}`
 
 
 ---

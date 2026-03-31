@@ -82,12 +82,12 @@ Continue to spawn_agents.
 </step>
 
 <step name="spawn_agents">
-Spawn parallel df-security-auditor agents based on focus filter.
+Spawn parallel security-auditor agents based on focus filter.
 
 Use Task tool with `subagent_type="general-purpose"`, `model="{auditor_model}"`, and `run_in_background=true` for parallel execution.
 
 **IMPORTANT:** Each agent prompt must include:
-- The agent definition to follow (reference `@~/.claude/agents/df-security-auditor.md`)
+- The agent definition to follow (reference `@~/.claude/agents/security-auditor.md`)
 - The focus mode
 - The detected stack
 - The scope (if any)
@@ -104,7 +104,7 @@ description: "Audit secrets and code"
 
 Prompt:
 ```
-You are a security auditor. Follow the agent definition and process in ~/.claude/agents/df-security-auditor.md
+You are a security auditor. Follow the agent definition and process in ~/.claude/agents/security-auditor.md
 
 Focus: secrets-and-code
 Stack: {stack from init}
@@ -127,7 +127,7 @@ description: "Audit auth and access"
 
 Prompt:
 ```
-You are a security auditor. Follow the agent definition and process in ~/.claude/agents/df-security-auditor.md
+You are a security auditor. Follow the agent definition and process in ~/.claude/agents/security-auditor.md
 
 Focus: auth-and-access
 Stack: {stack from init}
@@ -150,7 +150,7 @@ description: "Audit config and deps"
 
 Prompt:
 ```
-You are a security auditor. Follow the agent definition and process in ~/.claude/agents/df-security-auditor.md
+You are a security auditor. Follow the agent definition and process in ~/.claude/agents/security-auditor.md
 
 Focus: config-and-deps
 Stack: {stack from init}

@@ -56,9 +56,9 @@ Agents will now use:
 Example:
 | Agent | Model |
 |-------|-------|
-| df-planner | opus |
-| df-executor | sonnet |
-| df-verifier | haiku |
+| planner | opus |
+| executor | sonnet |
+| verifier | haiku |
 | ... | ... |
 
 Next spawned agents will use the new profile.

@@ -1,6 +1,6 @@
 # Task Requirements Document (TRD) Template
 
-> **Note:** Planning methodology is in `agents/df-planner.md`.
+> **Note:** Planning methodology is in `agents/planner.md`.
 > This template defines the TRD.md output format that the agent produces.
 > TRD replaces JOB.md as the primary execution document. Old JOB.md files still work for backward compatibility.
 

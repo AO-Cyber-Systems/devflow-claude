@@ -6,17 +6,17 @@ Model profiles control which Claude model each DevFlow agent uses. This allows b
 
 | Agent | `quality` | `balanced` | `budget` |
 |-------|-----------|------------|----------|
-| df-planner | opus | opus | sonnet |
-| df-roadmapper | opus | sonnet | sonnet |
-| df-executor | opus | sonnet | sonnet |
-| df-objective-researcher | opus | sonnet | haiku |
-| df-project-researcher | opus | sonnet | haiku |
-| df-research-synthesizer | sonnet | sonnet | haiku |
-| df-debugger | opus | sonnet | sonnet |
-| df-codebase-mapper | sonnet | haiku | haiku |
-| df-verifier | sonnet | sonnet | haiku |
-| df-job-checker | sonnet | sonnet | haiku |
-| df-integration-checker | sonnet | sonnet | haiku |
+| planner | opus | opus | sonnet |
+| roadmapper | opus | sonnet | sonnet |
+| executor | opus | sonnet | sonnet |
+| objective-researcher | opus | sonnet | haiku |
+| project-researcher | opus | sonnet | haiku |
+| research-synthesizer | sonnet | sonnet | haiku |
+| debugger | opus | sonnet | sonnet |
+| codebase-mapper | sonnet | haiku | haiku |
+| verifier | sonnet | sonnet | haiku |
+| job-checker | sonnet | sonnet | haiku |
+| integration-checker | sonnet | sonnet | haiku |
 
 ## Profile Philosophy
 
@@ -55,8 +55,8 @@ Override specific agents without changing the entire profile:
 {
   "model_profile": "balanced",
   "model_overrides": {
-    "df-executor": "opus",
-    "df-planner": "haiku"
+    "executor": "opus",
+    "planner": "haiku"
   }
 }
 ```
@@ -65,7 +65,7 @@ Overrides take precedence over the profile. Valid values: `opus`, `sonnet`, `hai
 
 ## Switching Profiles
 
-Runtime: `/df:set-profile <profile>`
+Runtime: `/set-profile <profile>`
 
 Per-project default: Set in `.planning/config.json`:
 ```json
@@ -108,23 +108,23 @@ Orchestrators assess complexity before spawning agents:
 
 ### Safety Rules
 
-- **Never downgrade df-executor below sonnet** — code-writing agents need sufficient reasoning
-- **Never downgrade df-planner below sonnet** — architecture decisions require reasoning
+- **Never downgrade executor below sonnet** — code-writing agents need sufficient reasoning
+- **Never downgrade planner below sonnet** — architecture decisions require reasoning
 - **Overrides are per-spawn, not persistent** — each spawn re-evaluates complexity
 - **User model_overrides in config.json take precedence** over complexity-based overrides
 
 ## Design Rationale
 
-**Why Opus for df-planner?**
+**Why Opus for planner?**
 Planning involves architecture decisions, goal decomposition, and task design. This is where model quality has the highest impact.
 
-**Why Sonnet for df-executor?**
+**Why Sonnet for executor?**
 Executors follow explicit JOB.md instructions. The plan already contains the reasoning; execution is implementation.
 
 **Why Sonnet (not Haiku) for verifiers in balanced?**
 Verification requires goal-backward reasoning - checking if code *delivers* what the objective promised, not just pattern matching. Sonnet handles this well; Haiku may miss subtle gaps.
 
-**Why Haiku for df-codebase-mapper?**
+**Why Haiku for codebase-mapper?**
 Read-only exploration and pattern extraction. No reasoning required, just structured output from file contents.
 
 **Why `inherit` instead of passing `opus` directly?**

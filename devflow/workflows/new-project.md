@@ -23,7 +23,7 @@ Check if `--auto` flag is present in $ARGUMENTS.
 
 **Document requirement:**
 Auto mode requires an idea document — either:
-- File reference: `/df:new-project --auto @prd.md`
+- File reference: `/new-project --auto @prd.md`
 - Pasted/written text in the prompt
 
 If no document content provided, error:
@@ -32,8 +32,8 @@ If no document content provided, error:
 Error: --auto requires an idea document.
 
 Usage:
-  /df:new-project --auto @your-idea.md
-  /df:new-project --auto [paste or write your idea here]
+  /new-project --auto @your-idea.md
+  /new-project --auto [paste or write your idea here]
 
 The document should describe what you want to build.
 ```
@@ -51,7 +51,7 @@ INIT=$(node ~/.claude/devflow/bin/df-tools.cjs init new-project)
 
 Parse JSON for: `researcher_model`, `synthesizer_model`, `roadmapper_model`, `commit_docs`, `project_exists`, `has_codebase_map`, `planning_exists`, `has_existing_code`, `has_package_file`, `is_brownfield`, `needs_codebase_map`, `has_git`.
 
-**If `project_exists` is true:** Error — project already initialized. Use `/df:progress`.
+**If `project_exists` is true:** Error — project already initialized. Use `/progress`.
 
 **If `has_git` is false:** Initialize git:
 ```bash
@@ -68,12 +68,12 @@ Use AskUserQuestion:
 - header: "Codebase"
 - question: "I detected existing code in this directory. Would you like to map the codebase first?"
 - options:
-  - "Map codebase first" — Run /df:map-codebase to understand existing architecture (Recommended)
+  - "Map codebase first" — Run /map-codebase to understand existing architecture (Recommended)
   - "Skip mapping" — Proceed with project initialization
 
 **If "Map codebase first":**
 ```
-Run `/df:map-codebase` first, then return to `/df:new-project`
+Run `/map-codebase` first, then return to `/new-project`
 ```
 Exit command.
 
@@ -356,7 +356,7 @@ Using smart defaults:
 - Parallelization: Enabled
 - Git tracking: Yes
 
-Run `/df:settings` anytime to customize.
+Run `/settings` anytime to customize.
 ```
 
 **Check for `--interactive` flag:** If present, expand the full question flow below. Otherwise, use defaults.
@@ -434,7 +434,7 @@ Create `.planning/config.json` with settings (defaults + any overrides):
 node ~/.claude/devflow/bin/df-tools.cjs commit "chore: add project config" --files .planning/config.json
 ```
 
-**Note:** Run `/df:settings` anytime to update these preferences.
+**Note:** Run `/settings` anytime to update these preferences.
 
 ## 5.5. Resolve Model Profile
 
@@ -492,10 +492,10 @@ TaskCreate(subject="Research: Architecture", description="Analyzing system struc
 TaskCreate(subject="Research: Pitfalls", description="Finding common mistakes and prevention strategies", activeForm="Researching pitfalls")
 ```
 
-Spawn 4 parallel df-project-researcher agents with rich context:
+Spawn 4 parallel project-researcher agents with rich context:
 
 ```
-Task(prompt="First, read ~/.claude/agents/df-project-researcher.md for your role and instructions.
+Task(prompt="First, read ~/.claude/agents/project-researcher.md for your role and instructions.
 
 <research_type>
 Project Research — Stack dimension for [domain].
@@ -535,7 +535,7 @@ Use template: ~/.claude/devflow/templates/research-project/STACK.md
 </output>
 ", subagent_type="general-purpose", model="{researcher_model}", description="Stack research")
 
-Task(prompt="First, read ~/.claude/agents/df-project-researcher.md for your role and instructions.
+Task(prompt="First, read ~/.claude/agents/project-researcher.md for your role and instructions.
 
 <research_type>
 Project Research — Features dimension for [domain].
@@ -575,7 +575,7 @@ Use template: ~/.claude/devflow/templates/research-project/FEATURES.md
 </output>
 ", subagent_type="general-purpose", model="{researcher_model}", description="Features research")
 
-Task(prompt="First, read ~/.claude/agents/df-project-researcher.md for your role and instructions.
+Task(prompt="First, read ~/.claude/agents/project-researcher.md for your role and instructions.
 
 <research_type>
 Project Research — Architecture dimension for [domain].
@@ -615,7 +615,7 @@ Use template: ~/.claude/devflow/templates/research-project/ARCHITECTURE.md
 </output>
 ", subagent_type="general-purpose", model="{researcher_model}", description="Architecture research")
 
-Task(prompt="First, read ~/.claude/agents/df-project-researcher.md for your role and instructions.
+Task(prompt="First, read ~/.claude/agents/project-researcher.md for your role and instructions.
 
 <research_type>
 Project Research — Pitfalls dimension for [domain].
@@ -673,7 +673,7 @@ TaskCreate(subject="Synthesize research", description="Combining 4 research outp
 
 **Model optimization for synthesizer:**
 
-Calculate total research output size. If all 4 research files combined are < 3000 words: use haiku for synthesis (simple aggregation task). Otherwise: use `synthesizer_model` from profile. Log override if applied: `Model override: df-research-synthesizer {synthesizer_model} → haiku (reason: small research output)`
+Calculate total research output size. If all 4 research files combined are < 3000 words: use haiku for synthesis (simple aggregation task). Otherwise: use `synthesizer_model` from profile. Log override if applied: `Model override: research-synthesizer {synthesizer_model} → haiku (reason: small research output)`
 
 Spawn synthesizer to create SUMMARY.md:
 
@@ -696,7 +696,7 @@ Write to: .planning/research/SUMMARY.md
 Use template: ~/.claude/devflow/templates/research-project/SUMMARY.md
 Commit after writing.
 </output>
-", subagent_type="df-research-synthesizer", model="{synthesizer_model}", description="Synthesize research")
+", subagent_type="research-synthesizer", model="{synthesizer_model}", description="Synthesize research")
 ```
 
 **Update progress (if available):**
@@ -882,7 +882,7 @@ Display stage banner:
 TaskCreate(subject="Create roadmap", description="Deriving objectives from requirements, mapping coverage, defining success criteria", activeForm="Creating roadmap")
 ```
 
-Spawn df-roadmapper agent with context:
+Spawn roadmapper agent with context:
 
 ```
 Task(prompt="
@@ -913,7 +913,7 @@ Create roadmap:
 
 Write files first, then return. This ensures artifacts persist even if context is lost.
 </instructions>
-", subagent_type="df-roadmapper", model="{roadmapper_model}", description="Create roadmap")
+", subagent_type="roadmapper", model="{roadmapper_model}", description="Create roadmap")
 ```
 
 **Update progress (if available):**
@@ -996,7 +996,7 @@ Use AskUserQuestion:
   Update the roadmap based on feedback. Edit files in place.
   Return ROADMAP REVISED with changes made.
   </revision>
-  ", subagent_type="df-roadmapper", model="{roadmapper_model}", description="Revise roadmap")
+  ", subagent_type="roadmapper", model="{roadmapper_model}", description="Revise roadmap")
   ```
 - Present revised roadmap
 - Loop until user approves
@@ -1039,7 +1039,7 @@ Present completion summary:
 ╚══════════════════════════════════════════╝
 ```
 
-Exit skill and invoke SlashCommand("/df:plan-objective 1 --auto")
+Exit skill and invoke SlashCommand("/plan-objective 1 --auto")
 
 **If interactive mode:**
 
@@ -1050,13 +1050,13 @@ Exit skill and invoke SlashCommand("/df:plan-objective 1 --auto")
 
 **Objective 1: [Objective Name]** — [Goal from ROADMAP.md]
 
-/df:plan-objective 1 — plan the first objective
+/plan-objective 1 — plan the first objective
 
 
 ---
 
 **Also available:**
-- /df:build 1 — plan and execute in one command
+- /build 1 — plan and execute in one command
 
 ───────────────────────────────────────────────────────────────
 ```
@@ -1091,13 +1091,13 @@ Exit skill and invoke SlashCommand("/df:plan-objective 1 --auto")
 - [ ] Requirements gathered (from research or conversation)
 - [ ] User scoped each category (v1/v2/out of scope)
 - [ ] REQUIREMENTS.md created with REQ-IDs → **committed**
-- [ ] df-roadmapper spawned with context
+- [ ] roadmapper spawned with context
 - [ ] Roadmap files written immediately (not draft)
 - [ ] User feedback incorporated (if any)
 - [ ] ROADMAP.md created with objectives, requirement mappings, success criteria
 - [ ] STATE.md initialized
 - [ ] REQUIREMENTS.md traceability updated
-- [ ] User knows next step is `/df:plan-objective 1`
+- [ ] User knows next step is `/plan-objective 1`
 
 **Atomic commits:** Each objective commits its artifacts immediately. If context is lost, artifacts persist.
 

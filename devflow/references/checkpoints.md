@@ -825,7 +825,7 @@ All of these conditions must be true:
 
 These patterns may benefit from resume in future evaluations:
 
-- **df-debugger interactive mode** — Single-threaded investigation, linear hypothesis testing, long sessions
+- **debugger interactive mode** — Single-threaded investigation, linear hypothesis testing, long sessions
 - **Simple executor plans** — Single auto task + checkpoint, minimal file state
 
 ### NOT Candidates for Resume

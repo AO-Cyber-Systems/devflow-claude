@@ -120,7 +120,7 @@ Exit.
 ⚠️  **Note:** The installer performs a clean install of DevFlow folders:
 - `commands/gsd/` will be wiped and replaced
 - `devflow/` will be wiped and replaced
-- `agents/df-*` files will be replaced
+- `agents/*` files will be replaced
 
 (Paths are relative to your install location: `~/.claude/` for global, `./.claude/` for local)
 
@@ -130,7 +130,7 @@ Your custom files in other locations are preserved:
 - Custom hooks ✓
 - Your CLAUDE.md files ✓
 
-If you've modified any DevFlow files directly, they'll be automatically backed up to `df-local-patches/` and can be reapplied with `/df:reapply-patches` after the update.
+If you've modified any DevFlow files directly, they'll be automatically backed up to `df-local-patches/` and can be reapplied with `/reapply-patches` after the update.
 ```
 
 Use AskUserQuestion:
@@ -195,7 +195,7 @@ Check for df-local-patches/backup-meta.json in the config directory.
 
 ```
 Local patches were backed up before the update.
-Run /df:reapply-patches to merge your modifications into the new version.
+Run /reapply-patches to merge your modifications into the new version.
 ```
 
 **If no patches:** Continue normally.

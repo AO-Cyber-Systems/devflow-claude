@@ -7,8 +7,8 @@ Template for `.planning/objectives/XX-name/{phase_num}-CONTEXT.md` - captures im
 **Key principle:** Categories are NOT predefined. They emerge from what was actually discussed for THIS objective. A CLI objective has CLI-relevant sections, a UI objective has UI-relevant sections.
 
 **Downstream consumers:**
-- `df-objective-researcher` — Reads decisions to focus research (e.g., "card layout" → research card component patterns)
-- `df-planner` — Reads decisions to create specific tasks (e.g., "infinite scroll" → task includes virtualization)
+- `objective-researcher` — Reads decisions to focus research (e.g., "card layout" → research card component patterns)
+- `planner` — Reads decisions to create specific tasks (e.g., "infinite scroll" → task includes virtualization)
 
 ---
 
@@ -277,7 +277,7 @@ The output should answer: "What does the researcher need to investigate? What ch
 
 **After creation:**
 - File lives in objective directory: `.planning/objectives/XX-name/{phase_num}-CONTEXT.md`
-- `df-objective-researcher` uses decisions to focus investigation
-- `df-planner` uses decisions + research to create executable tasks
+- `objective-researcher` uses decisions to focus investigation
+- `planner` uses decisions + research to create executable tasks
 - Downstream agents should NOT need to ask the user again about captured decisions
 </guidelines>

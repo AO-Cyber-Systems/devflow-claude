@@ -179,13 +179,13 @@ Display:
 | Git Branching        | {None/Per Objective/Per Milestone} |
 | Saved as Defaults    | {Yes/No} |
 
-These settings apply to future /df:plan-objective and /df:execute-objective runs.
+These settings apply to future /plan-objective and /execute-objective runs.
 
 Quick commands:
-- /df:set-profile <profile> — switch model profile
-- /df:plan-objective --research — force research
-- /df:plan-objective --skip-research — skip research
-- /df:plan-objective --skip-verify — skip plan check
+- /set-profile <profile> — switch model profile
+- /plan-objective --research — force research
+- /plan-objective --skip-research — skip research
+- /plan-objective --skip-verify — skip plan check
 ```
 </step>
 

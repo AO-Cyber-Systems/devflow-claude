@@ -27,7 +27,7 @@ Parse JSON for: `state_exists`, `roadmap_exists`, `project_exists`, `planning_ex
 
 **If `state_exists` is true:** Proceed to load_state
 **If `state_exists` is false but `roadmap_exists` or `project_exists` is true:** Offer to reconstruct STATE.md
-**If `planning_exists` is false:** This is a new project - route to /df:new-project
+**If `planning_exists` is false:** This is a new project - route to /new-project
 </step>
 
 <step name="load_state">
@@ -124,7 +124,7 @@ Present complete project status to user:
     Resume with: Task tool (resume parameter with agent ID)
 
 [If pending todos exist:]
-📋 [N] pending todos — /df:check-todos to review
+📋 [N] pending todos — /check-todos to review
 
 [If blockers exist:]
 ⚠️  Carried concerns:
@@ -180,11 +180,11 @@ What would you like to do?
 [Primary action based on state - e.g.:]
 1. Resume interrupted agent [if interrupted agent found]
    OR
-1. Execute objective (/df:execute-objective {objective})
+1. Execute objective (/execute-objective {objective})
    OR
-1. Discuss Objective 3 context (/df:discuss-objective 3) [if CONTEXT.md missing]
+1. Discuss Objective 3 context (/discuss-objective 3) [if CONTEXT.md missing]
    OR
-1. Plan Objective 3 (/df:plan-objective 3) [if CONTEXT.md exists or discuss option declined]
+1. Plan Objective 3 (/plan-objective 3) [if CONTEXT.md exists or discuss option declined]
 
 [Secondary options:]
 2. Review current objective status
@@ -215,7 +215,7 @@ Based on user selection, route to appropriate workflow:
 
   **{objective}-{job}: [Plan Name]** — [objective from JOB.md]
 
-  `/df:execute-objective {objective}`
+  `/execute-objective {objective}`
 
   <sub>`/clear` first → fresh context window</sub>
 
@@ -229,15 +229,15 @@ Based on user selection, route to appropriate workflow:
 
   **Objective [N]: [Name]** — [Goal from ROADMAP.md]
 
-  `/df:plan-objective [phase-number]`
+  `/plan-objective [phase-number]`
 
   <sub>`/clear` first → fresh context window</sub>
 
   ---
 
   **Also available:**
-  - `/df:discuss-objective [N]` — gather context first
-  - `/df:research-objective [N]` — investigate unknowns
+  - `/discuss-objective [N]` — gather context first
+  - `/research-objective [N]` — investigate unknowns
 
   ---
   ```

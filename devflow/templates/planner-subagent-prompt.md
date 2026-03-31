@@ -1,6 +1,6 @@
 # Planner Subagent Prompt Template
 
-Template for spawning df-planner agent. The agent contains all planning expertise - this template provides planning context only.
+Template for spawning planner agent. The agent contains all planning expertise - this template provides planning context only.
 
 ---
 
@@ -34,7 +34,7 @@ Template for spawning df-planner agent. The agent contains all planning expertis
 </planning_context>
 
 <downstream_consumer>
-Output consumed by /df:execute-objective
+Output consumed by /execute-objective
 Plans must be executable prompts with:
 - Frontmatter (wave, depends_on, files_modified, autonomous)
 - Tasks in XML format
@@ -68,20 +68,20 @@ Before returning PLANNING COMPLETE:
 
 ## Usage
 
-**From /df:plan-objective (standard mode):**
+**From /plan-objective (standard mode):**
 ```python
 Task(
   prompt=filled_template,
-  subagent_type="df-planner",
+  subagent_type="planner",
   description="Plan Objective {objective}"
 )
 ```
 
-**From /df:plan-objective --gaps (gap closure mode):**
+**From /plan-objective --gaps (gap closure mode):**
 ```python
 Task(
   prompt=filled_template,  # with mode: gap_closure
-  subagent_type="df-planner",
+  subagent_type="planner",
   description="Plan gaps for Objective {objective}"
 )
 ```
@@ -114,4 +114,4 @@ Continue: {standard | gap_closure}
 
 ---
 
-**Note:** Planning methodology, task breakdown, dependency analysis, wave assignment, TDD detection, and goal-backward derivation are baked into the df-planner agent. This template only passes context.
+**Note:** Planning methodology, task breakdown, dependency analysis, wave assignment, TDD detection, and goal-backward derivation are baked into the planner agent. This template only passes context.

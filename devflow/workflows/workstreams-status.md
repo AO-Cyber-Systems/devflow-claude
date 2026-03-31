@@ -23,7 +23,7 @@ Read workstreams data:
 cat .planning/workstreams.json 2>/dev/null
 ```
 
-If not found: "No active workstreams. Use `/df:workstreams setup` to create them."
+If not found: "No active workstreams. Use `/workstreams setup` to create them."
 
 If status is "merged": "All workstreams have been merged. Ready for next objective."
 
@@ -78,7 +78,7 @@ ls {worktree_path}/.planning/objectives/*-SUMMARY.md 2>/dev/null | wc -l
 {If all workstreams complete:}
 All workstreams complete. Ready to merge:
 
-`/df:workstreams merge`
+`/workstreams merge`
 
 {If some workstreams complete, some not:}
 ### Next Steps

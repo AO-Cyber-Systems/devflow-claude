@@ -1,5 +1,5 @@
 <purpose>
-Create executable objective prompts (TRD.md files) for a roadmap objective with optional inline discussion, integrated research, and verification. Default flow: Discuss (brief, optional) -> Research (if needed) -> Plan -> Verify -> Done. Orchestrates df-objective-researcher, df-planner, and df-job-checker agents with a revision loop (max 3 iterations).
+Create executable objective prompts (TRD.md files) for a roadmap objective with optional inline discussion, integrated research, and verification. Default flow: Discuss (brief, optional) -> Research (if needed) -> Plan -> Verify -> Done. Orchestrates objective-researcher, planner, and job-checker agents with a revision loop (max 3 iterations).
 </purpose>
 
 <required_reading>
@@ -32,7 +32,7 @@ Parse JSON for: `researcher_model`, `planner_model`, `checker_model`, `research_
 
 **File contents (from --include):** `state_content`, `roadmap_content`, `requirements_content`, `context_content`, `research_content`, `verification_content`, `uat_content`. These are null if files don't exist.
 
-**If `planning_exists` is false:** Error — run `/df:new-project` first.
+**If `planning_exists` is false:** Error — run `/new-project` first.
 
 ## 2. Parse and Normalize Arguments
 
@@ -88,13 +88,36 @@ If user selects "Let me specify": Capture their response as `user_preferences` t
 
 **If `--skip-discuss` flag is set:** Skip discussion, proceed directly to step 5.
 
-> **Legacy CONTEXT.md support:** If a CONTEXT.md exists from a prior `/df:discuss-objective` session, it is still loaded and honored. New projects use inline discussion instead.
+> **Legacy CONTEXT.md support:** If a CONTEXT.md exists from a prior `/discuss-objective` session, it is still loaded and honored. New projects use inline discussion instead.
 
-## 5. Handle Research
+## 5. Present Planning Strategy (EnterPlanMode)
+
+**Skip if:** `--auto` flag, `--gaps` flag, or config `workflow.auto_advance` is true.
+
+Use Claude Code's built-in plan mode to present the planning strategy before spawning agents:
+
+```
+EnterPlanMode()
+```
+
+Write a plan summarizing:
+- **Objective {X}:** {objective_name} — {goal}
+- **Steps:** {Research (if enabled)} → Plan → {Verify (if enabled)} → Done
+- **Models:** researcher ({researcher_model}), planner ({planner_model}), checker ({checker_model})
+- **Existing context:** {list any existing RESEARCH.md, CONTEXT.md, or TRDs}
+- **User preferences:** {from discussion step, if any}
+
+```
+ExitPlanMode()
+```
+
+Once user approves, proceed.
+
+## 6. Handle Research
 
 **Skip if:** `--gaps` flag, `--skip-research` flag, or `research_enabled` is false (from init) without `--research` override.
 
-**If `has_research` is true (from init) AND no `--research` flag:** Use existing, skip to step 6.
+**If `has_research` is true (from init) AND no `--research` flag:** Use existing, proceed to step 7.
 
 **If RESEARCH.md missing OR `--research` flag:**
 
@@ -123,7 +146,7 @@ Evaluate research complexity:
 - If objective has > 10 requirements or spans multiple subsystems: keep profile model (or upgrade)
 - Standard objectives: use `researcher_model` from profile
 
-### Spawn df-objective-researcher
+### Spawn objective-researcher
 
 ```bash
 PHASE_DESC=$(node ~/.claude/devflow/bin/df-tools.cjs roadmap get-objective "${OBJECTIVE}" | jq -r '.section')
@@ -152,20 +175,20 @@ If context/preferences exist below, they contain user decisions.
 </phase_context>
 
 <additional_context>
-**Objective description:** {phase_description}
-**Objective requirement IDs (MUST address):** {objective_req_ids}
-**Requirements:** {requirements}
-**Prior decisions:** {decisions}
+**Objective description:** {PHASE_DESC}
+**Objective requirement IDs (MUST address):** {OBJECTIVE_REQ_IDS}
+**Requirements:** {REQUIREMENTS}
+**Prior decisions:** {decisions from STATE_SNAP}
 </additional_context>
 
 <output>
-Write to: {objective_dir}/{phase_num}-RESEARCH.md
+Write to: {objective_dir}/{padded_objective}-RESEARCH.md
 </output>
 ```
 
 ```
 Task(
-  prompt="First, read ~/.claude/agents/df-objective-researcher.md for your role and instructions.\n\n" + research_prompt,
+  prompt="First, read ~/.claude/agents/objective-researcher.md for your role and instructions.\n\n" + research_prompt,
   subagent_type="general-purpose",
   model="{researcher_model}",
   description="Research Objective {objective}"
@@ -179,10 +202,10 @@ Task(
 TaskUpdate(taskId=research_task_id, status="completed")
 ```
 
-- **`## RESEARCH COMPLETE`:** Display confirmation, continue to step 6
+- **`## RESEARCH COMPLETE`:** Display confirmation, continue to step 7
 - **`## RESEARCH BLOCKED`:** Display blocker, offer: 1) Provide context, 2) Skip research, 3) Abort
 
-## 6. Check Existing TRDs
+## 7. Check Existing TRDs
 
 ```bash
 ls "${OBJECTIVE_DIR}"/*-TRD.md "${OBJECTIVE_DIR}"/*-JOB.md 2>/dev/null
@@ -190,7 +213,7 @@ ls "${OBJECTIVE_DIR}"/*-TRD.md "${OBJECTIVE_DIR}"/*-JOB.md 2>/dev/null
 
 **If exists:** Offer: 1) Add more TRDs, 2) View existing, 3) Replan from scratch.
 
-## 7. Use Context Files from INIT
+## 8. Use Context Files from INIT
 
 All file contents are already loaded via `--include` in step 1 (`@` syntax doesn't work across Task() boundaries):
 
@@ -205,7 +228,7 @@ UAT_CONTENT=$(echo "$INIT" | jq -r '.uat_content // empty')
 CONTEXT_CONTENT=$(echo "$INIT" | jq -r '.context_content // empty')
 ```
 
-## 8. Spawn df-planner Agent
+## 9. Spawn planner Agent
 
 Display banner:
 ```
@@ -227,7 +250,7 @@ TaskCreate(
 
 **Model selection for gap-closure mode:**
 
-If `--gaps` flag is set: gap-closure plans are scoped and diagnosed — downgrade planner to sonnet (unless user has a model_override for df-planner in config.json). Log: `Model override: df-planner {planner_model} → sonnet (reason: gap-closure mode)`
+If `--gaps` flag is set: gap-closure plans are scoped and diagnosed — downgrade planner to sonnet (unless user has a model_override for planner in config.json). Log: `Model override: planner {planner_model} → sonnet (reason: gap-closure mode)`
 
 Planner prompt:
 
@@ -254,7 +277,7 @@ If context exists below, it contains user decisions. Honor them exactly.
 </planning_context>
 
 <downstream_consumer>
-Output consumed by /df:execute-objective. Plans need:
+Output consumed by /execute-objective. Plans need:
 - Frontmatter (wave, depends_on, files_modified, autonomous)
 - Tasks in XML format
 - Verification criteria
@@ -273,14 +296,14 @@ Output consumed by /df:execute-objective. Plans need:
 
 ```
 Task(
-  prompt="First, read ~/.claude/agents/df-planner.md for your role and instructions.\n\n" + filled_prompt,
+  prompt="First, read ~/.claude/agents/planner.md for your role and instructions.\n\n" + filled_prompt,
   subagent_type="general-purpose",
   model="{planner_model}",
   description="Plan Objective {objective}"
 )
 ```
 
-## 9. Handle Planner Return
+## 10. Handle Planner Return
 
 **Update progress (if available):**
 ```
@@ -291,7 +314,7 @@ TaskUpdate(taskId=plan_task_id, status="completed")
 - **`## CHECKPOINT REACHED`:** Present to user, get response, spawn continuation (step 12)
 - **`## PLANNING INCONCLUSIVE`:** Show attempts, offer: Add context / Retry / Manual
 
-## 10. Spawn df-job-checker Agent
+## 11. Spawn job-checker Agent
 
 Display banner:
 ```
@@ -344,23 +367,23 @@ Plans MUST honor user decisions. Flag as issue if plans contradict.
 ```
 Task(
   prompt=checker_prompt,
-  subagent_type="df-job-checker",
+  subagent_type="job-checker",
   model="{checker_model}",
   description="Verify Objective {objective} plans"
 )
 ```
 
-## 11. Handle Checker Return
+## 12. Handle Checker Return
 
 **Update progress (if available):**
 ```
 TaskUpdate(taskId=checker_task_id, status="completed")
 ```
 
-- **`## VERIFICATION PASSED`:** Display confirmation. If checker output contains low-confidence plans (score <7 in Confidence Assessment table), display a note: `Note: Plan(s) {NN} scored below 7/10 confidence. Consider /df:research-objective for [topic] before execution.` Don't block — just inform. Proceed to step 13.
+- **`## VERIFICATION PASSED`:** Display confirmation. If checker output contains low-confidence plans (score <7 in Confidence Assessment table), display a note: `Note: Plan(s) {NN} scored below 7/10 confidence. Consider /research-objective for [topic] before execution.` Don't block — just inform. Proceed to step 13.
 - **`## ISSUES FOUND`:** Display issues, check iteration count, proceed to step 12.
 
-## 12. Revision Loop (Max 3 Iterations)
+## 13. Revision Loop (Max 3 Iterations)
 
 Track `iteration_count` (starts at 1 after initial plan + check).
 
@@ -375,7 +398,7 @@ TaskUpdate(taskId=plan_task_id, description="Revision iteration {N}/3 — addres
 
 **Model upgrade on 3rd iteration:**
 
-If `iteration_count == 3` (final attempt): upgrade planner model to opus regardless of profile. The repeated failures suggest subtlety that needs stronger reasoning. Log: `Model override: df-planner {planner_model} → opus (reason: 3rd revision attempt)`
+If `iteration_count == 3` (final attempt): upgrade planner model to opus regardless of profile. The repeated failures suggest subtlety that needs stronger reasoning. Log: `Model override: planner {planner_model} → opus (reason: 3rd revision attempt)`
 
 ```bash
 PLANS_CONTENT=$(cat "${OBJECTIVE_DIR}"/*-TRD.md "${OBJECTIVE_DIR}"/*-JOB.md 2>/dev/null)
@@ -405,7 +428,7 @@ Return what changed.
 
 ```
 Task(
-  prompt="First, read ~/.claude/agents/df-planner.md for your role and instructions.\n\n" + revision_prompt,
+  prompt="First, read ~/.claude/agents/planner.md for your role and instructions.\n\n" + revision_prompt,
   subagent_type="general-purpose",
   model="{planner_model}",
   description="Revise Objective {objective} plans"
@@ -420,11 +443,11 @@ Display: `Max iterations reached. {N} issues remain:` + issue list
 
 Offer: 1) Force proceed, 2) Provide guidance and retry, 3) Abandon
 
-## 13. Present Final Status
+## 14. Present Final Status
 
 Route to `<offer_next>` OR `auto_advance` depending on flags/config.
 
-## 14. Auto-Advance Check
+## 15. Auto-Advance Check
 
 Check for auto-advance trigger:
 
@@ -448,7 +471,7 @@ Plans ready. Spawning execute-objective...
 Spawn execute-objective as Task:
 ```
 Task(
-  prompt="Run /df:execute-objective ${OBJECTIVE} --auto",
+  prompt="Run /execute-objective ${OBJECTIVE} --auto",
   subagent_type="general-purpose",
   description="Execute Objective ${OBJECTIVE}"
 )
@@ -463,14 +486,14 @@ Task(
 
   Auto-advance pipeline finished.
 
-  Next: /df:plan-objective ${NEXT_PHASE} --auto
+  Next: /plan-objective ${NEXT_PHASE} --auto
   ```
 - **GAPS FOUND / VERIFICATION FAILED** → Display result, stop chain:
   ```
   Auto-advance stopped: Execution needs review.
 
   Review the output above and continue manually:
-  /df:execute-objective ${OBJECTIVE}
+  /execute-objective ${OBJECTIVE}
   ```
 
 **If neither `--auto` nor config enabled:**
@@ -502,13 +525,13 @@ Confidence: {Display confidence scores if checker ran, e.g., "01: 8/10, 02: 7/10
 
 **Execute Objective {X}** — run all {N} plans
 
-/df:execute-objective {X}
+/execute-objective {X}
 
 ───────────────────────────────────────────────────────────────
 
 **Also available:**
 - cat .planning/objectives/{objective-dir}/*-TRD.md — review plans
-- /df:plan-objective {X} --research — re-research first
+- /plan-objective {X} --research — re-research first
 
 ───────────────────────────────────────────────────────────────
 </offer_next>
@@ -519,11 +542,11 @@ Confidence: {Display confidence scores if checker ran, e.g., "01: 8/10, 02: 7/10
 - [ ] Objective directory created if needed
 - [ ] CONTEXT.md loaded early (step 4) and passed to ALL agents
 - [ ] Research completed (unless --skip-research or --gaps or exists)
-- [ ] df-objective-researcher spawned with CONTEXT.md
+- [ ] objective-researcher spawned with CONTEXT.md
 - [ ] Existing jobs checked
-- [ ] df-planner spawned with CONTEXT.md + RESEARCH.md
+- [ ] planner spawned with CONTEXT.md + RESEARCH.md
 - [ ] Plans created (PLANNING COMPLETE or CHECKPOINT handled)
-- [ ] df-job-checker spawned with CONTEXT.md
+- [ ] job-checker spawned with CONTEXT.md
 - [ ] Verification passed OR user override OR max iterations with user decision
 - [ ] User sees status between agent spawns
 - [ ] User knows next steps

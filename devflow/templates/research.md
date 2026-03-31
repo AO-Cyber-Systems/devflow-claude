@@ -18,7 +18,7 @@ Template for `.planning/objectives/XX-name/{phase_num}-RESEARCH.md` - comprehens
 <user_constraints>
 ## User Constraints (from CONTEXT.md)
 
-**CRITICAL:** If CONTEXT.md exists from /df:discuss-objective, copy locked decisions here verbatim. These MUST be honored by the jobner.
+**CRITICAL:** If CONTEXT.md exists from /discuss-objective, copy locked decisions here verbatim. These MUST be honored by the jobner.
 
 ### Locked Decisions
 [Copy from CONTEXT.md `## Decisions` section - these are NON-NEGOTIABLE]

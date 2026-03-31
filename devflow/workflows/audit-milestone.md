@@ -18,7 +18,7 @@ Extract from init JSON: `milestone_version`, `milestone_name`, `objective_count`
 
 Resolve integration checker model:
 ```bash
-CHECKER_MODEL=$(node ~/.claude/devflow/bin/df-tools.cjs resolve-model df-integration-checker --raw)
+CHECKER_MODEL=$(node ~/.claude/devflow/bin/df-tools.cjs resolve-model integration-checker --raw)
 ```
 
 ## 1. Determine Milestone Scope
@@ -73,7 +73,7 @@ Milestone Requirements:
 MUST map each integration finding to affected requirement IDs where applicable.
 
 Verify cross-objective wiring and E2E user flows.",
-  subagent_type="df-integration-checker",
+  subagent_type="integration-checker",
   model="{integration_checker_model}"
 )
 ```
@@ -196,7 +196,7 @@ All requirements covered. Cross-objective integration verified. E2E flows comple
 
 **Complete milestone** — archive and tag
 
-/df:complete-milestone {version}
+/complete-milestone {version}
 
 <sub>/clear first → fresh context window</sub>
 
@@ -233,7 +233,7 @@ All requirements covered. Cross-objective integration verified. E2E flows comple
 
 **Plan gap closure** — create objectives to complete milestone
 
-/df:plan-milestone-gaps
+/plan-milestone-gaps
 
 <sub>/clear first → fresh context window</sub>
 
@@ -241,7 +241,7 @@ All requirements covered. Cross-objective integration verified. E2E flows comple
 
 **Also available:**
 - cat .planning/v{version}-MILESTONE-AUDIT.md — see full report
-- /df:complete-milestone {version} — proceed anyway (accept tech debt)
+- /complete-milestone {version} — proceed anyway (accept tech debt)
 
 ───────────────────────────────────────────────────────────────
 
@@ -271,11 +271,11 @@ All requirements met. No critical blockers. Accumulated tech debt needs review.
 
 **A. Complete milestone** — accept debt, track in backlog
 
-/df:complete-milestone {version}
+/complete-milestone {version}
 
 **B. Plan cleanup objective** — address debt before completing
 
-/df:plan-milestone-gaps
+/plan-milestone-gaps
 
 <sub>/clear first → fresh context window</sub>
 

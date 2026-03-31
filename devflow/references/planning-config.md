@@ -221,10 +221,10 @@ Parallel feature development using git worktrees. Independent objectives execute
 - You want to develop features in parallel sessions
 
 **Workflow:**
-1. `/df:workstreams setup` — Analyze deps, create git worktrees
+1. `/workstreams setup` — Analyze deps, create git worktrees
 2. Open terminals in each worktree, run normal DevFlow commands
-3. `/df:workstreams status` — Check progress across workstreams
-4. `/df:workstreams merge` — Squash-merge branches, reconcile state
+3. `/workstreams status` — Check progress across workstreams
+4. `/workstreams merge` — Squash-merge branches, reconcile state
 
 **Key files:**
 - `.planning/workstreams.json` — Active workstream tracking (main worktree)

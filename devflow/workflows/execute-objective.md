@@ -113,7 +113,7 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
    - **Standard** (task_count 3-5): use `executor_model` from profile — normal execution
    - **Complex** (task_count > 5 or files_modified > 8): use opus — benefits from stronger context management
 
-   Log any overrides: `Model override: df-executor {executor_model} → {override} for {plan_id} (reason: {simple|complex} plan)`
+   Log any overrides: `Model override: executor {executor_model} → {override} for {plan_id} (reason: {simple|complex} plan)`
 
    Safety rule: never downgrade executor below sonnet.
 
@@ -124,7 +124,7 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
 
    ```
    Task(
-     subagent_type="df-executor",
+     subagent_type="executor",
      model="{resolved_executor_model}",
      prompt="
        <objective>
@@ -167,7 +167,7 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
    task_ids = []
    for each job in wave:
      result = Task(
-       subagent_type="df-executor",
+       subagent_type="executor",
        model="{resolved_executor_model}",
        prompt="...",
        run_in_background=true
@@ -376,7 +376,7 @@ Objective requirement IDs: {objective_req_ids}
 Check must_haves against actual codebase.
 Cross-reference requirement IDs from TRD/JOB frontmatter against REQUIREMENTS.md — every ID MUST be accounted for.
 Create VERIFICATION.md.",
-  subagent_type="df-verifier",
+  subagent_type="verifier",
   model="{verifier_model}"
 )
 ```
@@ -433,10 +433,10 @@ MAX_GAP_CYCLES=2
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    ```
 
-   Spawn df-planner with `--gaps` flag:
+   Spawn planner with `--gaps` flag:
    ```
    Task(
-     prompt="First, read ~/.claude/agents/df-planner.md for your role and instructions.\n\n
+     prompt="First, read ~/.claude/agents/planner.md for your role and instructions.\n\n
      <planning_context>
      **Objective:** {objective_number}
      **Mode:** gap_closure
@@ -473,8 +473,8 @@ MAX_GAP_CYCLES=2
 Auto-fix could not resolve all gaps. Manual intervention needed.
 
 Options:
-- `/df:plan-objective {X} --gaps` — Manual gap closure planning
-- `/df:verify-work {X}` — Manual testing
+- `/plan-objective {X} --gaps` — Manual gap closure planning
+- `/verify-work {X}` — Manual testing
 - `cat {objective_dir}/{phase_num}-VERIFICATION.md` — Full report
 ```
 
@@ -504,7 +504,7 @@ node ~/.claude/devflow/bin/df-tools.cjs commit "docs(objective-{X}): complete ob
 
 <step name="offer_next">
 
-**Exception:** If `gaps_found`, the `verify_objective_goal` step already presents the gap-closure path (`/df:plan-objective {X} --gaps`). No additional routing needed — skip auto-advance.
+**Exception:** If `gaps_found`, the `verify_objective_goal` step already presents the gap-closure path (`/plan-objective {X} --gaps`). No additional routing needed — skip auto-advance.
 
 **Auto-advance detection:**
 
@@ -529,7 +529,7 @@ Read and follow `~/.claude/devflow/workflows/transition.md`, passing through the
 
 **If neither `--auto` nor `AUTO_CFG` is true:**
 
-The workflow ends. The user runs `/df:progress` or invokes the transition workflow manually.
+The workflow ends. The user runs `/progress` or invokes the transition workflow manually.
 </step>
 
 </process>
@@ -547,7 +547,7 @@ Orchestrator: ~10-15% context. Subagents: fresh 200k each. No polling (Task bloc
 </failure_handling>
 
 <resumption>
-Re-run `/df:execute-objective {objective}` → discover_plans finds completed SUMMARYs → skips them → resumes from first incomplete plan → continues wave execution.
+Re-run `/execute-objective {objective}` → discover_plans finds completed SUMMARYs → skips them → resumes from first incomplete plan → continues wave execution.
 
 STATE.md tracks: last completed plan, current wave, pending checkpoints.
 </resumption>
