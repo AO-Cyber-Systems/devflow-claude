@@ -667,8 +667,8 @@ function install(isGlobal) {
   // Clean up orphaned files from previous versions
   cleanupOrphanedFiles(targetDir);
 
-  // Deploy skills (skills/<name>.md)
-  const skillsSrc = path.join(src, 'skills');
+  // Deploy skills (plugins/devflow/commands/<name>.md)
+  const skillsSrc = path.join(src, 'plugins', 'devflow', 'commands');
   const skillsDest = path.join(targetDir, 'skills');
   copySkills(skillsSrc, skillsDest, pathPrefix);
   if (verifyInstalled(skillsDest, 'skills')) {
@@ -689,7 +689,7 @@ function install(isGlobal) {
   }
 
   // Copy agents to agents directory
-  const agentsSrc = path.join(src, 'agents');
+  const agentsSrc = path.join(src, 'plugins', 'devflow', 'agents');
   if (fs.existsSync(agentsSrc)) {
     const agentsDest = path.join(targetDir, 'agents');
     fs.mkdirSync(agentsDest, { recursive: true });
