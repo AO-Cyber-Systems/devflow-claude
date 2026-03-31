@@ -16,7 +16,9 @@
         "name": "AO Cyber Systems",
         "email": "dev@aocodex.ai"
       },
-      "source": "./plugins/devflow",
+      "source": ".",
+      "commands": "skills",
+      "agents": "agents",
       "category": "development"
     },
     {

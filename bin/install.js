@@ -187,17 +187,20 @@ function copyWithPathReplacement(srcDir, destDir, pathPrefix) {
 
 /**
  * Copy skills directory to destination
- * Source: skills/<name>/SKILL.md
- * Dest: <targetDir>/skills/<name>/SKILL.md
+ * Source: skills/<name>.md
+ * Dest: <targetDir>/skills/<name>.md
  */
 function copySkills(srcDir, destDir, pathPrefix) {
   if (!fs.existsSync(srcDir)) return;
 
-  // Remove old skill directories before copying new ones
+  // Remove old skill files/directories before copying new ones
   if (fs.existsSync(destDir)) {
     for (const entry of fs.readdirSync(destDir, { withFileTypes: true })) {
+      const entryPath = path.join(destDir, entry.name);
       if (entry.isDirectory()) {
-        fs.rmSync(path.join(destDir, entry.name), { recursive: true });
+        fs.rmSync(entryPath, { recursive: true });
+      } else if (entry.name.endsWith('.md')) {
+        fs.unlinkSync(entryPath);
       }
     }
   } else {
@@ -212,38 +215,18 @@ function copySkills(srcDir, destDir, pathPrefix) {
   }
 
   const attribution = getCommitAttribution();
-  const entries = fs.readdirSync(srcDir, { withFileTypes: true });
 
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
+  for (const entry of fs.readdirSync(srcDir, { withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
 
-    const skillSrcDir = path.join(srcDir, entry.name);
-    const skillDestDir = path.join(destDir, entry.name);
-    fs.mkdirSync(skillDestDir, { recursive: true });
-
-    // Copy SKILL.md with path replacement
-    const skillFile = path.join(skillSrcDir, 'SKILL.md');
-    if (fs.existsSync(skillFile)) {
-      let content = fs.readFileSync(skillFile, 'utf8');
-      const globalClaudeRegex = /~\/\.claude\//g;
-      const localClaudeRegex = /\.\/\.claude\//g;
-      content = content.replace(globalClaudeRegex, pathPrefix);
-      content = content.replace(localClaudeRegex, `./.claude/`);
-      content = processAttribution(content, attribution);
-      fs.writeFileSync(path.join(skillDestDir, 'SKILL.md'), content);
-    }
-
-    // Copy any other files in the skill directory
-    for (const subEntry of fs.readdirSync(skillSrcDir, { withFileTypes: true })) {
-      if (subEntry.name === 'SKILL.md') continue;
-      const subSrc = path.join(skillSrcDir, subEntry.name);
-      const subDest = path.join(skillDestDir, subEntry.name);
-      if (subEntry.isDirectory()) {
-        copyWithPathReplacement(subSrc, subDest, pathPrefix);
-      } else {
-        fs.copyFileSync(subSrc, subDest);
-      }
-    }
+    const skillFile = path.join(srcDir, entry.name);
+    let content = fs.readFileSync(skillFile, 'utf8');
+    const globalClaudeRegex = /~\/\.claude\//g;
+    const localClaudeRegex = /\.\/\.claude\//g;
+    content = content.replace(globalClaudeRegex, pathPrefix);
+    content = content.replace(localClaudeRegex, `./.claude/`);
+    content = processAttribution(content, attribution);
+    fs.writeFileSync(path.join(destDir, entry.name), content);
   }
 }
 
@@ -345,12 +328,16 @@ function uninstall(isGlobal) {
 
   let removedCount = 0;
 
-  // 1. Remove DevFlow skills (directories containing SKILL.md)
+  // 1. Remove DevFlow skills (flat .md files in skills/)
   const skillsDir = path.join(targetDir, 'skills');
   if (fs.existsSync(skillsDir)) {
     let skillCount = 0;
     for (const entry of fs.readdirSync(skillsDir, { withFileTypes: true })) {
-      if (entry.isDirectory() && fs.existsSync(path.join(skillsDir, entry.name, 'SKILL.md'))) {
+      if (entry.isFile() && entry.name.endsWith('.md')) {
+        fs.unlinkSync(path.join(skillsDir, entry.name));
+        skillCount++;
+      } else if (entry.isDirectory() && fs.existsSync(path.join(skillsDir, entry.name, 'SKILL.md'))) {
+        // Legacy: remove old subdirectory-style skills
         fs.rmSync(path.join(skillsDir, entry.name), { recursive: true });
         skillCount++;
       }
@@ -680,14 +667,12 @@ function install(isGlobal) {
   // Clean up orphaned files from previous versions
   cleanupOrphanedFiles(targetDir);
 
-  // Deploy skills (skills/<name>/SKILL.md)
+  // Deploy skills (skills/<name>.md)
   const skillsSrc = path.join(src, 'skills');
   const skillsDest = path.join(targetDir, 'skills');
   copySkills(skillsSrc, skillsDest, pathPrefix);
   if (verifyInstalled(skillsDest, 'skills')) {
-    const count = fs.readdirSync(skillsDest).filter(f => {
-      return fs.statSync(path.join(skillsDest, f)).isDirectory() && fs.existsSync(path.join(skillsDest, f, 'SKILL.md'));
-    }).length;
+    const count = fs.readdirSync(skillsDest).filter(f => f.endsWith('.md')).length;
     console.log(`  ${green}✓${reset} Installed ${count} skills`);
   } else {
     failures.push('skills');
