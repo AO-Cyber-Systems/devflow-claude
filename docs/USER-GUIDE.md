@@ -22,7 +22,7 @@ A detailed reference for workflows, troubleshooting, and configuration. For quic
 ```
   ┌──────────────────────────────────────────────────┐
   │                   NEW PROJECT                    │
-  │  /df:new-project                                │
+  │  /devflow:new-project                                │
   │  Questions -> Research -> Requirements -> Roadmap│
   └─────────────────────────┬────────────────────────┘
                             │
@@ -30,19 +30,19 @@ A detailed reference for workflows, troubleshooting, and configuration. For quic
              │      FOR EACH PHASE:       │
              │                            │
              │  ┌────────────────────┐    │
-             │  │ /df:discuss-objective │    │  <- Lock in preferences
+             │  │ /devflow:discuss-objective │    │  <- Lock in preferences
              │  └──────────┬─────────┘    │
              │             │              │
              │  ┌──────────▼─────────┐    │
-             │  │ /df:plan-objective    │    │  <- Research + Plan + Verify
+             │  │ /devflow:plan-objective    │    │  <- Research + Plan + Verify
              │  └──────────┬─────────┘    │
              │             │              │
              │  ┌──────────▼─────────┐    │
-             │  │ /df:execute-objective │    │  <- Parallel execution
+             │  │ /devflow:execute-objective │    │  <- Parallel execution
              │  └──────────┬─────────┘    │
              │             │              │
              │  ┌──────────▼─────────┐    │
-             │  │ /df:verify-work   │    │  <- Manual UAT
+             │  │ /devflow:verify-work   │    │  <- Manual UAT
              │  └──────────┬─────────┘    │
              │             │              │
              │     Next Objective?────────────┘
@@ -50,8 +50,8 @@ A detailed reference for workflows, troubleshooting, and configuration. For quic
              └─────────────┼──────────────┘
                             │
             ┌───────────────▼──────────────┐
-            │  /df:audit-milestone        │
-            │  /df:complete-milestone     │
+            │  /devflow:audit-milestone        │
+            │  /devflow:complete-milestone     │
             └───────────────┬──────────────┘
                             │
                    Another milestone?
@@ -59,14 +59,14 @@ A detailed reference for workflows, troubleshooting, and configuration. For quic
                       Yes         No -> Done!
                        │
                ┌───────▼──────────────┐
-               │  /df:new-milestone  │
+               │  /devflow:new-milestone  │
                └──────────────────────┘
 ```
 
 ### Planning Agent Coordination
 
 ```
-  /df:plan-objective N
+  /devflow:plan-objective N
          │
          ├── Objective Researcher (x4 parallel)
          │     ├── Stack researcher
@@ -100,7 +100,7 @@ A detailed reference for workflows, troubleshooting, and configuration. For quic
 ### Execution Wave Coordination
 
 ```
-  /df:execute-objective N
+  /devflow:execute-objective N
          │
          ├── Analyze plan dependencies
          │
@@ -115,13 +115,13 @@ A detailed reference for workflows, troubleshooting, and configuration. For quic
                └── Check codebase against objective goals
                      │
                      ├── PASS -> VERIFICATION.md (success)
-                     └── FAIL -> Issues logged for /df:verify-work
+                     └── FAIL -> Issues logged for /devflow:verify-work
 ```
 
 ### Brownfield Workflow (Existing Codebase)
 
 ```
-  /df:map-codebase
+  /devflow:map-codebase
          │
          ├── Stack Mapper     -> codebase/STACK.md
          ├── Arch Mapper      -> codebase/ARCHITECTURE.md
@@ -129,7 +129,7 @@ A detailed reference for workflows, troubleshooting, and configuration. For quic
          └── Concern Mapper   -> codebase/CONCERNS.md
                 │
         ┌───────▼──────────┐
-        │ /df:new-project │  <- Questions focus on what you're ADDING
+        │ /devflow:new-project │  <- Questions focus on what you're ADDING
         └──────────────────┘
 ```
 
@@ -141,56 +141,56 @@ A detailed reference for workflows, troubleshooting, and configuration. For quic
 
 | Command | Purpose | When to Use |
 |---------|---------|-------------|
-| `/df:new-project` | Full project init: questions, research, requirements, roadmap | Start of a new project |
-| `/df:new-project --auto @idea.md` | Automated init from document | Have a PRD or idea doc ready |
-| `/df:discuss-objective [N]` | Capture implementation decisions | Before planning, to shape how it gets built |
-| `/df:plan-objective [N]` | Research + plan + verify | Before executing a objective |
-| `/df:execute-objective <N>` | Execute all jobs in parallel waves | After planning is complete |
-| `/df:verify-work [N]` | Manual UAT with auto-diagnosis | After execution completes |
-| `/df:audit-milestone` | Verify milestone met its definition of done | Before completing milestone |
-| `/df:complete-milestone` | Archive milestone, tag release | All objectives verified |
-| `/df:new-milestone [name]` | Start next version cycle | After completing a milestone |
+| `/devflow:new-project` | Full project init: questions, research, requirements, roadmap | Start of a new project |
+| `/devflow:new-project --auto @idea.md` | Automated init from document | Have a PRD or idea doc ready |
+| `/devflow:discuss-objective [N]` | Capture implementation decisions | Before planning, to shape how it gets built |
+| `/devflow:plan-objective [N]` | Research + plan + verify | Before executing a objective |
+| `/devflow:execute-objective <N>` | Execute all jobs in parallel waves | After planning is complete |
+| `/devflow:verify-work [N]` | Manual UAT with auto-diagnosis | After execution completes |
+| `/devflow:audit-milestone` | Verify milestone met its definition of done | Before completing milestone |
+| `/devflow:complete-milestone` | Archive milestone, tag release | All objectives verified |
+| `/devflow:new-milestone [name]` | Start next version cycle | After completing a milestone |
 
 ### Navigation
 
 | Command | Purpose | When to Use |
 |---------|---------|-------------|
-| `/df:progress` | Show status and next steps | Anytime -- "where am I?" |
-| `/df:resume-work` | Restore full context from last session | Starting a new session |
-| `/df:pause-work` | Save context handoff | Stopping mid-objective |
-| `/df:help` | Show all commands | Quick reference |
-| `/df:update` | Update DevFlow with changelog preview | Check for new versions |
-| `/df:join-discord` | Open Discord community invite | Questions or community |
+| `/devflow:progress` | Show status and next steps | Anytime -- "where am I?" |
+| `/devflow:resume-work` | Restore full context from last session | Starting a new session |
+| `/devflow:pause-work` | Save context handoff | Stopping mid-objective |
+| `/devflow:help` | Show all commands | Quick reference |
+| `/devflow:update` | Update DevFlow with changelog preview | Check for new versions |
+| `/devflow:join-discord` | Open Discord community invite | Questions or community |
 
 ### Objective Management
 
 | Command | Purpose | When to Use |
 |---------|---------|-------------|
-| `/df:add-objective` | Append new objective to roadmap | Scope grows after initial planning |
-| `/df:insert-objective [N]` | Insert urgent work (decimal numbering) | Urgent fix mid-milestone |
-| `/df:remove-objective [N]` | Remove future objective and renumber | Descoping a feature |
-| `/df:list-objective-assumptions [N]` | Preview Claude's intended approach | Before planning, to validate direction |
-| `/df:plan-milestone-gaps` | Create objectives for audit gaps | After audit finds missing items |
-| `/df:research-objective [N]` | Deep ecosystem research only | Complex or unfamiliar domain |
+| `/devflow:add-objective` | Append new objective to roadmap | Scope grows after initial planning |
+| `/devflow:insert-objective [N]` | Insert urgent work (decimal numbering) | Urgent fix mid-milestone |
+| `/devflow:remove-objective [N]` | Remove future objective and renumber | Descoping a feature |
+| `/devflow:list-objective-assumptions [N]` | Preview Claude's intended approach | Before planning, to validate direction |
+| `/devflow:plan-milestone-gaps` | Create objectives for audit gaps | After audit finds missing items |
+| `/devflow:research-objective [N]` | Deep ecosystem research only | Complex or unfamiliar domain |
 
 ### Brownfield & Utilities
 
 | Command | Purpose | When to Use |
 |---------|---------|-------------|
-| `/df:map-codebase` | Analyze existing codebase | Before `/df:new-project` on existing code |
-| `/df:quick` | Ad-hoc task with DevFlow guarantees | Bug fixes, small features, config changes |
-| `/df:debug [desc]` | Systematic debugging with persistent state | When something breaks |
-| `/df:add-todo [desc]` | Capture an idea for later | Think of something during a session |
-| `/df:check-todos` | List pending todos | Review captured ideas |
-| `/df:settings` | Configure workflow toggles and model profile | Change model, toggle agents |
-| `/df:set-profile <profile>` | Quick profile switch | Change cost/quality tradeoff |
-| `/df:reapply-patches` | Restore local modifications after update | After `/df:update` if you had local edits |
+| `/devflow:map-codebase` | Analyze existing codebase | Before `/devflow:new-project` on existing code |
+| `/devflow:quick` | Ad-hoc task with DevFlow guarantees | Bug fixes, small features, config changes |
+| `/devflow:debug [desc]` | Systematic debugging with persistent state | When something breaks |
+| `/devflow:add-todo [desc]` | Capture an idea for later | Think of something during a session |
+| `/devflow:check-todos` | List pending todos | Review captured ideas |
+| `/devflow:settings` | Configure workflow toggles and model profile | Change model, toggle agents |
+| `/devflow:set-profile <profile>` | Quick profile switch | Change cost/quality tradeoff |
+| `/devflow:reapply-patches` | Restore local modifications after update | After `/devflow:update` if you had local edits |
 
 ---
 
 ## Configuration Reference
 
-DevFlow stores project settings in `.planning/config.json`. Configure during `/df:new-project` or update later with `/df:settings`.
+DevFlow stores project settings in `.planning/config.json`. Configure during `/devflow:new-project` or update later with `/devflow:settings`.
 
 ### Full config.json Schema
 
@@ -290,56 +290,56 @@ Disable these to speed up objectives in familiar domains or when conserving toke
 
 ```bash
 claude --dangerously-skip-permissions
-/df:new-project            # Answer questions, configure, approve roadmap
+/devflow:new-project            # Answer questions, configure, approve roadmap
 /clear
-/df:discuss-objective 1        # Lock in your preferences
-/df:plan-objective 1           # Research + plan + verify
-/df:execute-objective 1        # Parallel execution
-/df:verify-work 1          # Manual UAT
+/devflow:discuss-objective 1        # Lock in your preferences
+/devflow:plan-objective 1           # Research + plan + verify
+/devflow:execute-objective 1        # Parallel execution
+/devflow:verify-work 1          # Manual UAT
 /clear
-/df:discuss-objective 2        # Repeat for each objective
+/devflow:discuss-objective 2        # Repeat for each objective
 ...
-/df:audit-milestone        # Check everything shipped
-/df:complete-milestone     # Archive, tag, done
+/devflow:audit-milestone        # Check everything shipped
+/devflow:complete-milestone     # Archive, tag, done
 ```
 
 ### New Project from Existing Document
 
 ```bash
-/df:new-project --auto @prd.md   # Auto-runs research/requirements/roadmap from your doc
+/devflow:new-project --auto @prd.md   # Auto-runs research/requirements/roadmap from your doc
 /clear
-/df:discuss-objective 1               # Normal flow from here
+/devflow:discuss-objective 1               # Normal flow from here
 ```
 
 ### Existing Codebase
 
 ```bash
-/df:map-codebase           # Analyze what exists (parallel agents)
-/df:new-project            # Questions focus on what you're ADDING
+/devflow:map-codebase           # Analyze what exists (parallel agents)
+/devflow:new-project            # Questions focus on what you're ADDING
 # (normal objective workflow from here)
 ```
 
 ### Quick Bug Fix
 
 ```bash
-/df:quick
+/devflow:quick
 > "Fix the login button not responding on mobile Safari"
 ```
 
 ### Resuming After a Break
 
 ```bash
-/df:progress               # See where you left off and what's next
+/devflow:progress               # See where you left off and what's next
 # or
-/df:resume-work            # Full context restoration from last session
+/devflow:resume-work            # Full context restoration from last session
 ```
 
 ### Preparing for Release
 
 ```bash
-/df:audit-milestone        # Check requirements coverage, detect stubs
-/df:plan-milestone-gaps    # If audit found gaps, create objectives to close them
-/df:complete-milestone     # Archive, tag, done
+/devflow:audit-milestone        # Check requirements coverage, detect stubs
+/devflow:plan-milestone-gaps    # If audit found gaps, create objectives to close them
+/devflow:complete-milestone     # Archive, tag, done
 ```
 
 ### Speed vs Quality Presets
@@ -353,11 +353,11 @@ claude --dangerously-skip-permissions
 ### Mid-Milestone Scope Changes
 
 ```bash
-/df:add-objective              # Append a new objective to the roadmap
+/devflow:add-objective              # Append a new objective to the roadmap
 # or
-/df:insert-objective 3         # Insert urgent work between objectives 3 and 4
+/devflow:insert-objective 3         # Insert urgent work between objectives 3 and 4
 # or
-/df:remove-objective 7         # Descope objective 7 and renumber
+/devflow:remove-objective 7         # Descope objective 7 and renumber
 ```
 
 ---
@@ -366,15 +366,15 @@ claude --dangerously-skip-permissions
 
 ### "Project already initialized"
 
-You ran `/df:new-project` but `.planning/PROJECT.md` already exists. This is a safety check. If you want to start over, delete the `.planning/` directory first.
+You ran `/devflow:new-project` but `.planning/PROJECT.md` already exists. This is a safety check. If you want to start over, delete the `.planning/` directory first.
 
 ### Context Degradation During Long Sessions
 
-Clear your context window between major commands: `/clear` in Claude Code. DevFlow is designed around fresh contexts -- every subagent gets a clean 200K window. If quality is dropping in the main session, clear and use `/df:resume-work` or `/df:progress` to restore state.
+Clear your context window between major commands: `/clear` in Claude Code. DevFlow is designed around fresh contexts -- every subagent gets a clean 200K window. If quality is dropping in the main session, clear and use `/devflow:resume-work` or `/devflow:progress` to restore state.
 
 ### Plans Seem Wrong or Misaligned
 
-Run `/df:discuss-objective [N]` before planning. Most plan quality issues come from Claude making assumptions that `CONTEXT.md` would have prevented. You can also run `/df:list-objective-assumptions [N]` to see what Claude intends to do before committing to a plan.
+Run `/devflow:discuss-objective [N]` before planning. Most plan quality issues come from Claude making assumptions that `CONTEXT.md` would have prevented. You can also run `/devflow:list-objective-assumptions [N]` to see what Claude intends to do before committing to a plan.
 
 ### Execution Fails or Produces Stubs
 
@@ -382,23 +382,23 @@ Check that the plan was not too ambitious. Plans should have 2-3 tasks maximum. 
 
 ### Lost Track of Where You Are
 
-Run `/df:progress`. It reads all state files and tells you exactly where you are and what to do next.
+Run `/devflow:progress`. It reads all state files and tells you exactly where you are and what to do next.
 
 ### Need to Change Something After Execution
 
-Do not re-run `/df:execute-objective`. Use `/df:quick` for targeted fixes, or `/df:verify-work` to systematically identify and fix issues through UAT.
+Do not re-run `/devflow:execute-objective`. Use `/devflow:quick` for targeted fixes, or `/devflow:verify-work` to systematically identify and fix issues through UAT.
 
 ### Model Costs Too High
 
-Switch to budget profile: `/df:set-profile budget`. Disable research and plan-check agents via `/df:settings` if the domain is familiar to you (or to Claude).
+Switch to budget profile: `/devflow:set-profile budget`. Disable research and plan-check agents via `/devflow:settings` if the domain is familiar to you (or to Claude).
 
 ### Working on a Sensitive/Private Project
 
-Set `commit_docs: false` during `/df:new-project` or via `/df:settings`. Add `.planning/` to your `.gitignore`. Planning artifacts stay local and never touch git.
+Set `commit_docs: false` during `/devflow:new-project` or via `/devflow:settings`. Add `.planning/` to your `.gitignore`. Planning artifacts stay local and never touch git.
 
 ### DevFlow Update Overwrote My Local Changes
 
-Since v1.17, the installer backs up locally modified files to `df-local-patches/`. Run `/df:reapply-patches` to merge your changes back.
+Since v1.17, the installer backs up locally modified files to `df-local-patches/`. Run `/devflow:reapply-patches` to merge your changes back.
 
 ### Subagent Appears to Fail but Work Was Done
 
@@ -410,15 +410,15 @@ A known workaround exists for a Claude Code classification bug. DevFlow's orches
 
 | Problem | Solution |
 |---------|----------|
-| Lost context / new session | `/df:resume-work` or `/df:progress` |
+| Lost context / new session | `/devflow:resume-work` or `/devflow:progress` |
 | Phase went wrong | `git revert` the objective commits, then re-plan |
-| Need to change scope | `/df:add-objective`, `/df:insert-objective`, or `/df:remove-objective` |
-| Milestone audit found gaps | `/df:plan-milestone-gaps` |
-| Something broke | `/df:debug "description"` |
-| Quick targeted fix | `/df:quick` |
-| Plan doesn't match your vision | `/df:discuss-objective [N]` then re-plan |
-| Costs running high | `/df:set-profile budget` and `/df:settings` to toggle agents off |
-| Update broke local changes | `/df:reapply-patches` |
+| Need to change scope | `/devflow:add-objective`, `/devflow:insert-objective`, or `/devflow:remove-objective` |
+| Milestone audit found gaps | `/devflow:plan-milestone-gaps` |
+| Something broke | `/devflow:debug "description"` |
+| Quick targeted fix | `/devflow:quick` |
+| Plan doesn't match your vision | `/devflow:discuss-objective [N]` then re-plan |
+| Costs running high | `/devflow:set-profile budget` and `/devflow:settings` to toggle agents off |
+| Update broke local changes | `/devflow:reapply-patches` |
 
 ---
 
@@ -434,13 +434,13 @@ For reference, here is what DevFlow creates in your project:
   STATE.md                # Decisions, blockers, session memory
   config.json             # Workflow configuration
   MILESTONES.md           # Completed milestone archive
-  research/               # Domain research from /df:new-project
+  research/               # Domain research from /devflow:new-project
   todos/
     pending/              # Captured ideas awaiting work
     done/                 # Completed todos
   debug/                  # Active debug sessions
     resolved/             # Archived debug sessions
-  codebase/               # Brownfield codebase mapping (from /df:map-codebase)
+  codebase/               # Brownfield codebase mapping (from /devflow:map-codebase)
   objectives/
     XX-objective-name/
       XX-YY-JOB.md       # Atomic execution plans

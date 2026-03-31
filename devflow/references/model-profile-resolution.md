@@ -19,7 +19,7 @@ Look up the agent in the table for the resolved profile. Pass the model paramete
 ```
 Task(
   prompt="...",
-  subagent_type="df-planner",
+  subagent_type="planner",
   model="{resolved_model}"  # "inherit", "sonnet", or "haiku"
 )
 ```

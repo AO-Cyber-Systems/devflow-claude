@@ -2,7 +2,7 @@
 status: active
 ---
 <purpose>
-Validate built features through conversational testing with persistent state. Creates UAT.md that tracks test progress, survives /clear, and feeds gaps into /df:plan-objective --gaps.
+Validate built features through conversational testing with persistent state. Creates UAT.md that tracks test progress, survives /clear, and feeds gaps into /plan-objective --gaps.
 
 User tests, Claude records. One test at a time. Plain text responses.
 </purpose>
@@ -72,7 +72,7 @@ If no, continue to `create_uat_file`.
 ```
 No active UAT sessions.
 
-Provide an objective number to start testing (e.g., /df:verify-work 4)
+Provide an objective number to start testing (e.g., /verify-work 4)
 ```
 
 **If no active sessions AND $ARGUMENTS provided:**
@@ -384,8 +384,8 @@ Present summary:
 ```
 All tests passed. Ready to continue.
 
-- `/df:plan-objective {next}` — Plan next objective
-- `/df:execute-objective {next}` — Execute next objective
+- `/plan-objective {next}` — Plan next objective
+- `/execute-objective {next}` — Execute next objective
 ```
 </step>
 
@@ -431,7 +431,7 @@ Display:
 ◆ Spawning planner for gap closure...
 ```
 
-Spawn df-planner in --gaps mode:
+Spawn planner in --gaps mode:
 
 ```
 Task(
@@ -453,11 +453,11 @@ Task(
 </planning_context>
 
 <downstream_consumer>
-Output consumed by /df:execute-objective
+Output consumed by /execute-objective
 Plans must be executable prompts.
 </downstream_consumer>
 """,
-  subagent_type="df-planner",
+  subagent_type="planner",
   model="{planner_model}",
   description="Plan gap fixes for Objective {objective}"
 )
@@ -482,7 +482,7 @@ Display:
 
 Initialize: `iteration_count = 1`
 
-Spawn df-job-checker:
+Spawn job-checker:
 
 ```
 Task(
@@ -503,7 +503,7 @@ Return one of:
 - ## ISSUES FOUND — structured issue list
 </expected_output>
 """,
-  subagent_type="df-job-checker",
+  subagent_type="job-checker",
   model="{checker_model}",
   description="Verify Objective {objective} fix plans"
 )
@@ -521,7 +521,7 @@ On return:
 
 Display: `Sending back to planner for revision... (iteration {N}/3)`
 
-Spawn df-planner with revision context:
+Spawn planner with revision context:
 
 ```
 Task(
@@ -544,7 +544,7 @@ Read existing JOB.md files. Make targeted updates to address checker issues.
 Do NOT replan from scratch unless issues are fundamental.
 </instructions>
 """,
-  subagent_type="df-planner",
+  subagent_type="planner",
   model="{planner_model}",
   description="Revise Objective {objective} plans"
 )
@@ -560,7 +560,7 @@ Display: `Max iterations reached. {N} issues remain.`
 Offer options:
 1. Force proceed (execute despite issues)
 2. Provide guidance (user gives direction, retry)
-3. Abandon (exit, user runs /df:plan-objective manually)
+3. Abandon (exit, user runs /plan-objective manually)
 
 Wait for user response.
 </step>
@@ -588,7 +588,7 @@ Plans verified and ready for execution.
 
 **Execute fixes** — run fix plans
 
-`/clear` then `/df:execute-objective {objective} --gaps-only`
+`/clear` then `/execute-objective {objective} --gaps-only`
 
 ───────────────────────────────────────────────────────────────
 ```
@@ -639,8 +639,8 @@ Default to **major** if unclear. User can correct if needed.
 - [ ] Batched writes: on issue, every 5 passes, or completion
 - [ ] Committed on completion
 - [ ] If issues: parallel debug agents diagnose root causes
-- [ ] If issues: df-planner creates fix plans (gap_closure mode)
-- [ ] If issues: df-job-checker verifies fix plans
+- [ ] If issues: planner creates fix plans (gap_closure mode)
+- [ ] If issues: job-checker verifies fix plans
 - [ ] If issues: revision loop until plans pass (max 3 iterations)
-- [ ] Ready for `/df:execute-objective --gaps-only` when complete
+- [ ] Ready for `/execute-objective --gaps-only` when complete
 </success_criteria>

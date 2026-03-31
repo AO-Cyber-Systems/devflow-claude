@@ -2,7 +2,7 @@
 status: active
 ---
 <purpose>
-Execute small, ad-hoc tasks with DevFlow guarantees (atomic commits, STATE.md tracking). Quick mode spawns df-planner (quick mode) + df-executor(s), tracks tasks in `.planning/quick/`, and updates STATE.md's "Quick Tasks Completed" table.
+Execute small, ad-hoc tasks with DevFlow guarantees (atomic commits, STATE.md tracking). Quick mode spawns planner (quick mode) + executor(s), tracks tasks in `.planning/quick/`, and updates STATE.md's "Quick Tasks Completed" table.
 
 With `--full` flag: enables job-checking (max 2 iterations) and post-execution verification for quality guarantees without full milestone ceremony.
 </purpose>
@@ -51,7 +51,7 @@ INIT=$(node ~/.claude/devflow/bin/df-tools.cjs init quick "$DESCRIPTION")
 
 Parse JSON for: `planner_model`, `executor_model`, `checker_model`, `verifier_model`, `commit_docs`, `next_num`, `slug`, `date`, `timestamp`, `quick_dir`, `task_dir`, `roadmap_exists`, `planning_exists`.
 
-**If `roadmap_exists` is false:** Error — Quick mode requires an active project with ROADMAP.md. Run `/df:new-project` first.
+**If `roadmap_exists` is false:** Error — Quick mode requires an active project with ROADMAP.md. Run `/new-project` first.
 
 Quick tasks can run mid-objective - validation only checks ROADMAP.md exists, not objective status.
 
@@ -128,7 +128,7 @@ Write plan to: ${QUICK_DIR}/${next_num}-JOB.md
 Return: ## PLANNING COMPLETE with plan path
 </output>
 ",
-  subagent_type="df-planner",
+  subagent_type="planner",
   model="{planner_model}",
   description="Quick plan: ${DESCRIPTION}"
 )
@@ -191,7 +191,7 @@ Skip: context compliance (no CONTEXT.md), cross-plan deps (single plan), ROADMAP
 ```
 Task(
   prompt=checker_prompt,
-  subagent_type="df-job-checker",
+  subagent_type="job-checker",
   model="{checker_model}",
   description="Check quick plan: ${DESCRIPTION}"
 )
@@ -234,7 +234,7 @@ Return what changed.
 
 ```
 Task(
-  prompt="First, read ~/.claude/agents/df-planner.md for your role and instructions.\n\n" + revision_prompt,
+  prompt="First, read ~/.claude/agents/planner.md for your role and instructions.\n\n" + revision_prompt,
   subagent_type="general-purpose",
   model="{planner_model}",
   description="Revise quick plan: ${DESCRIPTION}"
@@ -253,7 +253,7 @@ Offer: 1) Force proceed, 2) Abort
 
 **Step 6: Spawn executor**
 
-Spawn df-executor with plan reference:
+Spawn executor with plan reference:
 
 ```
 Task(
@@ -270,7 +270,7 @@ Project state: @.planning/STATE.md
 - Do NOT update ROADMAP.md (quick tasks are separate from planned objectives)
 </constraints>
 ",
-  subagent_type="df-executor",
+  subagent_type="executor",
   model="{executor_model}",
   description="Execute: ${DESCRIPTION}"
 )
@@ -309,7 +309,7 @@ Task directory: ${QUICK_DIR}
 Task goal: ${DESCRIPTION}
 Job: @${QUICK_DIR}/${next_num}-JOB.md
 Check must_haves against actual codebase. Create VERIFICATION.md at ${QUICK_DIR}/${next_num}-VERIFICATION.md.",
-  subagent_type="df-verifier",
+  subagent_type="verifier",
   model="{verifier_model}",
   description="Verify: ${DESCRIPTION}"
 )
@@ -425,7 +425,7 @@ Commit: ${commit_hash}
 
 ---
 
-Ready for next task: /df:quick
+Ready for next task: /quick
 ```
 
 **If NOT `$FULL_MODE`:**
@@ -441,7 +441,7 @@ Commit: ${commit_hash}
 
 ---
 
-Ready for next task: /df:quick
+Ready for next task: /quick
 ```
 
 </process>

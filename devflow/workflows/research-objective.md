@@ -2,9 +2,9 @@
 status: active
 ---
 <purpose>
-Research how to implement an objective. Spawns df-objective-researcher with objective context.
+Research how to implement an objective. Spawns objective-researcher with objective context.
 
-Standalone research command. For most workflows, use `/df:plan-objective` which integrates research automatically.
+Standalone research command. For most workflows, use `/plan-objective` which integrates research automatically.
 </purpose>
 
 <process>
@@ -14,7 +14,7 @@ Standalone research command. For most workflows, use `/df:plan-objective` which 
 @~/.claude/devflow/references/model-profile-resolution.md
 
 Resolve model for:
-- `df-objective-researcher`
+- `objective-researcher`
 
 ## Step 1: Normalize and Validate Objective
 
@@ -63,7 +63,7 @@ Objective context: {context_md}
 <output>
 Write to: .planning/objectives/${OBJECTIVE}-{slug}/${OBJECTIVE}-RESEARCH.md
 </output>",
-  subagent_type="df-objective-researcher",
+  subagent_type="objective-researcher",
   model="{researcher_model}"
 )
 ```

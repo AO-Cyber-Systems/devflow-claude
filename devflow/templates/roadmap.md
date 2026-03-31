@@ -80,7 +80,7 @@ Jobs:
 
 > **Non-linear dependency:** Objective 3 depends on Objective 1 (not Objective 2) because it
 > doesn't read/modify any Objective 2 output. This means Objectives 2 and 3 can execute
-> in parallel via `/df:workstreams`. Objective 4 below is a **join point** — it waits
+> in parallel via `/workstreams`. Objective 4 below is a **join point** — it waits
 > for both independent branches to complete.
 
 ### Objective 4: [Name]

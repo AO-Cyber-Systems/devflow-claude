@@ -75,7 +75,7 @@ grep -n "type=\"checkpoint" .planning/objectives/XX-name/{objective}-{job}-JOB.m
 | Verify-only | B (segmented) | Segments between checkpoints. After none/human-verify → SUBAGENT. After decision/human-action → MAIN |
 | Decision | C (main) | Execute entirely in main context |
 
-**Pattern A:** init_agent_tracking → spawn Task(subagent_type="df-executor", model=executor_model) with prompt: execute plan at [path], autonomous, all tasks + SUMMARY + commit, follow deviation/auth rules, report: plan name, tasks, SUMMARY path, commit hash → track agent_id → wait → update tracking → report.
+**Pattern A:** init_agent_tracking → spawn Task(subagent_type="executor", model=executor_model) with prompt: execute plan at [path], autonomous, all tasks + SUMMARY + commit, follow deviation/auth rules, report: plan name, tasks, SUMMARY path, commit hash → track agent_id → wait → update tracking → report.
 
 **Pattern B:** Execute segment-by-segment. Autonomous segments: spawn subagent for assigned tasks only (no SUMMARY/commit). Checkpoints: main context. After all segments: aggregate, create SUMMARY, commit. See segment_execution.
 
@@ -108,7 +108,7 @@ Pattern B only (verify-only checkpoints). Skip for A/C.
 
 1. Parse segment map: checkpoint locations and types
 2. Per segment:
-   - Subagent route: spawn df-executor for assigned tasks only. Prompt: task range, plan path, read full plan for context, execute assigned tasks, track deviations, NO SUMMARY/commit. Track via agent protocol.
+   - Subagent route: spawn executor for assigned tasks only. Prompt: task range, plan path, read full plan for context, execute assigned tasks, track deviations, NO SUMMARY/commit. Track via agent protocol.
    - Main route: execute tasks using standard flow (step name="execute")
 3. After ALL segments: aggregate files/deviations/decisions → create SUMMARY.md → commit → self-check:
    - Verify key-files.created exist on disk with `[ -f ]`
@@ -432,9 +432,9 @@ ls -1 .planning/objectives/[current-objective-dir]/*-SUMMARY.md 2>/dev/null | wc
 
 | Condition | Route | Action |
 |-----------|-------|--------|
-| summaries < jobs | **A: More jobs** | Find next JOB without SUMMARY. Yolo: auto-continue. Interactive: show next job, suggest `/df:execute-objective {objective}` + `/df:verify-work`. STOP here. |
-| summaries = jobs, current < highest objective | **B: Objective done** | Show completion, suggest `/df:plan-objective {Z+1}` + `/df:verify-work {Z}` + `/df:discuss-objective {Z+1}` |
-| summaries = jobs, current = highest objective | **C: Milestone done** | Show banner, suggest `/df:complete-milestone` + `/df:verify-work` + `/df:add-objective` |
+| summaries < jobs | **A: More jobs** | Find next JOB without SUMMARY. Yolo: auto-continue. Interactive: show next job, suggest `/execute-objective {objective}` + `/verify-work`. STOP here. |
+| summaries = jobs, current < highest objective | **B: Objective done** | Show completion, suggest `/plan-objective {Z+1}` + `/verify-work {Z}` + `/discuss-objective {Z+1}` |
+| summaries = jobs, current = highest objective | **C: Milestone done** | Show banner, suggest `/complete-milestone` + `/verify-work` + `/add-objective` |
 
 All routes: `/clear` first for fresh context.
 </step>

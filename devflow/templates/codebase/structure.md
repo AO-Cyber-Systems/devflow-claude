@@ -145,7 +145,7 @@ devflow/
 - Key files: install.js - handles npx installation
 - Subdirectories: None
 
-**skills/df-*/**
+**skills/*/**
 - Purpose: Skill definitions for Claude Code (auto-invokable from natural language)
 - Contains: SKILL.md per skill directory
 - Key files: df-new-project/SKILL.md, df-plan-objective/SKILL.md, df-execute-objective/SKILL.md
@@ -206,7 +206,7 @@ devflow/
 ## Where to Add New Code
 
 **New Skill:**
-- Primary code: `skills/df-{skill-name}/SKILL.md`
+- Primary code: `skills/{skill-name}/SKILL.md`
 - Tests: `tests/skills/{skill-name}.test.js` (if testing implemented)
 - Documentation: Update `README.md` with new skill
 

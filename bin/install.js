@@ -187,17 +187,20 @@ function copyWithPathReplacement(srcDir, destDir, pathPrefix) {
 
 /**
  * Copy skills directory to destination
- * Source: skills/df-<name>/SKILL.md
- * Dest: <targetDir>/skills/df-<name>/SKILL.md
+ * Source: skills/<name>.md
+ * Dest: <targetDir>/skills/<name>.md
  */
 function copySkills(srcDir, destDir, pathPrefix) {
   if (!fs.existsSync(srcDir)) return;
 
-  // Remove old skills/df-* directories before copying new ones
+  // Remove old skill files/directories before copying new ones
   if (fs.existsSync(destDir)) {
     for (const entry of fs.readdirSync(destDir, { withFileTypes: true })) {
-      if (entry.isDirectory() && entry.name.startsWith('df-')) {
-        fs.rmSync(path.join(destDir, entry.name), { recursive: true });
+      const entryPath = path.join(destDir, entry.name);
+      if (entry.isDirectory()) {
+        fs.rmSync(entryPath, { recursive: true });
+      } else if (entry.name.endsWith('.md')) {
+        fs.unlinkSync(entryPath);
       }
     }
   } else {
@@ -212,38 +215,18 @@ function copySkills(srcDir, destDir, pathPrefix) {
   }
 
   const attribution = getCommitAttribution();
-  const entries = fs.readdirSync(srcDir, { withFileTypes: true });
 
-  for (const entry of entries) {
-    if (!entry.isDirectory() || !entry.name.startsWith('df-')) continue;
+  for (const entry of fs.readdirSync(srcDir, { withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
 
-    const skillSrcDir = path.join(srcDir, entry.name);
-    const skillDestDir = path.join(destDir, entry.name);
-    fs.mkdirSync(skillDestDir, { recursive: true });
-
-    // Copy SKILL.md with path replacement
-    const skillFile = path.join(skillSrcDir, 'SKILL.md');
-    if (fs.existsSync(skillFile)) {
-      let content = fs.readFileSync(skillFile, 'utf8');
-      const globalClaudeRegex = /~\/\.claude\//g;
-      const localClaudeRegex = /\.\/\.claude\//g;
-      content = content.replace(globalClaudeRegex, pathPrefix);
-      content = content.replace(localClaudeRegex, `./.claude/`);
-      content = processAttribution(content, attribution);
-      fs.writeFileSync(path.join(skillDestDir, 'SKILL.md'), content);
-    }
-
-    // Copy any other files in the skill directory
-    for (const subEntry of fs.readdirSync(skillSrcDir, { withFileTypes: true })) {
-      if (subEntry.name === 'SKILL.md') continue;
-      const subSrc = path.join(skillSrcDir, subEntry.name);
-      const subDest = path.join(skillDestDir, subEntry.name);
-      if (subEntry.isDirectory()) {
-        copyWithPathReplacement(subSrc, subDest, pathPrefix);
-      } else {
-        fs.copyFileSync(subSrc, subDest);
-      }
-    }
+    const skillFile = path.join(srcDir, entry.name);
+    let content = fs.readFileSync(skillFile, 'utf8');
+    const globalClaudeRegex = /~\/\.claude\//g;
+    const localClaudeRegex = /\.\/\.claude\//g;
+    content = content.replace(globalClaudeRegex, pathPrefix);
+    content = content.replace(localClaudeRegex, `./.claude/`);
+    content = processAttribution(content, attribution);
+    fs.writeFileSync(path.join(destDir, entry.name), content);
   }
 }
 
@@ -253,7 +236,10 @@ function copySkills(srcDir, destDir, pathPrefix) {
 function cleanupOrphanedFiles(configDir) {
   const orphanedFiles = [
     'hooks/gsd-notify.sh',  // Removed in v1.6.x (legacy GSD name)
-    'hooks/statusline.js',  // Renamed to df-statusline.js in v1.9.0
+    'hooks/df-statusline.js',  // Renamed to statusline.js (df- prefix removed)
+    'hooks/df-check-update.js',  // Renamed to check-update.js (df- prefix removed)
+    'hooks/df-verify-completion.js',  // Renamed to verify-completion.js (df- prefix removed)
+    'hooks/df-verify-commits.js',  // Renamed to verify-commits.js (df- prefix removed)
   ];
 
   for (const relPath of orphanedFiles) {
@@ -271,10 +257,13 @@ function cleanupOrphanedFiles(configDir) {
 function cleanupOrphanedHooks(settings) {
   const orphanedHookPatterns = [
     'df-notify.sh',  // Removed in v1.6.x
-    'hooks/statusline.js',  // Renamed to df-statusline.js in v1.9.0
     'df-intel-index.js',  // Removed in v1.9.2
     'df-intel-session.js',  // Removed in v1.9.2
     'df-intel-prune.js',  // Removed in v1.9.2
+    'hooks/df-statusline.js',  // Renamed to statusline.js (df- prefix removed)
+    'hooks/df-check-update.js',  // Renamed to check-update.js (df- prefix removed)
+    'hooks/df-verify-completion.js',  // Renamed to verify-completion.js (df- prefix removed)
+    'hooks/df-verify-commits.js',  // Renamed to verify-commits.js (df- prefix removed)
   ];
 
   let cleanedHooks = false;
@@ -304,15 +293,14 @@ function cleanupOrphanedHooks(settings) {
     console.log(`  ${green}✓${reset} Removed orphaned hook registrations`);
   }
 
-  // Fix #330: Update statusLine if it points to old statusline.js path
+  // Migrate statusLine from old df-statusline.js to statusline.js
   if (settings.statusLine && settings.statusLine.command &&
-      settings.statusLine.command.includes('statusline.js') &&
-      !settings.statusLine.command.includes('df-statusline.js')) {
+      settings.statusLine.command.includes('df-statusline.js')) {
     settings.statusLine.command = settings.statusLine.command.replace(
-      /statusline\.js/,
-      'df-statusline.js'
+      /df-statusline\.js/,
+      'statusline.js'
     );
-    console.log(`  ${green}✓${reset} Updated statusline path (statusline.js -> df-statusline.js)`);
+    console.log(`  ${green}✓${reset} Updated statusline path (df-statusline.js -> statusline.js)`);
   }
 
   return settings;
@@ -340,12 +328,16 @@ function uninstall(isGlobal) {
 
   let removedCount = 0;
 
-  // 1. Remove DevFlow skills (skills/df-* directories)
+  // 1. Remove DevFlow skills (flat .md files in skills/)
   const skillsDir = path.join(targetDir, 'skills');
   if (fs.existsSync(skillsDir)) {
     let skillCount = 0;
     for (const entry of fs.readdirSync(skillsDir, { withFileTypes: true })) {
-      if (entry.isDirectory() && entry.name.startsWith('df-')) {
+      if (entry.isFile() && entry.name.endsWith('.md')) {
+        fs.unlinkSync(path.join(skillsDir, entry.name));
+        skillCount++;
+      } else if (entry.isDirectory() && fs.existsSync(path.join(skillsDir, entry.name, 'SKILL.md'))) {
+        // Legacy: remove old subdirectory-style skills
         fs.rmSync(path.join(skillsDir, entry.name), { recursive: true });
         skillCount++;
       }
@@ -372,13 +364,13 @@ function uninstall(isGlobal) {
     console.log(`  ${green}✓${reset} Removed devflow/`);
   }
 
-  // 3. Remove DevFlow agents (df-*.md files only)
+  // 3. Remove DevFlow agents (known agent .md files)
   const agentsDir = path.join(targetDir, 'agents');
   if (fs.existsSync(agentsDir)) {
     const files = fs.readdirSync(agentsDir);
     let agentCount = 0;
     for (const file of files) {
-      if (file.startsWith('df-') && file.endsWith('.md')) {
+      if (KNOWN_AGENTS.includes(file) || (file.startsWith('df-') && file.endsWith('.md'))) {
         fs.unlinkSync(path.join(agentsDir, file));
         agentCount++;
       }
@@ -392,7 +384,7 @@ function uninstall(isGlobal) {
   // 4. Remove DevFlow hooks
   const hooksDir = path.join(targetDir, 'hooks');
   if (fs.existsSync(hooksDir)) {
-    const dfHooks = ['df-statusline.js', 'df-check-update.js', 'df-check-update.sh', 'df-verify-completion.js', 'df-verify-commits.js'];
+    const dfHooks = ['statusline.js', 'check-update.js', 'verify-completion.js', 'verify-commits.js', 'df-statusline.js', 'df-check-update.js', 'df-check-update.sh', 'df-verify-completion.js', 'df-verify-commits.js'];
     let hookCount = 0;
     for (const hook of dfHooks) {
       const hookPath = path.join(hooksDir, hook);
@@ -429,7 +421,7 @@ function uninstall(isGlobal) {
     let settingsModified = false;
 
     if (settings.statusLine && settings.statusLine.command &&
-        settings.statusLine.command.includes('df-statusline')) {
+        (settings.statusLine.command.includes('statusline') || settings.statusLine.command.includes('df-statusline'))) {
       delete settings.statusLine;
       settingsModified = true;
       console.log(`  ${green}✓${reset} Removed DevFlow statusline from settings`);
@@ -437,7 +429,7 @@ function uninstall(isGlobal) {
 
     if (settings.hooks) {
       // Remove DevFlow hooks from all event types
-      const dfHookPatterns = ['df-check-update', 'df-statusline', 'df-verify-completion', 'df-verify-commits'];
+      const dfHookPatterns = ['check-update', 'statusline', 'verify-completion', 'verify-commits', 'df-check-update', 'df-statusline', 'df-verify-completion', 'df-verify-commits'];
       for (const eventType of ['SessionStart', 'Stop', 'SubagentStop']) {
         if (settings.hooks[eventType]) {
           const before = settings.hooks[eventType].length;
@@ -520,6 +512,7 @@ function verifyFileInstalled(filePath, description) {
 
 const PATCHES_DIR_NAME = 'df-local-patches';
 const MANIFEST_NAME = 'df-file-manifest.json';
+const KNOWN_AGENTS = ['planner.md', 'executor.md', 'verifier.md', 'debugger.md', 'job-checker.md', 'codebase-mapper.md', 'objective-researcher.md', 'project-researcher.md', 'research-synthesizer.md', 'roadmapper.md', 'security-auditor.md', 'integration-checker.md'];
 
 /**
  * Compute SHA256 hash of file contents
@@ -570,7 +563,7 @@ function writeManifest(configDir) {
   }
   if (fs.existsSync(agentsDir)) {
     for (const file of fs.readdirSync(agentsDir)) {
-      if (file.startsWith('df-') && file.endsWith('.md')) {
+      if (file.endsWith('.md')) {
         manifest.files['agents/' + file] = fileHash(path.join(agentsDir, file));
       }
     }
@@ -674,14 +667,12 @@ function install(isGlobal) {
   // Clean up orphaned files from previous versions
   cleanupOrphanedFiles(targetDir);
 
-  // Deploy skills (skills/df-*/SKILL.md)
-  const skillsSrc = path.join(src, 'skills');
+  // Deploy skills (plugins/devflow/commands/<name>.md)
+  const skillsSrc = path.join(src, 'plugins', 'devflow', 'commands');
   const skillsDest = path.join(targetDir, 'skills');
   copySkills(skillsSrc, skillsDest, pathPrefix);
   if (verifyInstalled(skillsDest, 'skills')) {
-    const count = fs.readdirSync(skillsDest).filter(f => {
-      return fs.statSync(path.join(skillsDest, f)).isDirectory() && f.startsWith('df-');
-    }).length;
+    const count = fs.readdirSync(skillsDest).filter(f => f.endsWith('.md')).length;
     console.log(`  ${green}✓${reset} Installed ${count} skills`);
   } else {
     failures.push('skills');
@@ -698,15 +689,15 @@ function install(isGlobal) {
   }
 
   // Copy agents to agents directory
-  const agentsSrc = path.join(src, 'agents');
+  const agentsSrc = path.join(src, 'plugins', 'devflow', 'agents');
   if (fs.existsSync(agentsSrc)) {
     const agentsDest = path.join(targetDir, 'agents');
     fs.mkdirSync(agentsDest, { recursive: true });
 
-    // Remove old DevFlow agents (df-*.md) before copying new ones
+    // Remove old DevFlow agents before copying new ones
     if (fs.existsSync(agentsDest)) {
       for (const file of fs.readdirSync(agentsDest)) {
-        if (file.startsWith('df-') && file.endsWith('.md')) {
+        if (file.endsWith('.md') && (file.startsWith('df-') || KNOWN_AGENTS.includes(file))) {
           fs.unlinkSync(path.join(agentsDest, file));
         }
       }
@@ -805,11 +796,11 @@ function install(isGlobal) {
   const settingsPath = path.join(targetDir, 'settings.json');
   const settings = cleanupOrphanedHooks(readSettings(settingsPath));
   const statuslineCommand = isGlobal
-    ? buildHookCommand(targetDir, 'df-statusline.js')
-    : 'node .claude/hooks/df-statusline.js';
+    ? buildHookCommand(targetDir, 'statusline.js')
+    : 'node .claude/hooks/statusline.js';
   const updateCheckCommand = isGlobal
-    ? buildHookCommand(targetDir, 'df-check-update.js')
-    : 'node .claude/hooks/df-check-update.js';
+    ? buildHookCommand(targetDir, 'check-update.js')
+    : 'node .claude/hooks/check-update.js';
 
   // Configure SessionStart hook for update checking
   if (!settings.hooks) {
@@ -820,7 +811,7 @@ function install(isGlobal) {
   }
 
   const hasDfUpdateHook = settings.hooks.SessionStart.some(entry =>
-    entry.hooks && entry.hooks.some(h => h.command && h.command.includes('df-check-update'))
+    entry.hooks && entry.hooks.some(h => h.command && h.command.includes('check-update'))
   );
 
   if (!hasDfUpdateHook) {
@@ -837,15 +828,15 @@ function install(isGlobal) {
 
   // Configure Stop hook for completion verification
   const verifyCompletionCommand = isGlobal
-    ? buildHookCommand(targetDir, 'df-verify-completion.js')
-    : 'node .claude/hooks/df-verify-completion.js';
+    ? buildHookCommand(targetDir, 'verify-completion.js')
+    : 'node .claude/hooks/verify-completion.js';
 
   if (!settings.hooks.Stop) {
     settings.hooks.Stop = [];
   }
 
   const hasCompletionHook = settings.hooks.Stop.some(entry =>
-    entry.hooks && entry.hooks.some(h => h.command && h.command.includes('df-verify-completion'))
+    entry.hooks && entry.hooks.some(h => h.command && h.command.includes('verify-completion'))
   );
 
   if (!hasCompletionHook) {
@@ -862,15 +853,15 @@ function install(isGlobal) {
 
   // Configure SubagentStop hook for commit verification
   const verifyCommitsCommand = isGlobal
-    ? buildHookCommand(targetDir, 'df-verify-commits.js')
-    : 'node .claude/hooks/df-verify-commits.js';
+    ? buildHookCommand(targetDir, 'verify-commits.js')
+    : 'node .claude/hooks/verify-commits.js';
 
   if (!settings.hooks.SubagentStop) {
     settings.hooks.SubagentStop = [];
   }
 
   const hasCommitsHook = settings.hooks.SubagentStop.some(entry =>
-    entry.hooks && entry.hooks.some(h => h.command && h.command.includes('df-verify-commits'))
+    entry.hooks && entry.hooks.some(h => h.command && h.command.includes('verify-commits'))
   );
 
   if (!hasCommitsHook) {

@@ -17,8 +17,8 @@ Objective number: $ARGUMENTS (required)
 ```
 Error: Objective number required.
 
-Usage: /df:list-objective-assumptions [phase-number]
-Example: /df:list-objective-assumptions 3
+Usage: /list-objective-assumptions [phase-number]
+Example: /list-objective-assumptions 3
 ```
 
 Exit workflow.
@@ -156,8 +156,8 @@ Present next steps:
 
 ```
 What's next?
-1. Discuss context (/df:discuss-objective ${OBJECTIVE}) - Let me ask you questions to build comprehensive context
-2. Plan this objective (/df:plan-objective ${OBJECTIVE}) - Create detailed execution plans
+1. Discuss context (/discuss-objective ${OBJECTIVE}) - Let me ask you questions to build comprehensive context
+2. Plan this objective (/plan-objective ${OBJECTIVE}) - Create detailed execution plans
 3. Re-examine assumptions - I'll analyze again with your corrections
 4. Done for now
 ```

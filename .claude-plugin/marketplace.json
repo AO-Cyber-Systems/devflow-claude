@@ -1,8 +1,8 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "devflow",
-  "version": "1.22.0",
-  "description": "DevFlow autonomous development system and AOSentry AI gateway tools for Claude Code",
+  "version": "1.25.0",
+  "description": "Autonomous development system and AI gateway tools for Claude Code",
   "owner": {
     "name": "AO Cyber Systems",
     "email": "dev@aocodex.ai"
@@ -10,8 +10,8 @@
   "plugins": [
     {
       "name": "devflow",
-      "description": "Meta-prompting, context engineering, and spec-driven development system. 34 skills, 12 agents, wave-based parallelization, atomic commits, and persistent state across context resets.",
-      "version": "1.22.0",
+      "description": "Autonomous development system that turns ideas into shipped code. Handles project planning, task breakdown, parallel execution, verification, and progress tracking — so you describe what to build and DevFlow builds it.",
+      "version": "1.25.0",
       "author": {
         "name": "AO Cyber Systems",
         "email": "dev@aocodex.ai"
@@ -21,7 +21,7 @@
     },
     {
       "name": "aosentry-mcp",
-      "description": "AOSentry AI gateway MCP servers. 45 tools: image generation, vision analysis, TTS, transcription, spend analytics, API key management, guardrails, model routing, user/team/org management, budgets, and health monitoring.",
+      "description": "AI media and gateway management tools. Generate images, analyze visuals, convert text to speech, transcribe audio, and manage API keys, spend tracking, guardrails, and model routing through your AOSentry instance.",
       "version": "1.0.0",
       "author": {
         "name": "AO Cyber Systems",

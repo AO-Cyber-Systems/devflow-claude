@@ -7,7 +7,7 @@ Produces DISCOVERY.md (for Level 2-3) that informs JOB.md creation.
 
 Called from plan-objective.md's mandatory_discovery step with a depth parameter.
 
-NOTE: For comprehensive ecosystem research ("how do experts build this"), use /df:research-objective instead, which produces RESEARCH.md.
+NOTE: For comprehensive ecosystem research ("how do experts build this"), use /research-objective instead, which produces RESEARCH.md.
 </purpose>
 
 <depth_levels>
@@ -255,8 +255,8 @@ Confidence: [level]
 
 What's next?
 
-1. Discuss objective context (/df:discuss-objective [current-objective])
-2. Create objective plan (/df:plan-objective [current-objective])
+1. Discuss objective context (/discuss-objective [current-objective])
+2. Create objective plan (/plan-objective [current-objective])
 3. Refine discovery (dig deeper)
 4. Review discovery
 

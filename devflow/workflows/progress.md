@@ -35,18 +35,18 @@ If `project_exists` is false (no `.planning/` directory):
 ```
 No planning structure found.
 
-Run /df:new-project to start a new project.
+Run /new-project to start a new project.
 ```
 
 Exit.
 
-If missing STATE.md: suggest `/df:new-project`.
+If missing STATE.md: suggest `/new-project`.
 
 **If ROADMAP.md missing but PROJECT.md exists:**
 
 This means a milestone was completed and archived. Go to **Route F** (between milestones).
 
-If missing both ROADMAP.md and PROJECT.md: suggest `/df:new-project`.
+If missing both ROADMAP.md and PROJECT.md: suggest `/new-project`.
 </step>
 
 <step name="load">
@@ -132,10 +132,10 @@ CONTEXT: [✓ if has_context | - if not]
 - [any blockers or concerns from STATE.md]
 
 ## Pending Todos
-- [count] pending — /df:check-todos to review
+- [count] pending — /check-todos to review
 
 ## Active Debug Sessions
-- [count] active — /df:debug to continue
+- [count] active — /debug to continue
 (Only show this section if count > 0)
 
 ## What's Next
@@ -194,7 +194,7 @@ Read its `<objective>` section.
 
 **{objective}-{job}: [Plan Name]** — [objective summary from JOB.md]
 
-`/df:execute-objective {objective}`
+`/execute-objective {objective}`
 
 
 ---
@@ -216,7 +216,7 @@ Check if `{phase_num}-CONTEXT.md` exists in objective directory.
 **Objective {N}: {Name}** — {Goal from ROADMAP.md}
 <sub>✓ Context gathered, ready to plan</sub>
 
-`/df:plan-objective {phase-number}`
+`/plan-objective {phase-number}`
 
 
 ---
@@ -231,14 +231,14 @@ Check if `{phase_num}-CONTEXT.md` exists in objective directory.
 
 **Objective {N}: {Name}** — {Goal from ROADMAP.md}
 
-`/df:plan-objective {objective}` — plan the objective
+`/plan-objective {objective}` — plan the objective
 
 
 ---
 
 **Also available:**
-- `/df:plan-objective {objective}` — skip discussion, plan directly
-- `/df:list-objective-assumptions {objective}` — see Claude's assumptions
+- `/plan-objective {objective}` — skip discussion, plan directly
+- `/list-objective-assumptions {objective}` — see Claude's assumptions
 
 ---
 ```
@@ -256,14 +256,14 @@ UAT.md exists with gaps (diagnosed issues). User needs to plan fixes.
 
 **{phase_num}-UAT.md** has {N} gaps requiring fixes.
 
-`/df:plan-objective {objective} --gaps`
+`/plan-objective {objective} --gaps`
 
 
 ---
 
 **Also available:**
-- `/df:execute-objective {objective}` — execute objective plans
-- `/df:verify-work {objective}` — run more UAT testing
+- `/execute-objective {objective}` — execute objective plans
+- `/verify-work {objective}` — run more UAT testing
 
 ---
 ```
@@ -302,14 +302,14 @@ Read ROADMAP.md to get the next objective's name and goal.
 
 **Objective {Z+1}: {Name}** — {Goal from ROADMAP.md}
 
-`/df:plan-objective {Z+1}` — plan the next objective
+`/plan-objective {Z+1}` — plan the next objective
 
 
 ---
 
 **Also available:**
-- `/df:plan-objective {Z+1}` — skip discussion, plan directly
-- `/df:verify-work {Z}` — user acceptance test before continuing
+- `/plan-objective {Z+1}` — skip discussion, plan directly
+- `/verify-work {Z}` — user acceptance test before continuing
 
 ---
 ```
@@ -329,13 +329,13 @@ All {N} objectives finished!
 
 **Complete Milestone** — archive and prepare for next
 
-`/df:complete-milestone`
+`/complete-milestone`
 
 
 ---
 
 **Also available:**
-- `/df:verify-work` — user acceptance test before completing milestone
+- `/verify-work` — user acceptance test before completing milestone
 
 ---
 ```
@@ -359,7 +359,7 @@ Ready to plan the next milestone.
 
 **Start Next Milestone** — questioning → research → requirements → roadmap
 
-`/df:new-milestone`
+`/new-milestone`
 
 
 ---
@@ -370,10 +370,10 @@ Ready to plan the next milestone.
 <step name="edge_cases">
 **Handle edge cases:**
 
-- Objective complete but next objective not planned → offer `/df:plan-objective [next]`
+- Objective complete but next objective not planned → offer `/plan-objective [next]`
 - All work complete → offer milestone completion
 - Blockers present → highlight before offering to continue
-- Handoff file exists → mention it, offer `/df:resume-work`
+- Handoff file exists → mention it, offer `/resume-work`
   </step>
 
 </process>
@@ -383,7 +383,7 @@ Ready to plan the next milestone.
 - [ ] Rich context provided (recent work, decisions, issues)
 - [ ] Current position clear with visual progress
 - [ ] What's next clearly explained
-- [ ] Smart routing: /df:execute-objective if plans exist, /df:plan-objective if not
+- [ ] Smart routing: /execute-objective if plans exist, /plan-objective if not
 - [ ] User confirms before any action
 - [ ] Seamless handoff to appropriate gsd command
       </success_criteria>

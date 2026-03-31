@@ -83,7 +83,7 @@ Requirements: {N}/{M} v1 requirements checked off
 
 MUST present 3 options:
 1. **Proceed anyway** — mark milestone complete with known gaps
-2. **Run audit first** — `/df:audit-milestone` to assess gap severity
+2. **Run audit first** — `/audit-milestone` to assess gap severity
 3. **Abort** — return to development
 
 If user selects "Proceed anyway": note incomplete requirements in MILESTONES.md under `### Known Gaps` with REQ-IDs and descriptions.
@@ -397,7 +397,7 @@ mv .planning/objectives/{objective-dir} .planning/milestones/v[X.Y]-objectives/
 ```
 Verify: `✅ Objective directories archived to .planning/milestones/v[X.Y]-objectives/`
 
-If "Skip": Objective directories remain in `.planning/objectives/` as raw execution history. Use `/df:cleanup` later to archive retroactively.
+If "Skip": Objective directories remain in `.planning/objectives/` as raw execution history. Use `/cleanup` later to archive retroactively.
 
 After archival, the AI still handles:
 - Reorganizing ROADMAP.md with milestone grouping (requires judgment)
@@ -648,7 +648,7 @@ Tag: v[X.Y]
 
 **Start Next Milestone** — questioning → research → requirements → roadmap
 
-`/df:new-milestone`
+`/new-milestone`
 
 <sub>`/clear` first → fresh context window</sub>
 
@@ -698,6 +698,6 @@ Milestone completion is successful when:
 - [ ] Requirements completion checked against REQUIREMENTS.md traceability table
 - [ ] Incomplete requirements surfaced with proceed/audit/abort options
 - [ ] Known gaps recorded in MILESTONES.md if user proceeded with incomplete requirements
-- [ ] User knows next step (/df:new-milestone)
+- [ ] User knows next step (/new-milestone)
 
 </success_criteria>

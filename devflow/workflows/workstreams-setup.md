@@ -63,7 +63,7 @@ Parse the result. Check `parallelism_possible`:
 No parallel workstreams detected.
 
 All pending objectives have linear dependencies — each depends on the previous.
-Use normal sequential execution: /df:plan-objective → /df:execute-objective
+Use normal sequential execution: /plan-objective → /execute-objective
 
 Dependency chain:
 [Show objective dependency chain from analysis]
@@ -100,7 +100,7 @@ Present the workstream plan to the user:
 1. Create a git worktree + branch for each workstream
 2. Copy .planning/ context (filtered per workstream)
 3. You open a terminal in each worktree and run normal DevFlow commands
-4. When done, run `/df:workstreams merge` from the main worktree
+4. When done, run `/workstreams merge` from the main worktree
 
 Proceed with workstream setup?
 ```
@@ -234,18 +234,18 @@ node ~/.claude/devflow/bin/df-tools.cjs commit "docs: setup workstreams for para
 # Terminal 1: {workstream 1 name}
 cd {worktree_path_1}
 claude
-# Then: /df:plan-objective {objective} → /df:execute-objective {objective}
+# Then: /plan-objective {objective} → /execute-objective {objective}
 
 # Terminal 2: {workstream 2 name}
 cd {worktree_path_2}
 claude
-# Then: /df:plan-objective {objective} → /df:execute-objective {objective}
+# Then: /plan-objective {objective} → /execute-objective {objective}
 ```
 
 **When both are done, come back here:**
 
 ```bash
-/df:workstreams merge
+/workstreams merge
 ```
 
 ### Tips
@@ -253,7 +253,7 @@ claude
 - Each worktree is a full working copy — run, test, build normally
 - DevFlow commands work the same in each worktree
 - The transition workflow will detect workstream context and signal completion
-- Don't manually merge branches — use `/df:workstreams merge`
+- Don't manually merge branches — use `/workstreams merge`
 ```
 
 </step>
