@@ -1,0 +1,14 @@
+{
+  "name": "social-media-generator",
+  "description": "Generate social media images and videos using HTML/CSS templates combined with AI-generated imagery via Replicate. Supports Facebook, Instagram, and Twitter/X with themed templates.",
+  "version": "1.2.0",
+  "author": {
+    "name": "AO Cyber Systems",
+    "email": "dev@aocodex.ai"
+  },
+  "homepage": "https://github.com/AO-Cyber-Systems/devflow-claude",
+  "repository": "https://github.com/AO-Cyber-Systems/devflow-claude",
+  "license": "MIT",
+  "keywords": ["social-media", "image-generation", "replicate", "puppeteer", "content-creation"],
+  "skills": "./skills/"
+}

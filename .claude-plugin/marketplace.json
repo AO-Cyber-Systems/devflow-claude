@@ -18,6 +18,17 @@
       },
       "source": "./plugins/devflow",
       "category": "development"
+    },
+    {
+      "name": "social-media-generator",
+      "description": "Generate social media images and videos using HTML/CSS templates with AI-generated imagery via Replicate. Supports Facebook, Instagram, and Twitter/X.",
+      "version": "1.2.0",
+      "author": {
+        "name": "AO Cyber Systems",
+        "email": "dev@aocodex.ai"
+      },
+      "source": "./plugins/social-media-generator",
+      "category": "content-creation"
     }
   ]
 }
