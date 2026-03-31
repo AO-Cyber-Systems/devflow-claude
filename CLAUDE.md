@@ -34,15 +34,16 @@ The central CLI utility used by ~50 skill and agent files. CommonJS module invok
 
 Model profiles are hard-coded in a `MODEL_PROFILES` table mapping each agent to its opus/sonnet/haiku assignment per profile tier.
 
-### Skills (`skills/*/SKILL.md`)
+### Skills (`plugins/devflow/skills/<name>/SKILL.md`)
 
 User-invocable slash commands (e.g., `/devflow:new-project`). Each skill is a directory containing a single `SKILL.md` with:
 
 - **YAML frontmatter** — `name`, `description`, `argument-hint`, `allowed-tools`
 - **XML-structured body** — `<objective>`, `<execution_context>` (with `@path` file references), `<process>`, `<context>`
 - Skills are thin orchestrators — they load state via df-tools, then spawn agents via the Task tool
+- The installer flattens these to `~/.claude/skills/<name>.md` for the npm distribution channel
 
-### Agents (`agents/*.md`)
+### Agents (`plugins/devflow/agents/*.md`)
 
 Subagent prompt files (12 agents: planner, executor, verifier, debugger, etc.). Each has:
 
@@ -86,9 +87,9 @@ The `npx` entry point. Copies skills, agents, hooks, templates into `.claude/` (
 - Legacy file cleanup from previous versions
 - Uninstall support (`--uninstall`)
 
-### Marketplace Plugin (`plugins/`)
+### Marketplace Plugin (`plugins/devflow/`)
 
-The `plugins/devflow/` directory structures the package for Claude Desktop marketplace discovery. Uses symlinks to the root `skills/`, `agents/`, `devflow/`, and `hooks/` directories. Marketplace metadata is in `.claude-plugin/marketplace.json` and each plugin has its own `.claude-plugin/plugin.json`.
+The `plugins/devflow/` directory is the single source of truth for skills and agents. Skills use the `skills/<name>/SKILL.md` subdirectory convention; agents are flat files in `agents/`. Marketplace metadata is in `.claude-plugin/marketplace.json` (root) and `plugins/devflow/.claude-plugin/plugin.json`.
 
 ## Conventions
 
@@ -98,6 +99,7 @@ The `plugins/devflow/` directory structures the package for Claude Desktop marke
 - **Markdown structure**: YAML frontmatter + XML-like tags (`<objective>`, `<step name="...">`, `<execution_context>`) for semantic sections within prompts.
 - **File references**: Use `@path` syntax in skill/agent markdown (e.g., `@~/.claude/devflow/templates/state.md`).
 - **Workflow status**: Every `devflow/workflows/*.md` file carries YAML frontmatter with `status: active | legacy`. `active` = in use by skills/agents. `legacy` = superseded but kept for cross-reference (e.g., `execute-job.md` → replaced by `execute-trd.md`).
+- **Version sync**: Three files must have matching versions on every release: `package.json`, `plugins/devflow/.claude-plugin/plugin.json`, and `.claude-plugin/marketplace.json`.
 - **Git commits**: `{type}({scope}): {description}` — types: feat, fix, test, refactor, perf, chore, docs.
 - **Tests**: Node native test runner, test files adjacent to source with `.test.cjs` suffix.
 

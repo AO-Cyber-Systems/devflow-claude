@@ -187,8 +187,8 @@ function copyWithPathReplacement(srcDir, destDir, pathPrefix) {
 
 /**
  * Copy skills directory to destination
- * Source: skills/<name>.md
- * Dest: <targetDir>/skills/<name>.md
+ * Source: plugins/devflow/skills/<name>/SKILL.md (directory-per-skill)
+ * Dest: <targetDir>/skills/<name>.md (flat for npm channel)
  */
 function copySkills(srcDir, destDir, pathPrefix) {
   if (!fs.existsSync(srcDir)) return;
@@ -217,16 +217,28 @@ function copySkills(srcDir, destDir, pathPrefix) {
   const attribution = getCommitAttribution();
 
   for (const entry of fs.readdirSync(srcDir, { withFileTypes: true })) {
-    if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
-
-    const skillFile = path.join(srcDir, entry.name);
-    let content = fs.readFileSync(skillFile, 'utf8');
-    const globalClaudeRegex = /~\/\.claude\//g;
-    const localClaudeRegex = /\.\/\.claude\//g;
-    content = content.replace(globalClaudeRegex, pathPrefix);
-    content = content.replace(localClaudeRegex, `./.claude/`);
-    content = processAttribution(content, attribution);
-    fs.writeFileSync(path.join(destDir, entry.name), content);
+    // Read from skills/<name>/SKILL.md subdirectories
+    if (entry.isDirectory()) {
+      const skillFile = path.join(srcDir, entry.name, 'SKILL.md');
+      if (!fs.existsSync(skillFile)) continue;
+      let content = fs.readFileSync(skillFile, 'utf8');
+      const globalClaudeRegex = /~\/\.claude\//g;
+      const localClaudeRegex = /\.\/\.claude\//g;
+      content = content.replace(globalClaudeRegex, pathPrefix);
+      content = content.replace(localClaudeRegex, `./.claude/`);
+      content = processAttribution(content, attribution);
+      fs.writeFileSync(path.join(destDir, entry.name + '.md'), content);
+    }
+    // Backward compat: also handle flat .md files
+    else if (entry.isFile() && entry.name.endsWith('.md')) {
+      let content = fs.readFileSync(path.join(srcDir, entry.name), 'utf8');
+      const globalClaudeRegex = /~\/\.claude\//g;
+      const localClaudeRegex = /\.\/\.claude\//g;
+      content = content.replace(globalClaudeRegex, pathPrefix);
+      content = content.replace(localClaudeRegex, `./.claude/`);
+      content = processAttribution(content, attribution);
+      fs.writeFileSync(path.join(destDir, entry.name), content);
+    }
   }
 }
 
@@ -667,8 +679,8 @@ function install(isGlobal) {
   // Clean up orphaned files from previous versions
   cleanupOrphanedFiles(targetDir);
 
-  // Deploy skills (plugins/devflow/commands/<name>.md)
-  const skillsSrc = path.join(src, 'plugins', 'devflow', 'commands');
+  // Deploy skills (plugins/devflow/skills/<name>/SKILL.md)
+  const skillsSrc = path.join(src, 'plugins', 'devflow', 'skills');
   const skillsDest = path.join(targetDir, 'skills');
   copySkills(skillsSrc, skillsDest, pathPrefix);
   if (verifyInstalled(skillsDest, 'skills')) {

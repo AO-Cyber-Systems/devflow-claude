@@ -1,6 +1,6 @@
 {
   "name": "@ao-cyber-systems/devflow-cc",
-  "version": "1.25.0",
+  "version": "1.26.0",
   "description": "A meta-prompting, context engineering and spec-driven development system for Claude Code by AO Cyber Systems.",
   "bin": {
     "devflow-cc": "bin/install.js"
@@ -10,8 +10,7 @@
     "plugins",
     "devflow",
     "hooks/dist",
-    "scripts",
-    "mcp_servers"
+    "scripts"
   ],
   "keywords": [
     "claude",
@@ -40,8 +39,7 @@
   },
   "scripts": {
     "build:hooks": "node scripts/build-hooks.js",
-    "build:plugin": "node scripts/build-plugin.js",
-    "prepublishOnly": "npm run build:hooks && npm run build:plugin",
+    "prepublishOnly": "npm run build:hooks",
     "test": "node --test devflow/bin/df-tools.test.cjs"
   }
 }
