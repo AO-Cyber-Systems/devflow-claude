@@ -91,6 +91,7 @@ The `npx` entry point. Copies skills, agents, hooks, templates into `.claude/` (
 - **Naming**: Skills are `df-<name>/SKILL.md`, agents are `df-<agent-name>.md`, hooks are `df-<purpose>.js`.
 - **Markdown structure**: YAML frontmatter + XML-like tags (`<objective>`, `<step name="...">`, `<execution_context>`) for semantic sections within prompts.
 - **File references**: Use `@path` syntax in skill/agent markdown (e.g., `@~/.claude/devflow/templates/state.md`).
+- **Workflow status**: Every `devflow/workflows/*.md` file carries YAML frontmatter with `status: active | legacy`. `active` = in use by skills/agents. `legacy` = superseded but kept for cross-reference (e.g., `execute-job.md` → replaced by `execute-trd.md`).
 - **Git commits**: `{type}({scope}): {description}` — types: feat, fix, test, refactor, perf, chore, docs.
 - **Tests**: Node native test runner, test files adjacent to source with `.test.cjs` suffix.
 

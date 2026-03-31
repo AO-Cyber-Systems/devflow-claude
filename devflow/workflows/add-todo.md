@@ -1,3 +1,6 @@
+---
+status: active
+---
 <purpose>
 Capture an idea, task, or issue that surfaces during a DevFlow session as a structured todo for later work. Enables "thought → capture → continue" flow without losing context.
 </purpose>

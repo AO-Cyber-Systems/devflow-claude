@@ -1,3 +1,6 @@
+---
+status: active
+---
 <purpose>
 Switch the model profile used by DevFlow agents. Controls which Claude model each agent uses, balancing quality vs token spend.
 </purpose>

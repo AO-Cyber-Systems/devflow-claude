@@ -1,3 +1,6 @@
+---
+status: active
+---
 <purpose>
 Execute all jobs in an objective using wave-based parallel execution. Orchestrator stays lean — delegates job execution to subagents.
 </purpose>

@@ -1,3 +1,6 @@
+---
+status: active
+---
 <purpose>
 Execute small, ad-hoc tasks with DevFlow guarantees (atomic commits, STATE.md tracking). Quick mode spawns df-planner (quick mode) + df-executor(s), tracks tasks in `.planning/quick/`, and updates STATE.md's "Quick Tasks Completed" table.
 

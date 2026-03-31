@@ -1,3 +1,6 @@
+---
+status: legacy
+---
 <purpose>
 Execute an objective prompt (JOB.md) and create the outcome summary (SUMMARY.md).
 </purpose>

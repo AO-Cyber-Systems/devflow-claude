@@ -1,3 +1,6 @@
+---
+status: active
+---
 <purpose>
 Orchestrate parallel security auditor agents to scan codebase for vulnerabilities and produce a SECURITY-AUDIT.md report.
 

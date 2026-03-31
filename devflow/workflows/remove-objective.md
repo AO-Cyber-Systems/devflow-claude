@@ -1,3 +1,6 @@
+---
+status: active
+---
 <purpose>
 Remove an unstarted future objective from the project roadmap, delete its directory, renumber all subsequent objectives to maintain a clean linear sequence, and commit the change. The git commit serves as the historical record of removal.
 </purpose>

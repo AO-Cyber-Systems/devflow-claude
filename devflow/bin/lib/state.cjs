@@ -5,7 +5,46 @@ const path = require('path');
 const { output, error, findPlanFiles } = require('./helpers.cjs');
 const { loadConfig } = require('./config.cjs');
 
-// ─── State Field Helpers ──────────────────────────────────────────────────────
+// ─── State JSON Sidecar ───────────────────────────────────────────────────────
+// state.json holds machine-readable fields alongside the human-readable STATE.md.
+// Functions read JSON first; fall back to markdown parsing for backward compat.
+// First write lazily creates state.json if it doesn't exist.
+
+const STATE_JSON_DEFAULTS = {
+  current_objective: null,
+  current_job: 0,
+  total_jobs: 0,
+  progress_pct: 0,
+  status: null,
+  last_activity: null,
+  metrics: { jobs_completed: 0, jobs_failed: 0, sessions: 0 },
+  decisions: [],
+  blockers: [],
+  session_log: [],
+};
+
+function readStateJson(cwd) {
+  const jsonPath = path.join(cwd, '.planning', 'state.json');
+  try {
+    return JSON.parse(fs.readFileSync(jsonPath, 'utf-8'));
+  } catch {
+    return null;
+  }
+}
+
+function writeStateJson(cwd, data) {
+  const jsonPath = path.join(cwd, '.planning', 'state.json');
+  const existing = readStateJson(cwd) || Object.assign({}, STATE_JSON_DEFAULTS);
+  const merged = Object.assign({}, existing, data);
+  // Deep-merge metrics sub-object
+  if (data.metrics) {
+    merged.metrics = Object.assign({}, existing.metrics || {}, data.metrics);
+  }
+  fs.writeFileSync(jsonPath, JSON.stringify(merged, null, 2), 'utf-8');
+  return merged;
+}
+
+// ─── State Field Helpers (markdown) ──────────────────────────────────────────
 
 function stateExtractField(content, fieldName) {
   const pattern = new RegExp(`\\*\\*${fieldName}:\\*\\*\\s*(.+)`, 'i');
@@ -159,12 +198,15 @@ function cmdStateAdvanceJob(cwd, raw) {
   if (!fs.existsSync(statePath)) { output({ error: 'STATE.md not found' }, raw); return; }
 
   let content = fs.readFileSync(statePath, 'utf-8');
-  const currentJob = parseInt(stateExtractField(content, 'Current Job'), 10);
-  const totalJobs = parseInt(stateExtractField(content, 'Total Jobs in Objective'), 10);
   const today = new Date().toISOString().split('T')[0];
 
+  // Prefer JSON sidecar; fall back to markdown parsing
+  const stateJson = readStateJson(cwd);
+  let currentJob = stateJson?.current_job ?? parseInt(stateExtractField(content, 'Current Job'), 10);
+  let totalJobs  = stateJson?.total_jobs  ?? parseInt(stateExtractField(content, 'Total Jobs in Objective'), 10);
+
   if (isNaN(currentJob) || isNaN(totalJobs)) {
-    output({ error: 'Cannot parse Current Job or Total Jobs in Objective from STATE.md' }, raw);
+    output({ error: 'Cannot parse Current Job or Total Jobs in Objective from STATE.md or state.json' }, raw);
     return;
   }
 
@@ -172,6 +214,7 @@ function cmdStateAdvanceJob(cwd, raw) {
     content = stateReplaceField(content, 'Status', 'Objective complete — ready for verification') || content;
     content = stateReplaceField(content, 'Last Activity', today) || content;
     fs.writeFileSync(statePath, content, 'utf-8');
+    writeStateJson(cwd, { current_job: currentJob, total_jobs: totalJobs, status: 'ready_for_verification', last_activity: today });
     output({ advanced: false, reason: 'last_job', current_job: currentJob, total_jobs: totalJobs, status: 'ready_for_verification' }, raw, 'false');
   } else {
     const newJob = currentJob + 1;
@@ -179,6 +222,7 @@ function cmdStateAdvanceJob(cwd, raw) {
     content = stateReplaceField(content, 'Status', 'Ready to execute') || content;
     content = stateReplaceField(content, 'Last Activity', today) || content;
     fs.writeFileSync(statePath, content, 'utf-8');
+    writeStateJson(cwd, { current_job: newJob, total_jobs: totalJobs, status: 'Ready to execute', last_activity: today });
     output({ advanced: true, previous_job: currentJob, current_job: newJob, total_jobs: totalJobs }, raw, 'true');
   }
 }
@@ -249,8 +293,11 @@ function cmdStateUpdateProgress(cwd, raw) {
   if (progressPattern.test(content)) {
     content = content.replace(progressPattern, `$1${progressStr}`);
     fs.writeFileSync(statePath, content, 'utf-8');
+    writeStateJson(cwd, { progress_pct: percent });
     output({ updated: true, percent, completed: totalSummaries, total: totalJobs, bar: progressStr }, raw, progressStr);
   } else {
+    // No markdown field — still persist to JSON
+    writeStateJson(cwd, { progress_pct: percent });
     output({ updated: false, reason: 'Progress field not found in STATE.md' }, raw, 'false');
   }
 }
@@ -276,6 +323,10 @@ function cmdStateAddDecision(cwd, options, raw) {
     sectionBody = sectionBody.trimEnd() + '\n' + entry + '\n';
     content = content.replace(sectionPattern, `${match[1]}${sectionBody}`);
     fs.writeFileSync(statePath, content, 'utf-8');
+    // Mirror to JSON sidecar
+    const sj = readStateJson(cwd) || Object.assign({}, STATE_JSON_DEFAULTS);
+    const decisions = [...(sj.decisions || []), { objective: objective || '?', summary, rationale: rationale || null }];
+    writeStateJson(cwd, { decisions });
     output({ added: true, decision: entry }, raw, 'true');
   } else {
     output({ added: false, reason: 'Decisions section not found in STATE.md' }, raw, 'false');
@@ -299,6 +350,9 @@ function cmdStateAddBlocker(cwd, text, raw) {
     sectionBody = sectionBody.trimEnd() + '\n' + entry + '\n';
     content = content.replace(sectionPattern, `${match[1]}${sectionBody}`);
     fs.writeFileSync(statePath, content, 'utf-8');
+    // Mirror to JSON sidecar
+    const sj = readStateJson(cwd) || Object.assign({}, STATE_JSON_DEFAULTS);
+    writeStateJson(cwd, { blockers: [...(sj.blockers || []), text] });
     output({ added: true, blocker: text }, raw, 'true');
   } else {
     output({ added: false, reason: 'Blockers section not found in STATE.md' }, raw, 'false');
@@ -331,6 +385,12 @@ function cmdStateResolveBlocker(cwd, text, raw) {
 
     content = content.replace(sectionPattern, `${match[1]}${newBody}`);
     fs.writeFileSync(statePath, content, 'utf-8');
+    // Mirror removal to JSON sidecar
+    const sj = readStateJson(cwd);
+    if (sj) {
+      const remaining = (sj.blockers || []).filter(b => !b.toLowerCase().includes(text.toLowerCase()));
+      writeStateJson(cwd, { blockers: remaining });
+    }
     output({ resolved: true, blocker: text }, raw, 'true');
   } else {
     output({ resolved: false, reason: 'Blockers section not found in STATE.md' }, raw, 'false');
@@ -381,77 +441,65 @@ function cmdStateSnapshot(cwd, raw) {
   }
 
   const content = fs.readFileSync(statePath, 'utf-8');
+  const stateJson = readStateJson(cwd);
 
-  // Helper to extract **Field:** value patterns
+  // Helper to extract **Field:** value patterns from markdown (fallback)
   const extractField = (fieldName) => {
     const pattern = new RegExp(`\\*\\*${fieldName}:\\*\\*\\s*(.+)`, 'i');
     const match = content.match(pattern);
     return match ? match[1].trim() : null;
   };
 
-  // Extract basic fields
-  const currentObjective = extractField('Current Objective');
+  // Prefer JSON sidecar values; fall back to markdown extraction
+  const currentObjective    = stateJson?.current_objective    ?? extractField('Current Objective');
+  const currentJob          = stateJson?.current_job          ?? extractField('Current Job');
+  const totalJobsInObjective = stateJson?.total_jobs          ?? (extractField('Total Jobs in Objective') ? parseInt(extractField('Total Jobs in Objective'), 10) : null);
+  const progressPercent     = stateJson?.progress_pct         ?? (extractField('Progress') ? parseInt(String(extractField('Progress')).replace('%', ''), 10) : null);
+  const status              = stateJson?.status               ?? extractField('Status');
+  const lastActivity        = stateJson?.last_activity        ?? extractField('Last Activity');
+
+  // Markdown-only fields (not yet in JSON)
   const currentObjectiveName = extractField('Current Objective Name');
-  const totalObjectivesRaw = extractField('Total Objectives');
-  const currentJob = extractField('Current Job');
-  const totalJobsRaw = extractField('Total Jobs in Objective');
-  const status = extractField('Status');
-  const progressRaw = extractField('Progress');
-  const lastActivity = extractField('Last Activity');
-  const lastActivityDesc = extractField('Last Activity Description');
-  const pausedAt = extractField('Paused At');
+  const totalObjectivesRaw   = extractField('Total Objectives');
+  const totalObjectives      = totalObjectivesRaw ? parseInt(totalObjectivesRaw, 10) : null;
+  const lastActivityDesc     = extractField('Last Activity Description');
+  const pausedAt             = extractField('Paused At');
 
-  // Parse numeric fields
-  const totalObjectives = totalObjectivesRaw ? parseInt(totalObjectivesRaw, 10) : null;
-  const totalJobsInObjective = totalJobsRaw ? parseInt(totalJobsRaw, 10) : null;
-  const progressPercent = progressRaw ? parseInt(progressRaw.replace('%', ''), 10) : null;
-
-  // Extract decisions table
-  const decisions = [];
-  const decisionsMatch = content.match(/##\s*Decisions Made[\s\S]*?\n\|[^\n]+\n\|[-|\s]+\n([\s\S]*?)(?=\n##|\n$|$)/i);
-  if (decisionsMatch) {
-    const tableBody = decisionsMatch[1];
-    const rows = tableBody.trim().split('\n').filter(r => r.includes('|'));
-    for (const row of rows) {
-      const cells = row.split('|').map(c => c.trim()).filter(Boolean);
-      if (cells.length >= 3) {
-        decisions.push({
-          objective: cells[0],
-          summary: cells[1],
-          rationale: cells[2],
-        });
+  // Prefer JSON arrays for decisions and blockers
+  let decisions = stateJson?.decisions ?? null;
+  if (!decisions) {
+    decisions = [];
+    const decisionsMatch = content.match(/##\s*Decisions Made[\s\S]*?\n\|[^\n]+\n\|[-|\s]+\n([\s\S]*?)(?=\n##|\n$|$)/i);
+    if (decisionsMatch) {
+      const rows = decisionsMatch[1].trim().split('\n').filter(r => r.includes('|'));
+      for (const row of rows) {
+        const cells = row.split('|').map(c => c.trim()).filter(Boolean);
+        if (cells.length >= 3) decisions.push({ objective: cells[0], summary: cells[1], rationale: cells[2] });
       }
     }
   }
 
-  // Extract blockers list
-  const blockers = [];
-  const blockersMatch = content.match(/##\s*Blockers\s*\n([\s\S]*?)(?=\n##|$)/i);
-  if (blockersMatch) {
-    const blockersSection = blockersMatch[1];
-    const items = blockersSection.match(/^-\s+(.+)$/gm) || [];
-    for (const item of items) {
-      blockers.push(item.replace(/^-\s+/, '').trim());
+  let blockers = stateJson?.blockers ?? null;
+  if (!blockers) {
+    blockers = [];
+    const blockersMatch = content.match(/##\s*Blockers\s*\n([\s\S]*?)(?=\n##|$)/i);
+    if (blockersMatch) {
+      const items = blockersMatch[1].match(/^-\s+(.+)$/gm) || [];
+      blockers = items.map(i => i.replace(/^-\s+/, '').trim());
     }
   }
 
-  // Extract session info
-  const session = {
-    last_date: null,
-    stopped_at: null,
-    resume_file: null,
-  };
-
+  // Session info — still from markdown (or JSON session_log last entry)
+  const session = { last_date: null, stopped_at: null, resume_file: null };
   const sessionMatch = content.match(/##\s*Session\s*\n([\s\S]*?)(?=\n##|$)/i);
   if (sessionMatch) {
-    const sessionSection = sessionMatch[1];
-    const lastDateMatch = sessionSection.match(/\*\*Last Date:\*\*\s*(.+)/i);
-    const stoppedAtMatch = sessionSection.match(/\*\*Stopped At:\*\*\s*(.+)/i);
-    const resumeFileMatch = sessionSection.match(/\*\*Resume File:\*\*\s*(.+)/i);
-
-    if (lastDateMatch) session.last_date = lastDateMatch[1].trim();
-    if (stoppedAtMatch) session.stopped_at = stoppedAtMatch[1].trim();
-    if (resumeFileMatch) session.resume_file = resumeFileMatch[1].trim();
+    const sec = sessionMatch[1];
+    const ld = sec.match(/\*\*Last Date:\*\*\s*(.+)/i);
+    const sa = sec.match(/\*\*Stopped At:\*\*\s*(.+)/i);
+    const rf = sec.match(/\*\*Resume File:\*\*\s*(.+)/i);
+    if (ld) session.last_date  = ld[1].trim();
+    if (sa) session.stopped_at = sa[1].trim();
+    if (rf) session.resume_file = rf[1].trim();
   }
 
   const result = {
@@ -474,6 +522,9 @@ function cmdStateSnapshot(cwd, raw) {
 }
 
 module.exports = {
+  readStateJson,
+  writeStateJson,
+  STATE_JSON_DEFAULTS,
   stateExtractField,
   stateReplaceField,
   cmdStateLoad,

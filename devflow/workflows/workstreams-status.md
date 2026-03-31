@@ -1,3 +1,6 @@
+---
+status: active
+---
 <purpose>
 
 Check progress across all active workstreams. Reads each worktree's STATE.md and git branch activity to present a unified status view.

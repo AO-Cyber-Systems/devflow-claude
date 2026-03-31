@@ -1,3 +1,6 @@
+---
+status: active
+---
 <required_reading>
 
 **Read these files NOW:**

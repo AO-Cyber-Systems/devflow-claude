@@ -1,3 +1,6 @@
+---
+status: active
+---
 <purpose>
 Create all objectives necessary to close gaps identified by `/df:audit-milestone`. Reads MILESTONE-AUDIT.md, groups gaps into logical objectives, creates objective entries in ROADMAP.md, and offers to plan each objective. One command creates all fix objectives — no manual `/df:add-objective` per gap.
 </purpose>

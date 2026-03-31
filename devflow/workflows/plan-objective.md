@@ -1,3 +1,6 @@
+---
+status: active
+---
 <purpose>
 Create executable objective prompts (TRD.md files) for a roadmap objective with optional inline discussion, integrated research, and verification. Default flow: Discuss (brief, optional) -> Research (if needed) -> Plan -> Verify -> Done. Orchestrates df-objective-researcher, df-planner, and df-job-checker agents with a revision loop (max 3 iterations).
 </purpose>

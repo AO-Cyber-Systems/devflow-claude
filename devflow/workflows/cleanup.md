@@ -1,3 +1,6 @@
+---
+status: active
+---
 <purpose>
 
 Archive accumulated objective directories from completed milestones into `.planning/milestones/v{X.Y}-objectives/`. Identifies which objectives belong to each completed milestone, shows a dry-run summary, and moves directories on confirmation.

@@ -1,3 +1,6 @@
+---
+status: active
+---
 <purpose>
 Verify milestone achieved its definition of done by aggregating objective verifications, checking cross-objective integration, and assessing requirements coverage. Reads existing VERIFICATION.md files (objectives already verified during execute-objective), aggregates tech debt and deferred gaps, then spawns integration checker for cross-objective wiring.
 </purpose>

@@ -1,3 +1,6 @@
+---
+status: active
+---
 <purpose>
 Unified build pipeline: research → plan → execute → verify → done. Collapses the multi-step DevFlow workflow into a single command. This is the primary way to build with DevFlow.
 </purpose>

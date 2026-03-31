@@ -1,3 +1,6 @@
+---
+status: active
+---
 <purpose>
 Validate `.planning/` directory integrity and report actionable issues. Checks for missing files, invalid configurations, inconsistent state, and orphaned jobs. Optionally repairs auto-fixable issues.
 </purpose>

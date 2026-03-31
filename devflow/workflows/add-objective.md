@@ -1,3 +1,6 @@
+---
+status: active
+---
 <purpose>
 Add a new integer objective to the end of the current milestone in the roadmap. Automatically calculates next objective number, creates objective directory, and updates roadmap structure.
 </purpose>
