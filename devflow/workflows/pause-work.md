@@ -107,7 +107,7 @@ Current state:
 - Status: [in_progress/blocked]
 - Committed as WIP
 
-To resume: /df:resume-work
+To resume: /resume-work
 
 ```
 </step>

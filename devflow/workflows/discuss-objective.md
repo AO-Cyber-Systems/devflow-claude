@@ -7,11 +7,11 @@ You are a thinking partner, not an interviewer. The user is the visionary — yo
 <downstream_awareness>
 **CONTEXT.md feeds into:**
 
-1. **df-objective-researcher** — Reads CONTEXT.md to know WHAT to research
+1. **objective-researcher** — Reads CONTEXT.md to know WHAT to research
    - "User wants card-based layout" → researcher investigates card component patterns
    - "Infinite scroll decided" → researcher looks into virtualization libraries
 
-2. **df-planner** — Reads CONTEXT.md to know WHAT decisions are locked
+2. **planner** — Reads CONTEXT.md to know WHAT decisions are locked
    - "Pull-to-refresh on mobile" → planner includes that in task specs
    - "Claude's Discretion: loading skeleton" → planner can decide approach
 
@@ -120,7 +120,7 @@ Parse JSON for: `commit_docs`, `objective_found`, `objective_dir`, `objective_nu
 ```
 Objective [X] not found in roadmap.
 
-Use /df:progress to see available objectives.
+Use /progress to see available objectives.
 ```
 Exit workflow.
 
@@ -155,7 +155,7 @@ Use AskUserQuestion:
 - header: "Plans exist"
 - question: "Objective [X] already has {job_count} plan(s) created without user context. Your decisions here won't affect existing jobs unless you replan."
 - options:
-  - "Continue and replan after" — Capture context, then run /df:plan-objective {X} to replan
+  - "Continue and replan after" — Capture context, then run /plan-objective {X} to replan
   - "View existing jobs" — Show plans before deciding
   - "Cancel" — Skip discuss-objective
 
@@ -387,14 +387,14 @@ Created: .planning/objectives/${PADDED_OBJECTIVE}-${SLUG}/${PADDED_OBJECTIVE}-CO
 
 **Objective ${OBJECTIVE}: [Name]** — [Goal from ROADMAP.md]
 
-`/df:plan-objective ${OBJECTIVE}`
+`/plan-objective ${OBJECTIVE}`
 
 <sub>`/clear` first → fresh context window</sub>
 
 ---
 
 **Also available:**
-- `/df:plan-objective ${OBJECTIVE} --skip-research` — plan without research
+- `/plan-objective ${OBJECTIVE} --skip-research` — plan without research
 - Review/edit CONTEXT.md before continuing
 
 ---
@@ -455,7 +455,7 @@ Context captured. Spawning plan-objective...
 Spawn plan-objective as Task:
 ```
 Task(
-  prompt="Run /df:plan-objective ${OBJECTIVE} --auto",
+  prompt="Run /plan-objective ${OBJECTIVE} --auto",
   subagent_type="general-purpose",
   description="Plan Objective ${OBJECTIVE}"
 )
@@ -468,7 +468,7 @@ Task(
   Auto-advance stopped: Planning needs input.
 
   Review the output above and continue manually:
-  /df:plan-objective ${OBJECTIVE}
+  /plan-objective ${OBJECTIVE}
   ```
 
 **If neither `--auto` nor config enabled:**

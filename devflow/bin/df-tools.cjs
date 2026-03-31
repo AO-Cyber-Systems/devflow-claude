@@ -136,18 +136,18 @@ const { execSync } = require('child_process');
 // ─── Model Profile Table ─────────────────────────────────────────────────────
 
 const MODEL_PROFILES = {
-  'df-planner':              { quality: 'opus', balanced: 'opus',   budget: 'sonnet' },
-  'df-roadmapper':           { quality: 'opus', balanced: 'sonnet', budget: 'sonnet' },
-  'df-executor':             { quality: 'opus', balanced: 'sonnet', budget: 'sonnet' },
-  'df-objective-researcher':     { quality: 'opus', balanced: 'sonnet', budget: 'haiku' },
-  'df-project-researcher':   { quality: 'opus', balanced: 'sonnet', budget: 'haiku' },
-  'df-research-synthesizer': { quality: 'sonnet', balanced: 'sonnet', budget: 'haiku' },
-  'df-debugger':             { quality: 'opus', balanced: 'sonnet', budget: 'sonnet' },
-  'df-codebase-mapper':      { quality: 'sonnet', balanced: 'haiku', budget: 'haiku' },
-  'df-verifier':             { quality: 'sonnet', balanced: 'sonnet', budget: 'haiku' },
-  'df-job-checker':         { quality: 'sonnet', balanced: 'sonnet', budget: 'haiku' },
-  'df-integration-checker':  { quality: 'sonnet', balanced: 'sonnet', budget: 'haiku' },
-  'df-security-auditor':     { quality: 'opus', balanced: 'sonnet', budget: 'sonnet' },
+  'planner':              { quality: 'opus', balanced: 'opus',   budget: 'sonnet' },
+  'roadmapper':           { quality: 'opus', balanced: 'sonnet', budget: 'sonnet' },
+  'executor':             { quality: 'opus', balanced: 'sonnet', budget: 'sonnet' },
+  'objective-researcher': { quality: 'opus', balanced: 'sonnet', budget: 'haiku' },
+  'project-researcher':   { quality: 'opus', balanced: 'sonnet', budget: 'haiku' },
+  'research-synthesizer': { quality: 'sonnet', balanced: 'sonnet', budget: 'haiku' },
+  'debugger':             { quality: 'opus', balanced: 'sonnet', budget: 'sonnet' },
+  'codebase-mapper':      { quality: 'sonnet', balanced: 'haiku', budget: 'haiku' },
+  'verifier':             { quality: 'sonnet', balanced: 'sonnet', budget: 'haiku' },
+  'job-checker':          { quality: 'sonnet', balanced: 'sonnet', budget: 'haiku' },
+  'integration-checker':  { quality: 'sonnet', balanced: 'sonnet', budget: 'haiku' },
+  'security-auditor':     { quality: 'opus', balanced: 'sonnet', budget: 'sonnet' },
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -4280,8 +4280,8 @@ function cmdInitExecuteObjective(cwd, objective, includes, raw) {
 
   const result = {
     // Models
-    executor_model: resolveModelInternal(cwd, 'df-executor'),
-    verifier_model: resolveModelInternal(cwd, 'df-verifier'),
+    executor_model: resolveModelInternal(cwd, 'executor'),
+    verifier_model: resolveModelInternal(cwd, 'verifier'),
 
     // Config flags
     commit_docs: config.commit_docs,
@@ -4351,9 +4351,9 @@ function cmdInitPlanObjective(cwd, objective, includes, raw) {
 
   const result = {
     // Models
-    researcher_model: resolveModelInternal(cwd, 'df-objective-researcher'),
-    planner_model: resolveModelInternal(cwd, 'df-planner'),
-    checker_model: resolveModelInternal(cwd, 'df-job-checker'),
+    researcher_model: resolveModelInternal(cwd, 'objective-researcher'),
+    planner_model: resolveModelInternal(cwd, 'planner'),
+    checker_model: resolveModelInternal(cwd, 'job-checker'),
 
     // Workflow flags
     research_enabled: config.research,
@@ -4465,9 +4465,9 @@ function cmdInitNewProject(cwd, raw) {
 
   const result = {
     // Models
-    researcher_model: resolveModelInternal(cwd, 'df-project-researcher'),
-    synthesizer_model: resolveModelInternal(cwd, 'df-research-synthesizer'),
-    roadmapper_model: resolveModelInternal(cwd, 'df-roadmapper'),
+    researcher_model: resolveModelInternal(cwd, 'project-researcher'),
+    synthesizer_model: resolveModelInternal(cwd, 'research-synthesizer'),
+    roadmapper_model: resolveModelInternal(cwd, 'roadmapper'),
 
     // Config
     commit_docs: config.commit_docs,
@@ -4499,9 +4499,9 @@ function cmdInitNewMilestone(cwd, raw) {
 
   const result = {
     // Models
-    researcher_model: resolveModelInternal(cwd, 'df-project-researcher'),
-    synthesizer_model: resolveModelInternal(cwd, 'df-research-synthesizer'),
-    roadmapper_model: resolveModelInternal(cwd, 'df-roadmapper'),
+    researcher_model: resolveModelInternal(cwd, 'project-researcher'),
+    synthesizer_model: resolveModelInternal(cwd, 'research-synthesizer'),
+    roadmapper_model: resolveModelInternal(cwd, 'roadmapper'),
 
     // Config
     commit_docs: config.commit_docs,
@@ -4540,10 +4540,10 @@ function cmdInitQuick(cwd, description, raw) {
 
   const result = {
     // Models
-    planner_model: resolveModelInternal(cwd, 'df-planner'),
-    executor_model: resolveModelInternal(cwd, 'df-executor'),
-    checker_model: resolveModelInternal(cwd, 'df-job-checker'),
-    verifier_model: resolveModelInternal(cwd, 'df-verifier'),
+    planner_model: resolveModelInternal(cwd, 'planner'),
+    executor_model: resolveModelInternal(cwd, 'executor'),
+    checker_model: resolveModelInternal(cwd, 'job-checker'),
+    verifier_model: resolveModelInternal(cwd, 'verifier'),
 
     // Config
     commit_docs: config.commit_docs,
@@ -4606,8 +4606,8 @@ function cmdInitVerifyWork(cwd, objective, raw) {
 
   const result = {
     // Models
-    planner_model: resolveModelInternal(cwd, 'df-planner'),
-    checker_model: resolveModelInternal(cwd, 'df-job-checker'),
+    planner_model: resolveModelInternal(cwd, 'planner'),
+    checker_model: resolveModelInternal(cwd, 'job-checker'),
 
     // Config
     commit_docs: config.commit_docs,
@@ -4810,7 +4810,7 @@ function cmdInitMapCodebase(cwd, raw) {
 
   const result = {
     // Models
-    mapper_model: resolveModelInternal(cwd, 'df-codebase-mapper'),
+    mapper_model: resolveModelInternal(cwd, 'codebase-mapper'),
 
     // Config
     commit_docs: config.commit_docs,
@@ -4836,7 +4836,7 @@ function cmdInitSecurityAudit(cwd, raw) {
   const config = loadConfig(cwd);
 
   // Resolve auditor model
-  const auditorModel = resolveModelInternal(cwd, 'df-security-auditor');
+  const auditorModel = resolveModelInternal(cwd, 'security-auditor');
 
   // Check for existing audit report
   const planningExists = pathExistsInternal(cwd, '.planning');
@@ -4935,8 +4935,8 @@ function cmdInitProgress(cwd, includes, raw) {
 
   const result = {
     // Models
-    executor_model: resolveModelInternal(cwd, 'df-executor'),
-    planner_model: resolveModelInternal(cwd, 'df-planner'),
+    executor_model: resolveModelInternal(cwd, 'executor'),
+    planner_model: resolveModelInternal(cwd, 'planner'),
 
     // Config
     commit_docs: config.commit_docs,

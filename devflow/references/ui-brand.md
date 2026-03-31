@@ -115,8 +115,8 @@ Always at end of major completions.
 ───────────────────────────────────────────────────────────────
 
 **Also available:**
-- `/df:alternative-1` — description
-- `/df:alternative-2` — description
+- `/alternative-1` — description
+- `/alternative-2` — description
 
 ───────────────────────────────────────────────────────────────
 ```

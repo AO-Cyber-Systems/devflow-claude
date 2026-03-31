@@ -145,10 +145,10 @@ Updated after each job completion.
 
 **Decisions:** Reference to PROJECT.md Key Decisions table, plus recent decisions summary for quick access. Full decision log lives in PROJECT.md.
 
-**Pending Todos:** Ideas captured via /df:add-todo
+**Pending Todos:** Ideas captured via /add-todo
 - Count of pending todos
 - Reference to .planning/todos/pending/
-- Brief list if few, count if many (e.g., "5 pending todos — see /df:check-todos")
+- Brief list if few, count if many (e.g., "5 pending todos — see /check-todos")
 
 **Blockers/Concerns:** From "Next Objective Readiness" sections
 - Issues that affect future work

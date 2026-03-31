@@ -34,17 +34,17 @@ The central CLI utility used by ~50 skill and agent files. CommonJS module invok
 
 Model profiles are hard-coded in a `MODEL_PROFILES` table mapping each agent to its opus/sonnet/haiku assignment per profile tier.
 
-### Skills (`skills/df-*/SKILL.md`)
+### Skills (`skills/*/SKILL.md`)
 
-User-invocable slash commands (e.g., `/df:new-project`). Each skill is a directory containing a single `SKILL.md` with:
+User-invocable slash commands (e.g., `/devflow:new-project`). Each skill is a directory containing a single `SKILL.md` with:
 
 - **YAML frontmatter** — `name`, `description`, `argument-hint`, `allowed-tools`
 - **XML-structured body** — `<objective>`, `<execution_context>` (with `@path` file references), `<process>`, `<context>`
 - Skills are thin orchestrators — they load state via df-tools, then spawn agents via the Task tool
 
-### Agents (`agents/df-*.md`)
+### Agents (`agents/*.md`)
 
-Subagent prompt files (11 agents: planner, executor, verifier, debugger, etc.). Each has:
+Subagent prompt files (12 agents: planner, executor, verifier, debugger, etc.). Each has:
 
 - **YAML frontmatter** — `name`, `description`, `tools`, `color`
 - **XML-structured body** — `<role>`, `<philosophy>`, `<execution_flow>` with named `<step>` elements
@@ -67,10 +67,12 @@ Static reference documents that agents read during execution: model profiles, ve
 
 ### Hooks (`hooks/`)
 
-Two Node.js hooks installed into Claude Code:
+Four Node.js hooks installed into Claude Code:
 
-- `df-check-update.js` — SessionStart hook; spawns background process to check npm registry for updates
-- `df-statusline.js` — StatusLine hook; renders model, current task, context usage (color-coded), update indicator
+- `check-update.js` — SessionStart hook; spawns background process to check npm registry for updates
+- `statusline.js` — StatusLine hook; renders model, current task, context usage (color-coded), update indicator
+- `verify-completion.js` — Stop hook; checks task completion status
+- `verify-commits.js` — SubagentStop hook; validates commit integrity
 
 Source files are in `hooks/`, build copies them to `hooks/dist/` (which is what gets published).
 
@@ -84,11 +86,15 @@ The `npx` entry point. Copies skills, agents, hooks, templates into `.claude/` (
 - Legacy file cleanup from previous versions
 - Uninstall support (`--uninstall`)
 
+### Marketplace Plugin (`plugins/`)
+
+The `plugins/devflow/` directory structures the package for Claude Desktop marketplace discovery. Uses symlinks to the root `skills/`, `agents/`, `devflow/`, and `hooks/` directories. Marketplace metadata is in `.claude-plugin/marketplace.json` and each plugin has its own `.claude-plugin/plugin.json`.
+
 ## Conventions
 
 - **Module format**: CommonJS (`.cjs`). The tool is designed to work as a CLI, not a library.
 - **File I/O**: Synchronous (`fs.readFileSync`/`fs.writeFileSync`) throughout df-tools.
-- **Naming**: Skills are `df-<name>/SKILL.md`, agents are `df-<agent-name>.md`, hooks are `df-<purpose>.js`.
+- **Naming**: Skills are `<name>/SKILL.md`, agents are `<agent-name>.md`, hooks are `<purpose>.js`.
 - **Markdown structure**: YAML frontmatter + XML-like tags (`<objective>`, `<step name="...">`, `<execution_context>`) for semantic sections within prompts.
 - **File references**: Use `@path` syntax in skill/agent markdown (e.g., `@~/.claude/devflow/templates/state.md`).
 - **Git commits**: `{type}({scope}): {description}` — types: feat, fix, test, refactor, perf, chore, docs.

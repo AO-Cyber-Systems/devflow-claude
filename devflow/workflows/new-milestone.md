@@ -17,7 +17,7 @@ Read all files referenced by the invoking prompt's execution_context before star
 - Read PROJECT.md (existing project, validated requirements, decisions)
 - Read MILESTONES.md (what shipped previously)
 - Read STATE.md (pending todos, blockers)
-- Check for MILESTONE-CONTEXT.md (from /df:discuss-milestone)
+- Check for MILESTONE-CONTEXT.md (from /discuss-milestone)
 
 ## 2. Gather Milestone Goals
 
@@ -88,7 +88,7 @@ AskUserQuestion: "Research the domain ecosystem for new features before defining
 - "Research first (Recommended)" — Discover patterns, features, architecture for NEW capabilities
 - "Skip research" — Go straight to requirements
 
-**Persist choice to config** (so future `/df:plan-objective` honors it):
+**Persist choice to config** (so future `/plan-objective` honors it):
 
 ```bash
 # If "Research first": persist true
@@ -113,7 +113,7 @@ node ~/.claude/devflow/bin/df-tools.cjs config-set workflow.research false
 mkdir -p .planning/research
 ```
 
-Spawn 4 parallel df-project-researcher agents. Each uses this template with dimension-specific fields:
+Spawn 4 parallel project-researcher agents. Each uses this template with dimension-specific fields:
 
 **Common structure for all 4 researchers:**
 ```
@@ -138,7 +138,7 @@ Focus ONLY on what's needed for the NEW features.
 Write to: .planning/research/{FILE}
 Use template: ~/.claude/devflow/templates/research-project/{FILE}
 </output>
-", subagent_type="df-project-researcher", model="{researcher_model}", description="{DIMENSION} research")
+", subagent_type="project-researcher", model="{researcher_model}", description="{DIMENSION} research")
 ```
 
 **Dimension-specific fields:**
@@ -162,7 +162,7 @@ Read: .planning/research/STACK.md, FEATURES.md, ARCHITECTURE.md, PITFALLS.md
 Write to: .planning/research/SUMMARY.md
 Use template: ~/.claude/devflow/templates/research-project/SUMMARY.md
 Commit after writing.
-", subagent_type="df-research-synthesizer", model="{synthesizer_model}", description="Synthesize research")
+", subagent_type="research-synthesizer", model="{synthesizer_model}", description="Synthesize research")
 ```
 
 Display key findings from SUMMARY.md:
@@ -283,7 +283,7 @@ Create roadmap for milestone v[X.Y]:
 
 Write files first, then return.
 </instructions>
-", subagent_type="df-roadmapper", model="{roadmapper_model}", description="Create roadmap")
+", subagent_type="roadmapper", model="{roadmapper_model}", description="Create roadmap")
 ```
 
 **Handle return:**
@@ -346,11 +346,11 @@ node ~/.claude/devflow/bin/df-tools.cjs commit "docs: create milestone v[X.Y] ro
 
 **Objective [N]: [Objective Name]** — [Goal]
 
-`/df:discuss-objective [N]` — gather context and clarify approach
+`/discuss-objective [N]` — gather context and clarify approach
 
 <sub>`/clear` first → fresh context window</sub>
 
-Also: `/df:plan-objective [N]` — skip discussion, plan directly
+Also: `/plan-objective [N]` — skip discussion, plan directly
 ```
 
 </process>
@@ -362,12 +362,12 @@ Also: `/df:plan-objective [N]` — skip discussion, plan directly
 - [ ] Research completed (if selected) — 4 parallel agents, milestone-aware
 - [ ] Requirements gathered and scoped per category
 - [ ] REQUIREMENTS.md created with REQ-IDs
-- [ ] df-roadmapper spawned with objective numbering context
+- [ ] roadmapper spawned with objective numbering context
 - [ ] Roadmap files written immediately (not draft)
 - [ ] User feedback incorporated (if any)
 - [ ] ROADMAP.md objectives continue from previous milestone
 - [ ] All commits made (if planning docs committed)
-- [ ] User knows next step: `/df:discuss-objective [N]`
+- [ ] User knows next step: `/discuss-objective [N]`
 
 **Atomic commits:** Each objective commits its artifacts immediately.
 </success_criteria>

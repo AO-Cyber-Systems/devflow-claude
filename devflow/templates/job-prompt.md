@@ -1,6 +1,6 @@
 # Objective Prompt Template
 
-> **Note:** Planning methodology is in `agents/df-planner.md`.
+> **Note:** Planning methodology is in `agents/planner.md`.
 > This template defines the JOB.md output format that the agent produces.
 
 Template for `.planning/objectives/XX-name/{objective}-{job}-JOB.md` - executable objective plans optimized for parallel execution.
@@ -172,7 +172,7 @@ After completion, create `.planning/objectives/XX-name/{objective}-{job}-SUMMARY
 | `validation_gates` | No | Runnable lint/test/build commands from STACK.md |
 | `must_haves` | Yes | Goal-backward verification criteria (see below) |
 
-**Wave is pre-computed:** Wave numbers are assigned during `/df:plan-objective`. Execute-objective reads `wave` directly from frontmatter and groups plans by wave number. No runtime dependency analysis needed.
+**Wave is pre-computed:** Wave numbers are assigned during `/plan-objective`. Execute-objective reads `wave` directly from frontmatter and groups plans by wave number. No runtime dependency analysis needed.
 
 **Must-haves enable verification:** The `must_haves` field carries goal-backward requirements from planning to execution. After all jobs complete, execute-objective spawns a verification subagent that checks these criteria against the actual codebase.
 

@@ -98,7 +98,7 @@ skipped: [N]
 **Gaps:**
 - APPEND only when issue found (YAML format)
 - After diagnosis: fill `root_cause`, `artifacts`, `missing`, `debug_session`
-- This section feeds directly into /df:plan-objective --gaps
+- This section feeds directly into /plan-objective --gaps
 
 </section_rules>
 
@@ -112,7 +112,7 @@ skipped: [N]
 4. UAT.md Gaps section updated with diagnosis:
    - Each gap gets `root_cause`, `artifacts`, `missing`, `debug_session` filled
 5. status → "diagnosed"
-6. Ready for /df:plan-objective --gaps with root causes
+6. Ready for /plan-objective --gaps with root causes
 
 **After diagnosis:**
 ```yaml
@@ -136,7 +136,7 @@ skipped: [N]
 
 <lifecycle>
 
-**Creation:** When /df:verify-work starts new session
+**Creation:** When /verify-work starts new session
 - Extract tests from SUMMARY.md files
 - Set status to "testing"
 - Current Test points to test 1

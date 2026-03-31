@@ -27,7 +27,7 @@ Parse JSON for: `researcher_model`, `planner_model`, `checker_model`, `executor_
 
 **File contents (from --include):** `state_content`, `roadmap_content`, `requirements_content`, `context_content`, `research_content`.
 
-**If `planning_exists` is false:** Error — run `/df:new-project` first.
+**If `planning_exists` is false:** Error — run `/new-project` first.
 
 ## 2. Resolve Objective
 
@@ -57,15 +57,25 @@ Create objective directory, generate 1-3 TRDs inline based on the description, e
 mkdir -p ".planning/objectives/${padded_objective}-${objective_slug}"
 ```
 
-## 3. Brief Discussion (optional)
+## 3. Present Build Plan (EnterPlanMode)
 
-**Skip if:** `--skip-research` flag, or objective has clear requirements in roadmap (goal is specific, requirements are listed).
+**Skip if:** `--auto` flag or config `workflow.auto_advance` is true.
 
-If objective needs clarification (vague goal, no requirements listed):
+Use Claude Code's built-in plan mode to present the execution strategy before spawning agents:
 
-Use AskUserQuestion with 2-3 targeted questions about the objective's scope and approach. These replace the full discuss-objective workflow.
+```
+EnterPlanMode()
+```
 
-Example:
+Write a plan summarizing:
+- **Objective:** {objective_name} — {goal from roadmap}
+- **Pipeline:** Research → Plan → {Check (if enabled)} → Execute → Verify
+- **Agents:** researcher ({researcher_model}), planner ({planner_model}), executor ({executor_model})
+- **Skipped steps:** {list any --skip flags or disabled agents}
+- **Estimated waves:** {based on objective complexity}
+
+If objective needs clarification (vague goal, no requirements listed), include 2-3 scoping questions in the plan using AskUserQuestion:
+
 ```
 AskUserQuestion([
   {
@@ -81,7 +91,13 @@ AskUserQuestion([
 ])
 ```
 
-Store answers as inline context for the planner (no CONTEXT.md file needed).
+```
+ExitPlanMode()
+```
+
+Store any user answers as inline context for the planner (no CONTEXT.md file needed).
+
+Once the user approves the plan, proceed to research.
 
 ## 4. Research
 
@@ -94,7 +110,7 @@ Display banner:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
-Spawn df-objective-researcher (same as plan-objective step 5).
+Spawn objective-researcher (same as plan-objective step 6).
 
 If `--pause` flag: Display research results and wait for confirmation before proceeding.
 
@@ -107,7 +123,7 @@ Display banner:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
-Spawn df-planner with full context (same as plan-objective step 8).
+Spawn planner with full context (same as plan-objective step 9).
 
 Pass any inline discussion answers as additional context in the planner prompt.
 
@@ -115,7 +131,7 @@ If `--pause` flag: Display TRD summary and wait for confirmation.
 
 ## 6. Verify TRDs (quick validation)
 
-Quick validation — NOT the full df-job-checker loop unless `job_checker_enabled` is true:
+Quick validation — NOT the full job-checker loop unless `job_checker_enabled` is true:
 
 ```bash
 # Verify all TRDs have verification commands
@@ -124,7 +140,7 @@ for trd in "${OBJECTIVE_DIR}"/*-TRD.md; do
 done
 ```
 
-If `job_checker_enabled` is true: Spawn df-job-checker (same as plan-objective step 10).
+If `job_checker_enabled` is true: Spawn job-checker (same as plan-objective step 11).
 
 ## 7. Execute TRDs
 
@@ -135,7 +151,7 @@ Display banner:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
-Delegate to execute-objective workflow (same as /df:execute-objective). The execute-objective workflow handles:
+Delegate to execute-objective workflow (same as /execute-objective). The execute-objective workflow handles:
 - Wave-based parallel execution
 - Per-task verification with evidence
 - TDD enforcement for type: tdd TRDs
@@ -144,7 +160,7 @@ Delegate to execute-objective workflow (same as /df:execute-objective). The exec
 
 ```
 Task(
-  prompt="Run /df:execute-objective ${OBJECTIVE_NUMBER} --auto",
+  prompt="Run /execute-objective ${OBJECTIVE_NUMBER} --auto",
   subagent_type="general-purpose",
   description="Execute Objective ${OBJECTIVE_NUMBER}"
 )
