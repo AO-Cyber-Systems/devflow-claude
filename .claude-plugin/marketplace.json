@@ -21,14 +21,25 @@
     },
     {
       "name": "social-media-generator",
-      "description": "Generate social media images and videos using HTML/CSS templates with AI-generated imagery via Replicate. Supports Facebook, Instagram, and Twitter/X.",
-      "version": "1.2.0",
+      "description": "Generate social media images and videos using HTML/CSS templates with AI-generated imagery. Supports AOSentry Media, Replicate MCP, or CSS-only fallback.",
+      "version": "1.3.0",
       "author": {
         "name": "AO Cyber Systems",
         "email": "dev@aocodex.ai"
       },
       "source": "./plugins/social-media-generator",
       "category": "content-creation"
+    },
+    {
+      "name": "aosentry-mcp",
+      "description": "AI media and gateway management MCP servers. 45 tools: image generation, vision analysis, TTS, transcription, spend analytics, API key management, guardrails, models, users, teams, orgs, budgets, and config.",
+      "version": "1.0.0",
+      "author": {
+        "name": "AO Cyber Systems",
+        "email": "dev@aocodex.ai"
+      },
+      "source": "./plugins/aosentry-mcp",
+      "category": "ai-tools"
     }
   ]
 }

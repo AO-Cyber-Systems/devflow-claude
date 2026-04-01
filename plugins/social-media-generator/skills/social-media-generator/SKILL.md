@@ -1,11 +1,29 @@
 ---
 name: social-media-generator
-description: Generate social media images and videos using HTML/CSS templates combined with AI-generated imagery via Replicate. Use when the user asks to create social media posts, graphics, videos, stories, reels, quote graphics, promotional content, or any visual content for Facebook, Instagram, or Twitter/X. Triggers include "create a social media post", "make an Instagram graphic", "design a Facebook post", "generate a Twitter image", "create a promotional video", "make a quote graphic", "design content for [platform]", "create an ad for", "make promotional material".
+description: Generate social media images and videos using HTML/CSS templates combined with AI-generated imagery. Use when the user asks to create social media posts, graphics, videos, stories, reels, quote graphics, promotional content, or any visual content for Facebook, Instagram, or Twitter/X. Triggers include "create a social media post", "make an Instagram graphic", "design a Facebook post", "generate a Twitter image", "create a promotional video", "make a quote graphic", "design content for [platform]", "create an ad for", "make promotional material".
 ---
 
 # Social Media Content Generator
 
-Generate professional social media content by combining HTML/CSS layouts with AI-generated images/videos from Replicate.
+Generate professional social media content by combining HTML/CSS layouts with AI-generated images/videos.
+
+## Step 0: Detect Image Generation Backend
+
+Before starting, check which image generation tools are available. Try calling each to detect availability:
+
+1. **AOSentry Media** — check for `mcp__aosentry-media__generate_image` tool
+2. **Replicate MCP** — check for `replicate:create_models_predictions` tool
+
+Set the backend based on what is found:
+- If **AOSentry Media** is available: use it as primary (supports generate, edit, analyze)
+- If **Replicate MCP** is available: use it as primary
+- If **both** are available: prefer AOSentry for simple generation, Replicate for specific model selection
+- If **neither** is available: inform the user:
+  > "AI image generation is not available. To enable it, install one of:
+  > - **AOSentry MCP** plugin (from the devflow marketplace) — provides image generation, editing, and analysis
+  > - **Replicate MCP** — run `npx replicate-mcp@latest` with a `REPLICATE_API_TOKEN`
+  >
+  > Without image generation, I can still create HTML/CSS templates with placeholder backgrounds. Want to proceed with CSS-only designs?"
 
 ## Workflow
 
@@ -30,7 +48,24 @@ Recommend a theme based on context, or let user choose. See `references/themes.m
 | **Ministry/Church** | Religious organizations, faith-based content, spiritual messages |
 | **Auto-detect** | Analyze content and recommend appropriate theme |
 
-### 3. Generate AI Assets via Replicate
+### 3. Generate AI Assets
+
+Use whichever backend was detected in Step 0.
+
+**Prompt structure for backgrounds:**
+"[style keywords from theme], abstract background, [mood/atmosphere], no text, no words, suitable for text overlay, [additional context]"
+
+#### Option A: AOSentry Media
+
+```
+mcp__aosentry-media__generate_image
+  prompt: "[detailed prompt with theme keywords from references/themes.md]"
+  aspect_ratio: "16:9"  # Match platform: 1:1, 4:5, 9:16, 16:9
+```
+
+AOSentry also provides `edit_image` (inpainting/outpainting) and `analyze_image` (vision analysis) which can be useful for refining outputs.
+
+#### Option B: Replicate MCP
 
 **Model selection by use case:**
 
@@ -40,7 +75,6 @@ Recommend a theme based on context, or let user choose. See `references/themes.m
 | Images with embedded text | `ideogram-ai/ideogram-v2` | Best text rendering |
 | Video backgrounds | `minimax/video-01` | High quality video |
 
-**API pattern:**
 ```
 replicate:create_models_predictions
   model_owner: "black-forest-labs"
@@ -51,26 +85,27 @@ replicate:create_models_predictions
     aspect_ratio: "16:9"  # Match platform: 1:1, 4:5, 9:16, 16:9
 ```
 
-**Prompt structure for backgrounds:**
-"[style keywords from theme], abstract background, [mood/atmosphere], no text, no words, suitable for text overlay, [additional context]"
+#### Option C: No Backend (CSS-only fallback)
+
+If no image generation is available, create designs using CSS gradients, patterns, and solid backgrounds that match the selected theme's color palette. The output will still be professional but without AI-generated imagery.
 
 ### 4. Download Remote Assets Locally
 
-**⚠️ CRITICAL: Always download Replicate outputs before rendering.**
+**⚠️ CRITICAL: Always download generated image outputs before rendering.**
 
-Puppeteer with `file://` protocol cannot reliably fetch remote URLs due to CORS restrictions. Replicate output URLs will fail silently during render, resulting in missing backgrounds.
+Puppeteer with `file://` protocol cannot reliably fetch remote URLs due to CORS restrictions. Output URLs (from Replicate or AOSentry) will fail silently during render, resulting in missing backgrounds.
 
 **Always download AI-generated assets locally:**
 
 ```bash
-# Download the Replicate output
-curl -L -o background.webp "[REPLICATE_OUTPUT_URL]"
+# Download the generated output
+curl -L -o background.webp "[OUTPUT_URL]"
 ```
 
 **Or use the render-util.js helper:**
 ```javascript
 const { downloadAsset } = require('./render-util.js');
-const localFile = downloadAsset('[REPLICATE_OUTPUT_URL]', 'background.webp');
+const localFile = downloadAsset('[OUTPUT_URL]', 'background.webp');
 ```
 
 **Why this matters:**
@@ -78,6 +113,8 @@ const localFile = downloadAsset('[REPLICATE_OUTPUT_URL]', 'background.webp');
 - Remote URLs may have auth headers or timing issues
 - Local files load instantly and reliably
 - Prevents silent failures where only the overlay renders (background missing)
+
+**Skip this step** if using CSS-only fallback (Option C).
 
 ### 5. Build HTML/CSS Composite
 
@@ -197,7 +234,7 @@ async function findChrome() {
 })();
 ```
 
-**Video content:** Generate video via Replicate, then overlay text using ffmpeg or create animated HTML.
+**Video content:** Generate video via Replicate (if available), then overlay text using ffmpeg or create animated HTML.
 
 ### 7. Multi-Platform Export
 
