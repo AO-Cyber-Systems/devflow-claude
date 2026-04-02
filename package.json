@@ -1,6 +1,6 @@
 {
   "name": "@ao-cyber-systems/devflow-cc",
-  "version": "1.27.3",
+  "version": "1.27.4",
   "description": "A meta-prompting, context engineering and spec-driven development system for Claude Code by AO Cyber Systems.",
   "bin": {
     "devflow-cc": "bin/install.js"
