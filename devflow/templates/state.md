@@ -25,34 +25,9 @@ Last activity: [YYYY-MM-DD] — [What happened]
 
 Progress: [░░░░░░░░░░] 0%
 
-## Performance Metrics
-
-**Velocity:**
-- Total plans completed: [N]
-- Average duration: [X] min
-- Total execution time: [X.X] hours
-
-**By Objective:**
-
-| Objective | Plans | Total | Avg/Plan |
-|-------|-------|-------|----------|
-| - | - | - | - |
-
-**Recent Trend:**
-- Last 5 jobs: [durations]
-- Trend: [Improving / Stable / Degrading]
-
-*Updated after each job completion*
-
 ## Accumulated Context
 
-### Decisions
-
-Decisions are logged in PROJECT.md Key Decisions table.
-Recent decisions affecting current work:
-
-- [Objective X]: [Decision summary]
-- [Objective Y]: [Decision summary]
+> Decisions and performance metrics are logged in STATE_ARCHIVE.md.
 
 ### Pending Todos
 
@@ -103,8 +78,8 @@ STATE.md is the project's short-term memory spanning all objectives and sessions
 **Writing:** After every significant action
 - execute: After SUMMARY.md created
   - Update position (objective, job, status)
-  - Note new decisions (detail in PROJECT.md)
   - Add blockers/concerns
+  - Decisions and metrics go to STATE_ARCHIVE.md (via df-tools)
 - transition: After objective marked complete
   - Update progress bar
   - Clear resolved blockers
@@ -132,18 +107,9 @@ Where we are right now:
 
 Progress calculation: (completed jobs) / (total plans across all objectives) × 100%
 
-### Performance Metrics
-Track velocity to understand execution patterns:
-- Total plans completed
-- Average duration per job
-- Per-objective breakdown
-- Recent trend (improving/stable/degrading)
-
-Updated after each job completion.
-
 ### Accumulated Context
 
-**Decisions:** Reference to PROJECT.md Key Decisions table, plus recent decisions summary for quick access. Full decision log lives in PROJECT.md.
+Decisions and performance metrics live in STATE_ARCHIVE.md to keep STATE.md lean.
 
 **Pending Todos:** Ideas captured via /add-todo
 - Count of pending todos
@@ -167,8 +133,7 @@ Enables instant resumption:
 
 Keep STATE.md under 100 lines.
 
-It's a DIGEST, not an archive. If accumulated context grows too large:
-- Keep only 3-5 recent decisions in summary (full log in PROJECT.md)
+It's a DIGEST, not an archive. Decisions and metrics live in STATE_ARCHIVE.md.
 - Keep only active blockers, remove resolved ones
 
 The goal is "read once, know where we are" — if it's too long, that fails.

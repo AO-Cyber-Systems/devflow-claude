@@ -1,7 +1,7 @@
 {
   "name": "devflow",
   "description": "Autonomous development system that turns ideas into shipped code. Handles project planning, task breakdown, parallel execution, verification, and progress tracking — so you describe what to build and DevFlow builds it.",
-  "version": "1.27.1",
+  "version": "1.27.3",
   "author": {
     "name": "AO Cyber Systems",
     "email": "dev@aocodex.ai"
@@ -10,19 +10,5 @@
   "repository": "https://github.com/AO-Cyber-Systems/devflow-claude",
   "license": "MIT",
   "keywords": ["development", "workflow", "planning", "agents", "automation", "project-management"],
-  "skills": "./skills/",
-  "agents": [
-    "./agents/codebase-mapper.md",
-    "./agents/debugger.md",
-    "./agents/executor.md",
-    "./agents/integration-checker.md",
-    "./agents/job-checker.md",
-    "./agents/objective-researcher.md",
-    "./agents/planner.md",
-    "./agents/project-researcher.md",
-    "./agents/research-synthesizer.md",
-    "./agents/roadmapper.md",
-    "./agents/security-auditor.md",
-    "./agents/verifier.md"
-  ]
+  "skills": "./skills/"
 }

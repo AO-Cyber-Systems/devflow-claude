@@ -44,6 +44,33 @@ function writeStateJson(cwd, data) {
   return merged;
 }
 
+// ─── State Archive Helper ───────────────────────────────────────────────────
+
+const ARCHIVE_SEED = `# State Archive
+
+Append-only log. Written by df-tools \`add-decision\` and \`record-metric\`.
+STATE.md stays lean; this file grows over time.
+
+## Decisions
+
+- *(none yet)*
+
+## Performance Metrics
+
+| Objective | Duration | Tasks | Files |
+|-----------|----------|-------|-------|
+`;
+
+function ensureArchive(cwd) {
+  const archivePath = path.join(cwd, '.planning', 'STATE_ARCHIVE.md');
+  if (!fs.existsSync(archivePath)) {
+    if (!fs.existsSync(path.join(cwd, '.planning'))) {
+      error('.planning directory not found');
+    }
+    fs.writeFileSync(archivePath, ARCHIVE_SEED, 'utf-8');
+  }
+}
+
 // ─── State Field Helpers (markdown) ──────────────────────────────────────────
 
 function stateExtractField(content, fieldName) {
@@ -228,10 +255,10 @@ function cmdStateAdvanceJob(cwd, raw) {
 }
 
 function cmdStateRecordMetric(cwd, options, raw) {
-  const statePath = path.join(cwd, '.planning', 'STATE.md');
-  if (!fs.existsSync(statePath)) { output({ error: 'STATE.md not found' }, raw); return; }
+  const archivePath = path.join(cwd, '.planning', 'STATE_ARCHIVE.md');
+  ensureArchive(cwd);
 
-  let content = fs.readFileSync(statePath, 'utf-8');
+  let content = fs.readFileSync(archivePath, 'utf-8');
   const { objective, job, duration, tasks, files } = options;
 
   if (!objective || !job || !duration) {
@@ -255,10 +282,10 @@ function cmdStateRecordMetric(cwd, options, raw) {
     }
 
     content = content.replace(metricsPattern, `${tableHeader}${tableBody}\n`);
-    fs.writeFileSync(statePath, content, 'utf-8');
+    fs.writeFileSync(archivePath, content, 'utf-8');
     output({ recorded: true, objective, job, duration }, raw, 'true');
   } else {
-    output({ recorded: false, reason: 'Performance Metrics section not found in STATE.md' }, raw, 'false');
+    output({ recorded: false, reason: 'Performance Metrics section not found in STATE_ARCHIVE.md' }, raw, 'false');
   }
 }
 
@@ -303,13 +330,13 @@ function cmdStateUpdateProgress(cwd, raw) {
 }
 
 function cmdStateAddDecision(cwd, options, raw) {
-  const statePath = path.join(cwd, '.planning', 'STATE.md');
-  if (!fs.existsSync(statePath)) { output({ error: 'STATE.md not found' }, raw); return; }
+  const archivePath = path.join(cwd, '.planning', 'STATE_ARCHIVE.md');
+  ensureArchive(cwd);
 
   const { objective, summary, rationale } = options;
   if (!summary) { output({ error: 'summary required' }, raw); return; }
 
-  let content = fs.readFileSync(statePath, 'utf-8');
+  let content = fs.readFileSync(archivePath, 'utf-8');
   const entry = `- [Objective ${objective || '?'}]: ${summary}${rationale ? ` — ${rationale}` : ''}`;
 
   // Find Decisions section (various heading patterns)
@@ -319,17 +346,17 @@ function cmdStateAddDecision(cwd, options, raw) {
   if (match) {
     let sectionBody = match[2];
     // Remove placeholders
-    sectionBody = sectionBody.replace(/None yet\.?\s*\n?/gi, '').replace(/No decisions yet\.?\s*\n?/gi, '');
+    sectionBody = sectionBody.replace(/None yet\.?\s*\n?/gi, '').replace(/No decisions yet\.?\s*\n?/gi, '').replace(/\*\(none yet\)\*\s*\n?/gi, '');
     sectionBody = sectionBody.trimEnd() + '\n' + entry + '\n';
     content = content.replace(sectionPattern, `${match[1]}${sectionBody}`);
-    fs.writeFileSync(statePath, content, 'utf-8');
+    fs.writeFileSync(archivePath, content, 'utf-8');
     // Mirror to JSON sidecar
     const sj = readStateJson(cwd) || Object.assign({}, STATE_JSON_DEFAULTS);
     const decisions = [...(sj.decisions || []), { objective: objective || '?', summary, rationale: rationale || null }];
     writeStateJson(cwd, { decisions });
     output({ added: true, decision: entry }, raw, 'true');
   } else {
-    output({ added: false, reason: 'Decisions section not found in STATE.md' }, raw, 'false');
+    output({ added: false, reason: 'Decisions section not found in STATE_ARCHIVE.md' }, raw, 'false');
   }
 }
 

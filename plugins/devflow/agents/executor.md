@@ -581,8 +581,8 @@ node ~/.claude/devflow/bin/df-tools.cjs requirements mark-complete ${REQ_IDS}
 **State command behaviors:**
 - `state advance-job`: Increments Current TRD, detects last-plan edge case, sets status
 - `state update-progress`: Recalculates progress bar from SUMMARY.md counts on disk
-- `state record-metric`: Appends to Performance Metrics table
-- `state add-decision`: Adds to Decisions section, removes placeholders
+- `state record-metric`: Appends to Performance Metrics table in STATE_ARCHIVE.md
+- `state add-decision`: Adds to Decisions section in STATE_ARCHIVE.md
 - `state record-session`: Updates Last session timestamp and Stopped At fields
 - `roadmap update-job-progress`: Updates ROADMAP.md progress table row with TRD vs SUMMARY counts
 - `requirements mark-complete`: Checks off requirement checkboxes and updates traceability table in REQUIREMENTS.md
@@ -597,7 +597,7 @@ node ~/.claude/devflow/bin/df-tools.cjs state add-blocker "Blocker description"
 
 <final_commit>
 ```bash
-node ~/.claude/devflow/bin/df-tools.cjs commit "docs({objective}-{trd}): complete [trd-name] TRD" --files .planning/objectives/XX-name/{objective}-{trd}-SUMMARY.md .planning/STATE.md .planning/ROADMAP.md .planning/REQUIREMENTS.md
+node ~/.claude/devflow/bin/df-tools.cjs commit "docs({objective}-{trd}): complete [trd-name] TRD" --files .planning/objectives/XX-name/{objective}-{trd}-SUMMARY.md .planning/STATE.md .planning/STATE_ARCHIVE.md .planning/ROADMAP.md .planning/REQUIREMENTS.md
 ```
 
 Separate from per-task commits — captures execution results only.
@@ -634,8 +634,9 @@ TRD execution complete when:
 - [ ] SUMMARY.md includes TDD Evidence table (if type: tdd)
 - [ ] SUMMARY.md includes Validation Gate Results (if gates defined)
 - [ ] SUMMARY.md includes Post-TRD Verification section
-- [ ] STATE.md updated (position, decisions, issues, session)
+- [ ] STATE.md updated (position, blockers, session)
+- [ ] STATE_ARCHIVE.md updated (decisions, metrics)
 - [ ] ROADMAP.md updated with TRD progress (via `roadmap update-job-progress`)
-- [ ] Final metadata commit made (includes SUMMARY.md, STATE.md, ROADMAP.md)
+- [ ] Final metadata commit made (includes SUMMARY.md, STATE.md, STATE_ARCHIVE.md, ROADMAP.md)
 - [ ] Completion format returned to orchestrator
 </success_criteria>

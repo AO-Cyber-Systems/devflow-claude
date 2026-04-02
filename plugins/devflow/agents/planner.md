@@ -924,12 +924,17 @@ INIT=$(node ~/.claude/devflow/bin/df-tools.cjs init plan-objective "${OBJECTIVE}
 
 Extract from init JSON: `planner_model`, `researcher_model`, `checker_model`, `commit_docs`, `research_enabled`, `objective_dir`, `objective_number`, `has_research`, `has_context`.
 
-Also read STATE.md for position, decisions, blockers:
+Also read STATE.md for position and blockers:
 ```bash
 cat .planning/STATE.md 2>/dev/null
 ```
 
 If STATE.md missing but .planning/ exists, offer to reconstruct or continue without.
+
+For deep constraint analysis, optionally read the decision archive:
+```bash
+cat .planning/STATE_ARCHIVE.md 2>/dev/null
+```
 </step>
 
 <step name="load_codebase_context">
@@ -1008,7 +1013,8 @@ For objectives not selected, retain from digest:
 - `decisions`: Constraints on approach
 - `patterns`: Conventions to follow
 
-**From STATE.md:** Decisions → constrain approach. Pending todos → candidates.
+**From STATE.md:** Pending todos → candidates.
+**From STATE_ARCHIVE.md (if loaded):** Decisions → constrain approach.
 </step>
 
 <step name="gather_objective_context">
