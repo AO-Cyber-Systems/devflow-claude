@@ -1,0 +1,18 @@
+{
+  "aosentry-media": {
+    "command": "bash",
+    "args": ["./mcp_servers/media/run.sh"],
+    "env": {
+      "AOSENTRY_URL": "",
+      "AOSENTRY_API_KEY": ""
+    }
+  },
+  "aosentry-management": {
+    "command": "bash",
+    "args": ["./mcp_servers/management/run.sh"],
+    "env": {
+      "AOSENTRY_URL": "",
+      "AOSENTRY_API_KEY": ""
+    }
+  }
+}

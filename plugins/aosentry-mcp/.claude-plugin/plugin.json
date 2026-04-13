@@ -9,6 +9,5 @@
   "homepage": "https://github.com/AO-Cyber-Systems/devflow-claude",
   "repository": "https://github.com/AO-Cyber-Systems/devflow-claude",
   "license": "MIT",
-  "keywords": ["ai-gateway", "media", "image-generation", "tts", "transcription", "guardrails"],
-  "mcpServers": "./mcp_servers/"
+  "keywords": ["ai-gateway", "media", "image-generation", "tts", "transcription", "guardrails"]
 }
