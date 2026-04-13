@@ -33,6 +33,7 @@ function findPlanningDir(start) {
 // Intent -> recommended skill
 const INTENT_MAP = [
   { rx: /\b(build|implement|ship|make|create)\s+(the|a|this|that|feature|it)\b/i, skill: '/devflow:build' },
+  { rx: /\b(discuss|shape|preferences?\s+for|decisions?\s+for)\s+(objective|the|this|it)\b/i, skill: '/devflow:discuss-objective' },
   { rx: /\b(plan|break\s*down|design)\s+(objective|the|this|it)\b/i, skill: '/devflow:plan-objective' },
   { rx: /\b(execute|run|start)\s+(objective|the\s+plan|build)\b/i, skill: '/devflow:execute-objective' },
   { rx: /\b(verify|test|validate|check)\s+(work|it|the|what|objective)\b/i, skill: '/devflow:verify-work' },

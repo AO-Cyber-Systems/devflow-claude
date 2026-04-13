@@ -143,9 +143,10 @@ A detailed reference for workflows, troubleshooting, and configuration. For quic
 |---------|---------|-------------|
 | `/devflow:new-project` | Full project init: questions, research, requirements, roadmap | Start of a new project |
 | `/devflow:new-project --auto @idea.md` | Automated init from document | Have a PRD or idea doc ready |
-| `/devflow:discuss-objective [N]` | Capture implementation decisions | Before planning, to shape how it gets built |
-| `/devflow:plan-objective [N]` | Research + plan + verify | Before executing a objective |
+| `/devflow:discuss-objective <N>` | Capture implementation decisions before planning | Lock in preferences so research/planning don't drift |
+| `/devflow:plan-objective [N]` | Research + plan + verify | Before executing an objective |
 | `/devflow:execute-objective <N>` | Execute all jobs in parallel waves | After planning is complete |
+| `/devflow:build <N>` | End-to-end: plan → execute → verify in one command | Confident objective, want single-command flow |
 | `/devflow:verify-work [N]` | Manual UAT with auto-diagnosis | After execution completes |
 | `/devflow:audit-milestone` | Verify milestone met its definition of done | Before completing milestone |
 | `/devflow:complete-milestone` | Archive milestone, tag release | All objectives verified |
@@ -178,6 +179,7 @@ A detailed reference for workflows, troubleshooting, and configuration. For quic
 | Command | Purpose | When to Use |
 |---------|---------|-------------|
 | `/devflow:map-codebase` | Analyze existing codebase | Before `/devflow:new-project` on existing code |
+| `/devflow:security-audit` | OWASP Top 10 scan with confidence tagging | Before a release or after auth/crypto changes |
 | `/devflow:quick` | Ad-hoc task with DevFlow guarantees | Bug fixes, small features, config changes |
 | `/devflow:debug [desc]` | Systematic debugging with persistent state | When something breaks |
 | `/devflow:add-todo [desc]` | Capture an idea for later | Think of something during a session |
@@ -185,6 +187,15 @@ A detailed reference for workflows, troubleshooting, and configuration. For quic
 | `/devflow:settings` | Configure workflow toggles and model profile | Change model, toggle agents |
 | `/devflow:set-profile <profile>` | Quick profile switch | Change cost/quality tradeoff |
 | `/devflow:reapply-patches` | Restore local modifications after update | After `/devflow:update` if you had local edits |
+| `/devflow:health` | Check project integrity, repair state drift | Planning files feel stale or corrupt |
+| `/devflow:cleanup` | Archive completed debug sessions, prune stale files | Periodic maintenance |
+
+### Integration & Release (1.28+)
+
+| Command | Purpose | When to Use |
+|---------|---------|-------------|
+| `/devflow:gh-sync [objectives\|release <tag>\|status]` | Mirror planning state to GitHub issues/releases | After `new-project`, or manually when GH drifts |
+| `/devflow:workstreams [analyze\|provision\|reconcile]` | Parallel git worktrees for independent objectives | Multi-objective parallelism across worktrees |
 
 ---
 
@@ -196,22 +207,57 @@ DevFlow stores project settings in `.planning/config.json`. Configure during `/d
 
 ```json
 {
-  "mode": "interactive",
+  "mode": "yolo",
   "depth": "standard",
   "model_profile": "balanced",
+  "workflow": {
+    "research": true,
+    "job_check": true,
+    "verifier": true,
+    "auto_advance": true
+  },
   "planning": {
     "commit_docs": true,
     "search_gitignored": false
   },
-  "workflow": {
-    "research": true,
-    "job_check": true,
-    "verifier": true
+  "parallelization": {
+    "enabled": true,
+    "job_level": true,
+    "task_level": false,
+    "skip_checkpoints": true,
+    "max_concurrent_agents": 3,
+    "min_jobs_for_parallel": 2
   },
-  "git": {
-    "branching_strategy": "none",
-    "objective_branch_template": "df/objective-{objective}-{slug}",
-    "milestone_branch_template": "df/{milestone}-{slug}"
+  "gates": {
+    "require_verification": true,
+    "require_tests": true,
+    "confirm_project": true,
+    "confirm_objectives": true,
+    "confirm_roadmap": true,
+    "confirm_breakdown": true,
+    "confirm_job": true,
+    "execute_next_job": true,
+    "issues_review": true,
+    "confirm_transition": true
+  },
+  "safety": {
+    "always_confirm_destructive": true,
+    "always_confirm_external_services": true
+  },
+  "workstreams": {
+    "worktree_prefix": "../{project}-ws-",
+    "branch_prefix": "df/ws-",
+    "merge_strategy": "squash"
+  },
+  "github": {
+    "enabled": false,
+    "repo": "",
+    "milestone_prefix": "v",
+    "labels": {
+      "objective": "devflow:objective",
+      "in_progress": "devflow:in-progress",
+      "gaps": "devflow:gaps"
+    }
   }
 }
 ```
@@ -220,7 +266,7 @@ DevFlow stores project settings in `.planning/config.json`. Configure during `/d
 
 | Setting | Options | Default | What it Controls |
 |---------|---------|---------|------------------|
-| `mode` | `interactive`, `yolo` | `interactive` | `yolo` auto-approves decisions; `interactive` confirms at each step |
+| `mode` | `interactive`, `yolo` | `yolo` | `yolo` auto-approves; `interactive` confirms at every gate |
 | `depth` | `quick`, `standard`, `comprehensive` | `standard` | Planning thoroughness: 3-5, 5-8, or 8-12 objectives |
 | `model_profile` | `quality`, `balanced`, `budget` | `balanced` | Model tier for each agent (see table below) |
 
@@ -242,6 +288,64 @@ DevFlow stores project settings in `.planning/config.json`. Configure during `/d
 | `workflow.verifier` | `true`, `false` | `true` | Post-execution verification against objective goals |
 
 Disable these to speed up objectives in familiar domains or when conserving tokens.
+
+### Parallelization
+
+| Setting | Options | Default | What it Controls |
+|---------|---------|---------|------------------|
+| `parallelization.enabled` | `true`, `false` | `true` | Master switch for wave-based parallelism |
+| `parallelization.job_level` | `true`, `false` | `true` | Run independent jobs concurrently in fresh contexts |
+| `parallelization.task_level` | `true`, `false` | `false` | Split a single job's tasks across subagents (advanced) |
+| `parallelization.skip_checkpoints` | `true`, `false` | `true` | Skip user confirmation between parallel waves |
+| `parallelization.max_concurrent_agents` | integer | `3` | Cap on simultaneous subagents |
+| `parallelization.min_jobs_for_parallel` | integer | `2` | Minimum independent jobs needed before parallelism kicks in |
+
+### Gates
+
+Fine-grained approval gates for interactive mode. Each defaults to `true`. Set to `false` to skip the corresponding confirmation.
+
+| Gate | What it Confirms |
+|---|---|
+| `gates.require_verification` | Verifier must run before marking objective done |
+| `gates.require_tests` | Plans must include test tasks |
+| `gates.confirm_project` | PROJECT.md approval |
+| `gates.confirm_objectives` | Objective list approval |
+| `gates.confirm_roadmap` | Full ROADMAP.md approval |
+| `gates.confirm_breakdown` | Task breakdown within a job |
+| `gates.confirm_job` | JOB.md approval |
+| `gates.execute_next_job` | Between-job confirmations |
+| `gates.issues_review` | Pause on verification gaps before replan |
+| `gates.confirm_transition` | Cross-objective transitions |
+
+### Safety
+
+| Setting | Default | What it Controls |
+|---|---|---|
+| `safety.always_confirm_destructive` | `true` | Confirm before `rm -rf`, `git reset --hard`, `DROP TABLE`, etc. |
+| `safety.always_confirm_external_services` | `true` | Confirm before sending emails, posting to Slack, pushing to remotes |
+
+### Workstreams
+
+Parallel git worktrees for working on multiple objectives simultaneously. See `/devflow:workstreams`.
+
+| Setting | Default | What it Controls |
+|---|---|---|
+| `workstreams.worktree_prefix` | `"../{project}-ws-"` | Path template for provisioned worktrees |
+| `workstreams.branch_prefix` | `"df/ws-"` | Branch name prefix for worktream branches |
+| `workstreams.merge_strategy` | `"squash"` | `squash`, `merge`, or `rebase` on reconcile |
+
+### GitHub Integration (1.29+)
+
+Opt-in mirror of planning state to GitHub issues + releases. See the **GitHub integration** section below for the full flow.
+
+| Setting | Default | What it Controls |
+|---|---|---|
+| `github.enabled` | `false` | Master switch |
+| `github.repo` | `""` | Target repo as `"owner/name"` |
+| `github.milestone_prefix` | `"v"` | Prepended to roadmap version for milestone title |
+| `github.labels.objective` | `"devflow:objective"` | Label applied to synced issues |
+| `github.labels.in_progress` | `"devflow:in-progress"` | Label during execution |
+| `github.labels.gaps` | `"devflow:gaps"` | Label when verifier finds gaps |
 
 ### Git Branching
 
@@ -274,8 +378,9 @@ Disable these to speed up objectives in familiar domains or when conserving toke
 | df-debugger | Opus | Sonnet | Sonnet |
 | df-codebase-mapper | Sonnet | Haiku | Haiku |
 | df-verifier | Sonnet | Sonnet | Haiku |
-| df-plan-checker | Sonnet | Sonnet | Haiku |
+| df-job-checker | Sonnet | Sonnet | Haiku |
 | df-integration-checker | Sonnet | Sonnet | Haiku |
+| df-security-auditor | Opus | Sonnet | Sonnet |
 
 **Profile philosophy:**
 - **quality** -- Opus for all decision-making agents, Sonnet for read-only verification. Use when quota is available and the work is critical.
