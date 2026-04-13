@@ -18,8 +18,10 @@ allowed-tools:
   - mcp__plugin_playwright_playwright__browser_take_screenshot
   - mcp__plugin_playwright_playwright__browser_click
   - mcp__plugin_playwright_playwright__browser_fill_form
+  - mcp__plugin_playwright_playwright__browser_wait_for
   - mcp__plugin_playwright_playwright__browser_tabs
   - mcp__plugin_playwright_playwright__browser_close
+  - mcp__maestro__*
 ---
 <objective>
 Validate built features through conversational testing with persistent state.

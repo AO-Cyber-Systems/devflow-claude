@@ -1,7 +1,7 @@
 ---
 name: verifier
 description: Verifies that built code actually achieves the objective goal, not just that tasks were completed.
-tools: Read, Write, Bash, Grep, Glob, mcp__plugin_playwright_playwright__browser_navigate, mcp__plugin_playwright_playwright__browser_snapshot, mcp__plugin_playwright_playwright__browser_take_screenshot, mcp__plugin_playwright_playwright__browser_click, mcp__plugin_playwright_playwright__browser_tabs, mcp__plugin_playwright_playwright__browser_close
+tools: Read, Write, Bash, Grep, Glob, mcp__plugin_playwright_playwright__browser_navigate, mcp__plugin_playwright_playwright__browser_snapshot, mcp__plugin_playwright_playwright__browser_take_screenshot, mcp__plugin_playwright_playwright__browser_click, mcp__plugin_playwright_playwright__browser_fill_form, mcp__plugin_playwright_playwright__browser_wait_for, mcp__plugin_playwright_playwright__browser_tabs, mcp__plugin_playwright_playwright__browser_close, mcp__maestro__*
 color: green
 ---
 
@@ -291,66 +291,128 @@ grep -n -B 2 -A 2 "console\.log" "$file" 2>/dev/null | grep -E "^\s*(const|funct
 
 Categorize: 🛑 Blocker (prevents goal) | ⚠️ Warning (incomplete) | ℹ️ Info (notable)
 
-## Step 8: Functional Verification (Browser-Based)
+## Step 8: Functional Verification (Backend-Aware)
 
-**When to run:** If the objective involves UI components, web pages, or user-facing features, use Playwright browser tools to verify Level 4 (Functional) automatically before flagging items for human verification.
+**When to run:** If the objective involves UI components, web pages, mobile screens, or user-facing features, drive the app programmatically to verify Level 4 (Functional) before flagging items for human verification.
 
 **Skip if:** Objective is purely backend (API-only, CLI tools, database migrations, libraries).
 
-**Protocol:**
+**Select backend** from `.planning/project.md` stack (or JOB `must_haves.platform` if set):
+- **Web** (Hugo, Next.js, static, SPA) → Playwright MCP (Step 8a)
+- **Flutter** (mobile or Flutter web) → Maestro MCP (Step 8b)
+- **Flutter web smoke-only** → Playwright MCP against `flutter run -d chrome` with `?enable-semantics=true` (Step 8a, with caveats)
 
-1. **Start the dev server** (if not already running):
+Unknown stack → skip with status `? SKIPPED (stack not detected)`.
+
+### Step 8a: Web — Playwright MCP
+
+**Reliability fixes — do these every run, in order:**
+
+1. **Readiness probe before navigating.** Never assume the dev server is up.
    ```bash
    npm run dev &
    DEV_PID=$!
-   timeout 30 bash -c 'until curl -s localhost:3000 > /dev/null 2>&1; do sleep 1; done'
+   timeout 30 bash -c 'until curl -sf http://localhost:3000 > /dev/null; do sleep 1; done' \
+     || { echo "dev server failed to start"; kill $DEV_PID 2>/dev/null; exit 1; }
+   ```
+   For Hugo: `hugo server -D &` and probe `http://localhost:1313`.
+
+2. **Wait on network-idle + stable landmark, not fixed sleeps.** After `browser_navigate`, call `browser_wait_for` on a known landmark selector (e.g., `main`, `[role=main]`, a header text) before `browser_snapshot`. Snapshotting mid-hydration returns an empty or partial tree — this is the #1 cause of false "element not found" failures.
+
+3. **Seeded auth via `storageState.json` + verifier-mode fixtures.** If the app has auth, the project should provide `.planning/verification/storageState.json` (logged-in session) and a `VERIFIER_MODE=1` env flag that disables animations and uses deterministic fixtures. Load via Playwright's storage state at browser launch. If missing, flag `? UNCERTAIN` and add to human verification.
+
+**Protocol:**
+
+1. Start server with readiness probe (above).
+2. For each UI artifact from Steps 3-5:
+   - `browser_navigate(url=...)`
+   - `browser_wait_for(text="<landmark>")`
+   - `browser_snapshot()` — parse accessibility tree
+   - Click key interactive elements, re-snapshot, verify state change
+   - `browser_take_screenshot()` → save to `.planning/objectives/<obj>/evidence/`
+3. **On any failure**, capture both full-page screenshot AND the accessibility snapshot JSON as evidence. The next verifier pass needs this to reason about what actually rendered.
+4. `browser_close()`; `kill $DEV_PID` if started here.
+
+### Step 8b: Flutter — Maestro MCP
+
+**Prereqs (check, do not install):**
+```bash
+command -v maestro >/dev/null || { echo "maestro not installed — skip with SKIPPED status"; }
+# Install hint for user: curl -fsSL "https://get.maestro.mobile.dev" | bash
+```
+
+**Emulator readiness (open-source path):**
+```bash
+# Android
+$ANDROID_HOME/emulator/emulator -avd "$AVD_NAME" -no-snapshot -no-audio -no-window &
+timeout 60 bash -c 'until adb shell getprop sys.boot_completed 2>/dev/null | grep -q 1; do sleep 2; done'
+# iOS (macOS only)
+xcrun simctl boot "iPhone 15" && xcrun simctl bootstatus "iPhone 15" -b
+```
+
+**Build and install the app:**
+```bash
+flutter build apk --debug
+adb install -r build/app/outputs/flutter-apk/app-debug.apk
+# or for iOS: flutter build ios --debug && xcrun simctl install booted build/ios/iphonesimulator/Runner.app
+```
+
+**Protocol:**
+
+1. Flows live at `.planning/objectives/<obj>/verification/*.yaml`. If the agent that planned this objective did not author flows, derive one per truth from Step 3 now and write it.
+
+   Minimal flow:
+   ```yaml
+   appId: com.example.myflutterapp
+   ---
+   - launchApp
+   - assertVisible: "Welcome"
+   - tapOn: "Sign In"
+   - assertVisible: "Dashboard"
+   - takeScreenshot: dashboard
    ```
 
-2. **Navigate and snapshot key pages:**
-   For each UI artifact verified in Steps 3-5, navigate to its route and take a snapshot:
-   ```
-   browser_navigate(url="http://localhost:3000/{route}")
-   browser_snapshot()  # Get accessibility tree / DOM state
-   ```
-
-3. **Verify rendered content:**
-   - Check that expected text, headings, and interactive elements appear in the snapshot
-   - Verify navigation links resolve (not 404)
-   - Check that data-fetching components show real data (not empty states or loading spinners stuck)
-   - Click key interactive elements and verify state changes
-
-4. **Take screenshots for evidence:**
-   ```
-   browser_take_screenshot()  # Visual evidence for VERIFICATION.md
+2. Run flows via Maestro MCP (invoke `maestro mcp` server, or subprocess `maestro test`):
+   ```bash
+   maestro test .planning/objectives/"$OBJECTIVE_DIR"/verification/ \
+     --format junit --output "$OBJECTIVE_DIR"/evidence/maestro.xml
    ```
 
-5. **Record results:**
+3. For state inspection between steps, call `maestro hierarchy` — returns JSON view tree (text, resource-id, bounds, clickable, children). Parse to verify expected elements present.
 
-   | Page/Component | URL | Renders? | Key Content Present? | Interactive? | Screenshot |
-   |---|---|---|---|---|---|
-   | Dashboard | /dashboard | Yes | Sidebar, header, data table | Click sort works | screenshot_1.png |
+4. Capture screenshots via `takeScreenshot` steps in the flow; they land in the Maestro output dir — move to `.planning/objectives/<obj>/evidence/`.
 
-6. **Cleanup:**
-   ```
-   browser_close()
-   ```
-   Kill dev server if started in this step.
+5. Cleanup: `adb emu kill` or `xcrun simctl shutdown booted` if started here.
 
-**Functional verification status:**
-- ✓ FUNCTIONAL: Page renders, content present, interactions work
-- ⚠ PARTIAL: Page renders but missing expected content or broken interactions
-- ✗ BROKEN: Page fails to render, 404, or crash
-- ? SKIPPED: Not a UI artifact or server couldn't start
+**Flutter semantics note:** Maestro reads Flutter's SemanticsNode tree automatically. No extra config needed on mobile. For Flutter web, launch with `flutter run -d chrome --web-renderer html` and append `?enable-semantics=true` to the URL so Playwright sees a real a11y tree.
+
+### Shared evidence contract
+
+Regardless of backend, append to VERIFICATION.md:
+
+```yaml
+evidence:
+  - type: screenshot | tree | log | junit
+    path: .planning/objectives/<obj>/evidence/<file>
+    truth: "which truth from Step 3 this supports"
+```
+
+### Functional verification status
+
+- ✓ FUNCTIONAL: Flow completes, assertions pass, expected content present
+- ⚠ PARTIAL: Flow completes but missing expected content or non-critical assertion failed
+- ✗ BROKEN: App fails to launch, crashes, or critical assertion failed
+- ? SKIPPED: Not a UI artifact, tooling missing, or stack not detected
 
 **Important:** Functional verification supplements but does not replace Steps 3-5 (static analysis). A component that passes functional verification but fails wiring checks still has gaps.
 
 ## Step 9: Identify Human Verification Needs
 
-Items that pass functional verification (Step 8) can be removed from the human verification list. Only flag items that:
-- Cannot be verified via browser automation (performance feel, accessibility nuance, animation smoothness)
-- Failed browser verification in a way that needs human judgment
-- Involve external service integration (Stripe checkout, email delivery)
-- Require mobile device testing
+Items that pass functional verification (Step 8a web or 8b Flutter/Maestro) can be removed from the human verification list. Only flag items that:
+- Cannot be verified via automation (performance feel, accessibility nuance, animation smoothness, haptics)
+- Failed automated verification in a way that needs human judgment
+- Involve external service integration (Stripe checkout, email delivery, push notifications)
+- Require physical device testing (camera, biometrics, real GPS)
 
 **Format:**
 
