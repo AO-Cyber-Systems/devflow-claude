@@ -16,6 +16,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - All CLI commands, config keys, JSON output keys, file names updated
   - PLAN.md → JOB.md, .planning/phases/ → .planning/objectives/
 
+## [1.30.1] - 2026-04-13
+
+### Docs
+- **user-guide**: audit against actual feature surface, bump to 1.30.1 (3b3b5a4)
+
 ## [1.30.0] - 2026-04-13
 
 ### Added
@@ -1619,6 +1624,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [1.0.2]: https://github.com/glittercowboy/devflow/releases/tag/v1.0.2
 [1.0.1]: https://github.com/glittercowboy/devflow/releases/tag/v1.0.1
 [1.0.0]: https://github.com/glittercowboy/devflow/releases/tag/v1.0.0
+
 
 
 
