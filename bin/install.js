@@ -186,63 +186,6 @@ function copyWithPathReplacement(srcDir, destDir, pathPrefix) {
 }
 
 /**
- * Copy skills directory to destination
- * Source: plugins/devflow/skills/<name>/SKILL.md (directory-per-skill)
- * Dest: <targetDir>/skills/<name>.md (flat for npm channel)
- */
-function copySkills(srcDir, destDir, pathPrefix) {
-  if (!fs.existsSync(srcDir)) return;
-
-  // Remove old skill files/directories before copying new ones
-  if (fs.existsSync(destDir)) {
-    for (const entry of fs.readdirSync(destDir, { withFileTypes: true })) {
-      const entryPath = path.join(destDir, entry.name);
-      if (entry.isDirectory()) {
-        fs.rmSync(entryPath, { recursive: true });
-      } else if (entry.name.endsWith('.md')) {
-        fs.unlinkSync(entryPath);
-      }
-    }
-  } else {
-    fs.mkdirSync(destDir, { recursive: true });
-  }
-
-  // Also remove legacy commands/df/ if it exists (migration from pre-skills era)
-  const legacyCommandsDir = path.join(path.dirname(destDir), 'commands', 'df');
-  if (fs.existsSync(legacyCommandsDir)) {
-    fs.rmSync(legacyCommandsDir, { recursive: true });
-    console.log(`  ${green}✓${reset} Removed legacy commands/df/ (migrated to skills/)`);
-  }
-
-  const attribution = getCommitAttribution();
-
-  for (const entry of fs.readdirSync(srcDir, { withFileTypes: true })) {
-    // Read from skills/<name>/SKILL.md subdirectories
-    if (entry.isDirectory()) {
-      const skillFile = path.join(srcDir, entry.name, 'SKILL.md');
-      if (!fs.existsSync(skillFile)) continue;
-      let content = fs.readFileSync(skillFile, 'utf8');
-      const globalClaudeRegex = /~\/\.claude\//g;
-      const localClaudeRegex = /\.\/\.claude\//g;
-      content = content.replace(globalClaudeRegex, pathPrefix);
-      content = content.replace(localClaudeRegex, `./.claude/`);
-      content = processAttribution(content, attribution);
-      fs.writeFileSync(path.join(destDir, entry.name + '.md'), content);
-    }
-    // Backward compat: also handle flat .md files
-    else if (entry.isFile() && entry.name.endsWith('.md')) {
-      let content = fs.readFileSync(path.join(srcDir, entry.name), 'utf8');
-      const globalClaudeRegex = /~\/\.claude\//g;
-      const localClaudeRegex = /\.\/\.claude\//g;
-      content = content.replace(globalClaudeRegex, pathPrefix);
-      content = content.replace(localClaudeRegex, `./.claude/`);
-      content = processAttribution(content, attribution);
-      fs.writeFileSync(path.join(destDir, entry.name), content);
-    }
-  }
-}
-
-/**
  * Clean up orphaned files from previous DevFlow versions
  */
 function cleanupOrphanedFiles(configDir) {
@@ -259,6 +202,38 @@ function cleanupOrphanedFiles(configDir) {
     if (fs.existsSync(fullPath)) {
       fs.unlinkSync(fullPath);
       console.log(`  ${green}✓${reset} Removed orphaned ${relPath}`);
+    }
+  }
+}
+
+/**
+ * Remove legacy DevFlow skills and agents installed by older versions of this
+ * installer. Skills and agents are now provided exclusively via the marketplace
+ * plugin (devflow@devflow), so any df-* entries in skills/ or agents/ are stale
+ * duplicates that would collide with the plugin namespace.
+ */
+function cleanupLegacySkillsAndAgents(configDir) {
+  const skillsDir = path.join(configDir, 'skills');
+  if (fs.existsSync(skillsDir)) {
+    for (const entry of fs.readdirSync(skillsDir, { withFileTypes: true })) {
+      if (!entry.name.startsWith('df-')) continue;
+      const target = path.join(skillsDir, entry.name);
+      if (entry.isDirectory()) {
+        fs.rmSync(target, { recursive: true, force: true });
+      } else {
+        fs.unlinkSync(target);
+      }
+      console.log(`  ${green}✓${reset} Removed legacy skill ${entry.name}`);
+    }
+  }
+
+  const agentsDir = path.join(configDir, 'agents');
+  if (fs.existsSync(agentsDir)) {
+    for (const entry of fs.readdirSync(agentsDir, { withFileTypes: true })) {
+      if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
+      if (!entry.name.startsWith('df-') && !KNOWN_AGENTS.includes(entry.name)) continue;
+      fs.unlinkSync(path.join(agentsDir, entry.name));
+      console.log(`  ${green}✓${reset} Removed legacy agent ${entry.name}`);
     }
   }
 }
@@ -396,7 +371,7 @@ function uninstall(isGlobal) {
   // 4. Remove DevFlow hooks
   const hooksDir = path.join(targetDir, 'hooks');
   if (fs.existsSync(hooksDir)) {
-    const dfHooks = ['statusline.js', 'check-update.js', 'verify-completion.js', 'verify-commits.js', 'df-statusline.js', 'df-check-update.js', 'df-check-update.sh', 'df-verify-completion.js', 'df-verify-commits.js'];
+    const dfHooks = ['statusline.js', 'check-update.js', 'verify-completion.js', 'verify-commits.js', 'route-intent.js', 'gate-commits.js', 'gate-edits.js', 'df-statusline.js', 'df-check-update.js', 'df-check-update.sh', 'df-verify-completion.js', 'df-verify-commits.js'];
     let hookCount = 0;
     for (const hook of dfHooks) {
       const hookPath = path.join(hooksDir, hook);
@@ -441,8 +416,8 @@ function uninstall(isGlobal) {
 
     if (settings.hooks) {
       // Remove DevFlow hooks from all event types
-      const dfHookPatterns = ['check-update', 'statusline', 'verify-completion', 'verify-commits', 'df-check-update', 'df-statusline', 'df-verify-completion', 'df-verify-commits'];
-      for (const eventType of ['SessionStart', 'Stop', 'SubagentStop']) {
+      const dfHookPatterns = ['check-update', 'statusline', 'verify-completion', 'verify-commits', 'route-intent', 'gate-commits', 'gate-edits', 'df-check-update', 'df-statusline', 'df-verify-completion', 'df-verify-commits'];
+      for (const eventType of ['SessionStart', 'Stop', 'SubagentStop', 'UserPromptSubmit', 'PreToolUse']) {
         if (settings.hooks[eventType]) {
           const before = settings.hooks[eventType].length;
           settings.hooks[eventType] = settings.hooks[eventType].filter(entry => {
@@ -676,62 +651,20 @@ function install(isGlobal) {
   // Save any locally modified DevFlow files before they get wiped
   saveLocalPatches(targetDir);
 
-  // Clean up orphaned files from previous versions
+  // Clean up orphaned files from previous versions (including legacy skills/agents
+  // now provided by the marketplace plugin)
   cleanupOrphanedFiles(targetDir);
+  cleanupLegacySkillsAndAgents(targetDir);
 
-  // Deploy skills (plugins/devflow/skills/<name>/SKILL.md)
-  const skillsSrc = path.join(src, 'plugins', 'devflow', 'skills');
-  const skillsDest = path.join(targetDir, 'skills');
-  copySkills(skillsSrc, skillsDest, pathPrefix);
-  if (verifyInstalled(skillsDest, 'skills')) {
-    const count = fs.readdirSync(skillsDest).filter(f => f.endsWith('.md')).length;
-    console.log(`  ${green}✓${reset} Installed ${count} skills`);
-  } else {
-    failures.push('skills');
-  }
-
-  // Copy devflow directory with path replacement
+  // Copy devflow payload (bin, templates, workflows, references) with path replacement.
+  // Plugin skills reference these via ~/.claude/devflow/..., so this stays.
   const devflowSrc = path.join(src, 'devflow');
   const devflowDest = path.join(targetDir, 'devflow');
   copyWithPathReplacement(devflowSrc, devflowDest, pathPrefix);
   if (verifyInstalled(devflowDest, 'devflow')) {
-    console.log(`  ${green}✓${reset} Installed devflow`);
+    console.log(`  ${green}✓${reset} Installed devflow payload`);
   } else {
     failures.push('devflow');
-  }
-
-  // Copy agents to agents directory
-  const agentsSrc = path.join(src, 'plugins', 'devflow', 'agents');
-  if (fs.existsSync(agentsSrc)) {
-    const agentsDest = path.join(targetDir, 'agents');
-    fs.mkdirSync(agentsDest, { recursive: true });
-
-    // Remove old DevFlow agents before copying new ones
-    if (fs.existsSync(agentsDest)) {
-      for (const file of fs.readdirSync(agentsDest)) {
-        if (file.endsWith('.md') && (file.startsWith('df-') || KNOWN_AGENTS.includes(file))) {
-          fs.unlinkSync(path.join(agentsDest, file));
-        }
-      }
-    }
-
-    // Copy new agents
-    const attribution = getCommitAttribution();
-    const agentEntries = fs.readdirSync(agentsSrc, { withFileTypes: true });
-    for (const entry of agentEntries) {
-      if (entry.isFile() && entry.name.endsWith('.md')) {
-        let content = fs.readFileSync(path.join(agentsSrc, entry.name), 'utf8');
-        const dirRegex = /~\/\.claude\//g;
-        content = content.replace(dirRegex, pathPrefix);
-        content = processAttribution(content, attribution);
-        fs.writeFileSync(path.join(agentsDest, entry.name), content);
-      }
-    }
-    if (verifyInstalled(agentsDest, 'agents')) {
-      console.log(`  ${green}✓${reset} Installed agents`);
-    } else {
-      failures.push('agents');
-    }
   }
 
   // Copy CHANGELOG.md
@@ -876,6 +809,65 @@ function install(isGlobal) {
     console.log(`  ${green}✓${reset} Configured commit verification hook`);
   }
 
+  // Configure UserPromptSubmit hook for intent routing
+  const routeIntentCommand = isGlobal
+    ? buildHookCommand(targetDir, 'route-intent.js')
+    : 'node .claude/hooks/route-intent.js';
+
+  if (!settings.hooks.UserPromptSubmit) {
+    settings.hooks.UserPromptSubmit = [];
+  }
+
+  const hasRouteIntentHook = settings.hooks.UserPromptSubmit.some(entry =>
+    entry.hooks && entry.hooks.some(h => h.command && h.command.includes('route-intent'))
+  );
+
+  if (!hasRouteIntentHook) {
+    settings.hooks.UserPromptSubmit.push({
+      hooks: [
+        {
+          type: 'command',
+          command: routeIntentCommand
+        }
+      ]
+    });
+    console.log(`  ${green}✓${reset} Configured intent routing hook`);
+  }
+
+  // Configure PreToolUse hooks for commit + edit gating
+  const gateCommitsCommand = isGlobal
+    ? buildHookCommand(targetDir, 'gate-commits.js')
+    : 'node .claude/hooks/gate-commits.js';
+  const gateEditsCommand = isGlobal
+    ? buildHookCommand(targetDir, 'gate-edits.js')
+    : 'node .claude/hooks/gate-edits.js';
+
+  if (!settings.hooks.PreToolUse) {
+    settings.hooks.PreToolUse = [];
+  }
+
+  const hasGateCommitsHook = settings.hooks.PreToolUse.some(entry =>
+    entry.hooks && entry.hooks.some(h => h.command && h.command.includes('gate-commits'))
+  );
+  if (!hasGateCommitsHook) {
+    settings.hooks.PreToolUse.push({
+      matcher: 'Bash',
+      hooks: [{ type: 'command', command: gateCommitsCommand }]
+    });
+    console.log(`  ${green}✓${reset} Configured commit gate hook`);
+  }
+
+  const hasGateEditsHook = settings.hooks.PreToolUse.some(entry =>
+    entry.hooks && entry.hooks.some(h => h.command && h.command.includes('gate-edits'))
+  );
+  if (!hasGateEditsHook) {
+    settings.hooks.PreToolUse.push({
+      matcher: 'Edit|Write|MultiEdit',
+      hooks: [{ type: 'command', command: gateEditsCommand }]
+    });
+    console.log(`  ${green}✓${reset} Configured edit gate hook`);
+  }
+
   // Write file manifest for future modification detection
   writeManifest(targetDir);
   console.log(`  ${green}✓${reset} Wrote file manifest (${MANIFEST_NAME})`);
@@ -901,7 +893,11 @@ function finishInstall(settingsPath, settings, statuslineCommand, shouldInstallS
   writeSettings(settingsPath, settings);
 
   console.log(`
-  ${green}Done!${reset} Launch Claude Code and run ${cyan}/df:help${reset}.
+  ${green}Done!${reset} Hooks, statusline, and the devflow payload are installed.
+
+  DevFlow skills and agents are provided by the marketplace plugin
+  (${cyan}devflow@devflow${reset}). Make sure it's enabled, then launch Claude Code
+  and run ${cyan}/devflow:help${reset}.
 `);
 }
 
