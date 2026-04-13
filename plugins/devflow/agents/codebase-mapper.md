@@ -677,11 +677,17 @@ File: `[source file path]`
 
 **Analysis Date:** [YYYY-MM-DD]
 
+> **Confidence tagging:** Every concern below must carry a `Confidence:` field.
+> - **VERIFIED** — You re-opened the referenced file and confirmed the concern is real in context. File:line is exact.
+> - **SUSPECTED** — Pattern matched or inferred from adjacent code; not fully confirmed. Kept for human review.
+> Drop concerns you cannot raise to at least SUSPECTED. Downstream planners treat VERIFIED concerns as actionable and SUSPECTED as input to investigate, not fix.
+
 ## Tech Debt
 
 **[Area/Component]:**
 - Issue: [What's the shortcut/workaround]
 - Files: `[file paths]`
+- Confidence: [VERIFIED | SUSPECTED]
 - Impact: [What breaks or degrades]
 - Fix approach: [How to address it]
 
@@ -690,6 +696,7 @@ File: `[source file path]`
 **[Bug description]:**
 - Symptoms: [What happens]
 - Files: `[file paths]`
+- Confidence: [VERIFIED | SUSPECTED]
 - Trigger: [How to reproduce]
 - Workaround: [If any]
 
@@ -698,6 +705,7 @@ File: `[source file path]`
 **[Area]:**
 - Risk: [What could go wrong]
 - Files: `[file paths]`
+- Confidence: [VERIFIED | SUSPECTED]
 - Current mitigation: [What's in place]
 - Recommendations: [What should be added]
 
@@ -706,6 +714,7 @@ File: `[source file path]`
 **[Slow operation]:**
 - Problem: [What's slow]
 - Files: `[file paths]`
+- Confidence: [VERIFIED | SUSPECTED]
 - Cause: [Why it's slow]
 - Improvement path: [How to speed up]
 
@@ -713,6 +722,7 @@ File: `[source file path]`
 
 **[Component/Module]:**
 - Files: `[file paths]`
+- Confidence: [VERIFIED | SUSPECTED]
 - Why fragile: [What makes it break easily]
 - Safe modification: [How to change safely]
 - Test coverage: [Gaps]
@@ -779,6 +789,8 @@ File: `[source file path]`
 **WRITE DOCUMENTS DIRECTLY.** Do not return findings to orchestrator. The whole point is reducing context transfer.
 
 **ALWAYS INCLUDE FILE PATHS.** Every finding needs a file path in backticks. No exceptions.
+
+**TAG CONCERNS WITH CONFIDENCE.** In CONCERNS.md, every concern carries `Confidence: VERIFIED` (re-opened the file and confirmed in context) or `Confidence: SUSPECTED` (pattern-matched but ambiguous). Drop anything below SUSPECTED.
 
 **USE THE TEMPLATES.** Fill in the template structure. Don't invent your own format.
 

@@ -175,15 +175,19 @@ Read key files to understand context around any matches. Use Glob and Grep liber
 For each potential finding from the grep results:
 
 1. **Read the surrounding code** (10-20 lines of context) to confirm it's a real issue
-2. **Classify severity:**
+2. **Assign confidence** based on what you verified:
+   - **VERIFIED** — Re-opened the file, read the surrounding code, and confirmed the issue is real and exploitable in context. Record the exact file:line you read.
+   - **SUSPECTED** — Pattern matched but context is ambiguous (e.g., can't tell if user input reaches the sink, config value may be overridden elsewhere). Keep the finding but flag it for human review.
+   - If a finding cannot reach VERIFIED or SUSPECTED after reading context, **drop it** — do not include it.
+3. **Classify severity:**
    - **CRITICAL** — Exploitable vulnerability with high impact (e.g., hardcoded production API key, SQL injection with user input)
    - **HIGH** — Exploitable with some effort or significant bad practice (e.g., missing auth on sensitive endpoint, weak crypto for passwords)
    - **MEDIUM** — Bad practice that could lead to exploitation (e.g., no rate limiting, permissive CORS)
    - **LOW** — Minor security improvement recommended (e.g., missing security headers, debug logging)
    - **INFO** — Awareness item, not a vulnerability (e.g., test file with fixtures, intentional design choice)
-3. **Downgrade test file findings** — Any finding in `.test.`, `.spec.`, `__tests__/`, `__mocks__/`, `fixtures/` → INFO
-4. **Skip false positives** — Comments, documentation, disabled code, config examples
-5. **Determine category:** Secrets, Injection, Sensitive-Data, Cryptography, Auth, AuthZ, API-Security, Rate-Limiting, Dependencies, Security-Headers, Error-Handling, Config
+4. **Downgrade test file findings** — Any finding in `.test.`, `.spec.`, `__tests__/`, `__mocks__/`, `fixtures/` → INFO
+5. **Skip false positives** — Comments, documentation, disabled code, config examples. If uncertain, mark SUSPECTED rather than dropping.
+6. **Determine category:** Secrets, Injection, Sensitive-Data, Cryptography, Auth, AuthZ, API-Security, Rate-Limiting, Dependencies, Security-Headers, Error-Handling, Config
 </step>
 
 <step name="write_findings">
@@ -201,6 +205,9 @@ severity_counts:
   medium: {N}
   low: {N}
   info: {N}
+confidence_counts:
+  verified: {N}
+  suspected: {N}
 ---
 
 # Security Findings: {Focus Mode Title}
@@ -208,6 +215,7 @@ severity_counts:
 ## Finding SA-{NNN}
 
 **Severity:** {CRITICAL|HIGH|MEDIUM|LOW|INFO}
+**Confidence:** {VERIFIED|SUSPECTED}
 **Category:** {category}
 **File:** `{file_path}`
 **Line:** {line_number}
@@ -286,6 +294,8 @@ Ready for orchestrator merge.
 
 **BE THOROUGH BUT HONEST.** Explore deeply. Read actual code context. Don't flag false positives. Don't inflate severity.
 
+**TAG CONFIDENCE ON EVERY FINDING.** VERIFIED means you re-opened the file and confirmed the issue in context. SUSPECTED means pattern-matched but context was ambiguous. No finding ships without one of these labels.
+
 **DOWNGRADE TEST FILE FINDINGS.** Anything in test/spec/fixture files → INFO severity.
 
 **RETURN ONLY CONFIRMATION.** Your response should be ~10 lines max. Just confirm what was written.
@@ -299,6 +309,7 @@ Ready for orchestrator merge.
 - [ ] Stack-appropriate grep patterns executed
 - [ ] Code context read for each potential finding
 - [ ] False positives filtered out
+- [ ] Every finding tagged VERIFIED or SUSPECTED
 - [ ] Test file findings downgraded to INFO
 - [ ] Findings written to `.security-audit-tmp/{focus-mode}.md` with correct format
 - [ ] No secret values in output
