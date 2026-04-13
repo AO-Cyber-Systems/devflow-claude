@@ -31,6 +31,8 @@ The central CLI utility used by ~50 skill and agent files. CommonJS module invok
 - **Compound init commands** — `init execute-objective`, `init plan-objective`, `init new-project`, etc.
 - **Model resolution** — `resolve-model <agent-type>` returns the model for an agent based on the active profile (quality/balanced/budget)
 - **Validation** — `validate consistency`, `validate health [--repair]`
+- **GitHub integration** (1.29+, opt-in via `.planning/config.json` `github` block) — `gh status`, `gh sync-objectives`, `gh comment`, `gh close-issue`, `gh sync-release`. Implemented in `lib/gh.cjs`; one-way push to GitHub via the `gh` CLI; planning files remain authoritative.
+- **Changelog** (1.30+) — `changelog update --version vX.Y.Z [--from <ref> --to <ref>] [--dry-run]`, `changelog check <version>`. Implemented in `lib/changelog.cjs`; generates Keep-a-Changelog entries from conventional-commit history.
 
 Model profiles are hard-coded in a `MODEL_PROFILES` table mapping each agent to its opus/sonnet/haiku assignment per profile tier.
 
@@ -68,14 +70,19 @@ Static reference documents that agents read during execution: model profiles, ve
 
 ### Hooks (`hooks/`)
 
-Four Node.js hooks installed into Claude Code:
+Node.js hooks installed into Claude Code via `bin/install.js`. Source files live in `hooks/`; `npm run build:hooks` (`scripts/build-hooks.js`) copies them to `hooks/dist/` for publishing.
 
-- `check-update.js` — SessionStart hook; spawns background process to check npm registry for updates
-- `statusline.js` — StatusLine hook; renders model, current task, context usage (color-coded), update indicator
-- `verify-completion.js` — Stop hook; checks task completion status
-- `verify-commits.js` — SubagentStop hook; validates commit integrity
+**Observability (warn-only):**
+- `check-update.js` — SessionStart; npm registry check for updates
+- `statusline.js` — StatusLine; renders model, task, context usage
+- `verify-completion.js` — Stop; checks SUMMARY.md evidence
+- `verify-commits.js` — SubagentStop; warns on no commits in last 10min
 
-Source files are in `hooks/`, build copies them to `hooks/dist/` (which is what gets published).
+**Enforcement (active gates, 1.28+):**
+- `route-intent.js` — UserPromptSubmit; injects skill-routing reminders when DevFlow project is detected
+- `gate-commits.js` — PreToolUse(Bash); blocks raw `git commit`. Escape: `DEVFLOW_ALLOW_RAW_COMMIT=1`
+- `gate-edits.js` — PreToolUse(Edit/Write/MultiEdit); prompts before edits outside executor when an objective is in progress. Strict: `DEVFLOW_STRICT_EDITS=1`
+- `changelog-on-tag.js` — PreToolUse(Bash); blocks `git tag -a vX.Y.Z` if `CHANGELOG.md` lacks `## [X.Y.Z]`. Escape: `DEVFLOW_SKIP_CHANGELOG_GATE=1`
 
 ### Installer (`bin/install.js`)
 

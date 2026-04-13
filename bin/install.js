@@ -371,7 +371,7 @@ function uninstall(isGlobal) {
   // 4. Remove DevFlow hooks
   const hooksDir = path.join(targetDir, 'hooks');
   if (fs.existsSync(hooksDir)) {
-    const dfHooks = ['statusline.js', 'check-update.js', 'verify-completion.js', 'verify-commits.js', 'route-intent.js', 'gate-commits.js', 'gate-edits.js', 'df-statusline.js', 'df-check-update.js', 'df-check-update.sh', 'df-verify-completion.js', 'df-verify-commits.js'];
+    const dfHooks = ['statusline.js', 'check-update.js', 'verify-completion.js', 'verify-commits.js', 'route-intent.js', 'gate-commits.js', 'gate-edits.js', 'changelog-on-tag.js', 'df-statusline.js', 'df-check-update.js', 'df-check-update.sh', 'df-verify-completion.js', 'df-verify-commits.js'];
     let hookCount = 0;
     for (const hook of dfHooks) {
       const hookPath = path.join(hooksDir, hook);
@@ -416,7 +416,7 @@ function uninstall(isGlobal) {
 
     if (settings.hooks) {
       // Remove DevFlow hooks from all event types
-      const dfHookPatterns = ['check-update', 'statusline', 'verify-completion', 'verify-commits', 'route-intent', 'gate-commits', 'gate-edits', 'df-check-update', 'df-statusline', 'df-verify-completion', 'df-verify-commits'];
+      const dfHookPatterns = ['check-update', 'statusline', 'verify-completion', 'verify-commits', 'route-intent', 'gate-commits', 'gate-edits', 'changelog-on-tag', 'df-check-update', 'df-statusline', 'df-verify-completion', 'df-verify-commits'];
       for (const eventType of ['SessionStart', 'Stop', 'SubagentStop', 'UserPromptSubmit', 'PreToolUse']) {
         if (settings.hooks[eventType]) {
           const before = settings.hooks[eventType].length;
@@ -866,6 +866,20 @@ function install(isGlobal) {
       hooks: [{ type: 'command', command: gateEditsCommand }]
     });
     console.log(`  ${green}✓${reset} Configured edit gate hook`);
+  }
+
+  const changelogOnTagCommand = isGlobal
+    ? buildHookCommand(targetDir, 'changelog-on-tag.js')
+    : 'node .claude/hooks/changelog-on-tag.js';
+  const hasChangelogHook = settings.hooks.PreToolUse.some(entry =>
+    entry.hooks && entry.hooks.some(h => h.command && h.command.includes('changelog-on-tag'))
+  );
+  if (!hasChangelogHook) {
+    settings.hooks.PreToolUse.push({
+      matcher: 'Bash',
+      hooks: [{ type: 'command', command: changelogOnTagCommand }]
+    });
+    console.log(`  ${green}✓${reset} Configured changelog gate hook`);
   }
 
   // Write file manifest for future modification detection

@@ -2767,3 +2767,78 @@ describe('gh command', () => {
     assert.match(result.error, /Unknown gh subcommand/);
   });
 });
+
+describe('changelog command', () => {
+  let tmpDir;
+
+  beforeEach(() => {
+    tmpDir = createTempProject();
+    // Initialize a tiny git repo with a couple of conventional commits
+    execSync('git init -q', { cwd: tmpDir });
+    execSync('git config user.email test@example.com', { cwd: tmpDir });
+    execSync('git config user.name Test', { cwd: tmpDir });
+    execSync('git config commit.gpgsign false', { cwd: tmpDir });
+    fs.writeFileSync(path.join(tmpDir, 'a.txt'), 'a');
+    execSync('git add . && git commit -q -m "feat: add a"', { cwd: tmpDir });
+    execSync('git tag v0.1.0', { cwd: tmpDir });
+    fs.writeFileSync(path.join(tmpDir, 'b.txt'), 'b');
+    execSync('git add . && git commit -q -m "fix(core): fix b"', { cwd: tmpDir });
+    fs.writeFileSync(path.join(tmpDir, 'c.txt'), 'c');
+    execSync('git add . && git commit -q -m "docs: c"', { cwd: tmpDir });
+  });
+
+  afterEach(() => {
+    cleanup(tmpDir);
+  });
+
+  test('check reports missing version', () => {
+    const result = runGsdTools('changelog check 1.0.0', tmpDir);
+    assert.strictEqual(result.success, true);
+    const json = JSON.parse(result.output);
+    assert.strictEqual(json.present, false);
+  });
+
+  test('update generates an entry with grouped commits', () => {
+    const result = runGsdTools('changelog update --version 0.2.0', tmpDir);
+    assert.strictEqual(result.success, true, result.error);
+    const json = JSON.parse(result.output);
+    assert.strictEqual(json.ok, true);
+    assert.strictEqual(json.version, '0.2.0');
+    assert.ok(json.commit_count >= 2);
+
+    const cl = fs.readFileSync(path.join(tmpDir, 'CHANGELOG.md'), 'utf-8');
+    assert.match(cl, /## \[0\.2\.0\]/);
+    assert.match(cl, /### Fixed/);
+    assert.match(cl, /core.*fix b/);
+    assert.match(cl, /### Docs/);
+  });
+
+  test('update is idempotent — refuses to add duplicate version', () => {
+    runGsdTools('changelog update --version 0.2.0', tmpDir);
+    const result = runGsdTools('changelog update --version 0.2.0', tmpDir);
+    const json = JSON.parse(result.output);
+    assert.strictEqual(json.skipped, true);
+  });
+
+  test('update --dry-run does not write file', () => {
+    const result = runGsdTools('changelog update --version 0.2.0 --dry-run', tmpDir);
+    const json = JSON.parse(result.output);
+    assert.strictEqual(json.dryRun, true);
+    assert.ok(json.entry.includes('## [0.2.0]'));
+    // CHANGELOG.md shouldn't exist after dry run
+    assert.strictEqual(fs.existsSync(path.join(tmpDir, 'CHANGELOG.md')), false);
+  });
+
+  test('update requires version', () => {
+    const result = runGsdTools('changelog update', tmpDir);
+    const json = JSON.parse(result.output);
+    assert.strictEqual(json.ok, false);
+  });
+
+  test('check finds a version that has been added', () => {
+    runGsdTools('changelog update --version 0.2.0', tmpDir);
+    const result = runGsdTools('changelog check 0.2.0', tmpDir);
+    const json = JSON.parse(result.output);
+    assert.strictEqual(json.present, true);
+  });
+});

@@ -17,7 +17,8 @@ const HOOKS_TO_COPY = [
   'verify-commits.js',
   'route-intent.js',
   'gate-commits.js',
-  'gate-edits.js'
+  'gate-edits.js',
+  'changelog-on-tag.js'
 ];
 
 function build() {

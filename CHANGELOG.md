@@ -16,6 +16,120 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - All CLI commands, config keys, JSON output keys, file names updated
   - PLAN.md → JOB.md, .planning/phases/ → .planning/objectives/
 
+## [1.29.0] - 2026-04-13
+
+### Added
+- **gh**: one-way GitHub integration via gh CLI, bump to 1.29.0 (dd7aac8)
+
+## [1.28.0] - 2026-04-13
+
+### Added
+- **hooks**: enforce DevFlow skill usage via routing and gating hooks, bump to 1.28.0 (076d18d)
+- **verifier**: add Flutter/Maestro backend and harden web verification (c98f91a)
+- **agents**: tag mapper/auditor findings with VERIFIED vs SUSPECTED (cc71e96)
+
+### Fixed
+- **deps**: patch addressable ReDoS and mcp session-hijack CVEs (5c0469e)
+- **aosentry-mcp**: move server definitions to .mcp.json (43602c6)
+
+### Chore
+- ignore private eden-ui plugin directories (ec3df4d)
+
+## [1.27.4] - 2026-04-13
+
+### Fixed
+- **plugin**: use explicit agents array in manifest, bump to 1.27.1 (9505d52)
+
+### Changed
+- **state**: move decisions and metrics to STATE_ARCHIVE.md, bump to 1.27.3 (5e4adca)
+
+### Chore
+- **skills**: remove frontend-design skill, bump to 1.27.4 (dcfba83)
+
+## [1.27.0] - 2026-04-13
+
+### Added
+- **marketplace**: add aosentry-mcp plugin, update social-media-generator (ab1688f)
+- **marketplace**: add social-media-generator plugin (c6f3bba)
+- **verification**: add Playwright browser tools for functional verification (63ddd9f)
+- **aosentry**: add AOSentry MCP servers and marketplace config (6871aca)
+- DevFlow v2 — TRD format, TDD enforcement, unified /df:build command (52d21b0)
+
+### Fixed
+- **plugin**: move skills/agents into plugins/devflow as single source of truth (e69e6e4)
+- **plugin**: replace symlinks with real commands/agents dirs for marketplace (b1f828f)
+- **hooks**: correct npm package name in update check (d5f4fa6)
+- **deps**: update vulnerable dependencies (6d8bb5f)
+- **marketplace**: remove duplicate skill from aosentry-mcp plugin (727b044)
+- **mcp**: default env vars so servers start without config (0033063)
+- **mcp**: use shell wrapper scripts for MCP server launch (57cc930)
+- **mcp**: use BUNDLE_GEMFILE env var for MCP server config (114d8a9)
+- **marketplace**: add proper plugin structure for marketplace discovery (29149ee)
+
+### Changed
+- **plugin**: migrate skills to marketplace-standard directory layout (90e3e19)
+- **state**: add state.json sidecar for machine-readable fields (ceec511)
+- **tools**: replace df-tools.cjs with thin dispatcher (5e824d6)
+- **tools**: extract lib/misc.cjs module (5509341)
+- **tools**: extract lib/workstreams.cjs module (956c593)
+- **tools**: extract lib/init.cjs module (6aa8912)
+- **tools**: extract lib/validate.cjs module (d591361)
+- **tools**: extract lib/verify.cjs module (397bf32)
+- **tools**: extract lib/templates.cjs module (05e2617)
+- **tools**: extract lib/roadmap.cjs module (873cc7d)
+- **tools**: extract lib/objective.cjs module (18e5513)
+- **tools**: extract lib/frontmatter.cjs module (59fcdcf)
+- **tools**: extract lib/state.cjs module (2f18cb4)
+- **tools**: extract lib/config.cjs module (81ad9c9)
+- **tools**: extract lib/helpers.cjs module (da7d495)
+- **plugin**: flatten skills to single source of truth, configure marketplace directly (cf399b5)
+- **marketplace**: rename skills/agents, rewrite descriptions, remove devflow-companion (b132522)
+- **marketplace**: remove devflow-companion, rename skills/agents for clean marketplace names, rewrite descriptions (8b38629)
+
+### Chore
+- **release**: bump version to 1.27.0 (6aafba1)
+- remove mcp_servers, clean up legacy files and plugins (c65c98d)
+- remove mcp_servers from package files (25a2d8d)
+- **release**: bump version to 1.23.0 (1303540)
+- **release**: bump version to 1.24.0 (59ce014)
+- **release**: bump version to 1.23.0 (23962d2)
+
+## [1.22.0] - 2026-02-23
+
+### Added
+- **companion**: add Homebrew and Mise package management UI (fd8ac3f)
+
+## [1.21.0] - 2026-02-23
+
+### Added
+- **companion**: add embedded mail catcher with SMTP server (d1fa70f)
+
+### Fixed
+- update package.json files field (commands→skills) (6ad1074)
+- audit and fix remaining stale phase/plan references (94693bf)
+- address verification findings (b36d4da)
+
+### Docs
+- add CLAUDE.md for Claude Code development guidance (90253f4)
+- update frontend-design skill and conventions for brand customization (ddfca01)
+
+### Chore
+- bump version to 1.21.0 (baa5dbb)
+- remove legacy commands/df/ and update install script (1cbee09)
+- update GitHub community files for AO-Cyber-Systems (c6e3824)
+- targeted edits for DevFlow rebrand (install.js, package.json, hooks, tools) (85b458c)
+- bulk content replacements for DevFlow rebrand (bfd02d8)
+- structural file/directory renames for DevFlow rebrand (18e2f20)
+- import gsd-build/get-shit-done v1.20.4 as baseline (5fe94a6)
+
+### Other
+- switch to GitHub Packages npm registry (e62c66c)
+- add npm publish workflow on version tags (c2c16ca)
+- phase→objective, plan(noun)→job in documentation (4b7deda)
+- phase→objective, plan(noun)→job in all markdown content (9dba4d3)
+- phase→objective, plan(noun)→job in df-tools.cjs + tests (6ba628c)
+- phase→objective, plan→job in file/directory names (5208fe7)
+
 ## [1.20.4-devflow] - 2026-02-19
 
 ### Changed
@@ -1500,3 +1614,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [1.0.2]: https://github.com/glittercowboy/devflow/releases/tag/v1.0.2
 [1.0.1]: https://github.com/glittercowboy/devflow/releases/tag/v1.0.1
 [1.0.0]: https://github.com/glittercowboy/devflow/releases/tag/v1.0.0
+
+
+
+
+
+
+
+
+
+

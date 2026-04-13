@@ -169,6 +169,9 @@ const {
   cmdGhStatus, cmdGhSyncObjectives, cmdGhComment, cmdGhCloseIssue, cmdGhSyncRelease,
 } = require('./lib/gh.cjs');
 const {
+  cmdChangelogUpdate, cmdChangelogCheck,
+} = require('./lib/changelog.cjs');
+const {
   cmdGenerateSlug, cmdCurrentTimestamp, cmdListTodos, cmdVerifyPathExists,
   cmdHistoryDigest, cmdObjectiveJobIndex, cmdSummaryExtract, cmdWebsearch,
   cmdCommit, cmdTodoComplete, cmdScaffold, cmdRequirementsMarkComplete,
@@ -598,6 +601,27 @@ async function main() {
         cmdWorkstreamsReconcile(cwd, raw);
       } else {
         error('Unknown workstreams subcommand. Available: analyze, provision, reconcile');
+      }
+      break;
+    }
+
+    case 'changelog': {
+      const subcommand = args[1];
+      if (subcommand === 'update') {
+        const versionIdx = args.indexOf('--version');
+        const fromIdx = args.indexOf('--from');
+        const toIdx = args.indexOf('--to');
+        const dryRun = args.includes('--dry-run');
+        cmdChangelogUpdate(cwd, {
+          version: versionIdx !== -1 ? args[versionIdx + 1] : args[2],
+          from: fromIdx !== -1 ? args[fromIdx + 1] : null,
+          to: toIdx !== -1 ? args[toIdx + 1] : null,
+          dryRun,
+        }, raw);
+      } else if (subcommand === 'check') {
+        cmdChangelogCheck(cwd, args[2], raw);
+      } else {
+        error('Unknown changelog subcommand. Available: update, check');
       }
       break;
     }

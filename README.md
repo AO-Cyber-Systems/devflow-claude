@@ -31,6 +31,16 @@ DevFlow is a fork of [GSD (Get Shit Done)](https://github.com/gsd-build/get-shit
 
 The complexity is in the system, not in your workflow. Behind the scenes: context engineering, XML prompt formatting, subagent orchestration, state management. What you see: a few commands that just work.
 
+### What's new in 1.28 / 1.29
+
+- **Skill enforcement hooks** — `route-intent` injects skill suggestions on every prompt; `gate-commits` blocks raw `git commit` and forces atomic per-task commits via `df-tools`; `gate-edits` warns when editing code outside an executor while an objective is in progress. Hard gates with documented escape hatches (`DEVFLOW_ALLOW_RAW_COMMIT=1`, `DEVFLOW_STRICT_EDITS=1`).
+- **Backend-aware functional verification** — verifier Step 8 now selects between Playwright MCP (web) and Maestro MCP (Flutter) based on stack. Web path adds three reliability fixes (curl readiness probe, `browser_wait_for` landmark, seeded `storageState`). Flutter flows live as YAML at `.planning/objectives/<obj>/verification/`.
+- **Confidence-tagged findings** — `codebase-mapper` and `security-auditor` now require `Confidence: VERIFIED | SUSPECTED` on every concern; downstream planners only act on VERIFIED.
+- **GitHub integration** (opt-in) — `df-tools gh sync-objectives` mirrors the roadmap to GitHub issues + a milestone, `gh comment` posts verification gaps, `gh sync-release` generates rich release notes from SUMMARY files. New `/devflow:gh-sync` skill for manual fire. One-way push; planning files stay authoritative.
+- **CHANGELOG enforcement** — `df-tools changelog update --version vX.Y.Z` auto-generates Keep-a-Changelog entries from git log, grouped by conventional-commit type. The `changelog-on-tag` hook blocks `git tag -a vX.Y.Z` until CHANGELOG has an entry for that version.
+
+See [CHANGELOG.md](./CHANGELOG.md) for full history.
+
 ---
 
 ## Who This Is For

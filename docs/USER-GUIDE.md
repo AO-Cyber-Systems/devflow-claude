@@ -449,3 +449,130 @@ For reference, here is what DevFlow creates in your project:
       RESEARCH.md         # Ecosystem research findings
       VERIFICATION.md     # Post-execution verification results
 ```
+
+---
+
+## Hooks and what they enforce
+
+DevFlow installs hooks into Claude Code's `settings.json`. Hooks run in a separate process, get the tool call as JSON on stdin, and can inject context, warn the user, or block tool execution. They are how DevFlow turns advisory rules into actually-enforced ones.
+
+| Hook | Event | What it does | Escape hatch |
+|---|---|---|---|
+| `route-intent.js` | UserPromptSubmit | Detects DevFlow projects (`.planning/`) and matches user intent against 13 categories (build, plan, verify, debug, gh-sync, ...). Injects a system reminder telling Claude to use the appropriate skill rather than editing code directly. | None — silent for non-DevFlow repos and explicit `/devflow:` invocations |
+| `gate-commits.js` | PreToolUse (Bash) | Blocks raw `git commit` in DevFlow projects; demands `df-tools commit` so atomic per-task commits and STATE.md stay consistent. | `DEVFLOW_ALLOW_RAW_COMMIT=1` |
+| `gate-edits.js` | PreToolUse (Edit/Write/MultiEdit) | When a TRD has `status: in-progress|planned|ready`, prompts the user before code edits outside the executor (permits `.planning/**` and `*.md`). | `DEVFLOW_STRICT_EDITS=1` upgrades from "ask" to hard "deny" |
+| `changelog-on-tag.js` | PreToolUse (Bash) | Blocks `git tag -a vX.Y.Z` if `CHANGELOG.md` has no `## [X.Y.Z]` heading. Tells you to run `df-tools changelog update --version vX.Y.Z` first. | `DEVFLOW_SKIP_CHANGELOG_GATE=1` |
+| `verify-completion.js` | Stop | Checks the most-recent SUMMARY.md has Task Evidence and no `Self-Check: FAILED` markers. Warns only — does not block. | n/a (warning only) |
+| `verify-commits.js` | SubagentStop | Warns when a subagent finishes without producing any commits in the last 10 min — silent-failure detector for the executor. | n/a (warning only) |
+| `check-update.js` | SessionStart | Background npm registry check for newer DevFlow versions. | n/a |
+| `statusline.js` | StatusLine | Renders model, current task, context usage, update indicator. | n/a |
+
+### "DevFlow blocked my command — why?"
+
+If a hook denies a tool call, the model receives the denial reason and will usually correct itself. If you want to bypass:
+
+```bash
+# One-off: prefix the command with the env var
+DEVFLOW_ALLOW_RAW_COMMIT=1 git commit -m "..."
+
+# Persistent for a session
+export DEVFLOW_ALLOW_RAW_COMMIT=1
+```
+
+To turn off a hook entirely, edit `~/.claude/settings.json` and remove its entry from `hooks.PreToolUse` / `hooks.UserPromptSubmit`. Reinstalling DevFlow will re-add it.
+
+---
+
+## GitHub integration
+
+Opt-in mirroring of `.planning/` to GitHub issues, milestones, and releases. Planning files remain the source of truth — GitHub is derivative. Every operation is a no-op when integration is disabled, `gh` is missing, or auth has expired; failures never block your workflow.
+
+### Enable
+
+In `.planning/config.json`:
+
+```json
+{
+  "github": {
+    "enabled": true,
+    "repo": "owner/name",
+    "milestone_prefix": "v",
+    "labels": {
+      "objective": "devflow:objective",
+      "in_progress": "devflow:in-progress",
+      "gaps": "devflow:gaps"
+    }
+  }
+}
+```
+
+Prereqs: `gh` CLI installed and authenticated (`gh auth login`).
+
+### What syncs and when
+
+| Trigger | Action | Manual command |
+|---|---|---|
+| End of `/devflow:new-project` (after roadmap creation) | Creates one milestone per roadmap version + one issue per objective, persists numbers to `.planning/.gh-mapping.json` | `df-tools gh sync-objectives` |
+| Verifier finds gaps (`status: gaps_found`) | Posts the VERIFICATION.md `gaps:` block as an issue comment | `df-tools gh comment <obj#> @file:path` |
+| Verifier final pass passes | Closes the issue with link to verification report | `df-tools gh close-issue <obj#>` |
+| Tag push (`vX.Y.Z`) | Generates rich release notes from SUMMARY.md files since previous tag, creates or edits the GitHub release | `df-tools gh sync-release vX.Y.Z` |
+| Manual recovery | All of the above | `/devflow:gh-sync [objectives|release vX.Y.Z|status]` |
+
+### Mapping file
+
+`.planning/.gh-mapping.json` is the source of truth for "which objective maps to which GitHub issue":
+
+```json
+{
+  "milestone_id": 12,
+  "objectives": {
+    "1": 42,
+    "2": 43,
+    "2.1": 44
+  }
+}
+```
+
+Commit it. Re-running `gh sync-objectives` is idempotent — existing issues are edited, not duplicated.
+
+### What does NOT sync
+
+- Issues created in GitHub do not flow back to `.planning/` (would break "planning files are truth"). File issues normally; they become input to `/devflow:plan-objective`.
+- Per-task commits are not re-posted to issues (too noisy). Use `gh comment` manually if you want an update mid-execution.
+- GitHub Projects v2 boards are not synced (GraphQL-only, low marginal value over labels + milestones).
+
+### Troubleshooting
+
+```bash
+# Is the integration reachable?
+node ~/.claude/devflow/bin/df-tools.cjs gh status
+```
+
+Common reasons for "skipped":
+- `github.enabled is false` — set `enabled: true` in config
+- `gh CLI not installed` — install from https://cli.github.com
+- `gh not authenticated` — run `gh auth login`
+- `github.repo must be set as "owner/name"` — fix the format
+
+---
+
+## CHANGELOG management
+
+DevFlow ships with an auto-updater that keeps `CHANGELOG.md` in Keep-a-Changelog format from your conventional-commit history.
+
+```bash
+# Generate an entry for the next release from git log since the last tag
+node ~/.claude/devflow/bin/df-tools.cjs changelog update --version v1.30.0
+
+# Backfill an older release with explicit range
+node ~/.claude/devflow/bin/df-tools.cjs changelog update \
+  --version 1.27.4 --from 6aafba1 --to dcfba83
+
+# Preview without writing
+node ~/.claude/devflow/bin/df-tools.cjs changelog update --version v1.30.0 --dry-run
+
+# Check whether a version already has an entry
+node ~/.claude/devflow/bin/df-tools.cjs changelog check 1.29.0
+```
+
+Commits are grouped by conventional-commit type (`feat` → Added, `fix` → Fixed, `perf` → Performance, etc.). Bare commits without a recognized type land under "Other". The `changelog-on-tag` hook blocks `git tag -a vX.Y.Z` until the entry exists, so you cannot ship a release without documenting it.

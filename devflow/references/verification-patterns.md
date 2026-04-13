@@ -2,6 +2,8 @@
 
 How to verify different types of artifacts are real implementations, not stubs or placeholders.
 
+> **Functional verification (Step 8):** This document covers static patterns (Levels 1–3). For Level 4 functional verification — driving the actual app — the canonical source is the verifier agent's Step 8 in `plugins/devflow/agents/verifier.md`, which selects between Playwright MCP (web) and Maestro MCP (Flutter) based on the project's stack.
+
 <core_principle>
 **Existence ≠ Implementation**
 
