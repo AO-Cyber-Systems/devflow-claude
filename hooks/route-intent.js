@@ -44,6 +44,7 @@ const INTENT_MAP = [
   { rx: /\b(progress|status|where\s+are\s+we|what'?s?\s+next)\b/i, skill: '/devflow:progress' },
   { rx: /\b(audit|security\s+(scan|check|audit))\b/i, skill: '/devflow:security-audit' },
   { rx: /\b(map|analyze|understand)\s+(the\s+)?codebase\b/i, skill: '/devflow:map-codebase' },
+  { rx: /\b(sync.*github|push.*(issues|objectives).*github|github\s+(release|notes|issues))\b/i, skill: '/devflow:gh-sync' },
 ];
 
 function main() {

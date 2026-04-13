@@ -166,6 +166,9 @@ const {
   cmdWorkstreamsAnalyze, cmdWorkstreamsProvision, cmdWorkstreamsReconcile,
 } = require('./lib/workstreams.cjs');
 const {
+  cmdGhStatus, cmdGhSyncObjectives, cmdGhComment, cmdGhCloseIssue, cmdGhSyncRelease,
+} = require('./lib/gh.cjs');
+const {
   cmdGenerateSlug, cmdCurrentTimestamp, cmdListTodos, cmdVerifyPathExists,
   cmdHistoryDigest, cmdObjectiveJobIndex, cmdSummaryExtract, cmdWebsearch,
   cmdCommit, cmdTodoComplete, cmdScaffold, cmdRequirementsMarkComplete,
@@ -595,6 +598,27 @@ async function main() {
         cmdWorkstreamsReconcile(cwd, raw);
       } else {
         error('Unknown workstreams subcommand. Available: analyze, provision, reconcile');
+      }
+      break;
+    }
+
+    case 'gh': {
+      const subcommand = args[1];
+      if (subcommand === 'status') {
+        cmdGhStatus(cwd, raw);
+      } else if (subcommand === 'sync-objectives') {
+        cmdGhSyncObjectives(cwd, raw);
+      } else if (subcommand === 'comment') {
+        // df-tools gh comment <issue|objective> <body|@file:path>
+        cmdGhComment(cwd, args[2], args[3], raw);
+      } else if (subcommand === 'close-issue') {
+        // df-tools gh close-issue <issue|objective> [comment]
+        cmdGhCloseIssue(cwd, args[2], args[3] || null, raw);
+      } else if (subcommand === 'sync-release') {
+        // df-tools gh sync-release <tag>
+        cmdGhSyncRelease(cwd, args[2], raw);
+      } else {
+        error('Unknown gh subcommand. Available: status, sync-objectives, comment, close-issue, sync-release');
       }
       break;
     }

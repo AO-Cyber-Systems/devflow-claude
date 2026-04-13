@@ -39,5 +39,15 @@
     "worktree_prefix": "../{project}-ws-",
     "branch_prefix": "df/ws-",
     "merge_strategy": "squash"
+  },
+  "github": {
+    "enabled": false,
+    "repo": "",
+    "milestone_prefix": "v",
+    "labels": {
+      "objective": "devflow:objective",
+      "in_progress": "devflow:in-progress",
+      "gaps": "devflow:gaps"
+    }
   }
 }

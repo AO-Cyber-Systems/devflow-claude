@@ -1012,6 +1012,26 @@ Use AskUserQuestion:
 node ~/.claude/devflow/bin/df-tools.cjs commit "docs: create roadmap ([N] objectives)" --files .planning/ROADMAP.md .planning/STATE.md .planning/REQUIREMENTS.md
 ```
 
+## 8.5. GitHub Sync (optional)
+
+If `.planning/config.json` has `github.enabled: true` and `github.repo` set, sync the roadmap to GitHub issues:
+
+```bash
+node ~/.claude/devflow/bin/df-tools.cjs gh sync-objectives
+```
+
+This is a no-op when GitHub integration is disabled or `gh` is not installed/authenticated. The command:
+- Creates one milestone per roadmap version
+- Creates one issue per objective with goal + success criteria
+- Persists issue numbers in `.planning/.gh-mapping.json` (commit this file)
+- Is idempotent — re-running updates existing issues
+
+If issues were created, commit the mapping file:
+
+```bash
+[ -f .planning/.gh-mapping.json ] && node ~/.claude/devflow/bin/df-tools.cjs commit "chore: sync objectives to GitHub" --files .planning/.gh-mapping.json
+```
+
 ## 9. Done
 
 Present completion summary:

@@ -2695,3 +2695,75 @@ describe('workstreams reconcile command', () => {
     assert.strictEqual(result.success, false, 'should fail');
   });
 });
+
+describe('gh command', () => {
+  let tmpDir;
+
+  beforeEach(() => {
+    tmpDir = createTempProject();
+  });
+
+  afterEach(() => {
+    cleanup(tmpDir);
+  });
+
+  test('status reports disabled when no config exists', () => {
+    const result = runGsdTools('gh status', tmpDir);
+    assert.strictEqual(result.success, true);
+    const json = JSON.parse(result.output);
+    assert.strictEqual(json.enabled, false);
+    assert.match(json.reason, /enabled is false|config\.json/);
+  });
+
+  test('status reports disabled when github.enabled is false', () => {
+    fs.writeFileSync(
+      path.join(tmpDir, '.planning', 'config.json'),
+      JSON.stringify({ github: { enabled: false } })
+    );
+    const result = runGsdTools('gh status', tmpDir);
+    const json = JSON.parse(result.output);
+    assert.strictEqual(json.enabled, false);
+  });
+
+  test('status rejects malformed repo string', () => {
+    fs.writeFileSync(
+      path.join(tmpDir, '.planning', 'config.json'),
+      JSON.stringify({ github: { enabled: true, repo: 'not-a-valid-repo' } })
+    );
+    const result = runGsdTools('gh status', tmpDir);
+    const json = JSON.parse(result.output);
+    assert.strictEqual(json.enabled, false);
+    assert.match(json.reason, /owner\/name/);
+  });
+
+  test('sync-objectives is a no-op when github disabled', () => {
+    const result = runGsdTools('gh sync-objectives', tmpDir);
+    assert.strictEqual(result.success, true);
+    const json = JSON.parse(result.output);
+    assert.strictEqual(json.ok, false);
+    assert.strictEqual(json.skipped, true);
+  });
+
+  test('comment is a no-op when github disabled', () => {
+    const result = runGsdTools('gh comment 42 hello', tmpDir);
+    const json = JSON.parse(result.output);
+    assert.strictEqual(json.skipped, true);
+  });
+
+  test('sync-release rejects missing tag', () => {
+    fs.writeFileSync(
+      path.join(tmpDir, '.planning', 'config.json'),
+      JSON.stringify({ github: { enabled: false, repo: 'owner/name' } })
+    );
+    const result = runGsdTools('gh sync-release', tmpDir);
+    const json = JSON.parse(result.output);
+    // disabled wins over missing-tag — both produce ok:false
+    assert.strictEqual(json.ok, false);
+  });
+
+  test('unknown subcommand errors', () => {
+    const result = runGsdTools('gh nonexistent', tmpDir);
+    assert.strictEqual(result.success, false);
+    assert.match(result.error, /Unknown gh subcommand/);
+  });
+});

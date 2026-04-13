@@ -556,6 +556,23 @@ _Verified: {timestamp}_
 _Verifier: Claude (verifier)_
 ```
 
+## Sync Gaps to GitHub (Optional)
+
+If `.planning/config.json` has `github.enabled: true`, post the verification result to the objective's GitHub issue:
+
+```bash
+# For gaps_found: post the gaps section as a comment
+if [ "$STATUS" = "gaps_found" ]; then
+  node ~/.claude/devflow/bin/df-tools.cjs gh comment "$OBJECTIVE_NUM" "@file:$VERIFICATION_PATH"
+fi
+# For passed (final pass): close the issue with a link to the verification report
+if [ "$STATUS" = "passed" ] && [ "$IS_FINAL_PASS" = "true" ]; then
+  node ~/.claude/devflow/bin/df-tools.cjs gh close-issue "$OBJECTIVE_NUM" "Verified: $VERIFICATION_PATH"
+fi
+```
+
+This is a no-op if GitHub integration is disabled or `gh` is unavailable. Never blocks completion.
+
 ## Return to Orchestrator
 
 **DO NOT COMMIT.** The orchestrator bundles VERIFICATION.md with other objective artifacts.
