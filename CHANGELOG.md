@@ -16,6 +16,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - All CLI commands, config keys, JSON output keys, file names updated
   - PLAN.md → JOB.md, .planning/phases/ → .planning/objectives/
 
+## [1.30.2] - 2026-04-24
+
+### Fixed
+- **docs**: namespace all devflow command refs as /devflow:<cmd>, bump to 1.30.2 (09ac6ac)
+
 ## [1.30.1] - 2026-04-13
 
 ### Docs
@@ -1624,6 +1629,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [1.0.2]: https://github.com/glittercowboy/devflow/releases/tag/v1.0.2
 [1.0.1]: https://github.com/glittercowboy/devflow/releases/tag/v1.0.1
 [1.0.0]: https://github.com/glittercowboy/devflow/releases/tag/v1.0.0
+
 
 
 
