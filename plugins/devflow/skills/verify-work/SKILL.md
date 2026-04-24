@@ -28,7 +28,7 @@ Validate built features through conversational testing with persistent state.
 
 Purpose: Confirm what Claude built actually works from user's perspective. One test at a time, plain text responses, no interrogation. When issues are found, automatically diagnose, plan fixes, and prepare for execution.
 
-Output: {phase_num}-UAT.md tracking all test results. If issues found: diagnosed gaps, verified fix plans ready for /execute-objective
+Output: {phase_num}-UAT.md tracking all test results. If issues found: diagnosed gaps, verified fix plans ready for /devflow:execute-objective
 </objective>
 
 <execution_context>

@@ -51,7 +51,7 @@ Create: .planning/debug/{slug}.md
 
 ## Usage
 
-**From /debug:**
+**From /devflow:debug:**
 ```python
 Task(
   prompt=filled_template,

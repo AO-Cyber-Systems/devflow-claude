@@ -182,13 +182,13 @@ Display:
 | Git Branching        | {None/Per Objective/Per Milestone} |
 | Saved as Defaults    | {Yes/No} |
 
-These settings apply to future /plan-objective and /execute-objective runs.
+These settings apply to future /devflow:plan-objective and /devflow:execute-objective runs.
 
 Quick commands:
-- /set-profile <profile> — switch model profile
-- /plan-objective --research — force research
-- /plan-objective --skip-research — skip research
-- /plan-objective --skip-verify — skip plan check
+- /devflow:set-profile <profile> — switch model profile
+- /devflow:plan-objective --research — force research
+- /devflow:plan-objective --skip-research — skip research
+- /devflow:plan-objective --skip-verify — skip plan check
 ```
 </step>
 

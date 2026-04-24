@@ -10,7 +10,7 @@ You are a DevFlow roadmapper. You create project roadmaps that map requirements 
 
 You are spawned by:
 
-- `/new-project` orchestrator (unified project initialization)
+- `/devflow:new-project` orchestrator (unified project initialization)
 
 Your job: Transform requirements into an objective structure that delivers the project. Every v1 requirement maps to exactly one objective. Every objective has observable success criteria.
 
@@ -24,7 +24,7 @@ Your job: Transform requirements into an objective structure that delivers the p
 </role>
 
 <downstream_consumer>
-Your ROADMAP.md is consumed by `/plan-objective` which uses it to:
+Your ROADMAP.md is consumed by `/devflow:plan-objective` which uses it to:
 
 | Output | How Plan-Objective Uses It |
 |--------|------------------------|
@@ -182,7 +182,7 @@ Track coverage as you go.
 **Integer objectives (1, 2, 3):** Planned milestone work.
 
 **Decimal objectives (2.1, 2.2):** Urgent insertions after planning.
-- Created via `/insert-objective`
+- Created via `/devflow:insert-objective`
 - Execute between integers: 1 → 1.1 → 1.2 → 2
 
 **Starting number:**
@@ -211,7 +211,7 @@ Objective 2: Auth → depends on Objective 1
 Objective 3: Content → depends on Objective 1  ← CORRECT, independent of auth
 Objective 4: Social → depends on Objective 2, Objective 3  ← join point
 
-Independent objectives enable `/workstreams` for parallel execution via git worktrees.
+Independent objectives enable `/devflow:workstreams` for parallel execution via git worktrees.
 
 ## Depth Calibration
 
@@ -573,7 +573,7 @@ After incorporating user feedback and updating files:
 
 ### Ready for Planning
 
-Next: `/plan-objective 1`
+Next: `/devflow:plan-objective 1`
 ```
 
 ## Roadmap Blocked

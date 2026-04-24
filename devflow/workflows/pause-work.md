@@ -110,7 +110,7 @@ Current state:
 - Status: [in_progress/blocked]
 - Committed as WIP
 
-To resume: /resume-work
+To resume: /devflow:resume-work
 
 ```
 </step>

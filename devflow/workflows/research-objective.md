@@ -4,7 +4,7 @@ status: active
 <purpose>
 Research how to implement an objective. Spawns objective-researcher with objective context.
 
-Standalone research command. For most workflows, use `/plan-objective` which integrates research automatically.
+Standalone research command. For most workflows, use `/devflow:plan-objective` which integrates research automatically.
 </purpose>
 
 <process>

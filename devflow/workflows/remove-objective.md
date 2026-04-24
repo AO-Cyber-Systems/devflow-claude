@@ -14,15 +14,15 @@ Read all files referenced by the invoking prompt's execution_context before star
 <step name="parse_arguments">
 Parse the command arguments:
 - Argument is the objective number to remove (integer or decimal)
-- Example: `/remove-objective 17` → objective = 17
-- Example: `/remove-objective 16.1` → objective = 16.1
+- Example: `/devflow:remove-objective 17` → objective = 17
+- Example: `/devflow:remove-objective 16.1` → objective = 16.1
 
 If no argument provided:
 
 ```
 ERROR: Objective number required
-Usage: /remove-objective <phase-number>
-Example: /remove-objective 17
+Usage: /devflow:remove-objective <phase-number>
+Example: /devflow:remove-objective 17
 ```
 
 Exit.
@@ -55,7 +55,7 @@ Only future objectives can be removed:
 - Current objective: {current}
 - Objective {target} is current or completed
 
-To abandon current work, use /pause-work instead.
+To abandon current work, use /devflow:pause-work instead.
 ```
 
 Exit.
@@ -128,7 +128,7 @@ Changes:
 ## What's Next
 
 Would you like to:
-- `/progress` — see updated roadmap status
+- `/devflow:progress` — see updated roadmap status
 - Continue with current objective
 - Review roadmap
 

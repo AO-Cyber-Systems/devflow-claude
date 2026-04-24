@@ -2,7 +2,7 @@
 status: active
 ---
 <purpose>
-Create all objectives necessary to close gaps identified by `/audit-milestone`. Reads MILESTONE-AUDIT.md, groups gaps into logical objectives, creates objective entries in ROADMAP.md, and offers to plan each objective. One command creates all fix objectives — no manual `/add-objective` per gap.
+Create all objectives necessary to close gaps identified by `/devflow:audit-milestone`. Reads MILESTONE-AUDIT.md, groups gaps into logical objectives, creates objective entries in ROADMAP.md, and offers to plan each objective. One command creates all fix objectives — no manual `/devflow:add-objective` per gap.
 </purpose>
 
 <required_reading>
@@ -25,7 +25,7 @@ Parse YAML frontmatter to extract structured gaps:
 
 If no audit file exists or has no gaps, error:
 ```
-No audit gaps found. Run `/audit-milestone` first.
+No audit gaps found. Run `/devflow:audit-milestone` first.
 ```
 
 ## 2. Prioritize Gaps
@@ -167,22 +167,22 @@ node ~/.claude/devflow/bin/df-tools.cjs commit "docs(roadmap): add gap closure o
 
 **Plan first gap closure objective**
 
-`/plan-objective {N}`
+`/devflow:plan-objective {N}`
 
 <sub>`/clear` first → fresh context window</sub>
 
 ---
 
 **Also available:**
-- `/execute-objective {N}` — if plans already exist
+- `/devflow:execute-objective {N}` — if plans already exist
 - `cat .planning/ROADMAP.md` — see updated roadmap
 
 ---
 
 **After all gap objectives complete:**
 
-`/audit-milestone` — re-audit to verify gaps closed
-`/complete-milestone {version}` — archive when audit passes
+`/devflow:audit-milestone` — re-audit to verify gaps closed
+`/devflow:complete-milestone {version}` — archive when audit passes
 ```
 
 </process>
@@ -273,5 +273,5 @@ becomes:
 - [ ] Coverage count updated in REQUIREMENTS.md
 - [ ] Objective directories created
 - [ ] Changes committed (includes REQUIREMENTS.md)
-- [ ] User knows to run `/plan-objective` next
+- [ ] User knows to run `/devflow:plan-objective` next
 </success_criteria>

@@ -51,7 +51,7 @@ INIT=$(node ~/.claude/devflow/bin/df-tools.cjs init quick "$DESCRIPTION")
 
 Parse JSON for: `planner_model`, `executor_model`, `checker_model`, `verifier_model`, `commit_docs`, `next_num`, `slug`, `date`, `timestamp`, `quick_dir`, `task_dir`, `roadmap_exists`, `planning_exists`.
 
-**If `roadmap_exists` is false:** Error — Quick mode requires an active project with ROADMAP.md. Run `/new-project` first.
+**If `roadmap_exists` is false:** Error — Quick mode requires an active project with ROADMAP.md. Run `/devflow:new-project` first.
 
 Quick tasks can run mid-objective - validation only checks ROADMAP.md exists, not objective status.
 
@@ -425,7 +425,7 @@ Commit: ${commit_hash}
 
 ---
 
-Ready for next task: /quick
+Ready for next task: /devflow:quick
 ```
 
 **If NOT `$FULL_MODE`:**
@@ -441,7 +441,7 @@ Commit: ${commit_hash}
 
 ---
 
-Ready for next task: /quick
+Ready for next task: /devflow:quick
 ```
 
 </process>

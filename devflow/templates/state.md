@@ -111,10 +111,10 @@ Progress calculation: (completed jobs) / (total plans across all objectives) × 
 
 Decisions and performance metrics live in STATE_ARCHIVE.md to keep STATE.md lean.
 
-**Pending Todos:** Ideas captured via /add-todo
+**Pending Todos:** Ideas captured via /devflow:add-todo
 - Count of pending todos
 - Reference to .planning/todos/pending/
-- Brief list if few, count if many (e.g., "5 pending todos — see /check-todos")
+- Brief list if few, count if many (e.g., "5 pending todos — see /devflow:check-todos")
 
 **Blockers/Concerns:** From "Next Objective Readiness" sections
 - Issues that affect future work

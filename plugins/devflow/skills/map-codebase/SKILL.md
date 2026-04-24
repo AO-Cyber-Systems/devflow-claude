@@ -33,8 +33,8 @@ Focus area: $ARGUMENTS (optional - if provided, tells agents to focus on specifi
 Check for .planning/STATE.md - loads context if project already initialized
 
 **This command can run:**
-- Before /new-project (brownfield codebases) - creates codebase map first
-- After /new-project (greenfield codebases) - updates codebase map as code evolves
+- Before /devflow:new-project (brownfield codebases) - creates codebase map first
+- After /devflow:new-project (greenfield codebases) - updates codebase map as code evolves
 - Anytime to refresh codebase understanding
 </context>
 
@@ -63,7 +63,7 @@ Check for .planning/STATE.md - loads context if project already initialized
 5. Verify all 8 documents exist with line counts
 6. Synthesize CLAUDE.md from all 8 docs (prescriptive coding rules, marker-based merge)
 7. Commit codebase map + CLAUDE.md
-8. Offer next steps (typically: /new-project or /plan-objective)
+8. Offer next steps (typically: /devflow:new-project or /devflow:plan-objective)
 </process>
 
 <success_criteria>

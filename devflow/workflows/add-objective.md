@@ -14,15 +14,15 @@ Read all files referenced by the invoking prompt's execution_context before star
 <step name="parse_arguments">
 Parse the command arguments:
 - All arguments become the objective description
-- Example: `/add-objective Add authentication` → description = "Add authentication"
-- Example: `/add-objective Fix critical performance issues` → description = "Fix critical performance issues"
+- Example: `/devflow:add-objective Add authentication` → description = "Add authentication"
+- Example: `/devflow:add-objective Fix critical performance issues` → description = "Fix critical performance issues"
 
 If no arguments provided:
 
 ```
 ERROR: Objective description required
-Usage: /add-objective <description>
-Example: /add-objective Add authentication system
+Usage: /devflow:add-objective <description>
+Example: /devflow:add-objective Add authentication system
 ```
 
 Exit.
@@ -38,7 +38,7 @@ INIT=$(node ~/.claude/devflow/bin/df-tools.cjs init objective-op "0")
 Check `roadmap_exists` from init JSON. If false:
 ```
 ERROR: No roadmap found (.planning/ROADMAP.md)
-Run /new-project to initialize.
+Run /devflow:new-project to initialize.
 ```
 Exit.
 </step>
@@ -89,14 +89,14 @@ Roadmap updated: .planning/ROADMAP.md
 
 **Objective {N}: {description}**
 
-`/plan-objective {N}`
+`/devflow:plan-objective {N}`
 
 <sub>`/clear` first → fresh context window</sub>
 
 ---
 
 **Also available:**
-- `/add-objective <description>` — add another objective
+- `/devflow:add-objective <description>` — add another objective
 - Review roadmap
 
 ---

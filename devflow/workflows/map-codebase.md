@@ -347,14 +347,14 @@ Generated CLAUDE.md ([N] lines) — coding rules auto-loaded every session
 
 **Initialize project** — use codebase context for planning
 
-`/new-project`
+`/devflow:new-project`
 
 <sub>`/clear` first → fresh context window</sub>
 
 ---
 
 **Also available:**
-- Re-run mapping: `/map-codebase`
+- Re-run mapping: `/devflow:map-codebase`
 - Review CLAUDE.md: `cat CLAUDE.md`
 - Review specific file: `cat .planning/codebase/STACK.md`
 - Edit any document before proceeding

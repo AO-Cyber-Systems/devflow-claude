@@ -24,14 +24,14 @@ If `todo_count` is 0:
 ```
 No pending todos.
 
-Todos are captured during work sessions with /add-todo.
+Todos are captured during work sessions with /devflow:add-todo.
 
 ---
 
 Would you like to:
 
-1. Continue with current objective (/progress)
-2. Add a todo now (/add-todo)
+1. Continue with current objective (/devflow:progress)
+2. Add a todo now (/devflow:add-todo)
 ```
 
 Exit.
@@ -39,8 +39,8 @@ Exit.
 
 <step name="parse_filter">
 Check for area filter in arguments:
-- `/check-todos` → show all
-- `/check-todos api` → filter to area:api only
+- `/devflow:check-todos` → show all
+- `/devflow:check-todos api` → filter to area:api only
 </step>
 
 <step name="list_todos">
@@ -58,7 +58,7 @@ Pending Todos:
 ---
 
 Reply with a number to view details, or:
-- `/check-todos [area]` to filter by area
+- `/devflow:check-todos [area]` to filter by area
 - `q` to exit
 ```
 
@@ -120,7 +120,7 @@ Use AskUserQuestion:
 - question: "What would you like to do with this todo?"
 - options:
   - "Work on it now" — move to done, start working
-  - "Create an objective" — /add-objective with this scope
+  - "Create an objective" — /devflow:add-objective with this scope
   - "Brainstorm approach" — think through before deciding
   - "Put it back" — return to list
 </step>
@@ -136,7 +136,7 @@ Update STATE.md todo count. Present problem/solution context. Begin work or ask 
 Note todo reference in objective planning notes. Keep in pending. Return to list or exit.
 
 **Create an objective:**
-Display: `/add-objective [description from todo]`
+Display: `/devflow:add-objective [description from todo]`
 Keep in pending. User runs command in fresh context.
 
 **Brainstorm approach:**

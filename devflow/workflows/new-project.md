@@ -26,7 +26,7 @@ Check if `--auto` flag is present in $ARGUMENTS.
 
 **Document requirement:**
 Auto mode requires an idea document — either:
-- File reference: `/new-project --auto @prd.md`
+- File reference: `/devflow:new-project --auto @prd.md`
 - Pasted/written text in the prompt
 
 If no document content provided, error:
@@ -35,8 +35,8 @@ If no document content provided, error:
 Error: --auto requires an idea document.
 
 Usage:
-  /new-project --auto @your-idea.md
-  /new-project --auto [paste or write your idea here]
+  /devflow:new-project --auto @your-idea.md
+  /devflow:new-project --auto [paste or write your idea here]
 
 The document should describe what you want to build.
 ```
@@ -54,7 +54,7 @@ INIT=$(node ~/.claude/devflow/bin/df-tools.cjs init new-project)
 
 Parse JSON for: `researcher_model`, `synthesizer_model`, `roadmapper_model`, `commit_docs`, `project_exists`, `has_codebase_map`, `planning_exists`, `has_existing_code`, `has_package_file`, `is_brownfield`, `needs_codebase_map`, `has_git`.
 
-**If `project_exists` is true:** Error — project already initialized. Use `/progress`.
+**If `project_exists` is true:** Error — project already initialized. Use `/devflow:progress`.
 
 **If `has_git` is false:** Initialize git:
 ```bash
@@ -71,12 +71,12 @@ Use AskUserQuestion:
 - header: "Codebase"
 - question: "I detected existing code in this directory. Would you like to map the codebase first?"
 - options:
-  - "Map codebase first" — Run /map-codebase to understand existing architecture (Recommended)
+  - "Map codebase first" — Run /devflow:map-codebase to understand existing architecture (Recommended)
   - "Skip mapping" — Proceed with project initialization
 
 **If "Map codebase first":**
 ```
-Run `/map-codebase` first, then return to `/new-project`
+Run `/devflow:map-codebase` first, then return to `/devflow:new-project`
 ```
 Exit command.
 
@@ -359,7 +359,7 @@ Using smart defaults:
 - Parallelization: Enabled
 - Git tracking: Yes
 
-Run `/settings` anytime to customize.
+Run `/devflow:settings` anytime to customize.
 ```
 
 **Check for `--interactive` flag:** If present, expand the full question flow below. Otherwise, use defaults.
@@ -437,7 +437,7 @@ Create `.planning/config.json` with settings (defaults + any overrides):
 node ~/.claude/devflow/bin/df-tools.cjs commit "chore: add project config" --files .planning/config.json
 ```
 
-**Note:** Run `/settings` anytime to update these preferences.
+**Note:** Run `/devflow:settings` anytime to update these preferences.
 
 ## 5.5. Resolve Model Profile
 
@@ -1062,7 +1062,7 @@ Present completion summary:
 ╚══════════════════════════════════════════╝
 ```
 
-Exit skill and invoke SlashCommand("/plan-objective 1 --auto")
+Exit skill and invoke SlashCommand("/devflow:plan-objective 1 --auto")
 
 **If interactive mode:**
 
@@ -1073,13 +1073,13 @@ Exit skill and invoke SlashCommand("/plan-objective 1 --auto")
 
 **Objective 1: [Objective Name]** — [Goal from ROADMAP.md]
 
-/plan-objective 1 — plan the first objective
+/devflow:plan-objective 1 — plan the first objective
 
 
 ---
 
 **Also available:**
-- /build 1 — plan and execute in one command
+- /devflow:build 1 — plan and execute in one command
 
 ───────────────────────────────────────────────────────────────
 ```
@@ -1120,7 +1120,7 @@ Exit skill and invoke SlashCommand("/plan-objective 1 --auto")
 - [ ] ROADMAP.md created with objectives, requirement mappings, success criteria
 - [ ] STATE.md initialized
 - [ ] REQUIREMENTS.md traceability updated
-- [ ] User knows next step is `/plan-objective 1`
+- [ ] User knows next step is `/devflow:plan-objective 1`
 
 **Atomic commits:** Each objective commits its artifacts immediately. If context is lost, artifacts persist.
 

@@ -14,10 +14,10 @@ Build an objective from start to finish: research → plan → execute → verif
 This is the primary way to build with DevFlow. One command, shipped code.
 
 Usage:
-- `/build 3` — Build objective 3 from the roadmap
-- `/build "add user authentication"` — Build from description (creates temporary objective if no match)
-- `/build 3 --pause` — Stop between phases for review
-- `/build 3 --skip-research` — Skip research phase
+- `/devflow:build 3` — Build objective 3 from the roadmap
+- `/devflow:build "add user authentication"` — Build from description (creates temporary objective if no match)
+- `/devflow:build 3 --pause` — Stop between phases for review
+- `/devflow:build 3 --skip-research` — Skip research phase
 </objective>
 
 <execution_context>

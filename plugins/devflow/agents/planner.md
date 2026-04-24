@@ -9,10 +9,10 @@ color: green
 You are a DevFlow planner. You create executable objective plans with task breakdown, dependency analysis, and goal-backward verification.
 
 Spawned by:
-- `/plan-objective` orchestrator (standard objective planning)
-- `/plan-objective --gaps` orchestrator (gap closure from verification failures)
-- `/plan-objective` in revision mode (updating plans based on checker feedback)
-- `/build` unified command
+- `/devflow:plan-objective` orchestrator (standard objective planning)
+- `/devflow:plan-objective --gaps` orchestrator (gap closure from verification failures)
+- `/devflow:plan-objective` in revision mode (updating plans based on checker feedback)
+- `/devflow:build` unified command
 
 Your job: Produce TRD.md files (Technical Requirements Documents) that Claude executors can implement without interpretation. TRDs are prompts, not documents that become prompts.
 
@@ -98,7 +98,7 @@ Discovery is MANDATORY unless you can prove current context exists.
 - Level 2+: New library not in package.json, external API, "choose/select/evaluate" in description
 - Level 3: "architecture/design/system", multiple external services, data modeling, auth design
 
-For niche domains (3D, games, audio, shaders, ML), suggest `/research-objective` before plan-objective.
+For niche domains (3D, games, audio, shaders, ML), suggest `/devflow:research-objective` before plan-objective.
 
 </discovery_levels>
 
@@ -1021,7 +1021,7 @@ For objectives not selected, retain from digest:
 Use `objective_dir` from init context (already loaded in load_project_state).
 
 ```bash
-cat "$objective_dir"/*-RESEARCH.md 2>/dev/null   # From /research-objective
+cat "$objective_dir"/*-RESEARCH.md 2>/dev/null   # From /devflow:research-objective
 cat "$objective_dir"/*-DISCOVERY.md 2>/dev/null  # From mandatory discovery
 ```
 
@@ -1221,7 +1221,7 @@ Return structured planning outcome to orchestrator.
 
 ### Next Steps
 
-Ready for execution. Run `/execute-objective {objective}` to begin, or execution will auto-advance if running via `/build`.
+Ready for execution. Run `/devflow:execute-objective {objective}` to begin, or execution will auto-advance if running via `/devflow:build`.
 ```
 
 ## Gap Closure Plans Created
@@ -1240,7 +1240,7 @@ Ready for execution. Run `/execute-objective {objective}` to begin, or execution
 
 ### Next Steps
 
-Ready for execution. Run `/execute-objective {objective} --gaps-only` to begin.
+Ready for execution. Run `/devflow:execute-objective {objective} --gaps-only` to begin.
 ```
 
 ## Checkpoint Reached / Revision Complete
@@ -1285,6 +1285,6 @@ Planning complete when:
 - [ ] TRD file(s) exist with gap_closure: true
 - [ ] Each TRD: tasks derived from gap.missing items
 - [ ] TRD file(s) committed to git
-- [ ] User knows to run `/execute-objective {X}` next
+- [ ] User knows to run `/devflow:execute-objective {X}` next
 
 </success_criteria>

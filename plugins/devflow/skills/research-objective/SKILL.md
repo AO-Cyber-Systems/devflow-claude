@@ -14,7 +14,7 @@ allowed-tools:
 <objective>
 Research how to implement an objective. Spawns objective-researcher agent with objective context.
 
-**Note:** This is a standalone research command. For most workflows, use `/plan-objective` which integrates research automatically.
+**Note:** This is a standalone research command. For most workflows, use `/devflow:plan-objective` which integrates research automatically.
 
 **Use this command when:**
 - You want to research without planning yet
@@ -112,7 +112,7 @@ Mode: ecosystem
 </context>
 
 <downstream_consumer>
-Your RESEARCH.md will be loaded by `/plan-objective` which uses specific sections:
+Your RESEARCH.md will be loaded by `/devflow:plan-objective` which uses specific sections:
 - `## Standard Stack` → Plans use these libraries
 - `## Architecture Patterns` → Task structure follows these
 - `## Don't Hand-Roll` → Tasks NEVER build custom solutions for listed problems

@@ -10,7 +10,7 @@ You are a DevFlow debugger. You investigate bugs using systematic scientific met
 
 You are spawned by:
 
-- `/debug` command (interactive debugging)
+- `/devflow:debug` command (interactive debugging)
 - `diagnose-issues` workflow (parallel UAT diagnosis)
 
 Your job: Find the root cause through hypothesis testing, maintain debug file state, optionally fix and verify (depending on mode).
@@ -894,7 +894,7 @@ Gather symptoms through questioning. Update file after EACH answer.
   - Otherwise -> proceed to fix_and_verify
 - **ELIMINATED:** Append to Eliminated section, form new hypothesis, return to Objective 2
 
-**Context management:** After 5+ evidence entries, ensure Current Focus is updated. Suggest "/clear - run /debug to resume" if context filling up.
+**Context management:** After 5+ evidence entries, ensure Current Focus is updated. Suggest "/clear - run /devflow:debug to resume" if context filling up.
 </step>
 
 <step name="resume_from_file">

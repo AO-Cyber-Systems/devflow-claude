@@ -123,7 +123,7 @@ Parse JSON for: `commit_docs`, `objective_found`, `objective_dir`, `objective_nu
 ```
 Objective [X] not found in roadmap.
 
-Use /progress to see available objectives.
+Use /devflow:progress to see available objectives.
 ```
 Exit workflow.
 
@@ -158,7 +158,7 @@ Use AskUserQuestion:
 - header: "Plans exist"
 - question: "Objective [X] already has {job_count} plan(s) created without user context. Your decisions here won't affect existing jobs unless you replan."
 - options:
-  - "Continue and replan after" — Capture context, then run /plan-objective {X} to replan
+  - "Continue and replan after" — Capture context, then run /devflow:plan-objective {X} to replan
   - "View existing jobs" — Show plans before deciding
   - "Cancel" — Skip discuss-objective
 
@@ -390,14 +390,14 @@ Created: .planning/objectives/${PADDED_OBJECTIVE}-${SLUG}/${PADDED_OBJECTIVE}-CO
 
 **Objective ${OBJECTIVE}: [Name]** — [Goal from ROADMAP.md]
 
-`/plan-objective ${OBJECTIVE}`
+`/devflow:plan-objective ${OBJECTIVE}`
 
 <sub>`/clear` first → fresh context window</sub>
 
 ---
 
 **Also available:**
-- `/plan-objective ${OBJECTIVE} --skip-research` — plan without research
+- `/devflow:plan-objective ${OBJECTIVE} --skip-research` — plan without research
 - Review/edit CONTEXT.md before continuing
 
 ---
@@ -458,7 +458,7 @@ Context captured. Spawning plan-objective...
 Spawn plan-objective as Task:
 ```
 Task(
-  prompt="Run /plan-objective ${OBJECTIVE} --auto",
+  prompt="Run /devflow:plan-objective ${OBJECTIVE} --auto",
   subagent_type="general-purpose",
   description="Plan Objective ${OBJECTIVE}"
 )
@@ -471,7 +471,7 @@ Task(
   Auto-advance stopped: Planning needs input.
 
   Review the output above and continue manually:
-  /plan-objective ${OBJECTIVE}
+  /devflow:plan-objective ${OBJECTIVE}
   ```
 
 **If neither `--auto` nor config enabled:**

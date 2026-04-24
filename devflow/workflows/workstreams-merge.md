@@ -199,7 +199,7 @@ node ~/.claude/devflow/bin/df-tools.cjs commit "docs: merge workstreams, advance
 
 All workstream dependencies are satisfied. Ready to plan:
 
-`/plan-objective {join_objective}`
+`/devflow:plan-objective {join_objective}`
 
 <sub>`/clear` first → fresh context window</sub>
 ```

@@ -12,9 +12,9 @@ Display the complete DevFlow command reference. Output ONLY the reference conten
 
 ## Quick Start
 
-1. `/new-project` - Initialize project (includes research, requirements, roadmap)
-2. `/plan-objective 1` - Create detailed plan for first objective
-3. `/execute-objective 1` - Execute the objective
+1. `/devflow:new-project` - Initialize project (includes research, requirements, roadmap)
+2. `/devflow:plan-objective 1` - Create detailed plan for first objective
+3. `/devflow:execute-objective 1` - Execute the objective
 
 ## Staying Updated
 
@@ -27,12 +27,12 @@ npx @ao-cyber-systems/devflow-cc@latest
 ## Core Workflow
 
 ```
-/new-project → /plan-objective → /execute-objective → repeat
+/devflow:new-project → /devflow:plan-objective → /devflow:execute-objective → repeat
 ```
 
 ### Project Initialization
 
-**`/new-project`**
+**`/devflow:new-project`**
 Initialize new project through unified flow.
 
 One command takes you from idea to ready-for-planning:
@@ -49,30 +49,30 @@ Creates all `.planning/` artifacts:
 - `ROADMAP.md` — objectives mapped to requirements
 - `STATE.md` — project memory
 
-Usage: `/new-project`
+Usage: `/devflow:new-project`
 
-**`/map-codebase`**
+**`/devflow:map-codebase`**
 Map an existing codebase for brownfield projects.
 
 - Analyzes codebase with parallel Explore agents
 - Creates `.planning/codebase/` with 7 focused documents
 - Covers stack, architecture, structure, conventions, testing, integrations, concerns
-- Use before `/new-project` on existing codebases
+- Use before `/devflow:new-project` on existing codebases
 
-Usage: `/map-codebase`
+Usage: `/devflow:map-codebase`
 
 ### Objective Planning
 
-**`/discuss-objective <number>`**
+**`/devflow:discuss-objective <number>`**
 Help articulate your vision for an objective before planning.
 
 - Captures how you imagine this objective working
 - Creates CONTEXT.md with your vision, essentials, and boundaries
 - Use when you have ideas about how something should look/feel
 
-Usage: `/discuss-objective 2`
+Usage: `/devflow:discuss-objective 2`
 
-**`/research-objective <number>`**
+**`/devflow:research-objective <number>`**
 Comprehensive ecosystem research for niche/complex domains.
 
 - Discovers standard stack, architecture patterns, pitfalls
@@ -80,18 +80,18 @@ Comprehensive ecosystem research for niche/complex domains.
 - Use for 3D, games, audio, shaders, ML, and other specialized domains
 - Goes beyond "which library" to ecosystem knowledge
 
-Usage: `/research-objective 3`
+Usage: `/devflow:research-objective 3`
 
-**`/list-objective-assumptions <number>`**
+**`/devflow:list-objective-assumptions <number>`**
 See what Claude is planning to do before it starts.
 
 - Shows Claude's intended approach for an objective
 - Lets you course-correct if Claude misunderstood your vision
 - No files created - conversational output only
 
-Usage: `/list-objective-assumptions 3`
+Usage: `/devflow:list-objective-assumptions 3`
 
-**`/plan-objective <number>`**
+**`/devflow:plan-objective <number>`**
 Create detailed execution plan for a specific objective.
 
 - Generates `.planning/objectives/XX-phase-name/XX-YY-JOB.md`
@@ -99,12 +99,12 @@ Create detailed execution plan for a specific objective.
 - Includes verification criteria and success measures
 - Multiple plans per objective supported (XX-01, XX-02, etc.)
 
-Usage: `/plan-objective 1`
+Usage: `/devflow:plan-objective 1`
 Result: Creates `.planning/objectives/01-foundation/01-01-JOB.md`
 
 ### Execution
 
-**`/execute-objective <phase-number>`**
+**`/devflow:execute-objective <phase-number>`**
 Execute all jobs in an objective.
 
 - Groups plans by wave (from frontmatter), executes waves sequentially
@@ -112,11 +112,11 @@ Execute all jobs in an objective.
 - Verifies objective goal after all jobs complete
 - Updates REQUIREMENTS.md, ROADMAP.md, STATE.md
 
-Usage: `/execute-objective 5`
+Usage: `/devflow:execute-objective 5`
 
 ### Quick Mode
 
-**`/quick`**
+**`/devflow:quick`**
 Execute small, ad-hoc tasks with DevFlow guarantees but skip optional agents.
 
 Quick mode uses the same system with a shorter path:
@@ -126,31 +126,31 @@ Quick mode uses the same system with a shorter path:
 
 Use when you know exactly what to do and the task is small enough to not need research or verification.
 
-Usage: `/quick`
+Usage: `/devflow:quick`
 Result: Creates `.planning/quick/NNN-slug/JOB.md`, `.planning/quick/NNN-slug/SUMMARY.md`
 
 ### Roadmap Management
 
-**`/add-objective <description>`**
+**`/devflow:add-objective <description>`**
 Add new objective to end of current milestone.
 
 - Appends to ROADMAP.md
 - Uses next sequential number
 - Updates objective directory structure
 
-Usage: `/add-objective "Add admin dashboard"`
+Usage: `/devflow:add-objective "Add admin dashboard"`
 
-**`/insert-objective <after> <description>`**
+**`/devflow:insert-objective <after> <description>`**
 Insert urgent work as decimal objective between existing objectives.
 
 - Creates intermediate objective (e.g., 7.1 between 7 and 8)
 - Useful for discovered work that must happen mid-milestone
 - Maintains objective ordering
 
-Usage: `/insert-objective 7 "Fix critical auth bug"`
+Usage: `/devflow:insert-objective 7 "Fix critical auth bug"`
 Result: Creates Objective 7.1
 
-**`/remove-objective <number>`**
+**`/devflow:remove-objective <number>`**
 Remove a future objective and renumber subsequent objectives.
 
 - Deletes objective directory and all references
@@ -158,12 +158,12 @@ Remove a future objective and renumber subsequent objectives.
 - Only works on future (unstarted) objectives
 - Git commit preserves historical record
 
-Usage: `/remove-objective 17`
+Usage: `/devflow:remove-objective 17`
 Result: Objective 17 deleted, objectives 18-20 become 17-19
 
 ### Parallel Workstreams
 
-**`/workstreams setup`**
+**`/devflow:workstreams setup`**
 Create parallel worktrees for independent objectives.
 
 - Analyzes ROADMAP.md dependency graph for non-linear dependencies
@@ -171,18 +171,18 @@ Create parallel worktrees for independent objectives.
 - Provisions `.planning/` context per worktree (filtered state, marker)
 - Each worktree runs normal DevFlow commands in its own Claude session
 
-Usage: `/workstreams setup`
+Usage: `/devflow:workstreams setup`
 
-**`/workstreams status`**
+**`/devflow:workstreams status`**
 Check progress across all active workstreams.
 
 - Reads each worktree's STATE.md and git branch activity
 - Shows completion status per workstream
 - Indicates when join objective is ready
 
-Usage: `/workstreams status`
+Usage: `/devflow:workstreams status`
 
-**`/workstreams merge`**
+**`/devflow:workstreams merge`**
 Merge completed workstreams back to main.
 
 - Squash-merges each workstream branch
@@ -191,11 +191,11 @@ Merge completed workstreams back to main.
 - Cleans up worktrees and branches
 - Advances to the join objective
 
-Usage: `/workstreams merge`
+Usage: `/devflow:workstreams merge`
 
 ### Milestone Management
 
-**`/new-milestone <name>`**
+**`/devflow:new-milestone <name>`**
 Start a new milestone through unified flow.
 
 - Deep questioning to understand what you're building next
@@ -203,11 +203,11 @@ Start a new milestone through unified flow.
 - Requirements definition with scoping
 - Roadmap creation with objective breakdown
 
-Mirrors `/new-project` flow for brownfield projects (existing PROJECT.md).
+Mirrors `/devflow:new-project` flow for brownfield projects (existing PROJECT.md).
 
-Usage: `/new-milestone "v2.0 Features"`
+Usage: `/devflow:new-milestone "v2.0 Features"`
 
-**`/complete-milestone <version>`**
+**`/devflow:complete-milestone <version>`**
 Archive completed milestone and prepare for next version.
 
 - Creates MILESTONES.md entry with stats
@@ -215,11 +215,11 @@ Archive completed milestone and prepare for next version.
 - Creates git tag for the release
 - Prepares workspace for next version
 
-Usage: `/complete-milestone 1.0.0`
+Usage: `/devflow:complete-milestone 1.0.0`
 
 ### Progress Tracking
 
-**`/progress`**
+**`/devflow:progress`**
 Check project status and intelligently route to next action.
 
 - Shows visual progress bar and completion percentage
@@ -229,45 +229,45 @@ Check project status and intelligently route to next action.
 - Offers to execute next job or create it if missing
 - Detects 100% milestone completion
 
-Usage: `/progress`
+Usage: `/devflow:progress`
 
 ### Session Management
 
-**`/resume-work`**
+**`/devflow:resume-work`**
 Resume work from previous session with full context restoration.
 
 - Reads STATE.md for project context
 - Shows current position and recent progress
 - Offers next actions based on project state
 
-Usage: `/resume-work`
+Usage: `/devflow:resume-work`
 
-**`/pause-work`**
+**`/devflow:pause-work`**
 Create context handoff when pausing work mid-objective.
 
 - Creates .continue-here file with current state
 - Updates STATE.md session continuity section
 - Captures in-progress work context
 
-Usage: `/pause-work`
+Usage: `/devflow:pause-work`
 
 ### Debugging
 
-**`/debug [issue description]`**
+**`/devflow:debug [issue description]`**
 Systematic debugging with persistent state across context resets.
 
 - Gathers symptoms through adaptive questioning
 - Creates `.planning/debug/[slug].md` to track investigation
 - Investigates using scientific method (evidence → hypothesis → test)
-- Survives `/clear` — run `/debug` with no args to resume
+- Survives `/clear` — run `/devflow:debug` with no args to resume
 - Archives resolved issues to `.planning/debug/resolved/`
 
-Usage: `/debug "login button doesn't work"`
-Usage: `/debug` (resume active session)
+Usage: `/devflow:debug "login button doesn't work"`
+Usage: `/devflow:debug` (resume active session)
 
 ### Todo Management
 
-**`/add-todo [description]`**
+**`/devflow:add-todo [description]`**
 Capture idea or task as todo from current conversation.
 
 - Extracts context from conversation (or uses provided description)
@@ -276,24 +276,24 @@ Capture idea or task as todo from current conversation.
 - Checks for duplicates before creating
 - Updates STATE.md todo count
 
-Usage: `/add-todo` (infers from conversation)
-Usage: `/add-todo Add auth token refresh`
+Usage: `/devflow:add-todo` (infers from conversation)
+Usage: `/devflow:add-todo Add auth token refresh`
 
-**`/check-todos [area]`**
+**`/devflow:check-todos [area]`**
 List pending todos and select one to work on.
 
 - Lists all pending todos with title, area, age
-- Optional area filter (e.g., `/check-todos api`)
+- Optional area filter (e.g., `/devflow:check-todos api`)
 - Loads full context for selected todo
 - Routes to appropriate action (work now, add to objective, brainstorm)
 - Moves todo to done/ when work begins
 
-Usage: `/check-todos`
-Usage: `/check-todos api`
+Usage: `/devflow:check-todos`
+Usage: `/devflow:check-todos api`
 
 ### User Acceptance Testing
 
-**`/verify-work [objective]`**
+**`/devflow:verify-work [objective]`**
 Validate built features through conversational UAT.
 
 - Extracts testable deliverables from SUMMARY.md files
@@ -301,11 +301,11 @@ Validate built features through conversational UAT.
 - Automatically diagnoses failures and creates fix plans
 - Ready for re-execution if issues found
 
-Usage: `/verify-work 3`
+Usage: `/devflow:verify-work 3`
 
 ### Milestone Auditing
 
-**`/audit-milestone [version]`**
+**`/devflow:audit-milestone [version]`**
 Audit milestone completion against original intent.
 
 - Reads all objective VERIFICATION.md files
@@ -313,41 +313,41 @@ Audit milestone completion against original intent.
 - Spawns integration checker for cross-objective wiring
 - Creates MILESTONE-AUDIT.md with gaps and tech debt
 
-Usage: `/audit-milestone`
+Usage: `/devflow:audit-milestone`
 
-**`/plan-milestone-gaps`**
+**`/devflow:plan-milestone-gaps`**
 Create objectives to close gaps identified by audit.
 
 - Reads MILESTONE-AUDIT.md and groups gaps into objectives
 - Prioritizes by requirement priority (must/should/nice)
 - Adds gap closure objectives to ROADMAP.md
-- Ready for `/plan-objective` on new objectives
+- Ready for `/devflow:plan-objective` on new objectives
 
-Usage: `/plan-milestone-gaps`
+Usage: `/devflow:plan-milestone-gaps`
 
 ### Configuration
 
-**`/settings`**
+**`/devflow:settings`**
 Configure workflow toggles and model profile interactively.
 
 - Toggle researcher, job checker, verifier agents
 - Select model profile (quality/balanced/budget)
 - Updates `.planning/config.json`
 
-Usage: `/settings`
+Usage: `/devflow:settings`
 
-**`/set-profile <profile>`**
+**`/devflow:set-profile <profile>`**
 Quick switch model profile for DevFlow agents.
 
 - `quality` — Opus everywhere except verification
 - `balanced` — Opus for planning, Sonnet for execution (default)
 - `budget` — Sonnet for writing, Haiku for research/verification
 
-Usage: `/set-profile budget`
+Usage: `/devflow:set-profile budget`
 
 ### Utility Commands
 
-**`/cleanup`**
+**`/devflow:cleanup`**
 Archive accumulated objective directories from completed milestones.
 
 - Identifies objectives from completed milestones still in `.planning/objectives/`
@@ -355,12 +355,12 @@ Archive accumulated objective directories from completed milestones.
 - Moves objective dirs to `.planning/milestones/v{X.Y}-objectives/`
 - Use after multiple milestones to reduce `.planning/objectives/` clutter
 
-Usage: `/cleanup`
+Usage: `/devflow:cleanup`
 
-**`/help`**
+**`/devflow:help`**
 Show this command reference.
 
-**`/update`**
+**`/devflow:update`**
 Update DevFlow to latest version with changelog preview.
 
 - Shows installed vs latest version comparison
@@ -369,15 +369,15 @@ Update DevFlow to latest version with changelog preview.
 - Confirms before running install
 - Better than raw `npx devflow-cc`
 
-Usage: `/update`
+Usage: `/devflow:update`
 
-**`/join-discord`**
+**`/devflow:join-discord`**
 Join the DevFlow Discord community.
 
 - Get help, share what you're building, stay updated
 - Connect with other DevFlow users
 
-Usage: `/join-discord`
+Usage: `/devflow:join-discord`
 
 ## Files & Structure
 
@@ -395,7 +395,7 @@ Usage: `/join-discord`
 ├── milestones/
 │   ├── v1.0-ROADMAP.md       # Archived roadmap snapshot
 │   ├── v1.0-REQUIREMENTS.md  # Archived requirements
-│   └── v1.0-objectives/          # Archived objective dirs (via /cleanup or --archive-objectives)
+│   └── v1.0-objectives/          # Archived objective dirs (via /devflow:cleanup or --archive-objectives)
 │       ├── 01-foundation/
 │       └── 02-core-features/
 ├── codebase/             # Codebase map (brownfield projects)
@@ -417,7 +417,7 @@ Usage: `/join-discord`
 
 ## Workflow Modes
 
-Set during `/new-project`:
+Set during `/devflow:new-project`:
 
 **Interactive Mode**
 
@@ -465,60 +465,60 @@ Example config:
 **Starting a new project:**
 
 ```
-/new-project        # Unified flow: questioning → research → requirements → roadmap
+/devflow:new-project        # Unified flow: questioning → research → requirements → roadmap
 /clear
-/plan-objective 1       # Create plans for first objective
+/devflow:plan-objective 1       # Create plans for first objective
 /clear
-/execute-objective 1    # Execute all jobs in objective
+/devflow:execute-objective 1    # Execute all jobs in objective
 ```
 
 **Resuming work after a break:**
 
 ```
-/progress  # See where you left off and continue
+/devflow:progress  # See where you left off and continue
 ```
 
 **Adding urgent mid-milestone work:**
 
 ```
-/insert-objective 5 "Critical security fix"
-/plan-objective 5.1
-/execute-objective 5.1
+/devflow:insert-objective 5 "Critical security fix"
+/devflow:plan-objective 5.1
+/devflow:execute-objective 5.1
 ```
 
 **Running independent objectives in parallel:**
 
 ```
-/workstreams setup     # Analyze deps, create worktrees
+/devflow:workstreams setup     # Analyze deps, create worktrees
 # Open terminals in each worktree, run plan-objective + execute-objective
-/workstreams status    # Check progress
-/workstreams merge     # Merge when done, advance to join objective
+/devflow:workstreams status    # Check progress
+/devflow:workstreams merge     # Merge when done, advance to join objective
 ```
 
 **Completing a milestone:**
 
 ```
-/complete-milestone 1.0.0
+/devflow:complete-milestone 1.0.0
 /clear
-/new-milestone  # Start next milestone (questioning → research → requirements → roadmap)
+/devflow:new-milestone  # Start next milestone (questioning → research → requirements → roadmap)
 ```
 
 **Capturing ideas during work:**
 
 ```
-/add-todo                    # Capture from conversation context
-/add-todo Fix modal z-index  # Capture with explicit description
-/check-todos                 # Review and work on todos
-/check-todos api             # Filter by area
+/devflow:add-todo                    # Capture from conversation context
+/devflow:add-todo Fix modal z-index  # Capture with explicit description
+/devflow:check-todos                 # Review and work on todos
+/devflow:check-todos api             # Filter by area
 ```
 
 **Debugging an issue:**
 
 ```
-/debug "form submission fails silently"  # Start debug session
+/devflow:debug "form submission fails silently"  # Start debug session
 # ... investigation happens, context fills up ...
 /clear
-/debug                                    # Resume from where you left off
+/devflow:debug                                    # Resume from where you left off
 ```
 
 ## Built-in Claude Code Integrations
@@ -528,21 +528,21 @@ DevFlow works alongside Claude Code's built-in features:
 **`/loop` — Recurring monitoring:**
 
 ```
-/loop 10m /progress       # Check project status every 10 minutes
-/loop 5m /health          # Monitor .planning/ integrity during builds
-/loop 15m /check-todos    # Periodic todo reminders
+/loop 10m /devflow:progress       # Check project status every 10 minutes
+/loop 5m /devflow:health          # Monitor .planning/ integrity during builds
+/loop 15m /devflow:check-todos    # Periodic todo reminders
 ```
 
-Use `/loop` during long `/execute-objective` runs to track progress without switching context.
+Use `/loop` during long `/devflow:execute-objective` runs to track progress without switching context.
 
 **Plan Mode — Pre-build alignment:**
 
-Claude Code's built-in plan mode (`EnterPlanMode`) is used by `/build` and `/plan-objective` to present the execution strategy before spawning expensive agent pipelines. This lets you review and approve the approach (objective scope, agent assignments, research decisions) before any work begins.
+Claude Code's built-in plan mode (`EnterPlanMode`) is used by `/devflow:build` and `/devflow:plan-objective` to present the execution strategy before spawning expensive agent pipelines. This lets you review and approve the approach (objective scope, agent assignments, research decisions) before any work begins.
 
 ## Getting Help
 
 - Read `.planning/PROJECT.md` for project vision
 - Read `.planning/STATE.md` for current context
 - Check `.planning/ROADMAP.md` for objective status
-- Run `/progress` to check where you're up to
+- Run `/devflow:progress` to check where you're up to
 </reference>

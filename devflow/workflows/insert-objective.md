@@ -16,7 +16,7 @@ Parse the command arguments:
 - First argument: integer objective number to insert after
 - Remaining arguments: objective description
 
-Example: `/insert-objective 72 Fix critical auth bug`
+Example: `/devflow:insert-objective 72 Fix critical auth bug`
 -> after = 72
 -> description = "Fix critical auth bug"
 
@@ -24,8 +24,8 @@ If arguments missing:
 
 ```
 ERROR: Both objective number and description required
-Usage: /insert-objective <after> <description>
-Example: /insert-objective 72 Fix critical auth bug
+Usage: /devflow:insert-objective <after> <description>
+Example: /devflow:insert-objective 72 Fix critical auth bug
 ```
 
 Exit.
@@ -95,7 +95,7 @@ Project state updated: .planning/STATE.md
 
 **Objective {decimal_objective}: {description}** -- urgent insertion
 
-`/plan-objective {decimal_objective}`
+`/devflow:plan-objective {decimal_objective}`
 
 <sub>`/clear` first -> fresh context window</sub>
 
@@ -113,11 +113,11 @@ Project state updated: .planning/STATE.md
 
 <anti_patterns>
 
-- Don't use this for planned work at end of milestone (use /add-objective)
+- Don't use this for planned work at end of milestone (use /devflow:add-objective)
 - Don't insert before Objective 1 (decimal 0.1 makes no sense)
 - Don't renumber existing objectives
 - Don't modify the target objective content
-- Don't create plans yet (that's /plan-objective)
+- Don't create plans yet (that's /devflow:plan-objective)
 - Don't commit changes (user decides when to commit)
 </anti_patterns>
 

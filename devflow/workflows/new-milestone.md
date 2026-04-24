@@ -91,7 +91,7 @@ AskUserQuestion: "Research the domain ecosystem for new features before defining
 - "Research first (Recommended)" — Discover patterns, features, architecture for NEW capabilities
 - "Skip research" — Go straight to requirements
 
-**Persist choice to config** (so future `/plan-objective` honors it):
+**Persist choice to config** (so future `/devflow:plan-objective` honors it):
 
 ```bash
 # If "Research first": persist true
@@ -349,11 +349,11 @@ node ~/.claude/devflow/bin/df-tools.cjs commit "docs: create milestone v[X.Y] ro
 
 **Objective [N]: [Objective Name]** — [Goal]
 
-`/discuss-objective [N]` — gather context and clarify approach
+`/devflow:discuss-objective [N]` — gather context and clarify approach
 
 <sub>`/clear` first → fresh context window</sub>
 
-Also: `/plan-objective [N]` — skip discussion, plan directly
+Also: `/devflow:plan-objective [N]` — skip discussion, plan directly
 ```
 
 </process>
@@ -370,7 +370,7 @@ Also: `/plan-objective [N]` — skip discussion, plan directly
 - [ ] User feedback incorporated (if any)
 - [ ] ROADMAP.md objectives continue from previous milestone
 - [ ] All commits made (if planning docs committed)
-- [ ] User knows next step: `/discuss-objective [N]`
+- [ ] User knows next step: `/devflow:discuss-objective [N]`
 
 **Atomic commits:** Each objective commits its artifacts immediately.
 </success_criteria>

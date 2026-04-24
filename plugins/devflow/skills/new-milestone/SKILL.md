@@ -24,7 +24,7 @@ Brownfield equivalent of new-project. Project exists, PROJECT.md has history. Ga
 - `.planning/ROADMAP.md` — objective structure (continues numbering)
 - `.planning/STATE.md` — reset for new milestone
 
-**After:** `/plan-objective [N]` to start execution.
+**After:** `/devflow:plan-objective [N]` to start execution.
 </objective>
 
 <execution_context>

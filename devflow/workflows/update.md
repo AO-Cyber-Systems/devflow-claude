@@ -133,7 +133,7 @@ Your custom files in other locations are preserved:
 - Custom hooks ✓
 - Your CLAUDE.md files ✓
 
-If you've modified any DevFlow files directly, they'll be automatically backed up to `df-local-patches/` and can be reapplied with `/reapply-patches` after the update.
+If you've modified any DevFlow files directly, they'll be automatically backed up to `df-local-patches/` and can be reapplied with `/devflow:reapply-patches` after the update.
 ```
 
 Use AskUserQuestion:
@@ -198,7 +198,7 @@ Check for df-local-patches/backup-meta.json in the config directory.
 
 ```
 Local patches were backed up before the update.
-Run /reapply-patches to merge your modifications into the new version.
+Run /devflow:reapply-patches to merge your modifications into the new version.
 ```
 
 **If no patches:** Continue normally.

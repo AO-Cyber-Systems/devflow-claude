@@ -13,11 +13,11 @@ allowed-tools:
   - AskUserQuestion
 ---
 <objective>
-Create all objectives necessary to close gaps identified by `/audit-milestone`.
+Create all objectives necessary to close gaps identified by `/devflow:audit-milestone`.
 
 Reads MILESTONE-AUDIT.md, groups gaps into logical objectives, creates objective entries in ROADMAP.md, and offers to plan each objective.
 
-One command creates all fix objectives — no manual `/add-objective` per gap.
+One command creates all fix objectives — no manual `/devflow:add-objective` per gap.
 </objective>
 
 <execution_context>

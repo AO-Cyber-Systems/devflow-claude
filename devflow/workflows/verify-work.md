@@ -2,7 +2,7 @@
 status: active
 ---
 <purpose>
-Validate built features through conversational testing with persistent state. Creates UAT.md that tracks test progress, survives /clear, and feeds gaps into /plan-objective --gaps.
+Validate built features through conversational testing with persistent state. Creates UAT.md that tracks test progress, survives /clear, and feeds gaps into /devflow:plan-objective --gaps.
 
 User tests, Claude records. One test at a time. Plain text responses.
 </purpose>
@@ -72,7 +72,7 @@ If no, continue to `create_uat_file`.
 ```
 No active UAT sessions.
 
-Provide an objective number to start testing (e.g., /verify-work 4)
+Provide an objective number to start testing (e.g., /devflow:verify-work 4)
 ```
 
 **If no active sessions AND $ARGUMENTS provided:**
@@ -384,8 +384,8 @@ Present summary:
 ```
 All tests passed. Ready to continue.
 
-- `/plan-objective {next}` — Plan next objective
-- `/execute-objective {next}` — Execute next objective
+- `/devflow:plan-objective {next}` — Plan next objective
+- `/devflow:execute-objective {next}` — Execute next objective
 ```
 </step>
 
@@ -453,7 +453,7 @@ Task(
 </planning_context>
 
 <downstream_consumer>
-Output consumed by /execute-objective
+Output consumed by /devflow:execute-objective
 Plans must be executable prompts.
 </downstream_consumer>
 """,
@@ -560,7 +560,7 @@ Display: `Max iterations reached. {N} issues remain.`
 Offer options:
 1. Force proceed (execute despite issues)
 2. Provide guidance (user gives direction, retry)
-3. Abandon (exit, user runs /plan-objective manually)
+3. Abandon (exit, user runs /devflow:plan-objective manually)
 
 Wait for user response.
 </step>
@@ -588,7 +588,7 @@ Plans verified and ready for execution.
 
 **Execute fixes** — run fix plans
 
-`/clear` then `/execute-objective {objective} --gaps-only`
+`/clear` then `/devflow:execute-objective {objective} --gaps-only`
 
 ───────────────────────────────────────────────────────────────
 ```
@@ -642,5 +642,5 @@ Default to **major** if unclear. User can correct if needed.
 - [ ] If issues: planner creates fix plans (gap_closure mode)
 - [ ] If issues: job-checker verifies fix plans
 - [ ] If issues: revision loop until plans pass (max 3 iterations)
-- [ ] Ready for `/execute-objective --gaps-only` when complete
+- [ ] Ready for `/devflow:execute-objective --gaps-only` when complete
 </success_criteria>

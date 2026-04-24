@@ -4,7 +4,7 @@ Template for `.planning/objectives/XX-name/DISCOVERY.md` - shallow research for 
 
 **Purpose:** Answer "which library/option should we use" questions during mandatory discovery in plan-objective.
 
-For deep ecosystem research ("how do experts build this"), use `/research-objective` which produces RESEARCH.md.
+For deep ecosystem research ("how do experts build this"), use `/devflow:research-objective` which produces RESEARCH.md.
 
 ---
 
@@ -142,5 +142,5 @@ Create `.planning/objectives/XX-name/DISCOVERY.md`:
 - Niche/complex domains (3D, games, audio, shaders)
 - Need ecosystem knowledge, not just library choice
 - "How do experts build this" questions
-- Use `/research-objective` for these
+- Use `/devflow:research-objective` for these
 </guidelines>

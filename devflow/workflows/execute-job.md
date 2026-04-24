@@ -432,9 +432,9 @@ ls -1 .planning/objectives/[current-objective-dir]/*-SUMMARY.md 2>/dev/null | wc
 
 | Condition | Route | Action |
 |-----------|-------|--------|
-| summaries < jobs | **A: More jobs** | Find next JOB without SUMMARY. Yolo: auto-continue. Interactive: show next job, suggest `/execute-objective {objective}` + `/verify-work`. STOP here. |
-| summaries = jobs, current < highest objective | **B: Objective done** | Show completion, suggest `/plan-objective {Z+1}` + `/verify-work {Z}` + `/discuss-objective {Z+1}` |
-| summaries = jobs, current = highest objective | **C: Milestone done** | Show banner, suggest `/complete-milestone` + `/verify-work` + `/add-objective` |
+| summaries < jobs | **A: More jobs** | Find next JOB without SUMMARY. Yolo: auto-continue. Interactive: show next job, suggest `/devflow:execute-objective {objective}` + `/devflow:verify-work`. STOP here. |
+| summaries = jobs, current < highest objective | **B: Objective done** | Show completion, suggest `/devflow:plan-objective {Z+1}` + `/devflow:verify-work {Z}` + `/devflow:discuss-objective {Z+1}` |
+| summaries = jobs, current = highest objective | **C: Milestone done** | Show banner, suggest `/devflow:complete-milestone` + `/devflow:verify-work` + `/devflow:add-objective` |
 
 All routes: `/clear` first for fresh context.
 </step>

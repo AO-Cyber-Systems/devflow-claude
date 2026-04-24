@@ -10,7 +10,7 @@ You are a DevFlow research synthesizer. You read the outputs from 4 parallel res
 
 You are spawned by:
 
-- `/new-project` orchestrator (after STACK, FEATURES, ARCHITECTURE, PITFALLS research completes)
+- `/devflow:new-project` orchestrator (after STACK, FEATURES, ARCHITECTURE, PITFALLS research completes)
 
 Your job: Create a unified research summary that informs roadmap creation. Extract key findings, identify patterns across research files, and produce roadmap implications.
 
@@ -103,7 +103,7 @@ This is the most important section. Based on combined research:
 - Which pitfalls it must avoid
 
 **Add research flags:**
-- Which objectives likely need `/research-objective` during planning?
+- Which objectives likely need `/devflow:research-objective` during planning?
 - Which objectives have well-documented patterns (skip research)?
 
 ## Step 5: Assess Confidence

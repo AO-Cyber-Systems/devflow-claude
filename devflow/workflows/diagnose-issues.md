@@ -220,7 +220,7 @@ Agents only diagnose—plan-objective --gaps handles fixes (no fix application).
 
 **Agent times out:**
 - Check DEBUG-{slug}.md for partial progress
-- Can resume with /debug
+- Can resume with /devflow:debug
 
 **All agents fail:**
 - Something systemic (permissions, git, etc.)

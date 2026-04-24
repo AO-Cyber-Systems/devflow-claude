@@ -35,18 +35,18 @@ If `project_exists` is false (no `.planning/` directory):
 ```
 No planning structure found.
 
-Run /new-project to start a new project.
+Run /devflow:new-project to start a new project.
 ```
 
 Exit.
 
-If missing STATE.md: suggest `/new-project`.
+If missing STATE.md: suggest `/devflow:new-project`.
 
 **If ROADMAP.md missing but PROJECT.md exists:**
 
 This means a milestone was completed and archived. Go to **Route F** (between milestones).
 
-If missing both ROADMAP.md and PROJECT.md: suggest `/new-project`.
+If missing both ROADMAP.md and PROJECT.md: suggest `/devflow:new-project`.
 </step>
 
 <step name="load">
@@ -132,10 +132,10 @@ CONTEXT: [✓ if has_context | - if not]
 - [any blockers or concerns from STATE.md]
 
 ## Pending Todos
-- [count] pending — /check-todos to review
+- [count] pending — /devflow:check-todos to review
 
 ## Active Debug Sessions
-- [count] active — /debug to continue
+- [count] active — /devflow:debug to continue
 (Only show this section if count > 0)
 
 ## What's Next
@@ -194,7 +194,7 @@ Read its `<objective>` section.
 
 **{objective}-{job}: [Plan Name]** — [objective summary from JOB.md]
 
-`/execute-objective {objective}`
+`/devflow:execute-objective {objective}`
 
 
 ---
@@ -216,7 +216,7 @@ Check if `{phase_num}-CONTEXT.md` exists in objective directory.
 **Objective {N}: {Name}** — {Goal from ROADMAP.md}
 <sub>✓ Context gathered, ready to plan</sub>
 
-`/plan-objective {phase-number}`
+`/devflow:plan-objective {phase-number}`
 
 
 ---
@@ -231,14 +231,14 @@ Check if `{phase_num}-CONTEXT.md` exists in objective directory.
 
 **Objective {N}: {Name}** — {Goal from ROADMAP.md}
 
-`/plan-objective {objective}` — plan the objective
+`/devflow:plan-objective {objective}` — plan the objective
 
 
 ---
 
 **Also available:**
-- `/plan-objective {objective}` — skip discussion, plan directly
-- `/list-objective-assumptions {objective}` — see Claude's assumptions
+- `/devflow:plan-objective {objective}` — skip discussion, plan directly
+- `/devflow:list-objective-assumptions {objective}` — see Claude's assumptions
 
 ---
 ```
@@ -256,14 +256,14 @@ UAT.md exists with gaps (diagnosed issues). User needs to plan fixes.
 
 **{phase_num}-UAT.md** has {N} gaps requiring fixes.
 
-`/plan-objective {objective} --gaps`
+`/devflow:plan-objective {objective} --gaps`
 
 
 ---
 
 **Also available:**
-- `/execute-objective {objective}` — execute objective plans
-- `/verify-work {objective}` — run more UAT testing
+- `/devflow:execute-objective {objective}` — execute objective plans
+- `/devflow:verify-work {objective}` — run more UAT testing
 
 ---
 ```
@@ -302,14 +302,14 @@ Read ROADMAP.md to get the next objective's name and goal.
 
 **Objective {Z+1}: {Name}** — {Goal from ROADMAP.md}
 
-`/plan-objective {Z+1}` — plan the next objective
+`/devflow:plan-objective {Z+1}` — plan the next objective
 
 
 ---
 
 **Also available:**
-- `/plan-objective {Z+1}` — skip discussion, plan directly
-- `/verify-work {Z}` — user acceptance test before continuing
+- `/devflow:plan-objective {Z+1}` — skip discussion, plan directly
+- `/devflow:verify-work {Z}` — user acceptance test before continuing
 
 ---
 ```
@@ -329,13 +329,13 @@ All {N} objectives finished!
 
 **Complete Milestone** — archive and prepare for next
 
-`/complete-milestone`
+`/devflow:complete-milestone`
 
 
 ---
 
 **Also available:**
-- `/verify-work` — user acceptance test before completing milestone
+- `/devflow:verify-work` — user acceptance test before completing milestone
 
 ---
 ```
@@ -359,7 +359,7 @@ Ready to plan the next milestone.
 
 **Start Next Milestone** — questioning → research → requirements → roadmap
 
-`/new-milestone`
+`/devflow:new-milestone`
 
 
 ---
@@ -370,10 +370,10 @@ Ready to plan the next milestone.
 <step name="edge_cases">
 **Handle edge cases:**
 
-- Objective complete but next objective not planned → offer `/plan-objective [next]`
+- Objective complete but next objective not planned → offer `/devflow:plan-objective [next]`
 - All work complete → offer milestone completion
 - Blockers present → highlight before offering to continue
-- Handoff file exists → mention it, offer `/resume-work`
+- Handoff file exists → mention it, offer `/devflow:resume-work`
   </step>
 
 </process>
@@ -383,7 +383,7 @@ Ready to plan the next milestone.
 - [ ] Rich context provided (recent work, decisions, issues)
 - [ ] Current position clear with visual progress
 - [ ] What's next clearly explained
-- [ ] Smart routing: /execute-objective if plans exist, /plan-objective if not
+- [ ] Smart routing: /devflow:execute-objective if plans exist, /devflow:plan-objective if not
 - [ ] User confirms before any action
 - [ ] Seamless handoff to appropriate gsd command
       </success_criteria>

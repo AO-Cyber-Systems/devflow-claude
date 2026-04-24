@@ -34,7 +34,7 @@ Template for spawning planner agent. The agent contains all planning expertise -
 </planning_context>
 
 <downstream_consumer>
-Output consumed by /execute-objective
+Output consumed by /devflow:execute-objective
 Plans must be executable prompts with:
 - Frontmatter (wave, depends_on, files_modified, autonomous)
 - Tasks in XML format
@@ -68,7 +68,7 @@ Before returning PLANNING COMPLETE:
 
 ## Usage
 
-**From /plan-objective (standard mode):**
+**From /devflow:plan-objective (standard mode):**
 ```python
 Task(
   prompt=filled_template,
@@ -77,7 +77,7 @@ Task(
 )
 ```
 
-**From /plan-objective --gaps (gap closure mode):**
+**From /devflow:plan-objective --gaps (gap closure mode):**
 ```python
 Task(
   prompt=filled_template,  # with mode: gap_closure

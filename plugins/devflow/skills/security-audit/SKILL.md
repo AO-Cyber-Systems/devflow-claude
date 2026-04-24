@@ -38,7 +38,7 @@ Arguments: $ARGUMENTS (optional)
 
 **This command can run:**
 - On any codebase, at any time — no DevFlow initialization required
-- Before `/new-project` — assess security posture of brownfield codebase
+- Before `/devflow:new-project` — assess security posture of brownfield codebase
 - After major changes — re-audit for regressions
 - As part of release prep — generate audit report for review
 </context>

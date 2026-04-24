@@ -476,8 +476,8 @@ MAX_GAP_CYCLES=2
 Auto-fix could not resolve all gaps. Manual intervention needed.
 
 Options:
-- `/plan-objective {X} --gaps` — Manual gap closure planning
-- `/verify-work {X}` — Manual testing
+- `/devflow:plan-objective {X} --gaps` — Manual gap closure planning
+- `/devflow:verify-work {X}` — Manual testing
 - `cat {objective_dir}/{phase_num}-VERIFICATION.md` — Full report
 ```
 
@@ -507,7 +507,7 @@ node ~/.claude/devflow/bin/df-tools.cjs commit "docs(objective-{X}): complete ob
 
 <step name="offer_next">
 
-**Exception:** If `gaps_found`, the `verify_objective_goal` step already presents the gap-closure path (`/plan-objective {X} --gaps`). No additional routing needed — skip auto-advance.
+**Exception:** If `gaps_found`, the `verify_objective_goal` step already presents the gap-closure path (`/devflow:plan-objective {X} --gaps`). No additional routing needed — skip auto-advance.
 
 **Auto-advance detection:**
 
@@ -532,7 +532,7 @@ Read and follow `~/.claude/devflow/workflows/transition.md`, passing through the
 
 **If neither `--auto` nor `AUTO_CFG` is true:**
 
-The workflow ends. The user runs `/progress` or invokes the transition workflow manually.
+The workflow ends. The user runs `/devflow:progress` or invokes the transition workflow manually.
 </step>
 
 </process>
@@ -550,7 +550,7 @@ Orchestrator: ~10-15% context. Subagents: fresh 200k each. No polling (Task bloc
 </failure_handling>
 
 <resumption>
-Re-run `/execute-objective {objective}` → discover_plans finds completed SUMMARYs → skips them → resumes from first incomplete plan → continues wave execution.
+Re-run `/devflow:execute-objective {objective}` → discover_plans finds completed SUMMARYs → skips them → resumes from first incomplete plan → continues wave execution.
 
 STATE.md tracks: last completed plan, current wave, pending checkpoints.
 </resumption>

@@ -28,7 +28,7 @@ Initialize a new project through unified flow: questioning → research (optiona
 - `.planning/ROADMAP.md` — objective structure
 - `.planning/STATE.md` — project memory
 
-**After this command:** Run `/plan-objective 1` to start execution.
+**After this command:** Run `/devflow:plan-objective 1` to start execution.
 </objective>
 
 <execution_context>

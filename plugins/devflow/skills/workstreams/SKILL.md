@@ -51,8 +51,8 @@ Follow @~/.claude/devflow/workflows/workstreams-merge.md
 **If no argument or unrecognized:**
 Display usage:
 ```
-/workstreams setup   — Create parallel worktrees for independent objectives
-/workstreams status  — Check progress across active workstreams
-/workstreams merge   — Merge completed workstreams back to main
+/devflow:workstreams setup   — Create parallel worktrees for independent objectives
+/devflow:workstreams status  — Check progress across active workstreams
+/devflow:workstreams merge   — Merge completed workstreams back to main
 ```
 </process>

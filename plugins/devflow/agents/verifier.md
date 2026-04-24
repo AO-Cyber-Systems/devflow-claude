@@ -436,7 +436,7 @@ Items that pass functional verification (Step 8a web or 8b Flutter/Maestro) can 
 
 ## Step 11: Structure Gap Output (If Gaps Found)
 
-Structure gaps in YAML frontmatter for `/plan-objective --gaps`:
+Structure gaps in YAML frontmatter for `/devflow:plan-objective --gaps`:
 
 ```yaml
 gaps:
@@ -595,7 +595,7 @@ All must-haves verified. Objective goal achieved. Ready to proceed.
 1. **{Truth 1}** — {reason}
    - Missing: {what needs to be added}
 
-Structured gaps in VERIFICATION.md frontmatter for `/plan-objective --gaps`.
+Structured gaps in VERIFICATION.md frontmatter for `/devflow:plan-objective --gaps`.
 
 {If human_needed:}
 ### Human Verification Required
@@ -616,7 +616,7 @@ Automated checks passed. Awaiting human verification.
 
 **DO NOT skip key link verification.** 80% of stubs hide here — pieces exist but aren't connected.
 
-**Structure gaps in YAML frontmatter** for `/plan-objective --gaps`.
+**Structure gaps in YAML frontmatter** for `/devflow:plan-objective --gaps`.
 
 **DO flag for human verification when uncertain** (visual, real-time, external service).
 

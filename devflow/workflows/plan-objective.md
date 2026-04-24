@@ -35,7 +35,7 @@ Parse JSON for: `researcher_model`, `planner_model`, `checker_model`, `research_
 
 **File contents (from --include):** `state_content`, `roadmap_content`, `requirements_content`, `context_content`, `research_content`, `verification_content`, `uat_content`. These are null if files don't exist.
 
-**If `planning_exists` is false:** Error — run `/new-project` first.
+**If `planning_exists` is false:** Error — run `/devflow:new-project` first.
 
 ## 2. Parse and Normalize Arguments
 
@@ -91,7 +91,7 @@ If user selects "Let me specify": Capture their response as `user_preferences` t
 
 **If `--skip-discuss` flag is set:** Skip discussion, proceed directly to step 5.
 
-> **Legacy CONTEXT.md support:** If a CONTEXT.md exists from a prior `/discuss-objective` session, it is still loaded and honored. New projects use inline discussion instead.
+> **Legacy CONTEXT.md support:** If a CONTEXT.md exists from a prior `/devflow:discuss-objective` session, it is still loaded and honored. New projects use inline discussion instead.
 
 ## 5. Present Planning Strategy (EnterPlanMode)
 
@@ -280,7 +280,7 @@ If context exists below, it contains user decisions. Honor them exactly.
 </planning_context>
 
 <downstream_consumer>
-Output consumed by /execute-objective. Plans need:
+Output consumed by /devflow:execute-objective. Plans need:
 - Frontmatter (wave, depends_on, files_modified, autonomous)
 - Tasks in XML format
 - Verification criteria
@@ -383,7 +383,7 @@ Task(
 TaskUpdate(taskId=checker_task_id, status="completed")
 ```
 
-- **`## VERIFICATION PASSED`:** Display confirmation. If checker output contains low-confidence plans (score <7 in Confidence Assessment table), display a note: `Note: Plan(s) {NN} scored below 7/10 confidence. Consider /research-objective for [topic] before execution.` Don't block — just inform. Proceed to step 13.
+- **`## VERIFICATION PASSED`:** Display confirmation. If checker output contains low-confidence plans (score <7 in Confidence Assessment table), display a note: `Note: Plan(s) {NN} scored below 7/10 confidence. Consider /devflow:research-objective for [topic] before execution.` Don't block — just inform. Proceed to step 13.
 - **`## ISSUES FOUND`:** Display issues, check iteration count, proceed to step 12.
 
 ## 13. Revision Loop (Max 3 Iterations)
@@ -474,7 +474,7 @@ Plans ready. Spawning execute-objective...
 Spawn execute-objective as Task:
 ```
 Task(
-  prompt="Run /execute-objective ${OBJECTIVE} --auto",
+  prompt="Run /devflow:execute-objective ${OBJECTIVE} --auto",
   subagent_type="general-purpose",
   description="Execute Objective ${OBJECTIVE}"
 )
@@ -489,14 +489,14 @@ Task(
 
   Auto-advance pipeline finished.
 
-  Next: /plan-objective ${NEXT_PHASE} --auto
+  Next: /devflow:plan-objective ${NEXT_PHASE} --auto
   ```
 - **GAPS FOUND / VERIFICATION FAILED** → Display result, stop chain:
   ```
   Auto-advance stopped: Execution needs review.
 
   Review the output above and continue manually:
-  /execute-objective ${OBJECTIVE}
+  /devflow:execute-objective ${OBJECTIVE}
   ```
 
 **If neither `--auto` nor config enabled:**
@@ -528,13 +528,13 @@ Confidence: {Display confidence scores if checker ran, e.g., "01: 8/10, 02: 7/10
 
 **Execute Objective {X}** — run all {N} plans
 
-/execute-objective {X}
+/devflow:execute-objective {X}
 
 ───────────────────────────────────────────────────────────────
 
 **Also available:**
 - cat .planning/objectives/{objective-dir}/*-TRD.md — review plans
-- /plan-objective {X} --research — re-research first
+- /devflow:plan-objective {X} --research — re-research first
 
 ───────────────────────────────────────────────────────────────
 </offer_next>

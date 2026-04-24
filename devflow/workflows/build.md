@@ -30,7 +30,7 @@ Parse JSON for: `researcher_model`, `planner_model`, `checker_model`, `executor_
 
 **File contents (from --include):** `state_content`, `roadmap_content`, `requirements_content`, `context_content`, `research_content`.
 
-**If `planning_exists` is false:** Error — run `/new-project` first.
+**If `planning_exists` is false:** Error — run `/devflow:new-project` first.
 
 ## 2. Resolve Objective
 
@@ -154,7 +154,7 @@ Display banner:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
-Delegate to execute-objective workflow (same as /execute-objective). The execute-objective workflow handles:
+Delegate to execute-objective workflow (same as /devflow:execute-objective). The execute-objective workflow handles:
 - Wave-based parallel execution
 - Per-task verification with evidence
 - TDD enforcement for type: tdd TRDs
@@ -163,7 +163,7 @@ Delegate to execute-objective workflow (same as /execute-objective). The execute
 
 ```
 Task(
-  prompt="Run /execute-objective ${OBJECTIVE_NUMBER} --auto",
+  prompt="Run /devflow:execute-objective ${OBJECTIVE_NUMBER} --auto",
   subagent_type="general-purpose",
   description="Execute Objective ${OBJECTIVE_NUMBER}"
 )

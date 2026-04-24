@@ -135,7 +135,7 @@ Task(
 - Display root cause and evidence summary
 - Offer options:
   - "Fix now" - spawn fix subagent
-  - "Plan fix" - suggest /plan-objective --gaps
+  - "Plan fix" - suggest /devflow:plan-objective --gaps
   - "Manual fix" - done
 
 **If `## CHECKPOINT REACHED`:**
