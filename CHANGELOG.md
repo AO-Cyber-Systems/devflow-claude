@@ -16,6 +16,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - All CLI commands, config keys, JSON output keys, file names updated
   - PLAN.md → JOB.md, .planning/phases/ → .planning/objectives/
 
+## [2.0.0] - 2026-04-25
+
+### Changed
+- **BREAKING — distribution**: DevFlow now ships exclusively as a Claude Code plugin. Install via `/plugin marketplace add AO-Cyber-Systems/devflow-claude` then `/plugin install devflow@devflow`, or use the Claude Desktop plugin UI. The `npx @ao-cyber-systems/devflow-cc` install path is removed.
+- Bundled runtime under the plugin source: `devflow/{bin,workflows,references,templates}` → `plugins/devflow/devflow/`. A new SessionStart hook (`sync-runtime.js`) mirrors the bundled runtime to `~/.claude/devflow/` on each session start when `.plugin-version` differs, so existing `@~/.claude/devflow/*` references in skills, agents, and workflows resolve unchanged.
+- Hooks migrated into the plugin manifest (`plugins/devflow/hooks/hooks.json`) and auto-register on plugin enable. statusLine moves to `plugin.json`'s `statusLine` field. No more manual `settings.json` patching.
+
+### Removed
+- `bin/install.js` (the npx installer), `scripts/build-hooks.js`, `hooks/dist/`, `hooks/check-update.js`, and `.github/workflows/publish.yml`.
+- `/devflow:update` and `/devflow:reapply-patches` skills — these existed to manage drift in the npm-installer's deployment; under plugin distribution `/plugin update` handles versioning.
+
+### Migration
+- Users with a prior npm install must remove legacy `~/.claude/hooks/df-*.js` files and clean stale entries (DevFlow `hooks` blocks and `statusLine`) from `~/.claude/settings.json` before installing the plugin. See README "Migrating from a previous npm install".
+
 ## [1.30.2] - 2026-04-24
 
 ### Fixed
