@@ -10,5 +10,11 @@
   "repository": "https://github.com/AO-Cyber-Systems/devflow-claude",
   "license": "MIT",
   "keywords": ["development", "workflow", "planning", "agents", "automation", "project-management"],
-  "skills": "./skills/"
+  "skills": "./skills/",
+  "agents": "./agents/",
+  "hooks": "./hooks/hooks.json",
+  "statusLine": {
+    "type": "command",
+    "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/statusline.js"
+  }
 }
