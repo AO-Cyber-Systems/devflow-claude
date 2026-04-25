@@ -20,8 +20,8 @@ Display the complete DevFlow command reference. Output ONLY the reference conten
 
 DevFlow evolves fast. Update periodically:
 
-```bash
-npx @ao-cyber-systems/devflow-cc@latest
+```
+/plugin update devflow@devflow
 ```
 
 ## Core Workflow
@@ -359,17 +359,6 @@ Usage: `/devflow:cleanup`
 
 **`/devflow:help`**
 Show this command reference.
-
-**`/devflow:update`**
-Update DevFlow to latest version with changelog preview.
-
-- Shows installed vs latest version comparison
-- Displays changelog entries for versions you've missed
-- Highlights breaking changes
-- Confirms before running install
-- Better than raw `npx devflow-cc`
-
-Usage: `/devflow:update`
 
 **`/devflow:join-discord`**
 Join the DevFlow Discord community.
