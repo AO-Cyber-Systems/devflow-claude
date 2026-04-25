@@ -19,7 +19,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [2.0.0] - 2026-04-25
 
 ### Changed
-- **BREAKING — distribution**: DevFlow now ships exclusively as a Claude Code plugin. Install via `/plugin marketplace add AO-Cyber-Systems/devflow-claude` then `/plugin install devflow@devflow`, or use the Claude Desktop plugin UI. The `npx @ao-cyber-systems/devflow-cc` install path is removed.
+- **BREAKING — distribution**: DevFlow now ships exclusively as a Claude Code plugin. Install via `/plugin marketplace add AO-Cyber-Systems/devflow-claude` then `/plugin install devflow@aocyber`, or use the Claude Desktop plugin UI. The `npx @ao-cyber-systems/devflow-cc` install path is removed.
 - Bundled runtime under the plugin source: `devflow/{bin,workflows,references,templates}` → `plugins/devflow/devflow/`. A new SessionStart hook (`sync-runtime.js`) mirrors the bundled runtime to `~/.claude/devflow/` on each session start when `.plugin-version` differs, so existing `@~/.claude/devflow/*` references in skills, agents, and workflows resolve unchanged.
 - Hooks migrated into the plugin manifest (`plugins/devflow/hooks/hooks.json`) and auto-register on plugin enable. statusLine moves to `plugin.json`'s `statusLine` field. No more manual `settings.json` patching.
 

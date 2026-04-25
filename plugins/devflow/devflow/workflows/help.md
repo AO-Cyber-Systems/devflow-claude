@@ -21,7 +21,7 @@ Display the complete DevFlow command reference. Output ONLY the reference conten
 DevFlow evolves fast. Update periodically:
 
 ```
-/plugin update devflow@devflow
+/plugin update devflow@aocyber
 ```
 
 ## Core Workflow

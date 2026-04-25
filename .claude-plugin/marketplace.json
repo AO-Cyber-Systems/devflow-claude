@@ -1,8 +1,8 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
-  "name": "devflow",
+  "name": "aocyber",
   "version": "2.0.0",
-  "description": "DevFlow autonomous development system for Claude Code",
+  "description": "AO Cyber Systems plugins for Claude Code",
   "owner": {
     "name": "AO Cyber Systems",
     "email": "dev@aocodex.ai"

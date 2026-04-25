@@ -13,7 +13,7 @@
 
 ```
 /plugin marketplace add AO-Cyber-Systems/devflow-claude
-/plugin install devflow@devflow
+/plugin install devflow@aocyber
 ```
 
 **Works on Mac, Windows, and Linux. Installs via Claude Code's `/plugin` command or the Claude Desktop plugin UI.**
@@ -56,7 +56,7 @@ In Claude Code:
 
 ```
 /plugin marketplace add AO-Cyber-Systems/devflow-claude
-/plugin install devflow@devflow
+/plugin install devflow@aocyber
 ```
 
 Or install via the Claude Desktop plugin UI: open the plugins panel, add the `AO-Cyber-Systems/devflow-claude` marketplace, then install the `devflow` plugin.
@@ -66,7 +66,7 @@ The plugin auto-registers its skills, agents, hooks, and statusline. Verify with
 ### Staying Updated
 
 ```
-/plugin update devflow@devflow
+/plugin update devflow@aocyber
 ```
 
 Or use the Claude Desktop UI to check for and apply updates.
@@ -104,7 +104,7 @@ In Claude Code:
 
 ```
 /plugin marketplace add /absolute/path/to/devflow-claude
-/plugin install devflow@devflow
+/plugin install devflow@aocyber
 ```
 
 </details>
@@ -601,7 +601,7 @@ This prevents Claude from reading these files entirely, regardless of what comma
 
 **Updating to the latest version?**
 ```
-/plugin update devflow@devflow
+/plugin update devflow@aocyber
 ```
 
 ### Uninstalling
@@ -609,7 +609,7 @@ This prevents Claude from reading these files entirely, regardless of what comma
 In Claude Code:
 
 ```
-/plugin uninstall devflow@devflow
+/plugin uninstall devflow@aocyber
 ```
 
 The plugin's skills, agents, hooks, and statusline are removed automatically. The mirrored runtime at `~/.claude/devflow/` is left in place — remove manually if you want to clean it up:
