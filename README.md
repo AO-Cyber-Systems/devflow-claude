@@ -11,11 +11,12 @@
 
 <br>
 
-```bash
-npx @ao-cyber-systems/devflow-cc@latest
+```
+/plugin marketplace add AO-Cyber-Systems/devflow-claude
+/plugin install devflow@devflow
 ```
 
-**Works on Mac, Windows, and Linux.**
+**Works on Mac, Windows, and Linux. Installs via Claude Code's `/plugin` command or the Claude Desktop plugin UI.**
 
 <br>
 
@@ -51,47 +52,60 @@ People who want to describe what they want and have it built correctly — witho
 
 ## Getting Started
 
-```bash
-npx @ao-cyber-systems/devflow-cc@latest
+In Claude Code:
+
+```
+/plugin marketplace add AO-Cyber-Systems/devflow-claude
+/plugin install devflow@devflow
 ```
 
-The installer prompts you to choose:
-1. **Location** — Global (all projects) or local (current project only)
+Or install via the Claude Desktop plugin UI: open the plugins panel, add the `AO-Cyber-Systems/devflow-claude` marketplace, then install the `devflow` plugin.
 
-Verify with `/devflow:help` in Claude Code.
+The plugin auto-registers its skills, agents, hooks, and statusline. Verify with `/devflow:help` in Claude Code.
 
 ### Staying Updated
 
-DevFlow evolves fast. Update periodically:
-
-```bash
-npx @ao-cyber-systems/devflow-cc@latest
 ```
+/plugin update devflow@devflow
+```
+
+Or use the Claude Desktop UI to check for and apply updates.
 
 <details>
-<summary><strong>Non-interactive Install (Docker, CI, Scripts)</strong></summary>
+<summary><strong>Migrating from a previous npm install</strong></summary>
+
+If you previously installed DevFlow via `npx @ao-cyber-systems/devflow-cc`, the legacy hook registrations and files in `~/.claude/hooks/` and `~/.claude/settings.json` will conflict with the plugin-managed installation. Clean up before installing the plugin:
 
 ```bash
-npx devflow-cc --global   # Install to ~/.claude/
-npx devflow-cc --local    # Install to ./.claude/
+# Remove legacy DevFlow hook files
+rm -f ~/.claude/hooks/df-*.js ~/.claude/hooks/check-update.js \
+      ~/.claude/hooks/statusline.js ~/.claude/hooks/verify-completion.js \
+      ~/.claude/hooks/verify-commits.js ~/.claude/hooks/route-intent.js \
+      ~/.claude/hooks/gate-commits.js ~/.claude/hooks/gate-edits.js \
+      ~/.claude/hooks/changelog-on-tag.js
 ```
 
-Use `--global` (`-g`) or `--local` (`-l`) to skip the location prompt.
+Then open `~/.claude/settings.json` and remove any `hooks` entries pointing at `~/.claude/hooks/df-*.js` or the unprefixed names above, plus the `statusLine` block if it references one of those paths. The plugin will re-register everything automatically on first session start.
+
+The plugin keeps the runtime at `~/.claude/devflow/` (mirrored from the plugin source on each session start). You don't need to remove that directory — it gets refreshed.
 
 </details>
 
 <details>
 <summary><strong>Development Installation</strong></summary>
 
-Clone the repository and run the installer locally:
+Clone the repository and add it as a local marketplace:
 
 ```bash
 git clone https://github.com/AO-Cyber-Systems/devflow-claude.git
-cd devflow-claude
-node bin/install.js --local
 ```
 
-Installs to `./.claude/` for testing modifications before contributing.
+In Claude Code:
+
+```
+/plugin marketplace add /absolute/path/to/devflow-claude
+/plugin install devflow@devflow
+```
 
 </details>
 
@@ -577,39 +591,32 @@ This prevents Claude from reading these files entirely, regardless of what comma
 ## Troubleshooting
 
 **Commands not found after install?**
-- Restart Claude Code to reload skills
-- Verify files exist in `~/.claude/skills/*/SKILL.md` (global) or `./.claude/skills/*/SKILL.md` (local)
+- Restart Claude Code to reload the plugin
+- Verify the plugin is enabled with `/plugin list`
+- Run `/devflow:help` to confirm skills are loaded
 
-**Commands not working as expected?**
-- Run `/devflow:help` to verify installation
-- Re-run `npx devflow-cc` to reinstall
+**Hooks or statusline not firing?**
+- Check `~/.claude/devflow/.plugin-version` exists (proves the SessionStart sync hook ran)
+- If you previously installed via npm, remove stale entries from `~/.claude/settings.json` (see migration note in Getting Started)
 
 **Updating to the latest version?**
-```bash
-npx @ao-cyber-systems/devflow-cc@latest
 ```
-
-**Using Docker or containerized environments?**
-
-If file reads fail with tilde paths (`~/.claude/...`), set `CLAUDE_CONFIG_DIR` before installing:
-```bash
-CLAUDE_CONFIG_DIR=/home/youruser/.claude npx devflow-cc --global
+/plugin update devflow@devflow
 ```
-This ensures absolute paths are used instead of `~` which may not expand correctly in containers.
 
 ### Uninstalling
 
-To remove DevFlow completely:
+In Claude Code:
 
-```bash
-# Global install
-npx devflow-cc --global --uninstall
-
-# Local install (current project)
-npx devflow-cc --local --uninstall
+```
+/plugin uninstall devflow@devflow
 ```
 
-This removes all DevFlow skills, agents, hooks, and settings while preserving your other configurations.
+The plugin's skills, agents, hooks, and statusline are removed automatically. The mirrored runtime at `~/.claude/devflow/` is left in place — remove manually if you want to clean it up:
+
+```bash
+rm -rf ~/.claude/devflow
+```
 
 ---
 
