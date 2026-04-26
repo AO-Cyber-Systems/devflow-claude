@@ -153,6 +153,57 @@ If you prefer not to use that flag, add this to your project's `.claude/settings
 
 </details>
 
+### Recommended: CLAUDE.md Routing Hint
+
+The plugin's `route-intent` hook only fires inside directories containing `.planning/`. For greenfield work or projects you haven't initialized yet, add a short routing hint to a CLAUDE.md so Claude reaches for DevFlow skills instead of editing files directly.
+
+<details>
+<summary><strong>Global hint — <code>~/.claude/CLAUDE.md</code></strong></summary>
+
+Applies to every directory. Use this if you want DevFlow nudges everywhere, including projects that don't have `.planning/` yet.
+
+```markdown
+# DevFlow Routing
+
+The DevFlow plugin (`devflow@aocyber`) is installed. When the user's request fits a DevFlow workflow, invoke the matching skill via the Skill tool instead of editing files directly.
+
+- Building a feature end-to-end → `/devflow:build`
+- Planning before building → `/devflow:plan-objective`
+- Executing a planned objective → `/devflow:execute-objective`
+- Verifying / UAT → `/devflow:verify-work`
+- Debugging a bug → `/devflow:debug`
+- Quick ad-hoc task with atomic commits → `/devflow:quick`
+- New project setup → `/devflow:new-project`
+- Resume / status / progress → `/devflow:resume-work`, `/devflow:progress`
+
+Skills enforce atomic commits, state tracking, and verification. Bypassing them causes drift. Run `/devflow:help` to list all commands.
+```
+
+</details>
+
+<details>
+<summary><strong>Project hint — <code>./CLAUDE.md</code> (recommended)</strong></summary>
+
+Add to a project that uses DevFlow. Stronger and more specific than the global hint — drop it in the repo root next to `.planning/`.
+
+```markdown
+# Project Conventions
+
+This project uses DevFlow (`devflow@aocyber`). Planning state lives in `.planning/`.
+
+**Always route through DevFlow skills** for non-trivial work — do not edit code directly when a skill applies:
+
+- `/devflow:build` — feature end-to-end (plan → execute → verify)
+- `/devflow:plan-objective <N>` / `/devflow:execute-objective <N>` / `/devflow:verify-work <N>` — staged workflow
+- `/devflow:quick` — small / ad-hoc tasks (still gets atomic commits + state)
+- `/devflow:debug` — bugs and errors
+- `/devflow:resume-work` — pick up where the last session left off
+
+Skills enforce atomic per-task commits, state tracking, and verification gates. Bypassing them breaks the audit trail and trips the `gate-commits` / `gate-edits` hooks. If a request is genuinely out-of-scope for any skill (e.g. a one-line typo fix), proceed directly — otherwise prefer `/devflow:quick`.
+```
+
+</details>
+
 ---
 
 ## How It Works
