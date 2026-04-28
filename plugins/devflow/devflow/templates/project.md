@@ -5,6 +5,22 @@ Template for `.planning/PROJECT.md` — the living project context document.
 <template>
 
 ```markdown
+---
+kind: api                  # REQUIRED — what this project IS. One of:
+                           #   api       — backend API/service consumed by clients
+                           #   app       — end-user application (web, mobile, desktop)
+                           #   library   — code consumed by other code via API
+                           #   ui-lib    — UI components consumed by other apps
+                           #   cli       — command-line tool consumed by humans in a terminal
+                           #   plugin    — extends a host system via plugin contract
+default_work: feature      # OPTIONAL — default `work` value inherited by objectives
+                           # in this project that don't declare their own. Same enum as
+                           # OBJECTIVE.md `work`. Set this when most of the project's
+                           # objectives are the same work type (e.g., a Rails→Go port
+                           # with 10+ sequential `port` objectives). Omit if work types
+                           # vary objective-to-objective.
+---
+
 # [Project Name]
 
 ## What This Is
@@ -70,6 +86,18 @@ Common types: Tech stack, Timeline, Budget, Dependencies, Compatibility, Perform
 </template>
 
 <guidelines>
+
+**`kind` (frontmatter, required):**
+- What the project IS and how it is consumed
+- Drives the project-side defaults the planner applies via the `(kind, work)` table at `~/.claude/devflow/references/defaults-table.md`
+- Set once at project creation; treat as fixed for the project's lifetime
+- If the project genuinely changes shape (e.g., a library grows a CLI wrapper), prefer splitting into separate projects over editing `kind`
+
+**`default_work` (frontmatter, optional):**
+- Default `work` value for objectives in this project that omit it
+- Set when 5+ sequential objectives share the same work type (port, refactor, etc.)
+- The planner is **louder** when an objective inherits this default, surfacing the inheritance source and inviting override — so silent inheritance can't mask a wrong default
+- Omit when work types vary objective-to-objective; the planner falls back to `work: feature` if nothing else is set
 
 **What This Is:**
 - Current accurate description of the product
