@@ -196,17 +196,59 @@ Approach:
 </action>
 ```
 
-## TDD Detection
+## Intent Resolution (replaces silent TDD heuristic)
 
-**Heuristic:** Can you write `expect(fn(input)).toBe(output)` before writing `fn`?
-- Yes → Create a dedicated TDD TRD (type: tdd)
-- No → Standard task in standard TRD
+**Step 1 — Resolve intent for this objective.** Call `df-tools intent resolve --objective <id>` to load the resolved configuration. The resolver reads PROJECT.md `kind`, OBJECTIVE.md `work`, project + user CLAUDE.md playbooks, and the (kind, work) defaults table at `~/.claude/devflow/references/defaults-table.md`. Output is a JSON object:
 
-**TDD candidates (dedicated TDD TRDs):** Business logic with defined I/O, API endpoints with request/response contracts, data transformations, validation rules, algorithms, state machines.
+```json
+{
+  "kind": "api",
+  "work": "feature",
+  "workSource": "OBJECTIVE.md",
+  "workInherited": false,
+  "config": {
+    "tdd": "strict + multi-tenancy assertion",
+    "depth": "comprehensive",
+    "model_profile": "quality",
+    "verification": "full integration + API contract"
+  },
+  "sources": { "tdd": "...", "depth": "...", ... },
+  "directives": [...],
+  "warnings": [...]
+}
+```
 
-**Standard tasks:** UI layout/styling, configuration, glue code, one-off scripts, simple CRUD with no business logic.
+**Step 2 — Print resolved configuration to user.** Before generating any TRD, print a block showing the resolved configuration with provenance. The format depends on whether `work` was set explicitly or inherited:
 
-**Why TDD gets own TRD:** TDD requires RED→GREEN→REFACTOR cycles consuming 40-50% context. Embedding in multi-task TRDs degrades quality.
+When `work` is **explicit** (workInherited=false), terse output:
+```
+Planning objective <id>
+  Kind: <kind> (from PROJECT.md)
+  Work: <work> (from <workSource>)
+  Defaults: tdd=<tdd>, depth=<depth>, model=<model_profile>, verification=<verification>
+  [If any directives applied: Applied user playbook: <source path> — <what changed>]
+```
+
+When `work` is **inherited** (workInherited=true), louder output that explicitly invites override:
+```
+Planning objective <id>
+  Kind: <kind> (from PROJECT.md)
+  Work: <work>  ← INHERITED from <workSource>
+                If this objective is actually a different work type
+                (e.g. refactor, bugfix, feature), pass --work <type> now
+                or add `work: <type>` to OBJECTIVE.md.
+  Defaults: tdd=<tdd>, depth=<depth>, model=<model_profile>, verification=<verification>
+```
+
+**Step 3 — Map resolved tdd posture to TRD type.** The defaults table's `tdd` field is a posture string; map it to TRD `type` for the executor:
+- `tdd: "skip"` or `"none"` → TRD `type: standard` (with `<!-- TDD-EXCEPTION: prototype/spike work -->` comment)
+- All other values → TRD `type: tdd` (the posture string informs HOW to apply TDD per `references/tdd.md`, not whether)
+
+**Step 4 — Apply CLAUDE.md absorbed directives if present.** When `result.directives` lists user-playbook sources, mention them in the TRDs' `<context>` section so the executor sees them. Example: if the user's CLAUDE.md says "multitenancy guard in every test," the TRDs should reference that requirement in their `<verification>` blocks.
+
+**Why this replaces the old heuristic:** The previous "Can you write `expect(fn(input)).toBe(output)`?" question silently chose `type: tdd` vs `type: standard` without surfacing reasoning, and ignored project/user-level intent (kind, work, CLAUDE.md playbooks). The new resolution is deterministic, transparent, and overridable at four levels. See `docs/PROPOSAL-kind-and-work.md` for the full rationale.
+
+**Why TDD gets own TRD:** TDD requires RED→GREEN→REFACTOR cycles consuming 40-50% context. Embedding in multi-task TRDs degrades quality. (Unchanged from prior behavior.)
 
 ## User Setup Detection
 
