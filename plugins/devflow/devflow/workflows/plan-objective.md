@@ -41,6 +41,14 @@ Parse JSON for: `researcher_model`, `planner_model`, `checker_model`, `research_
 
 Extract from $ARGUMENTS: objective number (integer or decimal like `2.1`), flags (`--research`, `--skip-research`, `--gaps`, `--skip-verify`).
 
+**Intent override flags (one-shot overrides for the resolved (kind, work) configuration):**
+- `--work <type>` — Override the resolved `work` value for this planning run. Valid: `feature | port | refactor | foundation | bugfix | prototype | spike`. Useful when the inherited `default_work` is wrong for this specific objective.
+- `--tdd <posture>` — Override TDD posture: `strict | per-feature | skip`.
+- `--depth <level>` — Override planning depth: `quick | standard | comprehensive`.
+- `--model <profile>` — Override model profile: `quality | balanced | budget`.
+
+If any of these flags are present, write a corresponding `overrides:` block into `.planning/objectives/<id>/OBJECTIVE.md` so the override persists for future executor runs (not just this planning invocation).
+
 **If no objective number:** Detect next unplanned objective from roadmap.
 
 **If `objective_found` is false:** Validate objective exists in ROADMAP.md. If valid, create the directory using `objective_slug` and `padded_objective` from init:
