@@ -36,3 +36,61 @@ Sketches to explore:
    - Tighter integration so that when Claude proposes a `! cmd`, the harness offers a one-tap "run it" affordance and injects the result automatically tagged
 
 Whichever shape lands, the UX target is: user never has to remember a prefix, never has to copy/paste output back, and the conversation doesn't pause for the human-in-the-loop step.
+
+---
+
+## Decision (2026-04-27)
+
+After surveying Claude Code's hook surface, three approaches are viable:
+
+| Approach | Seamlessness | Plugin can ship it? | User setup |
+|---|---|---|---|
+| **A. PreToolUse deny → guided `!`** | Low (user still types `! cmd`, but Claude orchestrates) | Yes | None |
+| **B. Side-channel watcher** | High (user-side daemon runs queued cmds, results auto-inject) | Partially (watcher needs install) | One-time |
+| **C. Harness primitive** | Highest (true mid-tool handoff) | No — needs Claude Code itself | N/A |
+
+**Plan:**
+- **MVP = Approach A** — works for every user, no install. Solves the immediate doctl/gcloud/gh-auth pain.
+- **V2 = Approach B** — opt-in watcher for users who want zero typing.
+- **Upstream = Approach C** — file as a Claude Code feature request once demand is proven.
+
+## MVP Implementation (Approach A)
+
+### Components
+
+1. **`plugins/devflow/hooks/gate-interactive.js`** (new, PreToolUse Bash matcher)
+   - Pattern-matches against a curated list of interactive-required commands
+   - On match: writes a pending handoff record to `.devflow-handoff/pending/<id>.json` and denies the tool call with a structured reason instructing Claude to tell the user `! <cmd>`
+   - Pass-through if no match, or if `DEVFLOW_SKIP_INTERACTIVE_GATE=1`
+   - Curated list (initial): `doctl auth init` (without `--access-token`), `gcloud auth login`, `gh auth login` (without `--with-token`), `aws configure`, `op signin`, `npm login`, `vault login`, `passwd`
+
+2. **`plugins/devflow/skills/handoff/SKILL.md`** (new)
+   - User-invocable as `/devflow:handoff <command>` for proactive flagging
+   - Writes pending record, prints the `! cmd` line, instructs Claude on resume protocol
+
+3. **df-tools subcommand: `handoff <create|complete|list>`**
+   - `create <cmd>` → writes pending record, returns id
+   - `complete <id>` → marks done (used by V2 watcher)
+   - `list` → returns pending/done state
+
+4. **Registration** — add `gate-interactive.js` to `hooks.json` under PreToolUse Bash, alongside existing gate-commits and changelog-on-tag
+
+### UX flow (doctl example)
+
+1. Claude calls Bash with `doctl auth init`
+2. `gate-interactive.js` denies with: *"Requires a TTY. Tell the user verbatim: `! doctl auth init`. Do not retry Bash; wait for output."*
+3. Claude prints to user: *"Please paste this exactly: `! doctl auth init`"*
+4. User pastes; the harness runs it via the `!` prefix; output appears in the next message
+5. Claude continues with the (now authenticated) follow-on work
+
+### Why this reduces friction
+
+- User no longer has to remember `!` — Claude tells them the exact line
+- Claude doesn't waste retries fighting a non-interactive failure
+- Pending records leave a trail for V2 watcher to consume later
+
+### Out of scope for MVP
+
+- The watcher daemon (V2)
+- Auto-running commands without user paste (V3 / harness-level)
+- Detecting interactive commands beyond the curated list (heuristics get noisy fast)
