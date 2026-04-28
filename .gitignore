@@ -21,3 +21,6 @@ plugins/eden-ui-web/
 # Internal planning documents
 reports/
 RAILROAD_ARCHITECTURE.md
+
+# Runtime state for /devflow:handoff (interactive command queue)
+.devflow-handoff/
