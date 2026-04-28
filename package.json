@@ -26,6 +26,6 @@
     "node": ">=16.7.0"
   },
   "scripts": {
-    "test": "node --test plugins/devflow/devflow/bin/df-tools.test.cjs plugins/devflow/devflow/bin/lib/intent.test.cjs plugins/devflow/devflow/bin/lib/claude-md.test.cjs"
+    "test": "node --test plugins/devflow/devflow/bin/df-tools.test.cjs plugins/devflow/devflow/bin/lib/intent.test.cjs plugins/devflow/devflow/bin/lib/claude-md.test.cjs plugins/devflow/devflow/bin/lib/migrate.test.cjs"
   }
 }
