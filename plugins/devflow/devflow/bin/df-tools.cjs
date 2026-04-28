@@ -162,6 +162,7 @@ const {
   cmdInitNewMilestone, cmdInitQuick, cmdInitResume, cmdInitVerifyWork, cmdInitObjectiveOp,
   cmdInitTodos, cmdInitMilestoneOp, cmdInitMapCodebase, cmdInitSecurityAudit, cmdInitProgress,
 } = require('./lib/init.cjs');
+const intent = require('./lib/intent.cjs');
 const {
   cmdWorkstreamsAnalyze, cmdWorkstreamsProvision, cmdWorkstreamsReconcile,
 } = require('./lib/workstreams.cjs');
@@ -387,6 +388,33 @@ async function main() {
 
     case 'history-digest': {
       cmdHistoryDigest(cwd, raw);
+      break;
+    }
+
+    case 'intent': {
+      const subcommand = args[1];
+      if (subcommand === 'resolve') {
+        const objectiveIndex = args.indexOf('--objective');
+        const trdIndex = args.indexOf('--trd');
+        const options = {
+          projectRoot: cwd,
+          objectiveId: objectiveIndex !== -1 ? args[objectiveIndex + 1] : undefined,
+          trdPath: trdIndex !== -1 ? args[trdIndex + 1] : undefined,
+        };
+        try {
+          const result = intent.resolve(options);
+          if (raw) {
+            process.stdout.write(JSON.stringify(result));
+          } else {
+            process.stdout.write(JSON.stringify(result, null, 2));
+          }
+          process.exit(0);
+        } catch (e) {
+          error(e.message);
+        }
+      } else {
+        error('Unknown intent subcommand. Available: resolve');
+      }
       break;
     }
 
