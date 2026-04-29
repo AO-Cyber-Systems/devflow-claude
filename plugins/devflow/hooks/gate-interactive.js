@@ -28,9 +28,9 @@ const crypto = require('crypto');
 // in real command position (start of line or after a shell separator), not
 // when it appears inside an `echo` string or a quoted arg.
 //
-// CMD_POS matches: start of string, OR a separator (; && || | & ( newline)
-// optionally followed by whitespace.
-const CMD_POS = /(?:^|[;&|\n(]\s*|&&\s*|\|\|\s*)/.source;
+// CMD_POS matches: start of string (with optional leading whitespace),
+// OR a separator (; && || | & ( newline) optionally followed by whitespace.
+const CMD_POS = /(?:^\s*|[;&|\n(]\s*|&&\s*|\|\|\s*)/.source;
 
 const INTERACTIVE_PATTERNS = [
   {
@@ -146,4 +146,8 @@ function main() {
   ].join(' '));
 }
 
-main();
+if (require.main === module) {
+  main();
+}
+
+module.exports = { detectInteractive, INTERACTIVE_PATTERNS, CMD_POS };
