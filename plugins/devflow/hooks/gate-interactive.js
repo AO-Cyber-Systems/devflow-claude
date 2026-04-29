@@ -23,50 +23,54 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-// Patterns for commands that require a TTY. Each entry has:
-//   match: RegExp tested against the full command string
-//   skipIf: optional RegExp; if it matches, the command is non-interactive
-//           (e.g. `gh auth login --with-token` reads the token from stdin)
-//   reason: human-readable "why this is interactive"
+// Patterns for commands that require a TTY. Each `match` regex requires
+// `${CMD_POS}` at the front so we only fire when the interactive command sits
+// in real command position (start of line or after a shell separator), not
+// when it appears inside an `echo` string or a quoted arg.
+//
+// CMD_POS matches: start of string, OR a separator (; && || | & ( newline)
+// optionally followed by whitespace.
+const CMD_POS = /(?:^|[;&|\n(]\s*|&&\s*|\|\|\s*)/.source;
+
 const INTERACTIVE_PATTERNS = [
   {
-    match: /\bdoctl\s+auth\s+init\b/,
+    match: new RegExp(`${CMD_POS}doctl\\s+auth\\s+init\\b`),
     skipIf: /--access-token[\s=]/,
     reason: 'doctl auth init prompts for an access token'
   },
   {
-    match: /\bgcloud\s+auth\s+login\b/,
+    match: new RegExp(`${CMD_POS}gcloud\\s+auth\\s+login\\b`),
     skipIf: /--cred-file[\s=]/,
     reason: 'gcloud auth login opens a browser flow'
   },
   {
-    match: /\bgh\s+auth\s+login\b/,
+    match: new RegExp(`${CMD_POS}gh\\s+auth\\s+login\\b`),
     skipIf: /--with-token\b/,
     reason: 'gh auth login is interactive without --with-token'
   },
   {
-    match: /\baws\s+configure\b(?!\s+(get|list|set|import|export|sso))/,
+    match: new RegExp(`${CMD_POS}aws\\s+configure\\b(?!\\s+(get|list|set|import|export|sso))`),
     reason: 'aws configure prompts for credentials'
   },
   {
-    match: /\bop\s+signin\b/,
+    match: new RegExp(`${CMD_POS}op\\s+signin\\b`),
     reason: '1Password signin prompts for the master password'
   },
   {
-    match: /\bnpm\s+login\b/,
+    match: new RegExp(`${CMD_POS}npm\\s+login\\b`),
     reason: 'npm login prompts for username/password/OTP'
   },
   {
-    match: /\bvault\s+login\b/,
+    match: new RegExp(`${CMD_POS}vault\\s+login\\b`),
     skipIf: /-method=token\b/,
     reason: 'vault login is interactive without -method=token'
   },
   {
-    match: /\bpasswd\b/,
+    match: new RegExp(`${CMD_POS}passwd\\b(?!\\s*=)`),
     reason: 'passwd prompts for the current and new password'
   },
   {
-    match: /\bssh-keygen\b(?!.*\s-N\s)/,
+    match: new RegExp(`${CMD_POS}ssh-keygen\\b(?!.*\\s-N\\s)`),
     reason: 'ssh-keygen prompts for a passphrase without -N'
   }
 ];
