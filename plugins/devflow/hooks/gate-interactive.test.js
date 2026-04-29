@@ -45,9 +45,13 @@ describe('detectInteractive — interactive commands at command position', () =>
     });
   }
 
-  test('all 9 patterns are present', () => {
-    assert.equal(INTERACTIVE_PATTERNS.length, 9,
+  test('all 23 patterns present (10 TTY + 13 shell-flow, post-TRD-01-06)', () => {
+    assert.equal(INTERACTIVE_PATTERNS.length, 23,
       'pattern count regression — adjust this assertion if intentionally added/removed');
+    const tty = INTERACTIVE_PATTERNS.filter(p => p.category === 'tty').length;
+    const shellFlow = INTERACTIVE_PATTERNS.filter(p => p.category === 'shell-flow').length;
+    assert.equal(tty, 10, 'TTY-interactive pattern count');
+    assert.equal(shellFlow, 13, 'shell-flow pattern count');
   });
 });
 
@@ -156,28 +160,149 @@ function runHook(payload, env = {}, cwd) {
   return { tmp, result };
 }
 
+describe('detectInteractive — shell-flow patterns (TRD 01-06)', () => {
+  const shellFlowCases = [
+    'nvm use 18',
+    'nvm install 20',
+    'pyenv shell 3.11',
+    'pyenv install 3.12',
+    'conda activate myenv',
+    'direnv exec . make build',
+    'direnv allow',
+    'mise use node@20',
+    'mise install',
+    'mise run test',
+    'asdf shell ruby 3.2',
+    'asdf install',
+    'rbenv shell 3.2',
+  ];
+  for (const cmd of shellFlowCases) {
+    test(`detects (shell-flow): ${cmd}`, () => {
+      const hit = detectInteractive(cmd);
+      assert.ok(hit, `expected detection for: ${cmd}`);
+      assert.equal(hit.category, 'shell-flow');
+    });
+  }
+
+  test('aws sso login is detected as TTY (browser auth, not shell-flow)', () => {
+    const hit = detectInteractive('aws sso login');
+    assert.ok(hit);
+    assert.equal(hit.category, 'tty');
+  });
+
+  test('quoted shell-flow commands still NOT triggered (1c334b0 still applies)', () => {
+    assert.equal(detectInteractive('echo "nvm use 18"'), null);
+    assert.equal(detectInteractive('echo "mise use node"'), null);
+  });
+});
+
+function withFakePidFile({ alive }, fn) {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pid-'));
+  const pidFile = path.join(tmp, 'devflow-watch.pid');
+  // alive=true → use OUR pid (test process is alive). alive=false → unused pid.
+  const pid = alive ? process.pid : 999999;
+  fs.writeFileSync(pidFile, JSON.stringify({
+    pid, version: '0.1.0', shell: 'zsh', watching: [], started_at: new Date().toISOString(),
+  }));
+  try {
+    return fn(pidFile);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
+describe('hook subprocess — daemon-aware deny message (TRD 01-06)', () => {
+  test('watcher LIVE: deny says "queued for daemon", does NOT instruct paste', () => {
+    withFakePidFile({ alive: true }, (pidFile) => {
+      const { tmp, result } = runHook(
+        { tool_name: 'Bash', tool_input: { command: 'gh auth login' } },
+        { DEVFLOW_HANDOFF_PID_FILE: pidFile },
+      );
+      assert.equal(result.status, 0);
+      const reason = JSON.parse(result.stdout).hookSpecificOutput.permissionDecisionReason;
+      assert.match(reason, /queued/);
+      assert.match(reason, /devflow-watch daemon/);
+      assert.ok(!/Tell the user verbatim/.test(reason),
+        'should NOT instruct user paste when daemon is live');
+      assert.ok(!/`! gh auth login`/.test(reason),
+        'should NOT include the ! prefix line when daemon is live');
+      fs.rmSync(tmp, { recursive: true, force: true });
+    });
+  });
+
+  test('watcher absent: deny instructs paste (Approach A)', () => {
+    const fakeHome = fs.mkdtempSync(path.join(os.tmpdir(), 'gate-int-home-'));
+    try {
+      const { tmp, result } = runHook(
+        { tool_name: 'Bash', tool_input: { command: 'gh auth login' } },
+        { HOME: fakeHome },
+      );
+      const reason = JSON.parse(result.stdout).hookSpecificOutput.permissionDecisionReason;
+      assert.match(reason, /! gh auth login/);
+      assert.match(reason, /not running/);
+      fs.rmSync(tmp, { recursive: true, force: true });
+    } finally {
+      fs.rmSync(fakeHome, { recursive: true, force: true });
+    }
+  });
+
+  test('stale PID (process dead) → not-live → Approach A reason', () => {
+    withFakePidFile({ alive: false }, (pidFile) => {
+      const { tmp, result } = runHook(
+        { tool_name: 'Bash', tool_input: { command: 'gh auth login' } },
+        { DEVFLOW_HANDOFF_PID_FILE: pidFile },
+      );
+      const reason = JSON.parse(result.stdout).hookSpecificOutput.permissionDecisionReason;
+      assert.match(reason, /! gh auth login/);
+      fs.rmSync(tmp, { recursive: true, force: true });
+    });
+  });
+
+  test('malformed PID file → not-live → Approach A reason', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pid-bad-'));
+    const pidFile = path.join(tmpDir, 'devflow-watch.pid');
+    fs.writeFileSync(pidFile, 'not json');
+    try {
+      const { tmp, result } = runHook(
+        { tool_name: 'Bash', tool_input: { command: 'gh auth login' } },
+        { DEVFLOW_HANDOFF_PID_FILE: pidFile },
+      );
+      const reason = JSON.parse(result.stdout).hookSpecificOutput.permissionDecisionReason;
+      assert.match(reason, /! gh auth login/);
+      fs.rmSync(tmp, { recursive: true, force: true });
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('hook integration — subprocess', () => {
-  test('emits PreToolUse deny JSON for interactive command', () => {
+  test('emits PreToolUse deny JSON for interactive command (Approach A — no watcher)', () => {
+    // Sandbox HOME so isWatcherLive() doesn't see a real daemon if one is running.
+    const fakeHome = fs.mkdtempSync(path.join(os.tmpdir(), 'gate-int-home-'));
     const { tmp, result } = runHook({
       tool_name: 'Bash',
       tool_input: { command: 'gh auth login' },
-    });
+    }, { HOME: fakeHome });
 
     assert.equal(result.status, 0, `non-zero exit: ${result.stderr}`);
     const out = JSON.parse(result.stdout);
     assert.equal(out.hookSpecificOutput.hookEventName, 'PreToolUse');
     assert.equal(out.hookSpecificOutput.permissionDecision, 'deny');
-    assert.match(out.hookSpecificOutput.permissionDecisionReason, /TTY/);
+    assert.match(out.hookSpecificOutput.permissionDecisionReason, /shell/);
     assert.match(out.hookSpecificOutput.permissionDecisionReason, /! gh auth login/);
 
-    // Pending record written
+    // Pending record written with new fields
     const pendingDir = path.join(tmp, '.devflow-handoff', 'pending');
     const files = fs.readdirSync(pendingDir);
     assert.equal(files.length, 1, 'expected one pending record');
     const record = JSON.parse(fs.readFileSync(path.join(pendingDir, files[0]), 'utf-8'));
     assert.equal(record.cmd, 'gh auth login');
     assert.equal(record.status, 'pending');
+    assert.equal(record.source, 'hook');
+    assert.equal(typeof record.timeout_ms, 'number');
     fs.rmSync(tmp, { recursive: true, force: true });
+    fs.rmSync(fakeHome, { recursive: true, force: true });
   });
 
   test('passes through (no output) on non-interactive command', () => {
