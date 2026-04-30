@@ -37,6 +37,7 @@ Dependency order:
 ```
 
 **Out of scope for v1.1** (deferred):
+- PTY support for the handoff watcher (v1.2 — see below)
 - OS notifications for handoff (v1.2)
 - Auto-start of watcher daemon via launchd/systemd (v1.2 polish)
 - Backwards-compatibility shims for projects without kind/work (handled by `proposal/kind-and-work`'s migrate flag, separate branch)
@@ -45,3 +46,55 @@ Dependency order:
 **Prerequisites for v1.1 execution:**
 - `proposal/kind-and-work` merged to main (planner needs intent resolver)
 - `feature/seamless-handoff` successor (watcher daemon variant) merged to main (objective 7's foundation)
+
+---
+
+## Milestone v1.2 — Handoff Watcher PTY + Coordination-Layer Polish (next)
+
+**Goal:** Close the "Claude continues executing" promise for **TTY-interactive auth** (today's v1.1 limitation), plus polish the coordination layer with the items deferred from v1.1.
+
+**Status:** Open. Plan after v1.1 ships and dogfood data accumulates.
+
+### Headline objective: PTY support for the handoff watcher
+
+v1.1's `devflow-watch` daemon dispatches commands via stdio pipes — that works for shell-flow tools (mise, nvm, conda, direnv) which only need a `bash -i` / `zsh -i` env, but **fails for genuinely TTY-required commands** (`doctl auth init`, `gh auth login`, `sudo`, `gpg --decrypt`). Verified end-to-end: doctl reports "Error: Unable to read DigitalOcean access token: unknown terminal" when dispatched through pipes.
+
+The fix: swap `child_process.spawn` for `node-pty` in `plugins/devflow/devflow/bin/lib/watcher-shell.cjs`. With a real PTY:
+- `isatty(stdin)` succeeds → doctl/gh/etc. proceed past their TTY check
+- Token-paste prompts work — daemon can either route the prompt to a notification UI or accept tokens via per-handoff metadata
+- `sudo` becomes runnable (still allowlist-gated; deny-list keeps `sudo` excluded by default for safety)
+
+**Trade-offs to design through:**
+- node-pty is a native dependency with a compile step. Either ship prebuilt binaries (`node-pty` does for major platforms) or document the build requirement.
+- macOS-first; Linux works out of the box; Windows needs `winpty-agent` and is best-effort.
+- The current sentinel-based output capture stays — PTY just changes the dispatch backend, not the output-parsing protocol.
+
+**Provisional TRD outline** (refine when v1.2 plans):
+1. Replace `spawn` with node-pty in `watcher-shell.cjs`. Update `interactive: true` path to use PTY; keep an `interactive: false` non-PTY mode for tests.
+2. Token-passing for handoff records — extend pending record schema with optional `inputs: { secrets: [...] }` so the daemon can answer prompts from the user's keyring or a one-shot stash.
+3. Update `gate-interactive.js`: TTY-interactive patterns now route to daemon when watcher is live (deny message reflects "PTY-backed daemon"); deny-list still blocks `sudo`/`su -` from the curated path.
+4. Update `handoff-watcher-guide.md` with PTY caveats and platform notes.
+5. Update e2e tests with mock auth servers (test-mode against `gh`'s test backend, doctl's --access-token flag) to validate the full flow without real credentials.
+
+### Deferred polish (also v1.2)
+
+- **OS desktop notifications** — daemon emits via `osascript` (macOS) / `notify-send` (Linux) when a command starts requiring user attention (e.g. browser auth flow needs a click) or completes. Surfaced through a small notification helper module behind a feature flag.
+- **Auto-launch of watcher** — `launchctl` plist for macOS, `systemd --user` unit for Linux. `devflow-watch start --install-service` generates and registers; `devflow-watch stop --uninstall-service` removes.
+- **Multi-project watching** — single daemon watches multiple `.devflow-handoff/pending/` dirs concurrently. PID file's `watching: []` array (already present in the schema) holds multiple project paths.
+- **Status-line indicator** — `statusline.js` shows `⏸ N pending` when the watcher has un-dispatched records, `▶ running` when actively dispatching.
+- **Cross-shell support** — fish (different syntax for env), nushell, PowerShell. Each gets its own sentinel/wrapper module behind a `shell` argument.
+- **Bidirectional GitHub sync** — v1.1 pushes objective state to GH issues one-way. v1.2 adds the inbound path: GH label/state changes pull down into objective frontmatter via webhook or periodic poll. Requires conflict-resolution UX when both sides edit.
+- **Configurable kind/work defaults table** — open question from `proposal/kind-and-work`. Currently the 42-cell defaults table is hardcoded; v1.2 lets orgs override globally via `~/.claude/devflow/defaults-table.md` (file format already supports it; just need to expose the override path).
+
+### Workflow-impediment improvements (also v1.2)
+
+Items flagged during v1.1 development that earn dedicated TRDs:
+
+- **`df-tools init` reads from current branch only** — currently falls back to other branches via `git show`, which produced misleading state during v1.1 planning (init reported a misfiled-objective ROADMAP that didn't exist on the working branch). Fix: explicit `--branch` arg defaulting to current branch, error if state is missing rather than walking history.
+- **Project-hygiene tooling** — helpers to detect/move objectives that don't belong in their current repo. Surfaces "this objective's `parent_issue` lives in a different repo than the objective directory; move it?" warnings. Auto-archive support for retired repos (e.g. aosentry-rails).
+
+### Out of scope for v1.2
+
+- Replacing the per-process daemon with a system-wide service (defer to v1.3+ if multi-user / shared-machine demand emerges)
+- Web/UI dashboard for the daemon (Hub Flutter app territory, owned by aodex-flutter)
+- Rewriting the daemon in Go for distribution (Node version is fine; revisit only if startup latency hits user pain)
