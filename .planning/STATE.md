@@ -12,9 +12,10 @@
 **Branch:** `feature/v1.1`
 **Objective complete:** 0 — Refine (kind, work) defaults table from codebase evidence (verified 2026-05-04, 443/443 tests, all 10 SC met)
 **Objective complete:** 1 — GitHub coordination layer (verified 2026-05-04, 563/563 tests, all 6 TRDs done, SC-9 + SC-10 met)
-**Objective in flight:** 2 — Cross-worktree session telemetry (next)
-**Current TRD:** 02-07 (next: library-export-and-integration; 02-01/02/03/04/05/06 complete)
-**Status:** TRD 02-06 complete — SessionStart awareness-cache-populate hook (fire-and-forget, detached+unref, H6 --no-fetch path) + init.cjs awareness_refresh flag shipped (16 tests, 710/719 pass)
+**Objective complete:** 2 — Cross-repo awareness layer (verified 2026-05-04, 731/731 tests with integration flags, all 10 SC met, 7 TRDs done)
+**Objective in flight:** (next objective TBD)
+**Current TRD:** (Objective 2 complete — all 7 TRDs done)
+**Status:** TRD 02-07 complete — export surface locked (14 entries), product-roadmap-walk.json cassette captured (48 items), integration tests gated on GIT_INTEGRATION + GH_INTEGRATION, scanPeer for-each-ref bug fixed (731/731 tests pass with integration flags)
 
 ## Branch State (post-merge)
 
@@ -88,6 +89,7 @@
 - **Quarter filter normalization (TRD 02-05)** — `--quarter Q2-2026` matches `quarter: "Q2 2026"` items (dash/space normalized, case-insensitive substring). Locked in renderMarkdown.
 - **Soft-fail org auth pattern (TRD 02-05)** — When default mode (both sections) and org GhAuthError: render peer-only + warning. Hard-fail only on --org-only or when peer also unavailable. Mirrors cmdGhResolve pattern for the hard-fail path.
 - **TRD 02-06 complete (2026-05-04)** — `hooks/awareness-cache-populate.js` SessionStart hook: lazy cache populate, fire-and-forget (detached:true, stdio:'ignore', unref()), <100ms parent exit. H6 --no-fetch path locked (peer-stale-only → scan-peer --no-fetch, avoids slow git fetch on session start). `hooks.json` updated with second SessionStart entry. `init.cjs` extended: `_awarenessLoadable()` + `awareness_refresh: true|false` in `cmdInitPlanObjective` + `cmdInitExecuteObjective`. 16 new tests; 710/719 pass. Commits: f35aaa3 (test:), 5ddb3b6 (feat:). SC-8 complete.
+- **TRD 02-07 complete (2026-05-04)** — Export surface locked at 14 entries (L1 deepStrictEqual test). product-roadmap-walk.json cassette captured live (48 items, PVT_kwDODwqLrc4BRsOP). Integration tests: IT1/IT2 (GIT_INTEGRATION=1 peer scan with self-remote trick), OT1/OT2 (GH_INTEGRATION=1 live walk + drift detection), CT1-CT3 (cache round-trip, default run), CR1-CR3 (cassette replay, default run). Bug fix: for-each-ref pattern refs/remotes/origin/* → refs/remotes/origin/ (glob * doesn't cross /; nested branches like feature/foo were silently invisible). 731/731 tests with integration flags. Commits: d0d2642 (test:), 5ae30b0 (feat:), 617d946 (feat: bug fix). SC-9 + SC-10 complete. Objective 2 DONE.
 - **H6 --no-fetch path locked (TRD 02-06)** — When only peer is stale, use `scan-peer --no-fetch` (skips git fetch). Rationale: git fetch is the slow part of peer scanning; local refs are still useful data. Full fetch only when both sections stale (uses show --refresh).
 - **awareness_refresh guidance-only flag (TRD 02-06)** — init.cjs sets `awareness_refresh` but does NOT spawn refresh itself. Plan-objective and execute-objective skills are responsible for consuming the flag. Wiring those skills is out of scope for TRD 02-06 (belongs to obj 4/5 work).
 - **subprocess test pattern for init commands (TRD 02-06)** — `output()` in helpers.cjs calls `process.exit(0)`, making in-process stdout capture impossible. Tests for init.cjs use `execSync('node df-tools.cjs init ...')` + JSON.parse(stdout). Pattern now established for future init tests.
@@ -98,7 +100,7 @@
 
 ## Session Continuity
 
-Last session: 2026-05-04 — TRD 02-06 (lifecycle integration) complete. awareness-cache-populate hook + init.cjs awareness_refresh flag shipped.
+Last session: 2026-05-04 — TRD 02-07 (library export lock + integration) complete. Objective 2 all 7 TRDs done. 731/731 tests pass with integration flags.
 Resume file: `.planning/SESSION_PICKUP.md`
-Stopped at: Completed 02-06-lifecycle-integration-TRD.md
-Next: Objective 2 TRD 02-07 — Library export lock + integration tests (Wave 7)
+Stopped at: Completed 02-07-library-export-and-integration-TRD.md
+Next: Objective 3 (TBD — next objective to plan)
