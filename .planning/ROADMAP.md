@@ -1,16 +1,17 @@
 # Roadmap
 
-## Milestone v1.1 — DevFlow Coordination Layer (planning)
+## Milestone v1.1 — DevFlow Coordination Layer (in flight)
 
 **Goal:** Bring devflow-claude from a per-repo planning helper to a program-aware coordination layer for AI-assisted work across the AO-Cyber-Systems org. Planning becomes org-aware (surveys sibling repos, eden-libs reuse, org Product Roadmap to surface overlap, shared-service opportunities, and misfile risk). Execution stays repo-focused with thin async preamble. Cross-session telemetry, duplicate detection, initiative context, unified todo aggregation, and structured user-handoff complete the runtime layer.
 
-**Status:** Awaiting `/df:new-milestone` formalization. Research and architectural principles captured in:
+**Status:** Objective 0 formalized 2026-05-04 (planning underway via `/df:plan-objective 0`). Other objectives formalize when they're up. Research and architectural principles captured in:
 - `.planning/research/github-coordination-layer.md` — structural layer (GitHub Issues + Projects v2 + sub-issues)
 - `.planning/research/cross-session-coordination.md` — runtime layer (heartbeat, duplicate detection, initiatives, unified check-todos, df:handoff)
+- `.planning/research/tdd-scope-{summary,refined-defaults,codebase-survey}.md` — TDD scope research synthesis (objective 0 input)
 
-**Provisional objective scope** (to be refined by `/df:new-milestone` planner):
+**Objective scope:**
 
-0. **TDD scope research** (prerequisite — `.planning/research/tdd-scope-by-kind-work.md`) — validate the merged kind/work defaults table's `tdd` column against real AOCyber codebases; resolve open questions 6 (kind-axis signal per work type) and 7 (missing dimensions). Output: refined defaults table proposal + decisions on whether to add structured columns for performance/property-based/RBAC/back-compat. Gates objectives 3 and 4.
+0. **Refine (kind, work) defaults table from codebase evidence** — refine the 42-cell defaults table to match observed AOCyber codebase reality, codify the user's CLAUDE.md TDD Playbook as structured resolver fields, and add a `references/testing-strategy.md` testing-levels matrix (folds in #7). Gates objectives 3 and 4. **Tracks: devflow-claude#20** (research complete; implementation in plan)
 1. **GitHub coordination layer** — frontmatter conventions (parent_issue, github_issue, org_milestone), resolver service walking objective → repo [Roadmap] → org Product milestone, gh CLI helpers, df:gh-sync command. Foundation for everything else. **Tracks: devflow-claude#10**
 2. **Cross-worktree session telemetry + heartbeat** — hook-driven heartbeat schema (session_id, project, branch, github_issue, objective, job, files_touched, files_planned, state, blocked_on_user). Storage choice TBD (recommend dedicated lightweight git repo). **Tracks: devflow-claude#11**
 3. **Planning-time org awareness** — extend df:research-objective + df:plan-objective to consult sibling repos, eden-libs, org Project. Output as Cross-Repo Considerations in CONTEXT.md. **Tracks: devflow-claude#12** (depends on 0)
@@ -46,6 +47,42 @@ Dependency order:
 **Prerequisites for v1.1 execution:** ✅ both met
 - ~~`proposal/kind-and-work` merged to main~~ — done (PR #8, 2026-05-04)
 - ~~`feature/seamless-handoff` successor (watcher daemon variant) merged to main~~ — done (PR #19, 2026-05-04)
+
+### Objective 0: Refine (kind, work) defaults table from codebase evidence
+
+**Goal:** Refine the 42-cell `(kind, work)` defaults table at `plugins/devflow/devflow/references/defaults-table.md` to match observed AOCyber codebase reality, codify the user's CLAUDE.md TDD Playbook as structured fields in the `intent.cjs` resolver, and add a parallel `references/testing-strategy.md` testing-levels matrix (folds in #7). The resolver becomes the enforcement mechanism for the TDD Playbook, not a parallel set of guidelines.
+
+**Tracks:** devflow-claude#20 (closes #7 in same PR)
+
+**Inputs (research complete):**
+- `.planning/research/tdd-scope-summary.md` — executive summary, top 5 deltas
+- `.planning/research/tdd-scope-refined-defaults.md` — proposed 42-cell table + per-cell deltas
+- `.planning/research/tdd-scope-codebase-survey.md` — raw findings across 6 sibling repos
+
+**Locked decisions (from research synthesis + user calls):**
+1. **Port cells:** drop "spec-match (source's tests as fixtures)" everywhere; replace with contract-list-first (derive parity checklist from source's *behavior*, not its test files).
+2. **ui-lib cells:** drop "visual regression" from defaults; behavioral + a11y only; visual moves to TRD-level opt-in.
+3. **Resolver schema:** emit 5 new structured fields (`security_isolation`, `back_compat`, `tdd_default`, `test_list_first`, `fixture_strategy`) + 3 anti-pattern constraints (`no_llm_test_data`, `no_property_based_default`, `no_gherkin_layer`).
+4. **Multitenancy hard-enforcement:** when `security_isolation: multi_tenant_required`, the verification commands array must require a wrong-tenant assertion test (not advisory).
+5. **Testing-strategy matrix soft-bundled:** ships as separate reference doc the planner reads after the resolver returns. No resolver coupling.
+
+**Success Criteria**:
+1. `defaults-table.md` reflects 27 changed cells + 5 new column headers; the file format remains valid YAML reference doc parseable by the planner.
+2. `intent.cjs` resolver emits the 5 new structured fields + 3 anti-pattern constraints; provenance is reported per field (`table` / `user_playbook` / `trd_override` / `objective_override`).
+3. Planner agent reads new fields and emits corresponding TRD sections (test-list checklist, fixture-builder task, wrong-tenant assertion in test list, outside-in TRD ordering when applicable).
+4. CLAUDE.md absorption maps all 6 TDD Playbook habits cleanly to 5 structured fields + 1 freeform directive.
+5. `references/testing-strategy.md` exists with the layer×tool×stack matrix from #7 (unit → integration → AI exploratory → Maestro → visual) plus the Flutter-web semantics gotcha, codegen discipline, and platform routing paragraphs.
+6. Planner consults testing-strategy.md when emitting verification commands; layer→tool routing reflects detected stack.
+7. Existing PROJECT.md / OBJECTIVE.md / TRD.md files don't break — migration path documented and validated against the existing `01-handoff-watcher` objective directory.
+8. Critical sequencing constraint honored: TRD 01 (table) and TRD 02 (resolver schema) ship in different waves/commits so the schema has soak time before #12 / #13 lock onto it.
+9. `df-tools intent resolve --objective <fixture>` round-trip succeeds on a fixture project containing all 6 kinds × 7 work types and exercises the `multi_tenant_required` path.
+10. `npm test` (Node native test runner) passes; new TDD-tagged TRDs (02, 04, 05) ship `test:` commits preceding their `feat:` commits per the user's TDD Playbook.
+
+**Out of scope:**
+- Chromatic / Percy / Flutter golden-file rollout (revisit when tooling lands as separate objective)
+- Property-based testing infrastructure beyond the constraint flag
+- Bidirectional planner ↔ resolver round-tripping (one-way only)
+- Org-wide rollout of the testing-strategy matrix to other repos' CLAUDE.md (ongoing program work, not a TRD)
 
 ---
 

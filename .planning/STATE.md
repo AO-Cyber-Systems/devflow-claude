@@ -8,9 +8,10 @@
 
 ## Current Position
 
-**Milestone:** v1.1 — DevFlow Coordination Layer (planning + TDD scope research)
-**Branch:** `feature/v1.1` — fresh off main 2026-05-04, after PR #19 + #8 merged
-**Status:** TDD scope research framing committed (`.planning/research/tdd-scope-by-kind-work.md`); awaiting first survey pass against real codebases.
+**Milestone:** v1.1 — DevFlow Coordination Layer (in flight)
+**Branch:** `feature/v1.1`
+**Objective in flight:** 0 — Refine (kind, work) defaults table from codebase evidence
+**Status:** Objective 0 PLANNED + VERIFIED 2026-05-04. 6 TRDs across 4 waves at `.planning/objectives/00-refine-defaults-table/`. Average verifier confidence 8.0/10, 7 minor/info briefings for executor. GH tracking: #20 (sub-issue of #9; closes #7 in PR). Next: `/df:execute-objective 0`.
 
 ## Branch State (post-merge)
 
@@ -28,16 +29,17 @@
   - `github-coordination-layer.md` — structural (GH Issues + Projects v2 + sub-issues)
   - `cross-session-coordination.md` — runtime (heartbeat + duplicate detection + initiatives + check-todos + handoff)
   - `org-context-resolver.md` — foundational service every other v1.1 capability depends on
-- **TDD scope is the next gating research** — the merged kind/work defaults table has TDD opinions per cell that haven't been validated against real codebases. Open questions 6 and 7 from the kind-and-work proposal are direct inputs. Research artifact at `.planning/research/tdd-scope-by-kind-work.md` frames the questions, methodology, and acceptance criteria. Treat as an objective-0 prerequisite to v1.1 sub-issues #12 and #13.
+- **TDD scope research COMPLETE** — survey ran across 9 sibling repos (aodex-go, aosentry, aohealth-go, aodex-flutter, eden-libs, eden-ui, eden-ui-flutter, eden-cli, devflow-claude). 4 artifacts at `.planning/research/tdd-scope-{by-kind-work,codebase-survey,refined-defaults,summary}.md`. Locked decisions captured in `.planning/objectives/00-refine-defaults-table/00-CONTEXT.md`.
+- **GH #7 (testing-levels matrix) folded into objective 0** — soft-bundle: separate reference doc (`references/testing-strategy.md`) the planner reads alongside the resolver output. No resolver coupling. Closes #7 in same PR as #20.
 - **kind/work intent model is canonical** — devflow-claude's PROJECT.md uses `kind: plugin, default_work: feature`. Defaults table at `plugins/devflow/devflow/references/defaults-table.md` is the (kind, work) → defaults source of truth.
+- **Objective 0 wave structure (LOCKED — see `00-CONTEXT.md` §7):** Wave 1 = TRD 0.1 (table) + 0.6 (testing-strategy doc); Wave 2 = TRD 0.2 (resolver schema, solo soak); Wave 3 = TRD 0.3 (planner) + 0.4 (CLAUDE.md absorption); Wave 4 = TRD 0.5 (migration + provenance). TRD 0.1 ≠ Wave with TRD 0.2 — hard sequencing constraint.
 
 ## Blockers / Concerns
 
-- **TDD scope research is framing-only right now** — no survey data yet. The structure is in place; populating it requires reading real test suites across 6+ codebases. Could be done by a focused `/df:research-objective` invocation or a dedicated subagent.
 - **`feature/v1.1-coordination` is duplicative** — same content as `feature/v1.1`. Should be deleted to avoid confusion. Its worktree at `/Users/markemerson/Source/devflow-claude-v11` can be removed.
 
 ## Session Continuity
 
-Last session: 2026-05-04 — main updated post-merge; new feature/v1.1 branch created off main; TDD scope research framing committed.
-Resume file: none
-Next: Either (a) populate the TDD-scope research with codebase survey findings, or (b) invoke `/df:new-milestone v1.1 — DevFlow Coordination Layer` to formalize the objective roadmap (with TDD-scope as objective 0 / prerequisite).
+Last session: 2026-05-04 — Objective 0 planned and verified; 6 TRDs ready for execution.
+Resume file: `.planning/SESSION_PICKUP.md`
+Next: `/df:execute-objective 0` (read SESSION_PICKUP.md first for the 7 executor briefings).
