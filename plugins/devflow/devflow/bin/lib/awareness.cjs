@@ -141,11 +141,92 @@ function aggregateOrgByProductQuarter(items) {
   return out;
 }
 
-// ─── module.exports (TRD 02-01 partial — later TRDs append) ──────────────────
+// ─── TRD 02-04: cache layer ───────────────────────────────────────────────────
+
+/**
+ * Read the awareness cache file.
+ * Returns null on missing file, empty file, or malformed JSON.
+ * Never throws.
+ *
+ * @param {string} cwd - working directory containing .planning/
+ * @returns {{ peer?: object, org?: object } | null}
+ */
+function readCache(cwd) {
+  const p = path.join(cwd, AWARENESS_CACHE_REL);
+  if (!fs.existsSync(p)) return null;
+  try {
+    const content = fs.readFileSync(p, 'utf-8');
+    if (!content.trim()) return null;
+    return JSON.parse(content);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Write awareness cache file with MERGE semantics.
+ *
+ * Passing only `{ peer: X }` preserves existing `org` section if present.
+ * Passing both replaces both. This is the contract that enables
+ * `--refresh peer` / `--refresh org` flags (TRD 02-05) to work independently.
+ *
+ * Locked semantic: writeCache(cwd, { peer: NEW }) where existing has { peer: OLD, org: Y }
+ *   → result is { peer: NEW, org: Y }.
+ *
+ * @param {string} cwd - working directory containing (or to contain) .planning/
+ * @param {{ peer?: object, org?: object }} sections - sections to write/update
+ */
+function writeCache(cwd, sections) {
+  const planningDir = path.join(cwd, '.planning');
+  if (!fs.existsSync(planningDir)) fs.mkdirSync(planningDir, { recursive: true });
+
+  // Read existing for merge semantics
+  const existing = readCache(cwd) || {};
+  const merged = Object.assign({}, existing, sections || {});
+
+  fs.writeFileSync(
+    path.join(cwd, AWARENESS_CACHE_REL),
+    JSON.stringify(merged, null, 2) + '\n'
+  );
+}
+
+/**
+ * Returns true when the given timestamp is stale relative to ttl_minutes.
+ *
+ * Staleness rules:
+ * - fetched_at null/undefined → true (missing = stale)
+ * - fetched_at not a valid ISO string → true (invalid = stale)
+ * - ttl_minutes=0 → true (zero TTL = always stale; locked)
+ * - ttl_minutes null/undefined → uses DEFAULT_TTL_MINUTES (10)
+ * - fetched_at in future (clock skew) → false (treated as fresh)
+ * - (now - fetched_at) > ttl_minutes * 60_000 ms → true
+ *
+ * @param {string|null|undefined} fetched_at - ISO 8601 timestamp string
+ * @param {number|null|undefined} ttl_minutes - TTL in minutes
+ * @returns {boolean}
+ */
+function isStale(fetched_at, ttl_minutes) {
+  if (fetched_at == null) return true;
+  if (typeof fetched_at !== 'string') return true;
+  const ts = Date.parse(fetched_at);
+  if (!Number.isFinite(ts)) return true;
+
+  const ttl = (ttl_minutes != null) ? ttl_minutes : DEFAULT_TTL_MINUTES;
+  if (ttl <= 0) return true;
+
+  const age_ms = Date.now() - ts;
+  if (age_ms < 0) return false; // future timestamp → treat as fresh (clock skew tolerance)
+  return age_ms > (ttl * 60_000);
+}
+
+// ─── module.exports (TRD 02-01 + TRD 02-04) ──────────────────────────────────
 
 module.exports = {
   parseStateMd,
   aggregateOrgByProductQuarter,
+  readCache,
+  writeCache,
+  isStale,
   DEFAULT_TTL_MINUTES,
   DEFAULT_STALE_DAYS,
   DEFAULT_BRANCH_PATTERNS,
