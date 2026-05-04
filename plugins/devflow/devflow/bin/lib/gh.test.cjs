@@ -849,3 +849,438 @@ describe('resolveChain — matrix fixture', () => {
     }
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TRD 01-03: requireGhAuth + GhAuthError + cmdGhResolve hard-fail tests
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Hand-built fixture strings — copied from actual `gh auth status` output
+// (token values sanitized). Per TDD Playbook habit 4: no LLM-generated data.
+//
+// GH auth status happy-path output (gh 2.45+, single-quote scope format):
+//   github.com
+//     ✓ Logged in to github.com account markemerson (keyring)
+//     - Active account: true
+//     - Git operations protocol: https
+//     - Token: gho_*****************************
+//     - Token scopes: 'gist', 'project', 'read:org', 'read:project', 'repo'
+
+const AUTH_STDOUT_FULL_SCOPES =
+  "github.com\n  ✓ Logged in to github.com account markemerson (keyring)\n  - Active account: true\n  - Git operations protocol: https\n  - Token: gho_**************************\n  - Token scopes: 'gist', 'project', 'read:org', 'read:project', 'repo'";
+
+const AUTH_STDOUT_REPO_GIST_ONLY =
+  "github.com\n  ✓ Logged in to github.com account markemerson (keyring)\n  - Active account: true\n  - Token scopes: 'repo', 'gist'";
+
+const AUTH_STDOUT_REPO_ONLY =
+  "github.com\n  ✓ Logged in to github.com account markemerson (keyring)\n  - Token scopes: 'repo'";
+
+// Multiline scope format — older gh versions wrap long scope lists
+const AUTH_STDOUT_MULTILINE_SCOPES =
+  "github.com\n  ✓ Logged in\n  - Token scopes: 'gist',\n      'project'";
+
+// ─── Group A: requireGhAuth — happy path ─────────────────────────────────────
+
+describe('requireGhAuth — happy path', () => {
+  test('A1: returns silently when authenticated with all required scopes present', () => {
+    const mock = fx.buildMockRunGh(new Map([
+      ['auth status', { ok: true, status: 0, stdout: AUTH_STDOUT_FULL_SCOPES, stderr: '' }],
+    ]));
+    gh._setRunGh(mock);
+
+    // Must not throw
+    assert.doesNotThrow(() => gh.requireGhAuth(['project', 'read:project']));
+  });
+
+  test('A2: returns silently when user has MORE scopes than required (subset matching)', () => {
+    const mock = fx.buildMockRunGh(new Map([
+      ['auth status', { ok: true, status: 0, stdout: AUTH_STDOUT_FULL_SCOPES, stderr: '' }],
+    ]));
+    gh._setRunGh(mock);
+
+    assert.doesNotThrow(() => gh.requireGhAuth(['repo']));
+  });
+
+  test('A3: returns silently when requireGhAuth([]) called — empty required scopes', () => {
+    const mock = fx.buildMockRunGh(new Map([
+      ['auth status', { ok: true, status: 0, stdout: AUTH_STDOUT_FULL_SCOPES, stderr: '' }],
+    ]));
+    gh._setRunGh(mock);
+
+    assert.doesNotThrow(() => gh.requireGhAuth([]));
+  });
+});
+
+// ─── Group B: requireGhAuth — fail modes ─────────────────────────────────────
+
+describe('requireGhAuth — fail modes', () => {
+  test('B1: missing gh binary → throws GhAuthError with install URL in remediation', () => {
+    const mock = fx.buildMockRunGh(new Map([
+      ['auth status', { ok: false, status: null, stdout: '', stderr: 'gh: command not found' }],
+    ]));
+    gh._setRunGh(mock);
+
+    let threw = false;
+    try {
+      gh.requireGhAuth(['repo']);
+      assert.fail('should have thrown');
+    } catch (e) {
+      threw = true;
+      assert.strictEqual(e.name, 'GhAuthError', `Expected GhAuthError, got ${e.name}: ${e.message}`);
+      assert.ok(e.remediation.includes('https://cli.github.com'), `Expected install URL in remediation, got: ${e.remediation}`);
+    }
+    assert.ok(threw, 'requireGhAuth must throw on missing binary');
+  });
+
+  test('B2: unauthenticated → throws GhAuthError with remediation = "gh auth login"', () => {
+    const mock = fx.buildMockRunGh(new Map([
+      ['auth status', { ok: false, status: 1, stdout: '', stderr: 'You are not logged into any GitHub hosts.' }],
+    ]));
+    gh._setRunGh(mock);
+
+    let threw = false;
+    try {
+      gh.requireGhAuth(['repo']);
+      assert.fail('should have thrown');
+    } catch (e) {
+      threw = true;
+      assert.strictEqual(e.name, 'GhAuthError');
+      assert.strictEqual(e.remediation, 'gh auth login');
+    }
+    assert.ok(threw);
+  });
+
+  test('B3: missing single scope (project) → throws with exact remediation "gh auth refresh -h github.com -s project"', () => {
+    const mock = fx.buildMockRunGh(new Map([
+      ['auth status', { ok: true, status: 0, stdout: AUTH_STDOUT_REPO_GIST_ONLY, stderr: '' }],
+    ]));
+    gh._setRunGh(mock);
+
+    let threw = false;
+    try {
+      gh.requireGhAuth(['project']);
+      assert.fail('should have thrown');
+    } catch (e) {
+      threw = true;
+      assert.strictEqual(e.name, 'GhAuthError');
+      assert.deepStrictEqual(e.scopes_missing, ['project']);
+      assert.strictEqual(e.remediation, 'gh auth refresh -h github.com -s project');
+    }
+    assert.ok(threw);
+  });
+
+  test('B4: missing multiple scopes → remediation uses comma-joined form (not repeated -s flags)', () => {
+    const mock = fx.buildMockRunGh(new Map([
+      ['auth status', { ok: true, status: 0, stdout: AUTH_STDOUT_REPO_ONLY, stderr: '' }],
+    ]));
+    gh._setRunGh(mock);
+
+    let threw = false;
+    try {
+      gh.requireGhAuth(['project', 'read:project']);
+      assert.fail('should have thrown');
+    } catch (e) {
+      threw = true;
+      assert.strictEqual(e.name, 'GhAuthError');
+      assert.deepStrictEqual(e.scopes_missing, ['project', 'read:project']);
+      // EXACT string required per TRD verifier briefings — comma-joined, -h first
+      assert.strictEqual(e.remediation, 'gh auth refresh -h github.com -s project,read:project');
+    }
+    assert.ok(threw);
+  });
+
+  test('B5: expired token → throws GhAuthError with remediation = "gh auth refresh" (no scopes flag)', () => {
+    const mock = fx.buildMockRunGh(new Map([
+      ['auth status', { ok: false, status: 1, stdout: '', stderr: 'The token in keyring/store has expired.' }],
+    ]));
+    gh._setRunGh(mock);
+
+    let threw = false;
+    try {
+      gh.requireGhAuth(['repo']);
+      assert.fail('should have thrown');
+    } catch (e) {
+      threw = true;
+      assert.strictEqual(e.name, 'GhAuthError');
+      assert.strictEqual(e.remediation, 'gh auth refresh');
+    }
+    assert.ok(threw);
+  });
+
+  test('B6: multiline scope output → parseScopes handles both separator styles correctly', () => {
+    const mock = fx.buildMockRunGh(new Map([
+      ['auth status', { ok: true, status: 0, stdout: AUTH_STDOUT_MULTILINE_SCOPES, stderr: '' }],
+    ]));
+    gh._setRunGh(mock);
+
+    // Both 'gist' and 'project' should be detected — 'repo' is missing
+    let threw = false;
+    try {
+      gh.requireGhAuth(['repo']);
+      assert.fail('should have thrown');
+    } catch (e) {
+      threw = true;
+      assert.strictEqual(e.name, 'GhAuthError');
+      assert.deepStrictEqual(e.scopes_missing, ['repo']);
+    }
+    assert.ok(threw);
+  });
+});
+
+// ─── Group C: GhAuthError shape ──────────────────────────────────────────────
+
+describe('GhAuthError shape', () => {
+  test('C1: thrown error is an Error subclass with .name === "GhAuthError"', () => {
+    const mock = fx.buildMockRunGh(new Map([
+      ['auth status', { ok: false, status: 1, stdout: '', stderr: 'You are not logged into any GitHub hosts.' }],
+    ]));
+    gh._setRunGh(mock);
+
+    try {
+      gh.requireGhAuth(['repo']);
+      assert.fail('should have thrown');
+    } catch (e) {
+      assert.ok(e instanceof Error, 'GhAuthError must extend Error');
+      assert.strictEqual(e.name, 'GhAuthError');
+    }
+  });
+
+  test('C2: .message is human-readable and includes the failure mode description', () => {
+    const mock = fx.buildMockRunGh(new Map([
+      ['auth status', { ok: false, status: 1, stdout: '', stderr: 'You are not logged into any GitHub hosts.' }],
+    ]));
+    gh._setRunGh(mock);
+
+    try {
+      gh.requireGhAuth(['repo']);
+      assert.fail('should have thrown');
+    } catch (e) {
+      assert.ok(typeof e.message === 'string' && e.message.length > 0, 'message must be non-empty string');
+      // message should describe what went wrong in plain English
+      assert.ok(
+        e.message.toLowerCase().includes('auth') || e.message.toLowerCase().includes('login') || e.message.toLowerCase().includes('github'),
+        `message should mention auth/login/github, got: "${e.message}"`
+      );
+    }
+  });
+
+  test('C3: .remediation is a runnable shell command string (no template placeholders)', () => {
+    const mock = fx.buildMockRunGh(new Map([
+      ['auth status', { ok: false, status: 1, stdout: '', stderr: 'You are not logged into any GitHub hosts.' }],
+    ]));
+    gh._setRunGh(mock);
+
+    try {
+      gh.requireGhAuth(['repo']);
+      assert.fail('should have thrown');
+    } catch (e) {
+      assert.ok(typeof e.remediation === 'string' && e.remediation.length > 0, 'remediation must be non-empty string');
+      // No template placeholders like {scope} or <scope>
+      assert.ok(!e.remediation.includes('{'), 'remediation must not contain curly braces');
+      assert.ok(!e.remediation.includes('<'), 'remediation must not contain angle brackets');
+    }
+  });
+
+  test('C4: .scopes_missing is always an array (possibly empty for non-scope failures)', () => {
+    const mock = fx.buildMockRunGh(new Map([
+      ['auth status', { ok: false, status: 1, stdout: '', stderr: 'You are not logged into any GitHub hosts.' }],
+    ]));
+    gh._setRunGh(mock);
+
+    try {
+      gh.requireGhAuth(['repo']);
+      assert.fail('should have thrown');
+    } catch (e) {
+      assert.ok(Array.isArray(e.scopes_missing), 'scopes_missing must be an array');
+      // For auth failures (not scope failures), scopes_missing should be empty
+      assert.strictEqual(e.scopes_missing.length, 0, 'scopes_missing should be empty for auth failures');
+    }
+  });
+});
+
+// ─── Group D: cmdGhResolve — auth hard-fail integration ──────────────────────
+
+describe('cmdGhResolve — auth hard-fail', () => {
+  let tmpDir;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'df-gh-auth-test-'));
+    fs.mkdirSync(path.join(tmpDir, '.planning', 'objectives'), { recursive: true });
+
+    // Create a valid OBJECTIVE.md so cmdGhResolve doesn't fail on missing file
+    const objDir = path.join(tmpDir, '.planning', 'objectives', '01-test');
+    fs.mkdirSync(objDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(objDir, 'OBJECTIVE.md'),
+      '---\nwork: feature\ngithub_issue: AO-Cyber-Systems/devflow-claude#10\n---\n\n# Test\n',
+      'utf-8'
+    );
+    fs.writeFileSync(
+      path.join(tmpDir, '.planning', 'PROJECT.md'),
+      '---\nkind: plugin\ngithub_repo: AO-Cyber-Systems/devflow-claude\n---\n\n# Test\n',
+      'utf-8'
+    );
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    tmpDir = null;
+  });
+
+  test('D1: cmdGhResolve writes structured JSON error to stderr + exits non-zero on auth failure', () => {
+    // Mock: auth status fails (unauthenticated)
+    const mock = fx.buildMockRunGh(new Map([
+      ['auth status', { ok: false, status: 1, stdout: '', stderr: 'You are not logged into any GitHub hosts.' }],
+    ]));
+    gh._setRunGh(mock);
+
+    let stderrOutput = '';
+    let exitCodeCalled = null;
+    const origStderr = process.stderr.write.bind(process.stderr);
+    const origExit = process.exit.bind(process);
+
+    process.stderr.write = (chunk) => { stderrOutput += chunk; return true; };
+    process.exit = (code) => { exitCodeCalled = code; };
+
+    try {
+      gh.cmdGhResolve(tmpDir, '01-test', false);
+    } finally {
+      process.stderr.write = origStderr;
+      process.exit = origExit;
+    }
+
+    // Must have exited non-zero
+    assert.strictEqual(exitCodeCalled, 1, `Expected exit code 1, got: ${exitCodeCalled}`);
+
+    // Must have written structured JSON to stderr
+    let errPayload;
+    assert.doesNotThrow(() => {
+      errPayload = JSON.parse(stderrOutput);
+    }, `stderr must be valid JSON, got: ${stderrOutput}`);
+
+    assert.ok(errPayload.error, 'error field must be present in stderr JSON');
+    assert.ok(errPayload.remediation, 'remediation field must be present in stderr JSON');
+    assert.ok(Array.isArray(errPayload.scopes_missing), 'scopes_missing field must be array in stderr JSON');
+  });
+
+  test('D2: cmdGhResolve proceeds to call resolveChain when requireGhAuth succeeds', () => {
+    // Mock: auth status succeeds with required scopes; issue list/graphql also mocked
+    const mock = fx.buildMockRunGh(new Map([
+      ['auth status', { ok: true, status: 0, stdout: AUTH_STDOUT_FULL_SCOPES, stderr: '' }],
+      ['api graphql', { ok: false, status: 1, stdout: '', stderr: '[mock] no walk in D2' }],
+      ['issue list', { ok: true, status: 0, stdout: '[]', stderr: '' }],
+    ]));
+    gh._setRunGh(mock);
+
+    let stdoutOutput = '';
+    let exitCodeCalled = 0;
+    const origWrite = process.stdout.write.bind(process.stdout);
+    const origExit = process.exit.bind(process);
+
+    process.stdout.write = (chunk) => { stdoutOutput += chunk; return true; };
+    process.exit = (code) => { exitCodeCalled = code || 0; };
+
+    try {
+      gh.cmdGhResolve(tmpDir, '01-test', false);
+    } finally {
+      process.stdout.write = origWrite;
+      process.exit = origExit;
+    }
+
+    // Should have produced JSON output (not errored out)
+    assert.ok(stdoutOutput.length > 0, 'expected stdout output when auth succeeds');
+    let parsed;
+    assert.doesNotThrow(() => { parsed = JSON.parse(stdoutOutput); }, `stdout must be valid JSON, got: ${stdoutOutput}`);
+    assert.ok(parsed.provenance, 'output must have provenance field');
+    assert.strictEqual(exitCodeCalled, 0, 'exit code must be 0 on success');
+  });
+
+  test('D3: cmdGhSyncObjectives preserves skipped:true graceful-skip behavior on auth failure (back-compat)', () => {
+    // cmdGhSyncObjectives uses the OLD ghStatus() graceful-skip pattern — NOT requireGhAuth
+    // Mock: no config.json → ghStatus returns enabled:false → skipped:true
+
+    const mock = fx.buildMockRunGh(new Map([
+      ['auth status', { ok: false, status: 1, stdout: '', stderr: 'You are not logged into any GitHub hosts.' }],
+    ]));
+    gh._setRunGh(mock);
+
+    let capturedOutput = '';
+    let exitCodeCalled = null;
+    const origWrite = process.stdout.write.bind(process.stdout);
+    const origExit = process.exit.bind(process);
+
+    process.stdout.write = (chunk) => { capturedOutput += chunk; return true; };
+    process.exit = (code) => { exitCodeCalled = code; };
+
+    // No config.json in tmpDir — so ghStatus returns enabled:false, reason: 'github.enabled is false...'
+    try {
+      gh.cmdGhSyncObjectives(tmpDir, false);
+    } finally {
+      process.stdout.write = origWrite;
+      process.exit = origExit;
+    }
+
+    // Must produce { ok: false, skipped: true, reason: ... } — NOT throw a GhAuthError
+    let parsed;
+    assert.doesNotThrow(() => { parsed = JSON.parse(capturedOutput); }, `expected JSON output from cmdGhSyncObjectives, got: ${capturedOutput}`);
+    assert.strictEqual(parsed.skipped, true, 'cmdGhSyncObjectives must return skipped:true on missing config, not throw');
+    assert.ok(parsed.reason, 'reason field must be present in skip output');
+    // Must NOT have exitCode of 1 from requireGhAuth (no throw)
+    assert.notStrictEqual(exitCodeCalled, 1, 'cmdGhSyncObjectives must not exit(1) — it gracefully skips');
+  });
+});
+
+// ─── Group E: parseScopes — internal helper ───────────────────────────────────
+// parseScopes is not exported, but its behavior is fully tested via requireGhAuth's
+// scope-checking behavior. These tests drive the implementation indirectly.
+
+describe('parseScopes (via requireGhAuth scope detection)', () => {
+  test('E1: single-quote scopes on one line parsed correctly', () => {
+    // "Token scopes: 'repo', 'gist', 'project'" → all three found
+    const stdout = "github.com\n  ✓ Logged in\n  - Token scopes: 'repo', 'gist', 'project'";
+    const mock = fx.buildMockRunGh(new Map([
+      ['auth status', { ok: true, status: 0, stdout, stderr: '' }],
+    ]));
+    gh._setRunGh(mock);
+
+    // All three scopes present — should NOT throw for any of them
+    assert.doesNotThrow(() => gh.requireGhAuth(['repo']));
+    assert.doesNotThrow(() => gh.requireGhAuth(['gist']));
+    assert.doesNotThrow(() => gh.requireGhAuth(['project']));
+  });
+
+  test('E2: multiline scope list parsed correctly (older gh versions)', () => {
+    // Scopes split across lines
+    const stdout = "github.com\n  ✓ Logged in\n  - Token scopes: 'gist',\n      'project'";
+    const mock = fx.buildMockRunGh(new Map([
+      ['auth status', { ok: true, status: 0, stdout, stderr: '' }],
+    ]));
+    gh._setRunGh(mock);
+
+    // Both gist and project should be detected
+    assert.doesNotThrow(() => gh.requireGhAuth(['gist']));
+    assert.doesNotThrow(() => gh.requireGhAuth(['project']));
+  });
+
+  test('E3: empty stdout → empty scope list → throws on any required scope', () => {
+    const mock = fx.buildMockRunGh(new Map([
+      // ok:true but empty stdout — no scopes found
+      ['auth status', { ok: true, status: 0, stdout: 'github.com\n  ✓ Logged in\n  - Active account: true', stderr: '' }],
+    ]));
+    gh._setRunGh(mock);
+
+    // No "Token scopes:" line — requires no scopes, should be ok
+    assert.doesNotThrow(() => gh.requireGhAuth([]));
+  });
+
+  test('E4: double-quoted scopes (older gh output format) parsed correctly', () => {
+    // Older gh versions use double quotes: Token scopes: "repo", "gist"
+    const stdout = 'github.com\n  ✓ Logged in\n  - Token scopes: "repo", "gist", "project"';
+    const mock = fx.buildMockRunGh(new Map([
+      ['auth status', { ok: true, status: 0, stdout, stderr: '' }],
+    ]));
+    gh._setRunGh(mock);
+
+    assert.doesNotThrow(() => gh.requireGhAuth(['repo']));
+    assert.doesNotThrow(() => gh.requireGhAuth(['project']));
+  });
+});
