@@ -11,12 +11,12 @@
 **Milestone:** v1.1 — DevFlow Coordination Layer (in flight)
 **Branch:** `feature/v1.1`
 **Objective in flight:** 0 — Refine (kind, work) defaults table from codebase evidence
-**Status:** Objective 0 IN EXECUTION. Wave 1 COMPLETE (TRD 0.1 + 0.6 done). 4 TRDs remaining (0.2, 0.3, 0.4, 0.5). Next: Wave 2 — TRD 0.2 (resolver schema, solo soak). GH tracking: #20 (sub-issue of #9; closes #7 in PR).
+**Status:** Objective 0 IN EXECUTION. Wave 2 COMPLETE (TRD 0.2 done). 3 TRDs remaining (0.3, 0.4, 0.5). Next: Wave 3 — TRD 0.3 (planner agent update) + TRD 0.4 (CLAUDE.md absorption). GH tracking: #20 (sub-issue of #9; closes #7 in PR).
 
 ## Branch State (post-merge)
 
 - `main` — has the merged kind/work intent model (PR #8) + seamless-handoff watcher (PR #19). 349/349 tests pass.
-- `feature/v1.1` (this branch) — clean off new main; carries v1.1 planning + TDD-scope research framing. 381/381 tests pass (349 + 32 from draft v1.1 hooks).
+- `feature/v1.1` (this branch) — clean off new main; carries v1.1 planning + TDD-scope research framing. 408/408 tests pass (381 + 27 from TRD 0.2 new tests).
 - `feature/v1.1-coordination` (superseded) — earlier name for v1.1 work; same content, can be deleted.
 - `feature/seamless-handoff`, `handoff-completion-work`, `proposal/kind-and-work` — all merged via PRs #19 and #8; safe to delete.
 
@@ -36,6 +36,8 @@
 - **TRD 0.6 complete (2026-05-04)** — `references/testing-strategy.md` authored with layer x tool x stack matrix (4 stacks, 7 layers), Flutter-web gotcha, codegen discipline, platform routing. Visual/golden and AI exploratory cells marked deferred per codebase survey. Closes GH #7. Commit: df9fb0e.
 - **TRD 0.1 complete (2026-05-04)** — `defaults-table.md` rewritten to 42 cells × 9 fields. All 6 port cells drop spec-match (contract-list-first parity). All 4 non-skip ui-lib cells drop visual regression. api cells carry security_isolation. constraints: block added. Resolver seeded from full tableDefaults so all 9 fields propagate. Commits: 30e6ed2, 57c8be9. Wave 1 now complete.
 - **Resolver config seeding fix (TRD 0.1 deviation)** — `intent.cjs` initialized `config = { ...tableDefaults }` so new fields (security_isolation, back_compat, tdd_default, test_list_first, fixture_strategy) surface in `df-tools intent resolve` output. Provenance for new fields deferred to TRD 0.2.
+- **TRD 0.2 complete (2026-05-04)** — Extended `intent.cjs` resolver: `loadConstraints()` added; 5 new fields + provenance emitted per field; CLAUDE.md TDD Playbook promotions (skip→auto→strict, optional→required, inline→generators, n/a→multi_tenant_required for api kind); multi-tenant hard-enforcement via `wrong_tenant_assertion` in `verification_commands`; `buildMatrixProject()` fixture added. 408/408 tests pass. Commits: 8847c85 (test:), 6cb0cce (feat:). Wave 2 complete.
+- **outside_in boolean field added (TRD 0.2 deviation)** — Field was in TRD 0.2's NEW_FIELDS but omitted from TRD 0.1's cell schema. Added to `(api, feature)` and `(app, feature)`. Parser extended with bool coercion for bare YAML `true`/`false`.
 
 ## Blockers / Concerns
 
@@ -43,7 +45,7 @@
 
 ## Session Continuity
 
-Last session: 2026-05-04 — TRD 0.1 (defaults-table update) complete. Wave 1 complete (both TRD 0.1 + 0.6 done).
+Last session: 2026-05-04 — TRD 0.2 (resolver schema extension) complete. Wave 2 complete.
 Resume file: `.planning/SESSION_PICKUP.md`
-Stopped at: Completed 00-01-defaults-table-update-TRD.md
-Next: Execute Wave 2 — TRD 0.2 (resolver schema, solo soak). Then Wave 3: TRD 0.3 + 0.4; Wave 4: TRD 0.5.
+Stopped at: Completed 00-02-resolver-schema-TRD.md
+Next: Execute Wave 3 — TRD 0.3 (planner agent update) + TRD 0.4 (CLAUDE.md absorption). Then Wave 4: TRD 0.5.
