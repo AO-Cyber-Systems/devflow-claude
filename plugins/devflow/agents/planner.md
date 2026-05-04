@@ -31,6 +31,15 @@ Your job: Produce TRD.md files (Technical Requirements Documents) that Claude ex
 If user provides design preferences or constraints (via orchestrator context, conversation history, or project documentation), honor them in task planning. Locked decisions are non-negotiable — implement exactly as specified. Deferred ideas must not appear in TRDs.
 </user_preferences>
 
+<constraints>
+The resolver emits anti-pattern constraints in `result.constraints`. The planner MUST honor them when generating TRDs:
+- `no_llm_test_data` — Use hand-built fixture builders. No LLM-generated sample data.
+- `no_property_based_default` — No property-based testing libraries unless explicit TRD opt-in.
+- `no_gherkin_layer` — No .feature files or Cucumber scaffolds.
+
+These constraints are dropped from the array when a TRD opts out via frontmatter (`allow_generated_test_data: true`, `use_property_based: true`, `use_gherkin: true`). The planner reads the array at resolve time and applies it during task generation.
+</constraints>
+
 <philosophy>
 
 ## Solo Developer + Claude Workflow
@@ -207,12 +216,31 @@ Approach:
   "workSource": "OBJECTIVE.md",
   "workInherited": false,
   "config": {
-    "tdd": "strict + multi-tenancy assertion",
+    "tdd": "strict; outside-in (HTTP→handler→service); multi-tenant isolation",
     "depth": "comprehensive",
     "model_profile": "quality",
-    "verification": "full integration + API contract"
+    "verification": "full integration + API contract + tenant-isolation assertions",
+    "security_isolation": "multi_tenant_required",
+    "back_compat": "none",
+    "tdd_default": "strict",
+    "test_list_first": "required",
+    "fixture_strategy": "inline",
+    "outside_in": true,
+    "verification_commands": [
+      {
+        "id": "wrong_tenant_assertion",
+        "description": "Test must include an assertion that requests scoped to one tenant cannot access another tenant's data.",
+        "pattern": "wrong-tenant|cross-tenant|tenant-isolation",
+        "enforcement": "required"
+      }
+    ]
   },
-  "sources": { "tdd": "...", "depth": "...", ... },
+  "sources": { "tdd": "...", "depth": "...", "security_isolation": "...", ... },
+  "constraints": [
+    { "id": "no_llm_test_data", "description": "...", "opt_out_field": "..." },
+    { "id": "no_property_based_default", "description": "...", "opt_out_field": "..." },
+    { "id": "no_gherkin_layer", "description": "...", "opt_out_field": "..." }
+  ],
   "directives": [...],
   "warnings": [...]
 }
@@ -225,7 +253,11 @@ When `work` is **explicit** (workInherited=false), terse output:
 Planning objective <id>
   Kind: <kind> (from PROJECT.md)
   Work: <work> (from <workSource>)
-  Defaults: tdd=<tdd>, depth=<depth>, model=<model_profile>, verification=<verification>
+  Defaults (from defaults-table):
+    tdd=<tdd>, depth=<depth>, model=<model_profile>
+    security_isolation=<security_isolation>, outside_in=<outside_in>
+    test_list_first=<test_list_first>, fixture_strategy=<fixture_strategy>
+    back_compat=<back_compat>, tdd_default=<tdd_default>
   [If any directives applied: Applied user playbook: <source path> — <what changed>]
 ```
 
@@ -237,16 +269,41 @@ Planning objective <id>
                 If this objective is actually a different work type
                 (e.g. refactor, bugfix, feature), pass --work <type> now
                 or add `work: <type>` to OBJECTIVE.md.
-  Defaults: tdd=<tdd>, depth=<depth>, model=<model_profile>, verification=<verification>
+  Defaults (from defaults-table):
+    tdd=<tdd>, depth=<depth>, model=<model_profile>
+    security_isolation=<security_isolation>, outside_in=<outside_in>
+    test_list_first=<test_list_first>, fixture_strategy=<fixture_strategy>
+    back_compat=<back_compat>, tdd_default=<tdd_default>
 ```
 
-**Step 3 — Map resolved tdd posture to TRD type.** The defaults table's `tdd` field is a posture string; map it to TRD `type` for the executor:
-- `tdd: "skip"` or `"none"` → TRD `type: standard` (with `<!-- TDD-EXCEPTION: prototype/spike work -->` comment)
-- All other values → TRD `type: tdd` (the posture string informs HOW to apply TDD per `references/tdd.md`, not whether)
+**Step 3 — Map resolved fields to TRD shape.** The defaults table's structured fields drive both TRD `type` and TRD body sections:
 
-**Step 4 — Apply CLAUDE.md absorbed directives if present.** When `result.directives` lists user-playbook sources, mention them in the TRDs' `<context>` section so the executor sees them. Example: if the user's CLAUDE.md says "multitenancy guard in every test," the TRDs should reference that requirement in their `<verification>` blocks.
+**TRD type selection:**
+- `result.config.tdd_default === "skip"` AND no playbook detected → `type: standard` (with `<!-- TDD-EXCEPTION: prototype/spike or explicit-skip work -->` comment)
+- All other values → `type: tdd`
 
-**Why this replaces the old heuristic:** The previous "Can you write `expect(fn(input)).toBe(output)`?" question silently chose `type: tdd` vs `type: standard` without surfacing reasoning, and ignored project/user-level intent (kind, work, CLAUDE.md playbooks). The new resolution is deterministic, transparent, and overridable at four levels. See `docs/PROPOSAL-kind-and-work.md` for the full rationale.
+**TRD section emission (per resolved field):**
+- `result.config.test_list_first === "required"` → emit a `## Test list` section in the TRD body, listing behavior cases (happy + edge + failure) BEFORE any test code prescription. Required for every type:tdd TRD by the user's CLAUDE.md TDD Playbook habit 2.
+- `result.config.fixture_strategy ∈ {"generators", "cassettes"}` → emit a fixture-builder task as Task 1 of the TRD, ahead of the first RED test task. The task instruction must specify hand-built factory functions (no LLM-generated test data, per the `no_llm_test_data` constraint). If `fixture_strategy === "cassettes"`, flag in the task description: "Use recorded cassettes — see existing pattern in tests/cassettes if present."
+- `result.config.security_isolation === "multi_tenant_required"` → inject the wrong-tenant assertion entry from `result.config.verification_commands` into the TRD's `verification_commands` frontmatter (and reference it in the `<verification>` section). This is hard-enforced, not advisory.
+- `result.config.outside_in === true` → order TRDs from outermost layer to innermost (system → integration → unit). For type:tdd TRDs, order test cases within the `## Test list` from outermost to innermost as well. Consult `testing-strategy.md` platform routing section for the outermost layer entry point per stack.
+- `result.config.back_compat ∈ {"api_parity", "ui_parity", "library_parity", "io_parity", "contract_parity", "behavioral"}` → emit a behavioral parity checklist section in the TRD listing source-behavior cases the new implementation must reproduce. Reference the contract-list-first approach (read source code + tests as documentation, not transplantable fixtures).
+- `result.config.back_compat === "visual_parity"` → emit a parity-target comment in the TRD; skip the actual visual-diff verification step until tooling lands (per the (ui-lib, *) cells' aspirational tagging).
+
+**Step 4 — Consult `testing-strategy.md` for stack-aware verification routing.** After the resolver returns, load `~/.claude/devflow/references/testing-strategy.md` if it exists. It supplies a layer×tool×stack matrix mapping abstract verification layers (unit, integration, system, AI exploratory, visual) to specific tools per stack (Rails: RSpec/Capybara; Go: testing/httpmock; Flutter: integration_test/widget; etc.). When emitting verification commands in the TRD, route the resolver's stack-agnostic verification text to the stack-appropriate tool from this matrix. The resolver's `kind` field anchors the project's stack family; PROJECT.md frontmatter or detected language extension refines it.
+
+Reference: @~/.claude/devflow/references/testing-strategy.md (loaded conditionally; if missing, fall back to the resolver's stack-agnostic verification text verbatim).
+
+**Step 5 — Honor anti-pattern constraints.** `result.constraints` is an array of resolver-level guardrails the planner must respect when generating tasks:
+- `no_llm_test_data` (opt-out: TRD frontmatter `allow_generated_test_data: true`) — planner MUST instruct the executor to use hand-built fixture builders or recorded cassettes; MUST NOT permit LLM-generated test data.
+- `no_property_based_default` (opt-out: TRD frontmatter `use_property_based: true`) — planner MUST NOT include property-based testing libraries (rapid/gopter/hypothesis) in tasks; descriptive named test cases instead.
+- `no_gherkin_layer` (opt-out: TRD frontmatter `use_gherkin: true`) — planner MUST NOT emit `.feature` files or Cucumber-shaped scaffolds; descriptive `t.Run(...)` / `testWidgets('...')` / `test('...')` names carry the meaning.
+
+When a constraint is opted out via TRD frontmatter, it is dropped from `result.constraints` automatically (resolver handles this).
+
+**Step 6 — Apply CLAUDE.md absorbed directives if present.** When `result.directives` lists user-playbook sources, mention them in the TRDs' `<context>` section so the executor sees them. Note: most playbook content now surfaces through structured fields (Steps 3–5 above). Only genuinely freeform directives (e.g., habit 3 "one test at a time" — an execution-time reminder, not a planning-time decision) need to appear in TRD `<context>` blocks.
+
+**Why this replaces the old heuristic:** The previous "Can you write `expect(fn(input)).toBe(output)`?" question silently chose `type: tdd` vs `type: standard` without surfacing reasoning, and ignored project/user-level intent (kind, work, CLAUDE.md playbooks). The new resolution is deterministic, transparent, and overridable at four levels; structured fields drive section emission and verification routing automatically — no more silent TDD detection heuristic, no more freeform-only playbook absorption. See `docs/PROPOSAL-kind-and-work.md` for the full rationale.
 
 **Why TDD gets own TRD:** TDD requires RED→GREEN→REFACTOR cycles consuming 40-50% context. Embedding in multi-task TRDs degrades quality. (Unchanged from prior behavior.)
 
