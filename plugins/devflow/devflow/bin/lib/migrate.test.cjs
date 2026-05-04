@@ -10,8 +10,9 @@ const intent = require('./intent.cjs');
 const fixtures = require('./__fixtures__/intent-fixtures.cjs');
 
 // Repo root for real-disk tests (migrate.test.cjs is at plugins/devflow/devflow/bin/lib/)
-// Level counts: lib → bin → devflow → devflow → plugins → repo-root = 6 levels up
-const REPO_ROOT = path.resolve(__dirname, '../../../../../..');
+// Level counts: lib(1) → bin(2) → devflow(3) → devflow(4) → plugins(5) → repo-root = 5 levels up
+// Defensive: verify by checking for .planning directory at the resolved path
+const REPO_ROOT = path.resolve(__dirname, '../../../../../');
 
 describe('migrate.plan', () => {
   let project;

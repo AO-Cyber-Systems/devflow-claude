@@ -534,10 +534,12 @@ describe('provenance — enum normalization', () => {
       `expected provenance.security_isolation === 'table', got: ${result.provenance && result.provenance.security_isolation}`);
   });
 
-  test('A2: CLAUDE.md TDD Playbook absorption → tdd_default provenance === "user_playbook", legacy sources preserved', () => {
+  test('A2: CLAUDE.md TDD Playbook absorption on skip cell → tdd_default provenance === "user_playbook", legacy sources preserved', () => {
+    // Use (api, prototype) which has tdd_default: skip in the table.
+    // Playbook absorption promotes skip → auto, updating sources to 'CLAUDE.md user playbook'.
     project = fixtures.buildProject({
       projectFrontmatter: { kind: 'api' },
-      objectives: [{ id: '01-foo', work: 'feature' }],
+      objectives: [{ id: '01-foo', work: 'prototype' }],
       claudeMdUser: fixtures.claudeMd({
         tddSection: {
           heading: 'TDD Playbook',
@@ -553,8 +555,9 @@ describe('provenance — enum normalization', () => {
     });
 
     assert.ok(result.provenance, 'result.provenance must exist');
+    // Table has tdd_default: skip for (api, prototype); playbook promotes skip→auto
     assert.strictEqual(result.provenance.tdd_default, 'user_playbook',
-      `expected provenance.tdd_default === 'user_playbook', got: ${result.provenance && result.provenance.tdd_default}`);
+      `expected provenance.tdd_default === 'user_playbook' (playbook promoted skip→auto), got: ${result.provenance && result.provenance.tdd_default}`);
     // Legacy sources.tdd_default must preserve the human-readable string
     assert.ok(result.sources && result.sources.tdd_default,
       'result.sources.tdd_default must still exist');
@@ -677,12 +680,17 @@ describe('matrix — 6 kinds × 7 works round-trip', () => {
     }
   });
 
-  test('B2: (api, *) — 5 cells with wrong-tenant, 2 without (prototype + spike)', () => {
+  test('B2: (api, *) — cells with multi_tenant_required get wrong-tenant entry, others do not', () => {
+    // Table truth (from defaults-table.md):
+    //   multi_tenant_required → feature, port, refactor, bugfix (4 cells)
+    //   single_tenant → foundation (1 cell)
+    //   n/a → prototype, spike (2 cells)
+    // Only multi_tenant_required cells get the wrong_tenant_assertion injected.
     intent._resetCache();
     const matrix = fixtures.buildMatrixProject({ kind: 'api' });
     try {
-      const WITH_WRONG_TENANT = new Set(['feature', 'port', 'refactor', 'foundation', 'bugfix']);
-      const WITHOUT_WRONG_TENANT = new Set(['prototype', 'spike']);
+      const WITH_WRONG_TENANT = new Set(['feature', 'port', 'refactor', 'bugfix']);
+      const WITHOUT_WRONG_TENANT = new Set(['foundation', 'prototype', 'spike']);
 
       for (const objectiveId of matrix.objectiveIds) {
         intent._resetCache();

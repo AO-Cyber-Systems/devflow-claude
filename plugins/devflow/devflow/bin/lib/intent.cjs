@@ -321,10 +321,25 @@ function resolve({ projectRoot, objectiveId, trdPath, userHome, tablePath } = {}
   }
 
   // Level 2: Apply OBJECTIVE.md overrides
+  // Original 3 fields + 6 new structured fields (including outside_in)
   if (objectiveFm && objectiveFm.overrides) {
     for (const field of ['tdd', 'depth', 'model_profile']) {
       if (objectiveFm.overrides[field]) {
         config[field] = objectiveFm.overrides[field];
+        sources[field] = 'OBJECTIVE.md overrides';
+      }
+    }
+    // New structured fields — apply if present in overrides block
+    const NEW_FIELDS = ['security_isolation', 'back_compat', 'tdd_default',
+      'test_list_first', 'fixture_strategy', 'outside_in'];
+    for (const field of NEW_FIELDS) {
+      if (objectiveFm.overrides[field] !== undefined) {
+        let val = objectiveFm.overrides[field];
+        // Bool-coerce outside_in if it arrives as a string from YAML
+        if (field === 'outside_in') {
+          val = (val === 'true' || val === true);
+        }
+        config[field] = val;
         sources[field] = 'OBJECTIVE.md overrides';
       }
     }
@@ -342,6 +357,23 @@ function resolve({ projectRoot, objectiveId, trdPath, userHome, tablePath } = {}
     if (trdFm.confidence) {
       config.confidence = trdFm.confidence;
       sources.confidence = 'TRD frontmatter';
+    }
+
+    // New structured fields — apply TRD frontmatter overrides for the 5+1 new fields
+    // outside_in requires bool-coercion (YAML parser may return string "false" per verifier briefing #2)
+    const NEW_FIELDS = ['security_isolation', 'back_compat', 'tdd_default',
+      'test_list_first', 'fixture_strategy', 'outside_in'];
+    for (const field of NEW_FIELDS) {
+      if (trdFm[field] !== undefined) {
+        let val = trdFm[field];
+        // Bool-coerce outside_in to handle string "true"/"false" from YAML parsers
+        if (field === 'outside_in') {
+          if (val === 'true' || val === true) val = true;
+          else if (val === 'false' || val === false) val = false;
+        }
+        config[field] = val;
+        sources[field] = `TRD frontmatter ${field}`;
+      }
     }
 
     // TRD constraint opt-outs (per-TRD only — not project-wide)
@@ -379,6 +411,13 @@ function resolve({ projectRoot, objectiveId, trdPath, userHome, tablePath } = {}
   // Strip internal flags from config that must not leak to consumers
   delete config._playbookDetected;
 
+  // Build provenance map — enum-normalized parallel of sources
+  // normalizeProvenance maps freeform source strings to a locked vocabulary
+  const provenance = {};
+  for (const field of Object.keys(sources)) {
+    provenance[field] = normalizeProvenance(sources[field]);
+  }
+
   return {
     kind,
     work,
@@ -386,10 +425,30 @@ function resolve({ projectRoot, objectiveId, trdPath, userHome, tablePath } = {}
     workInherited: workSource !== 'OBJECTIVE.md' && workSource !== 'TRD',
     config,
     sources,
+    provenance,
     constraints,
     directives: directives._sources || [],
     warnings,
   };
+}
+
+// Maps freeform source strings (from result.sources) to normalized enum values.
+//
+// Vocabulary:
+//   'table'              — value came from defaults-table.md (kind, work) cell
+//   'user_playbook'      — value promoted by CLAUDE.md TDD Playbook absorption
+//   'objective_override' — value set in OBJECTIVE.md `overrides` block
+//   'trd_override'       — value set in TRD frontmatter
+//   'unknown'            — defensive fallback; should not appear in practice
+//
+// Per TRD 0.5 anti-patterns: never returns undefined; 'unknown' is the floor.
+function normalizeProvenance(sourceString) {
+  if (!sourceString) return 'unknown';
+  if (sourceString.startsWith('defaults table')) return 'table';
+  if (sourceString === 'CLAUDE.md user playbook') return 'user_playbook';
+  if (sourceString.startsWith('OBJECTIVE.md')) return 'objective_override';
+  if (sourceString.startsWith('TRD frontmatter')) return 'trd_override';
+  return 'unknown';
 }
 
 // Reset cache — for tests
@@ -402,6 +461,7 @@ module.exports = {
   loadDefaultsTable,
   parseDefaultsYaml,
   loadConstraints,
+  normalizeProvenance,
   validateKind,
   validateWork,
   VALID_KINDS,
