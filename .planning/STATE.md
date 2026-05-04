@@ -15,7 +15,7 @@
 **Objective complete:** 2 — Cross-repo awareness layer (verified 2026-05-04, 731/731 tests with integration flags, all 10 SC met, 7 TRDs done)
 **Objective in flight:** (next objective TBD)
 **Current TRD:** (Objective 2 complete — all 7 TRDs done)
-**Status:** TRD 02-07 complete — export surface locked (14 entries), product-roadmap-walk.json cassette captured (48 items), integration tests gated on GIT_INTEGRATION + GH_INTEGRATION, scanPeer for-each-ref bug fixed (731/731 tests pass with integration flags)
+**Status:** Ready to plan
 
 ## Branch State (post-merge)
 
