@@ -11,7 +11,7 @@
 **Milestone:** v1.1 — DevFlow Coordination Layer (in flight)
 **Branch:** `feature/v1.1`
 **Objective in flight:** 0 — Refine (kind, work) defaults table from codebase evidence
-**Status:** Objective 0 PLANNED + VERIFIED 2026-05-04. 6 TRDs across 4 waves at `.planning/objectives/00-refine-defaults-table/`. Average verifier confidence 8.0/10, 7 minor/info briefings for executor. GH tracking: #20 (sub-issue of #9; closes #7 in PR). Next: `/df:execute-objective 0`.
+**Status:** Objective 0 IN EXECUTION. TRD 0.6 (testing-strategy-doc) COMPLETE 2026-05-04. 5 TRDs remaining (0.1, 0.2, 0.3, 0.4, 0.5). Wave 1 complete when TRD 0.1 ships (table + testing-strategy doc both Wave 1). GH tracking: #20 (sub-issue of #9; closes #7 in PR via TRD 0.6 commit df9fb0e).
 
 ## Branch State (post-merge)
 
@@ -33,6 +33,7 @@
 - **GH #7 (testing-levels matrix) folded into objective 0** — soft-bundle: separate reference doc (`references/testing-strategy.md`) the planner reads alongside the resolver output. No resolver coupling. Closes #7 in same PR as #20.
 - **kind/work intent model is canonical** — devflow-claude's PROJECT.md uses `kind: plugin, default_work: feature`. Defaults table at `plugins/devflow/devflow/references/defaults-table.md` is the (kind, work) → defaults source of truth.
 - **Objective 0 wave structure (LOCKED — see `00-CONTEXT.md` §7):** Wave 1 = TRD 0.1 (table) + 0.6 (testing-strategy doc); Wave 2 = TRD 0.2 (resolver schema, solo soak); Wave 3 = TRD 0.3 (planner) + 0.4 (CLAUDE.md absorption); Wave 4 = TRD 0.5 (migration + provenance). TRD 0.1 ≠ Wave with TRD 0.2 — hard sequencing constraint.
+- **TRD 0.6 complete (2026-05-04)** — `references/testing-strategy.md` authored with layer x tool x stack matrix (4 stacks, 7 layers), Flutter-web gotcha, codegen discipline, platform routing. Visual/golden and AI exploratory cells marked deferred per codebase survey. Closes GH #7. Commit: df9fb0e.
 
 ## Blockers / Concerns
 
@@ -40,6 +41,7 @@
 
 ## Session Continuity
 
-Last session: 2026-05-04 — Objective 0 planned and verified; 6 TRDs ready for execution.
+Last session: 2026-05-04 — TRD 0.6 (testing-strategy-doc) complete. Wave 1 partial (0.6 done; 0.1 table pending).
 Resume file: `.planning/SESSION_PICKUP.md`
-Next: `/df:execute-objective 0` (read SESSION_PICKUP.md first for the 7 executor briefings).
+Stopped at: Completed 00-refine-defaults-table-06-TRD.md (testing-strategy-doc)
+Next: Execute remaining TRDs — Wave 1: TRD 0.1 (defaults-table update); Wave 2: TRD 0.2 (resolver schema); Wave 3: TRD 0.3 + 0.4; Wave 4: TRD 0.5.
