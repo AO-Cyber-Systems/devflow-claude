@@ -194,6 +194,15 @@ Dependency order:
 
 **Gates** (downstream consumers): obj 4 (dup-detect reads peer scanner's output), obj 5 (initiatives layer extends org walker), obj 6 (check-todos aggregates this), obj 8 (TUI renders this).
 
+**TRDs:** 7 plans across 7 waves
+- [ ] 02-01-state-md-parser-and-fixtures-TRD.md — STATE.md parser + awareness-fixtures.cjs scaffold (Wave 1, tdd)
+- [ ] 02-02-peer-scanner-TRD.md — scanPeer + git-branch walker + _setRunGit injection (Wave 3, tdd)
+- [ ] 02-03-org-scanner-TRD.md — walkProject (lib/gh.cjs) + scanOrg + task-list fallback (Wave 4, tdd)
+- [ ] 02-04-cache-layer-TRD.md — readCache + writeCache + isStale + .gitignore (Wave 2, tdd)
+- [ ] 02-05-skill-and-cli-TRD.md — /devflow:awareness skill + df-tools awareness CLI router (Wave 5, standard)
+- [ ] 02-06-lifecycle-integration-TRD.md — SessionStart hook + plan/execute init refresh wiring (Wave 6, tdd)
+- [ ] 02-07-library-export-and-integration-TRD.md — export surface lock + integration tests + cassette capture (Wave 7, tdd)
+
 ---
 
 ## Milestone v1.2 — Handoff Watcher PTY + Coordination-Layer Polish (next)
