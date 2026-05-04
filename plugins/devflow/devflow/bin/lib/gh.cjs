@@ -1472,6 +1472,148 @@ function cmdGhSyncObjective(cwd, objectiveId, raw) {
   }
 }
 
+// ─── TRD 02-03: walkProject (org Project walker) ────────────────────────────
+
+/**
+ * Walk all items in a Project v2 (e.g., the org Product Roadmap).
+ * Paginates via GraphQL pageInfo.endCursor until hasNextPage=false.
+ *
+ * Returns { items: [...], warnings: [...] }.
+ *
+ * Each item:
+ *   { item_type: 'issue'|'draft',
+ *     issue_ref: 'owner/repo#NN' | null,
+ *     title, body,
+ *     product, quarter, status,    // from Project custom fields
+ *     sub_issues: [{ ref, title, state }] }
+ *
+ * sub_issues comes from the GitHub-native trackedIssues field. When totalCount===0,
+ * scanOrg (in awareness.cjs) falls back to parsing the issue body for task-list bullets.
+ *
+ * Auth: caller is responsible for requireGhAuth before invoking. walkProject does
+ * not check auth — it's a primitive obj 5/6 also reuse with their own auth context.
+ */
+function walkProject(projectId) {
+  if (!projectId) {
+    return { items: [], warnings: ['walkProject: projectId is required'] };
+  }
+
+  const items = [];
+  const warnings = [];
+  let cursor = null;
+  let pageCount = 0;
+  const MAX_PAGES = 100;
+
+  const query = `query($projectId: ID!, $cursor: String) {
+    node(id: $projectId) {
+      ... on ProjectV2 {
+        items(first: 100, after: $cursor) {
+          pageInfo { hasNextPage endCursor }
+          nodes {
+            content {
+              __typename
+              ... on Issue {
+                number
+                title
+                body
+                repository { nameWithOwner }
+                trackedIssues(first: 20) {
+                  totalCount
+                  nodes { number title state repository { nameWithOwner } }
+                }
+              }
+              ... on DraftIssue { title body }
+            }
+            fieldValues(first: 10) {
+              nodes {
+                ... on ProjectV2ItemFieldSingleSelectValue { name field { ... on ProjectV2SingleSelectField { name } } }
+                ... on ProjectV2ItemFieldTextValue { text field { ... on ProjectV2Field { name } } }
+              }
+            }
+          }
+        }
+      }
+    }
+  }`;
+
+  while (true) {
+    if (++pageCount > MAX_PAGES) {
+      warnings.push(`walkProject: aborted at ${MAX_PAGES} pages — likely an infinite loop`);
+      break;
+    }
+
+    const args = ['api', 'graphql', '-f', `query=${query}`, '-F', `projectId=${projectId}`];
+    if (cursor) args.push('-F', `cursor=${cursor}`);
+
+    const r = _runGh(args);
+    if (!r.ok) {
+      warnings.push(`walkProject failed: ${r.stderr || 'unknown gh error'}`);
+      break;
+    }
+
+    let parsed;
+    try { parsed = JSON.parse(r.stdout); } catch {
+      warnings.push('walkProject: response JSON parse failed');
+      break;
+    }
+
+    const node = parsed && parsed.data && parsed.data.node;
+    if (!node || !node.items || !Array.isArray(node.items.nodes)) {
+      warnings.push('walkProject: unexpected response shape');
+      break;
+    }
+
+    for (const itemNode of node.items.nodes) {
+      const c = itemNode && itemNode.content;
+      if (!c) continue;
+
+      const fieldsByName = {};
+      for (const fv of (itemNode.fieldValues && itemNode.fieldValues.nodes) || []) {
+        const fName = fv.field && fv.field.name;
+        if (!fName) continue;
+        fieldsByName[fName] = fv.name || fv.text || null;
+      }
+
+      if (c.__typename === 'DraftIssue') {
+        items.push({
+          item_type: 'draft',
+          issue_ref: null,
+          title: c.title || '',
+          body: c.body || '',
+          product: fieldsByName.Product || null,
+          quarter: fieldsByName.Quarter || null,
+          status: fieldsByName.Status || null,
+          sub_issues: [],
+        });
+      } else if (c.__typename === 'Issue') {
+        const repo = c.repository && c.repository.nameWithOwner;
+        const issue_ref = (repo && c.number) ? `${repo}#${c.number}` : null;
+        const sub_issues = ((c.trackedIssues && c.trackedIssues.nodes) || []).map(s => ({
+          ref: s.repository && s.number ? `${s.repository.nameWithOwner}#${s.number}` : null,
+          title: s.title || '',
+          state: s.state || 'OPEN',
+        }));
+        items.push({
+          item_type: 'issue',
+          issue_ref,
+          title: c.title || '',
+          body: c.body || '',
+          product: fieldsByName.Product || null,
+          quarter: fieldsByName.Quarter || null,
+          status: fieldsByName.Status || null,
+          sub_issues,
+        });
+      }
+    }
+
+    if (!node.items.pageInfo || !node.items.pageInfo.hasNextPage) break;
+    cursor = node.items.pageInfo.endCursor || null;
+    if (!cursor) break;
+  }
+
+  return { items, warnings };
+}
+
 module.exports = {
   // EXISTING (preserved unchanged — graceful-skip behavior):
   ghStatus,
@@ -1504,6 +1646,9 @@ module.exports = {
   readMappingV2,
   writeMappingV2,
   PRODUCT_ROADMAP_FIELDS,
+
+  // NEW in TRD 02-03 — org Project walker:
+  walkProject,
 
   // Test hooks (TRD 01-02):
   _resetCache,
