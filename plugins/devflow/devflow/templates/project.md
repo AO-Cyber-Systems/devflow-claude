@@ -19,6 +19,15 @@ default_work: feature      # OPTIONAL — default `work` value inherited by obje
                            # objectives are the same work type (e.g., a Rails→Go port
                            # with 10+ sequential `port` objectives). Omit if work types
                            # vary objective-to-objective.
+github_repo: AO-Cyber-Systems/devflow-claude   # OPTIONAL — owner/name. Used as
+                                                # default repo context when objectives
+                                                # use shorthand refs like `parent_issue: #9`.
+                                                # Falls back to `git config remote.origin.url`
+                                                # if absent.
+org_project: PVT_kwDODwqLrc4BRsOP              # OPTIONAL — GitHub Project v2 ID for the
+                                                # org-level coordination project. Defaults to
+                                                # AO-Cyber-Systems "Product Roadmap" project (#3).
+                                                # Inherited by all objectives unless overridden.
 ---
 
 # [Project Name]
@@ -98,6 +107,10 @@ Common types: Tech stack, Timeline, Budget, Dependencies, Compatibility, Perform
 - Set when 5+ sequential objectives share the same work type (port, refactor, etc.)
 - The planner is **louder** when an objective inherits this default, surfacing the inheritance source and inviting override — so silent inheritance can't mask a wrong default
 - Omit when work types vary objective-to-objective; the planner falls back to `work: feature` if nothing else is set
+
+**`github_repo` and `org_project` (frontmatter, optional):**
+- `github_repo`: `owner/name` of the primary GitHub repository for this project. Read by `df-tools gh resolve` when objectives use shorthand issue refs (`parent_issue: #9`). The resolver expands `#9` to `github_repo#9`. If absent, the resolver falls back to parsing `git config remote.origin.url`. Both fields are inherited by OBJECTIVE.md unless overridden there.
+- `org_project`: GitHub Project v2 ID (starts with `PVT_`). Points to the org-level coordination project (e.g., AO-Cyber-Systems "Product Roadmap"). Inherited by all objectives unless an OBJECTIVE.md sets its own `org_project`. Used by `df-tools gh sync` to update Project v2 custom fields (Status, Quarter).
 
 **What This Is:**
 - Current accurate description of the product

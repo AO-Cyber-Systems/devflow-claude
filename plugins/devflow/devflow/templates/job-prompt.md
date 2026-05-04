@@ -22,6 +22,11 @@ files_modified: []          # Files this job modifies.
 autonomous: true            # false if job has checkpoints requiring user interaction
 requirements: []            # REQUIRED — Requirement IDs from ROADMAP this job addresses. MUST NOT be empty.
 user_setup: []              # Human-required setup Claude cannot automate (see below)
+github_issue: AO-Cyber-Systems/devflow-claude#52    # OPTIONAL (rare) — per-TRD override.
+                                                     # Use ONLY when a single TRD warrants its
+                                                     # own GH issue (e.g., a research spike
+                                                     # tracked separately). Most TRDs inherit
+                                                     # the objective's github_issue.
 
 # Goal-backward verification (derived during planning, verified after execution)
 must_haves:
@@ -171,10 +176,13 @@ After completion, create `.planning/objectives/XX-name/{objective}-{job}-SUMMARY
 | `user_setup` | No | Array of human-required setup items (external services) |
 | `validation_gates` | No | Runnable lint/test/build commands from STACK.md |
 | `must_haves` | Yes | Goal-backward verification criteria (see below) |
+| `github_issue` | No | Per-TRD override (rare). Inherits from OBJECTIVE.md unless set. |
 
 **Wave is pre-computed:** Wave numbers are assigned during `/devflow:plan-objective`. Execute-objective reads `wave` directly from frontmatter and groups plans by wave number. No runtime dependency analysis needed.
 
 **Must-haves enable verification:** The `must_haves` field carries goal-backward requirements from planning to execution. After all jobs complete, execute-objective spawns a verification subagent that checks these criteria against the actual codebase.
+
+**GitHub-link inheritance:** TRDs inherit `github_issue`, `parent_issue`, `org_initiative`, `org_project` from OBJECTIVE.md (which inherits from PROJECT.md). Per-TRD override is rare — set `github_issue` here only when this TRD has its own GH issue distinct from the parent objective.
 
 ---
 
