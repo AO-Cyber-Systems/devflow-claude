@@ -13,8 +13,8 @@
 **Objective complete:** 0 — Refine (kind, work) defaults table from codebase evidence (verified 2026-05-04, 443/443 tests, all 10 SC met)
 **Objective complete:** 1 — GitHub coordination layer (verified 2026-05-04, 563/563 tests, all 6 TRDs done, SC-9 + SC-10 met)
 **Objective in flight:** 2 — Cross-worktree session telemetry (next)
-**Current TRD:** 02-05 (next: skill-and-cli; 02-02/03/04 complete)
-**Status:** TRD 02-02 complete — peer scanner shipped (scanPeer + _setRunGit injection + 29 tests, 636/636 pass)
+**Current TRD:** 02-05 (next: skill-and-cli; 02-01/02/03/04 complete)
+**Status:** TRD 02-03 complete — org scanner shipped (walkProject + scanOrg + parseTaskListFallback, 31 tests, 667/667 pass)
 
 ## Branch State (post-merge)
 
@@ -79,6 +79,10 @@
 - **_setRunGit injection pattern locked (TRD 02-02)** — `let _runGit = runGit; function _setRunGit(fn) { _runGit = (fn != null) ? fn : runGit; }` — exact mirror of _setRunGh from lib/gh.cjs. stdout NOT trimmed in runGit (git show content preserves whitespace); only stderr trimmed. All git calls in scanPeer route through _runGit.
 - **scanPeer fault-tolerance contract locked (TRD 02-02)** — missing STATE.md (git show exit non-zero) = SILENT skip (no warning); malformed STATE.md (parseStateMd returns null) = warning + skip; fetch failure = warning + continue with local refs. Locked per SC-2.
 - **peer_stale_days=0 disables stale filter (TRD 02-02)** — threshold set to -Infinity so all branches pass. peer_stale_days>0 computes Date.now() - (days * 86400000). Locked behavior per SS3 test.
+- **TRD 02-03 complete (2026-05-04)** — `walkProject(projectId)` added to `lib/gh.cjs` (Project v2 GraphQL walker, 100-page guard, DraftIssue+Issue normalization). `scanOrg` + `parseTaskListFallback` added to `lib/awareness.cjs` (requireGhAuth-first, task-list fallback for trackedIssues=0 items, sub_issues_source annotation). 31 test cases (W/WF/GG/T/O/OA/OS/F). 667/667 tests pass. Commits: ffdbffc (test:), 91766ef (feat:), 0838037 (test:), db89e0a (feat:). Wave 4 complete. SC-3 + SC-4 + SC-5 complete.
+- **walkProject auth boundary locked (TRD 02-03)** — walkProject does NOT call requireGhAuth; auth is caller's responsibility. scanOrg calls requireGhAuth as first action. walkProject reusable by obj 5/6 with their own auth context.
+- **parseTaskListFallback regex locked (TRD 02-03)** — `\S*#\d+` (zero-or-more before `#`) handles both full refs (owner/repo#NN) and shorthand (#NN). Auth mocks for requireGhAuth tests must use 'Token scopes: ...' text format, not JSON, to match parseScopes() in gh.cjs.
+- **sub_issues_source annotation (TRD 02-03)** — scanOrg adds `sub_issues_source: 'tracked_issues'|'task_list'|'none'` per enriched item. Skill renderer can use this for provenance display.
 
 ## Blockers / Concerns
 
@@ -86,7 +90,7 @@
 
 ## Session Continuity
 
-Last session: 2026-05-04 — TRD 02-02 (peer scanner) complete. scanPeer + _setRunGit injection shipped.
+Last session: 2026-05-04 — TRD 02-03 (org scanner) complete. walkProject + scanOrg + parseTaskListFallback shipped.
 Resume file: `.planning/SESSION_PICKUP.md`
-Stopped at: Completed 02-02-peer-scanner-TRD.md
-Next: Objective 2 TRD 02-03 — Org scanner (Wave 4: co-modifies gh.cjs + awareness.cjs)
+Stopped at: Completed 02-03-org-scanner-TRD.md
+Next: Objective 2 TRD 02-05 — Skill + CLI subcommand routing (Wave 5)
