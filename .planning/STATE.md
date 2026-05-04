@@ -14,7 +14,7 @@
 **Objective complete:** 1 — GitHub coordination layer (verified 2026-05-04, 563/563 tests, all 6 TRDs done, SC-9 + SC-10 met)
 **Objective in flight:** 2 — Cross-worktree session telemetry (next)
 **Current TRD:** 02-01 (not yet started)
-**Status:** TRD 01-06 complete (wave 6 done — dogfood + integration; 559/563 tests default, 563/563 with GH_INTEGRATION=1)
+**Status:** Ready to plan
 
 ## Branch State (post-merge)
 
