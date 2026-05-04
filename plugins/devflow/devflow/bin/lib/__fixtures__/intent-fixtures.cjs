@@ -168,6 +168,52 @@ function buildMatrixProject({ kind = 'api', claudeMdUser } = {}) {
   };
 }
 
+// The user's actual ~/.claude/CLAUDE.md content — hand-edited from the visible system context.
+// Per TDD Playbook habit 4: no LLM-generated test data. This is a faithful copy of the
+// real file, used as a fixture for the B1 round-trip test in TRD 0.4.
+// Patterns in claude-md.cjs are designed to match this exact text.
+function realCLAUDEMd() {
+  return `# Global Working Preferences
+
+## TDD Playbook
+
+When planning or executing any non-trivial implementation work, follow this playbook on top of DevFlow's TDD enforcement (Iron Law, RED-GREEN-REFACTOR with exit-code evidence). Applies across all projects and stacks.
+
+### Habits to apply
+
+1. **Force TDD TRDs at planning time.** When invoking \`/df:plan-objective\` or \`/df:build\`, explicitly instruct the planner to make every feature a \`type=tdd\` TRD unless it falls under DevFlow's valid exception list (config-only, pure styling, generated code, dependency bumps). Do not let features default to \`type=auto\`.
+2. **Test list first.** Each TDD TRD must include a checklist of behavior cases — happy path, edge cases, failure modes — before any test code is written. Reviewable artifact, prevents drift into implementation-shaped tests.
+3. **One test at a time** through RED → GREEN → REFACTOR. No batching tests "while we're here."
+4. **Fixture generators, not LLM-generated test data.** Hand-built factory functions or fixture builders. For external APIs, use recorded cassettes (VCR / Go httpmock / equivalents) against test-mode services, captured once and committed. Treat fixture/factory work as its own task ahead of the first behavior test. *Rationale: LLMs produce shallow, repetitive test data; generate the scripts, not the data.*
+5. **Outside-in for UI / portal flows.** Start at the highest user-observable layer and drill in:
+   - Rails: Capybara system test → controller test → model test
+   - Go (ConnectRPC + templ): HTTP integration test → handler test → service test
+   - Flutter: integration_test → widget test → unit test
+   Pure-logic features (refund math, proration, dunning state machines, parsers) start at unit level.
+6. **Multitenancy guard in every test (when applicable).** For any multi-tenant codebase: include a "wrong-tenant isolation" assertion alongside the happy path. Default-scope foot-guns are the most common bug class in multi-tenant apps; testing them is cheap and catches them before production.
+
+### What to skip
+
+- Property-based testing (Hypothesis / quickcheck-style) unless the feature is genuinely high-cardinality math: refund splits, proration, tax calculations.
+- Gherkin / BDD syntax layer — descriptive test names get the value without the layer.
+
+### Why
+
+LLM-coded TDD without these guards drifts into:
+- Implementation-shaped tests that don't survive refactors.
+- Shallow, repetitive fixtures that miss real-world variety.
+- Missed tenant-scoping bugs in multi-tenant codebases.
+
+These six habits target each failure mode. They cost ~15-20% more planning time and pay back in fewer regressions and more reviewable PRs.
+
+### How to apply
+
+- Triggered when I say "plan an objective", "build feature X", or invoke \`/df:plan-objective\` / \`/df:build\`.
+- Pass the playbook into the planner's prompt: TDD TRDs default, test-list checklist required, fixture task explicit, multitenancy assertions in verification commands when the codebase is multi-tenant.
+- On execution: produce 2-3 atomic commits per TDD TRD (\`test:\` → \`feat:\` → optional \`refactor:\`) per DevFlow's existing pattern.
+`;
+}
+
 module.exports = {
   projectMd,
   objectiveMd,
@@ -175,4 +221,5 @@ module.exports = {
   claudeMd,
   buildProject,
   buildMatrixProject,
+  realCLAUDEMd,
 };
