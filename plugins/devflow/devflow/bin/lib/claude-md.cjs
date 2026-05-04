@@ -102,6 +102,11 @@ function absorb({ userHome, projectRoot } = {}) {
 function deriveOverrides(directives) {
   const overrides = {};
   const tddSections = (directives.tdd || []).concat(directives.test || []);
+
+  // _playbookDetected: true when any TDD/test sections are found at all.
+  // The resolver uses this to decide whether to apply promotion rules.
+  overrides._playbookDetected = (tddSections.length > 0);
+
   if (tddSections.length === 0) return overrides;
 
   // Project-level wins over user-level — sort so project comes last
@@ -112,17 +117,36 @@ function deriveOverrides(directives) {
 
   for (const section of sorted) {
     const body = section.body.toLowerCase();
+
+    // tdd: strict — existing pattern + new
     if (/all\s+(business\s+logic|features?)\s+(must\s+be|default(s)?\s+to)\s+tdd/.test(body)
         || /force\s+tdd\s+trds?\s+at\s+planning/.test(body)
         || /every\s+(feature|trd)\s+(a\s+)?(`?)type\s*=\s*tdd/.test(body)) {
       overrides.tdd = 'strict';
     }
+
+    // multitenancy guard — existing pattern
     if (/multi-?tenan(t|cy)\s+(guard|isolation|assertion).*every\s+test/.test(body)
         || /test\s+the\s+wrong-?tenant.*always/.test(body)) {
       overrides.multitenancy = 'required';
     }
+
+    // propertyBased skip — existing pattern
     if (/skip\s+property-?based/.test(body) || /no\s+property-?based/.test(body)) {
       overrides.propertyBased = 'skip';
+    }
+
+    // test_list_first: required — new pattern (TDD Playbook habit 2)
+    if (/test\s+list\s+(first|of\s+behaviors?)/.test(body)
+        || /behavior[\s-]cases?\s+checklist/.test(body)) {
+      overrides.test_list_first = 'required';
+    }
+
+    // fixture_strategy: generators — new pattern (TDD Playbook habit 4)
+    if (/fixture\s+(builders?|generators?|factory|factories)/.test(body)
+        || /factory\s+functions?/.test(body)
+        || /no\s+llm[\s-]generated\s+test\s+data/.test(body)) {
+      overrides.fixture_strategy = 'generators';
     }
   }
 

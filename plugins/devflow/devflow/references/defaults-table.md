@@ -13,6 +13,7 @@ Machine-readable lookup table mapping every (`kind`, `work`) pair to a recommend
 - `tdd_default` — Default TDD posture absent CLAUDE.md playbook: `strict | auto | skip`
 - `test_list_first` — Whether the planner emits a behavior-cases checklist: `required | optional`
 - `fixture_strategy` — Test data approach: `generators | cassettes | inline | n/a`
+- `outside_in` — Boolean: `true` when the cell mandates outside-in test ordering (E2E → integration → unit). Only set on specific cells; absent/false otherwise.
 
 **Precedence:** This table is **level 4** in the resolution chain. TRD frontmatter, OBJECTIVE.md `overrides`, and CLAUDE.md user playbooks all win over these defaults.
 
@@ -37,6 +38,7 @@ defaults:
       tdd_default: strict
       test_list_first: required
       fixture_strategy: inline
+      outside_in: true
     port:
       tdd: "build first, test after; verify API contract parity vs source"
       depth: comprehensive
@@ -112,6 +114,7 @@ defaults:
       tdd_default: strict
       test_list_first: required
       fixture_strategy: inline
+      outside_in: true
     port:
       tdd: "build first, test after; verify UI parity via Maestro/Playwright flows"
       depth: comprehensive
