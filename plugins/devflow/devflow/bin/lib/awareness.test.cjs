@@ -868,10 +868,12 @@ test('S5: last_commit sha + timestamp + subject populated from git log mock', ()
   requireScanPeer();
   requireSetRunGit();
   requireResetGitMock();
+  // Use a recent timestamp so branch passes the default 30-day stale filter
+  const recentTs = new Date(Date.now() - 2 * 86400000).toISOString(); // 2 days ago
   _setRunGit(buildMockRunGit(buildScanResponses({
     branches: ['origin/feature/v1.1'],
     per_branch_log: {
-      'feature/v1.1': { sha: 'deadbeef01234', timestamp: '2026-04-01T12:00:00Z', subject: 'chore: bump version' },
+      'feature/v1.1': { sha: 'deadbeef01234', timestamp: recentTs, subject: 'chore: bump version' },
     },
   })));
   try {
@@ -880,7 +882,7 @@ test('S5: last_commit sha + timestamp + subject populated from git log mock', ()
     const lc = result.branches[0].last_commit;
     assert.ok(lc, 'last_commit present');
     assert.strictEqual(lc.sha, 'deadbeef01234');
-    assert.strictEqual(lc.timestamp, '2026-04-01T12:00:00Z');
+    assert.strictEqual(lc.timestamp, recentTs);
     assert.strictEqual(lc.subject, 'chore: bump version');
   } finally { _resetGitMock(); }
 });

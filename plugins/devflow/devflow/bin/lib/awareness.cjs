@@ -219,7 +219,189 @@ function isStale(fetched_at, ttl_minutes) {
   return age_ms > (ttl * 60_000);
 }
 
-// ─── module.exports (TRD 02-01 + TRD 02-04) ──────────────────────────────────
+// ─── TRD 02-02: peer scanner ──────────────────────────────────────────────────
+
+const { spawnSync } = require('child_process');
+
+/**
+ * Low-level git subprocess wrapper.
+ * Returns { ok, status, stdout, stderr } — stdout NOT trimmed (git show content
+ * may have significant whitespace). stderr IS trimmed.
+ *
+ * Production callers MUST use _runGit (not runGit) so test injection works.
+ */
+function runGit(args, opts = {}) {
+  const r = spawnSync('git', args, {
+    encoding: 'utf-8',
+    stdio: ['pipe', 'pipe', 'pipe'],
+    timeout: 30000,
+    ...opts,
+  });
+  return {
+    ok: r.status === 0,
+    status: r.status,
+    stdout: r.stdout || '', // NOT trimmed — git show output preserves whitespace
+    stderr: (r.stderr || '').trim(),
+  };
+}
+
+// Test injection hook — production code always calls _runGit; tests inject a mock.
+let _runGit = runGit;
+function _setRunGit(fn) { _runGit = (fn != null) ? fn : runGit; }
+function _resetGitMock() { _runGit = runGit; }
+
+/**
+ * Match a branch name against a list of glob patterns.
+ * Supports: '*' (match everything), 'prefix/*' (prefix match), 'exact' (exact match).
+ * Simple and intentional — no minimatch dependency.
+ */
+function _matchesPattern(branch, patterns) {
+  for (const p of patterns) {
+    if (p === '*') return true;
+    if (p.endsWith('/*')) {
+      const prefix = p.slice(0, -1); // 'feature/*' → 'feature/'
+      if (branch.startsWith(prefix)) return true;
+    } else if (branch === p) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Scan peer branches from origin/*.
+ *
+ * 1. git fetch --all --prune (unless no_fetch=true)
+ * 2. git for-each-ref refs/remotes/origin/* to enumerate remote branches
+ * 3. Per branch: filter by pattern + stale threshold
+ * 4. git show origin/<branch>:.planning/STATE.md to extract state
+ * 5. parseStateMd → per-branch structured fields
+ * 6. git log -1 for last commit metadata
+ *
+ * Returns { branches, fetched_at, warnings, current_branch }.
+ * Never throws — all errors become warnings or silent skips per SC-2.
+ *
+ * @param {object} opts
+ * @param {string}   [opts.cwd]              - working directory (default: process.cwd())
+ * @param {boolean}  [opts.no_fetch]         - skip git fetch when true (default: false)
+ * @param {string[]} [opts.branch_patterns]  - patterns to match (default: DEFAULT_BRANCH_PATTERNS)
+ * @param {number}   [opts.peer_stale_days]  - branches older than this filtered out; 0=disabled (default: 30)
+ * @returns {{ branches: object[], fetched_at: string, warnings: string[], current_branch: string|null }}
+ */
+function scanPeer({
+  cwd = process.cwd(),
+  no_fetch = false,
+  branch_patterns = DEFAULT_BRANCH_PATTERNS,
+  peer_stale_days = DEFAULT_STALE_DAYS,
+} = {}) {
+  const result = {
+    branches: [],
+    fetched_at: new Date().toISOString(),
+    warnings: [],
+    current_branch: null,
+  };
+
+  // 1. Fetch (unless disabled)
+  if (!no_fetch) {
+    const fetchR = _runGit(['fetch', '--all', '--prune'], { cwd });
+    if (!fetchR.ok) {
+      result.warnings.push(`git fetch failed: ${fetchR.stderr || 'unknown error'}`);
+      // Continue with whatever local refs exist (fault-tolerant per SC-2)
+    }
+  }
+
+  // 2. Current branch (caller context)
+  const currentR = _runGit(['rev-parse', '--abbrev-ref', 'HEAD'], { cwd });
+  if (currentR.ok) result.current_branch = currentR.stdout.trim();
+
+  // 3. Developer name (local config — same for all branches)
+  const devR = _runGit(['config', 'user.name'], { cwd });
+  const developer = devR.ok ? devR.stdout.trim() : null;
+
+  // 4. Enumerate remote branches
+  const refsR = _runGit(
+    ['for-each-ref', 'refs/remotes/origin/*', '--format=%(refname:short)'],
+    { cwd }
+  );
+  if (!refsR.ok) {
+    result.warnings.push(`git for-each-ref failed: ${refsR.stderr || 'unknown error'}`);
+    return result;
+  }
+
+  const refLines = refsR.stdout.split('\n').map(s => s.trim()).filter(Boolean);
+
+  // Stale threshold: -Infinity when peer_stale_days=0 (disabled — include all)
+  const staleThreshold = peer_stale_days > 0
+    ? Date.now() - peer_stale_days * 86400000
+    : -Infinity;
+
+  for (const ref of refLines) {
+    if (!ref.startsWith('origin/')) continue;
+    const branchName = ref.slice('origin/'.length);
+
+    // Filter: hardcoded exclusions
+    if (['main', 'master', 'HEAD'].includes(branchName)) continue;
+
+    // Filter: pattern match
+    if (!_matchesPattern(branchName, branch_patterns)) continue;
+
+    // 5. Read STATE.md from this branch
+    const showR = _runGit(['show', `${ref}:.planning/STATE.md`], { cwd });
+    if (!showR.ok) {
+      // SC-2: silently skip branches without STATE.md (no warning)
+      continue;
+    }
+
+    // 6. Parse STATE.md
+    const parsed = parseStateMd(showR.stdout);
+    if (parsed === null) {
+      // SC-2: malformed STATE.md → warning + skip
+      result.warnings.push(`Malformed STATE.md on branch ${branchName}`);
+      continue;
+    }
+
+    // 7. Last commit metadata
+    const logR = _runGit(['log', '-1', '--format=%H%x00%cI%x00%s', ref], { cwd });
+    let last_commit = null;
+    if (logR.ok && logR.stdout) {
+      const parts = logR.stdout.split('\x00');
+      // Validate: need 3 parts with a recognizable ISO timestamp in slot 1
+      if (parts.length >= 3 && parts[1] && /\d{4}-\d{2}-\d{2}T/.test(parts[1])) {
+        last_commit = {
+          sha: parts[0].trim(),
+          timestamp: parts[1].trim(),
+          // subject may have a trailing newline — strip it
+          subject: parts[2].replace(/\n[\s\S]*$/, '').trim(),
+        };
+      } else {
+        result.warnings.push(`Malformed git log output for ${branchName}`);
+        continue;
+      }
+    } else {
+      // Can't get last commit — skip this branch
+      continue;
+    }
+
+    // 8. Stale filter (after we have the timestamp)
+    if (peer_stale_days > 0) {
+      const ts = Date.parse(last_commit.timestamp);
+      if (Number.isFinite(ts) && ts < staleThreshold) continue;
+    }
+
+    result.branches.push({
+      branch: branchName,
+      objective: parsed.objective,
+      trd: parsed.trd,
+      github_issue: parsed.github_issue,
+      last_commit,
+      developer,
+    });
+  }
+
+  return result;
+}
+
+// ─── module.exports (TRD 02-01 + TRD 02-04 + TRD 02-02) ─────────────────────
 
 module.exports = {
   parseStateMd,
@@ -227,6 +409,9 @@ module.exports = {
   readCache,
   writeCache,
   isStale,
+  scanPeer,
+  _setRunGit,
+  _resetGitMock,
   DEFAULT_TTL_MINUTES,
   DEFAULT_STALE_DAYS,
   DEFAULT_BRANCH_PATTERNS,
