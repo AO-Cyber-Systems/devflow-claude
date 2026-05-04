@@ -2423,3 +2423,246 @@ test('L4 (01-06): live — sync is idempotent (second run edits, not creates)', 
   assert.ok(r2.ok, `second syncObjective failed: ${r2.error}`);
   assert.notStrictEqual(r2.comment_action, 'created', 'second sync must edit existing sticky comment, not create a new one');
 });
+
+// ─── TRD 02-03: walkProject ───────────────────────────────────────────────────
+
+const {
+  buildGhResponse_projectItemsList,
+  buildGhResponse_subIssuesByTrackedIssues,
+} = require('./__fixtures__/gh-fixtures.cjs');
+
+// ─── Group W: walkProject happy paths ────────────────────────────────────────
+
+test('W1 (02-03): walkProject single page returns 3 normalized items', () => {
+  const responses = new Map();
+  responses.set('api graphql', buildGhResponse_projectItemsList({
+    items: [
+      { content_type: 'Issue', issue_ref: 'AO-Cyber-Systems/aodex#33',
+        title: '[Roadmap] Foo', body: '', status: 'In Progress', product: 'AODex', quarter: 'Q2 2026' },
+      { content_type: 'Issue', issue_ref: 'AO-Cyber-Systems/aosentry#20',
+        title: '[Roadmap] Bar', body: '', status: 'Todo', product: 'AOSentry', quarter: 'Q2 2026' },
+      { content_type: 'DraftIssue', title: 'DevFlow Internal Alpha', body: 'wip', status: 'Todo', product: 'DevFlow', quarter: 'Q2 2026' },
+    ],
+    hasNextPage: false,
+  }));
+  gh._setRunGh(fx.buildMockRunGh(responses));
+  try {
+    const result = gh.walkProject('PVT_test');
+    assert.strictEqual(result.items.length, 3);
+    assert.strictEqual(result.items[0].item_type, 'issue');
+    assert.strictEqual(result.items[0].issue_ref, 'AO-Cyber-Systems/aodex#33');
+    assert.strictEqual(result.items[2].item_type, 'draft');
+    assert.deepStrictEqual(result.warnings, []);
+  } finally { gh._setRunGh(null); }
+});
+
+test('W2 (02-03): walkProject two pages returns 9 items with cursor passed', () => {
+  let callCount = 0;
+  function mockFn(args) {
+    callCount++;
+    if (callCount === 1) {
+      // First page — 5 items, hasNextPage=true
+      return buildGhResponse_projectItemsList({
+        items: [
+          { content_type: 'Issue', issue_ref: 'org/repo#1', title: 'Item 1', body: '', status: 'Todo', product: 'AODex', quarter: 'Q2 2026' },
+          { content_type: 'Issue', issue_ref: 'org/repo#2', title: 'Item 2', body: '', status: 'Todo', product: 'AODex', quarter: 'Q2 2026' },
+          { content_type: 'Issue', issue_ref: 'org/repo#3', title: 'Item 3', body: '', status: 'Todo', product: 'AODex', quarter: 'Q2 2026' },
+          { content_type: 'Issue', issue_ref: 'org/repo#4', title: 'Item 4', body: '', status: 'Todo', product: 'AODex', quarter: 'Q2 2026' },
+          { content_type: 'Issue', issue_ref: 'org/repo#5', title: 'Item 5', body: '', status: 'Todo', product: 'AODex', quarter: 'Q2 2026' },
+        ],
+        hasNextPage: true,
+        endCursor: 'cursor-abc',
+      });
+    }
+    // Second page — verify cursor arg passed, 4 items, hasNextPage=false
+    const hasCursorArg = args.some(a => typeof a === 'string' && a.includes('cursor-abc'));
+    assert.ok(hasCursorArg, 'W2: cursor should be passed on second page call');
+    return buildGhResponse_projectItemsList({
+      items: [
+        { content_type: 'Issue', issue_ref: 'org/repo#6', title: 'Item 6', body: '', status: 'Todo', product: 'AODex', quarter: 'Q2 2026' },
+        { content_type: 'Issue', issue_ref: 'org/repo#7', title: 'Item 7', body: '', status: 'Todo', product: 'AODex', quarter: 'Q2 2026' },
+        { content_type: 'Issue', issue_ref: 'org/repo#8', title: 'Item 8', body: '', status: 'Todo', product: 'AODex', quarter: 'Q2 2026' },
+        { content_type: 'Issue', issue_ref: 'org/repo#9', title: 'Item 9', body: '', status: 'Todo', product: 'AODex', quarter: 'Q2 2026' },
+      ],
+      hasNextPage: false,
+    });
+  }
+  gh._setRunGh(mockFn);
+  try {
+    const result = gh.walkProject('PVT_test');
+    assert.strictEqual(result.items.length, 9);
+    assert.strictEqual(callCount, 2, 'W2: should call gh exactly twice');
+    assert.deepStrictEqual(result.warnings, []);
+  } finally { gh._setRunGh(null); }
+});
+
+test('W3 (02-03): walkProject empty project returns { items: [], warnings: [] }', () => {
+  const responses = new Map();
+  responses.set('api graphql', buildGhResponse_projectItemsList({
+    items: [], hasNextPage: false,
+  }));
+  gh._setRunGh(fx.buildMockRunGh(responses));
+  try {
+    const result = gh.walkProject('PVT_test');
+    assert.deepStrictEqual(result.items, []);
+    assert.deepStrictEqual(result.warnings, []);
+  } finally { gh._setRunGh(null); }
+});
+
+test('W4 (02-03): each item carries normalized fields {item_type, issue_ref, title, body, product, quarter, status, sub_issues}', () => {
+  const responses = new Map();
+  responses.set('api graphql', buildGhResponse_projectItemsList({
+    items: [
+      { content_type: 'Issue', issue_ref: 'AO-Cyber-Systems/aodex#33',
+        title: '[Roadmap] Foo', body: 'body text', status: 'In Progress', product: 'AODex', quarter: 'Q2 2026' },
+    ],
+    hasNextPage: false,
+  }));
+  gh._setRunGh(fx.buildMockRunGh(responses));
+  try {
+    const result = gh.walkProject('PVT_test');
+    const item = result.items[0];
+    assert.strictEqual(item.item_type, 'issue');
+    assert.strictEqual(item.issue_ref, 'AO-Cyber-Systems/aodex#33');
+    assert.strictEqual(item.title, '[Roadmap] Foo');
+    assert.strictEqual(item.body, 'body text');
+    assert.strictEqual(item.product, 'AODex');
+    assert.strictEqual(item.quarter, 'Q2 2026');
+    assert.strictEqual(item.status, 'In Progress');
+    assert.ok(Array.isArray(item.sub_issues), 'sub_issues must be array');
+  } finally { gh._setRunGh(null); }
+});
+
+test('W5 (02-03): DraftIssue content type → item_type=draft, issue_ref=null, title+body present', () => {
+  const responses = new Map();
+  responses.set('api graphql', buildGhResponse_projectItemsList({
+    items: [
+      { content_type: 'DraftIssue', title: 'Program Milestone Q3', body: 'draft body', status: 'Todo', product: 'Infrastructure', quarter: 'Q3 2026' },
+    ],
+    hasNextPage: false,
+  }));
+  gh._setRunGh(fx.buildMockRunGh(responses));
+  try {
+    const result = gh.walkProject('PVT_test');
+    assert.strictEqual(result.items.length, 1);
+    const item = result.items[0];
+    assert.strictEqual(item.item_type, 'draft');
+    assert.strictEqual(item.issue_ref, null);
+    assert.strictEqual(item.title, 'Program Milestone Q3');
+    assert.strictEqual(item.body, 'draft body');
+  } finally { gh._setRunGh(null); }
+});
+
+test('W6 (02-03): Issue with trackedIssues.totalCount=2 → sub_issues has 2 entries with {ref, title, state}', () => {
+  const subNodes = buildGhResponse_subIssuesByTrackedIssues({
+    subIssues: [
+      { ref: 'AO-Cyber-Systems/aodex#101', title: 'Sub A', state: 'OPEN' },
+      { ref: 'AO-Cyber-Systems/aodex#102', title: 'Sub B', state: 'CLOSED' },
+    ],
+  });
+  const responses = new Map();
+  responses.set('api graphql', buildGhResponse_projectItemsList({
+    items: [
+      { content_type: 'Issue', issue_ref: 'AO-Cyber-Systems/aodex#33',
+        title: '[Roadmap] Foo', body: '', status: 'In Progress', product: 'AODex', quarter: 'Q2 2026',
+        tracked_total: 2, tracked_nodes: subNodes },
+    ],
+    hasNextPage: false,
+  }));
+  gh._setRunGh(fx.buildMockRunGh(responses));
+  try {
+    const result = gh.walkProject('PVT_test');
+    const item = result.items[0];
+    assert.strictEqual(item.sub_issues.length, 2);
+    assert.strictEqual(item.sub_issues[0].ref, 'AO-Cyber-Systems/aodex#101');
+    assert.strictEqual(item.sub_issues[0].title, 'Sub A');
+    assert.strictEqual(item.sub_issues[0].state, 'OPEN');
+    assert.strictEqual(item.sub_issues[1].state, 'CLOSED');
+  } finally { gh._setRunGh(null); }
+});
+
+test('W7 (02-03): Issue with trackedIssues.totalCount=0 → sub_issues=[] AND raw body preserved', () => {
+  const bodyText = '## Deliverables\n- [ ] AO-Cyber-Systems/aodex#200 — some task';
+  const responses = new Map();
+  responses.set('api graphql', buildGhResponse_projectItemsList({
+    items: [
+      { content_type: 'Issue', issue_ref: 'AO-Cyber-Systems/aodex#33',
+        title: '[Roadmap] Foo', body: bodyText, status: 'In Progress', product: 'AODex', quarter: 'Q2 2026',
+        tracked_total: 0, tracked_nodes: [] },
+    ],
+    hasNextPage: false,
+  }));
+  gh._setRunGh(fx.buildMockRunGh(responses));
+  try {
+    const result = gh.walkProject('PVT_test');
+    const item = result.items[0];
+    assert.deepStrictEqual(item.sub_issues, []);
+    assert.strictEqual(item.body, bodyText, 'body must be preserved for task-list fallback');
+  } finally { gh._setRunGh(null); }
+});
+
+// ─── Group WF: walkProject failure modes ─────────────────────────────────────
+
+test('WF1 (02-03): ok:false response → warnings.push stderr; items empty or partial', () => {
+  const responses = new Map();
+  responses.set('api graphql', { ok: false, status: 1, stdout: '', stderr: 'GraphQL error: unauthorized' });
+  gh._setRunGh(fx.buildMockRunGh(responses));
+  try {
+    const result = gh.walkProject('PVT_test');
+    assert.ok(result.warnings.length > 0, 'WF1: should have at least one warning');
+    assert.ok(result.warnings[0].includes('walkProject'), 'WF1: warning should mention walkProject');
+    assert.deepStrictEqual(result.items, []);
+  } finally { gh._setRunGh(null); }
+});
+
+test('WF2 (02-03): data:null response → warnings.push unexpected response shape; items empty', () => {
+  const responses = new Map();
+  responses.set('api graphql', { ok: true, status: 0, stdout: JSON.stringify({ data: null }), stderr: '' });
+  gh._setRunGh(fx.buildMockRunGh(responses));
+  try {
+    const result = gh.walkProject('PVT_test');
+    assert.ok(result.warnings.some(w => w.includes('unexpected response shape')), 'WF2: should warn about response shape');
+    assert.deepStrictEqual(result.items, []);
+  } finally { gh._setRunGh(null); }
+});
+
+test('WF3 (02-03): malformed JSON in stdout → warnings.push parse failed; items empty', () => {
+  const responses = new Map();
+  responses.set('api graphql', { ok: true, status: 0, stdout: 'not json {{', stderr: '' });
+  gh._setRunGh(fx.buildMockRunGh(responses));
+  try {
+    const result = gh.walkProject('PVT_test');
+    assert.ok(result.warnings.some(w => w.includes('parse failed')), 'WF3: should warn about parse failure');
+    assert.deepStrictEqual(result.items, []);
+  } finally { gh._setRunGh(null); }
+});
+
+test('WF4 (02-03): pagination loop guard — always hasNextPage=true → abort at 100 pages with warning', () => {
+  function alwaysNextPage() {
+    return buildGhResponse_projectItemsList({
+      items: [
+        { content_type: 'Issue', issue_ref: 'org/repo#1', title: 'Item', body: '', status: 'Todo', product: 'X', quarter: 'Q1 2026' },
+      ],
+      hasNextPage: true,
+      endCursor: 'cursor-forever',
+    });
+  }
+  gh._setRunGh(alwaysNextPage);
+  try {
+    const result = gh.walkProject('PVT_test');
+    assert.ok(result.warnings.some(w => w.includes('aborted') && w.includes('100 pages')), 'WF4: should warn about abort at 100 pages');
+    assert.strictEqual(result.items.length, 100, 'WF4: should have collected 100 items (1 per page)');
+  } finally { gh._setRunGh(null); }
+});
+
+// ─── Group GG: gh.test.cjs integration with existing patterns ────────────────
+
+test('GG1 (02-03): walkProject is exported from gh.cjs module.exports', () => {
+  assert.strictEqual(typeof gh.walkProject, 'function', 'walkProject must be a function');
+});
+
+test('GG2 (02-03): walkProject with no projectId returns empty items with warning', () => {
+  const result = gh.walkProject('');
+  assert.deepStrictEqual(result.items, []);
+  assert.ok(result.warnings.length > 0, 'GG2: should warn on missing projectId');
+});
