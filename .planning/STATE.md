@@ -12,8 +12,8 @@
 **Branch:** `feature/v1.1`
 **Objective complete:** 0 — Refine (kind, work) defaults table from codebase evidence (verified 2026-05-04, 443/443 tests, all 10 SC met)
 **Objective in flight:** 1 — GitHub coordination layer (#10)
-**Current TRD:** 01-05 (wave 5 — mapping refactor + existing callers)
-**Status:** TRD 01-04 complete (wave 4 done — gh-sync skill + CLI + syncObjective)
+**Current TRD:** 01-06 (wave 6 — dogfood + integration)
+**Status:** TRD 01-05 complete (wave 5 done — pm-backend seam scaffolded; 541/541 tests)
 
 ## Branch State (post-merge)
 
@@ -60,6 +60,8 @@
 - **upsertStickyComment three-path fallback locked (TRD 01-04)** — Path 1: PATCH known ID. Path 2: marker scan + PATCH found ID. Path 3: create new. Idempotency contract: D4/F4 assert zero CREATE calls on second invocation.
 - **readMappingV2 non-destructive + PRODUCT_ROADMAP_FIELDS export locked (TRD 01-04)** — v2 shape `{ issue_id, state_comment_id }` per objective; v1 number entries migrated on read, written as v2 objects. `PRODUCT_ROADMAP_FIELDS` exported for TRD 01-06 seeding; `_captured=true` guard pattern.
 - **Group G tests in-process (TRD 01-04 verifier briefing #2)** — `cmdGhSyncObjective` tested via in-process IO capture, not `spawnSync` subprocess, to preserve `_setRunGh` mock coverage.
+- **TRD 01-05 complete (2026-05-04)** — `lib/pm-backend.cjs` scaffolded: `getBackend(projectConfig)` returns `lib/gh.cjs` on github/unset; throws with v1.2+ guidance for linear/jira; throws with backend name for unknown. `VALID_BACKENDS=['github']` exported. 7 new tests. 541/541 tests pass. Single atomic commit: 7616e6a (feat:). Wave 5 complete.
+- **pm-backend seam design locked (TRD 01-05)** — Return `require('./gh.cjs')` directly (no facade); explicit case arms for linear+jira give v1.2+ guidance; df-tools.cjs call sites unchanged per CONTEXT.md §6; v1.2 wires call sites through seam.
 
 ## Blockers / Concerns
 
@@ -67,7 +69,7 @@
 
 ## Session Continuity
 
-Last session: 2026-05-04 — TRD 01-04 (gh-sync skill + CLI) complete. Wave 4 done.
+Last session: 2026-05-04 — TRD 01-05 (pm-backend seam) complete. Wave 5 done.
 Resume file: `.planning/SESSION_PICKUP.md`
-Stopped at: Completed 01-04-gh-sync-skill-and-cli-TRD.md
-Next: TRD 01-05 (mapping refactor + existing callers — wave 5)
+Stopped at: Completed 01-05-pm-backend-seam-TRD.md
+Next: TRD 01-06 (dogfood + integration — wave 6)
