@@ -129,6 +129,14 @@ Dependency order:
 
 **Gates** (from ROADMAP dependency graph): v1.1 obj 2 (heartbeat needs `org_context` field), obj 5 (initiatives needs resolver to walk to Epic), obj 6 (check-todos needs resolver for cross-repo aggregation).
 
+**TRDs:** 6 plans across 6 waves
+- [ ] 01-01-frontmatter-fields-and-templates-TRD.md — document new optional GH-link frontmatter fields + back-compat parse tests (Wave 1, standard)
+- [ ] 01-02-resolver-chain-walk-TRD.md — `df-tools gh resolve <objective>` + lib/gh.cjs chain helpers + per-process cache (Wave 2, tdd)
+- [ ] 01-03-auth-and-error-handling-TRD.md — hard-fail with remediation on missing/expired gh auth (Wave 3, tdd)
+- [ ] 01-04-gh-sync-skill-and-cli-TRD.md — idempotent disk → GitHub state push + sticky comment + Project v2 fields (Wave 4, tdd)
+- [ ] 01-05-pm-backend-seam-TRD.md — scaffold abstraction for v1.2+ Linear/Jira backends (Wave 5, standard)
+- [ ] 01-06-dogfood-and-integration-TRD.md — backfill obj 0 frontmatter, capture cassettes, live round-trip (Wave 6, tdd)
+
 ---
 
 ## Milestone v1.2 — Handoff Watcher PTY + Coordination-Layer Polish (next)
