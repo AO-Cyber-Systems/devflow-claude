@@ -1993,3 +1993,420 @@ describe('cmdGhSyncObjective', () => {
     );
   });
 });
+
+// ─── Group H (01-06): OBJECTIVE.md backfill — obj 0 ─────────────────────────
+// Tests are RED because .planning/objectives/00-refine-defaults-table/OBJECTIVE.md
+// does not exist yet.
+
+const OBJ0_PATH = path.join(
+  __dirname, '..', '..', '..', '..', '..',
+  '.planning', 'objectives', '00-refine-defaults-table', 'OBJECTIVE.md'
+);
+const { extractFrontmatter } = require('./frontmatter.cjs');
+
+test('H1 (01-06): obj 0 OBJECTIVE.md has github_issue = AO-Cyber-Systems/devflow-claude#20', () => {
+  assert.ok(fs.existsSync(OBJ0_PATH), `OBJECTIVE.md must exist at ${OBJ0_PATH}`);
+  const fm = extractFrontmatter(fs.readFileSync(OBJ0_PATH, 'utf-8'));
+  assert.strictEqual(fm.github_issue, 'AO-Cyber-Systems/devflow-claude#20');
+});
+
+test('H2 (01-06): obj 0 OBJECTIVE.md has parent_issue = AO-Cyber-Systems/devflow-claude#9', () => {
+  assert.ok(fs.existsSync(OBJ0_PATH), `OBJECTIVE.md must exist at ${OBJ0_PATH}`);
+  const fm = extractFrontmatter(fs.readFileSync(OBJ0_PATH, 'utf-8'));
+  assert.strictEqual(fm.parent_issue, 'AO-Cyber-Systems/devflow-claude#9');
+});
+
+test('H3 (01-06): obj 0 OBJECTIVE.md is valid frontmatter (no parse error)', () => {
+  assert.ok(fs.existsSync(OBJ0_PATH), `OBJECTIVE.md must exist at ${OBJ0_PATH}`);
+  const fm = extractFrontmatter(fs.readFileSync(OBJ0_PATH, 'utf-8'));
+  assert.ok(fm !== null && typeof fm === 'object', 'frontmatter must parse cleanly');
+});
+
+// ─── Group I (01-06): cassettes — shape assertions ───────────────────────────
+// Tests are RED because cassette files don't exist yet.
+
+const CASSETTE_DIR = path.join(__dirname, '__fixtures__', 'gh-cassettes');
+
+test('I1 (01-06): devflow-claude-9-walk.json is valid JSON', () => {
+  const p = path.join(CASSETTE_DIR, 'devflow-claude-9-walk.json');
+  assert.ok(fs.existsSync(p), `cassette must exist at ${p}`);
+  assert.doesNotThrow(() => JSON.parse(fs.readFileSync(p, 'utf-8')));
+});
+
+test('I2 (01-06): devflow-claude-9-walk.json has issue title matching /^\\[Roadmap\\]/', () => {
+  const p = path.join(CASSETTE_DIR, 'devflow-claude-9-walk.json');
+  assert.ok(fs.existsSync(p), `cassette must exist at ${p}`);
+  const c = JSON.parse(fs.readFileSync(p, 'utf-8'));
+  assert.match(c.data.repository.issue.title, /^\[Roadmap\]/);
+});
+
+test('I3 (01-06): devflow-claude-9-walk.json has projectItems.nodes[0].project.id = PVT_kwDODwqLrc4BRsOP', () => {
+  const p = path.join(CASSETTE_DIR, 'devflow-claude-9-walk.json');
+  assert.ok(fs.existsSync(p), `cassette must exist at ${p}`);
+  const c = JSON.parse(fs.readFileSync(p, 'utf-8'));
+  const nodes = c.data.repository.issue.projectItems.nodes;
+  assert.ok(Array.isArray(nodes) && nodes.length > 0, 'projectItems.nodes must be non-empty');
+  assert.strictEqual(nodes[0].project.id, 'PVT_kwDODwqLrc4BRsOP');
+});
+
+test('I4 (01-06): product-roadmap-fields.json is valid JSON', () => {
+  const p = path.join(CASSETTE_DIR, 'product-roadmap-fields.json');
+  assert.ok(fs.existsSync(p), `cassette must exist at ${p}`);
+  assert.doesNotThrow(() => JSON.parse(fs.readFileSync(p, 'utf-8')));
+});
+
+test('I5 (01-06): product-roadmap-fields.json has Status, Product, Quarter fields', () => {
+  const p = path.join(CASSETTE_DIR, 'product-roadmap-fields.json');
+  assert.ok(fs.existsSync(p), `cassette must exist at ${p}`);
+  const c = JSON.parse(fs.readFileSync(p, 'utf-8'));
+  assert.ok(Array.isArray(c.fields), 'fields must be an array');
+  const names = new Set(c.fields.map(f => f.name));
+  assert.ok(names.has('Status'), 'Status field must be present');
+  assert.ok(names.has('Product'), 'Product field must be present');
+  assert.ok(names.has('Quarter'), 'Quarter field must be present');
+});
+
+// ─── Group J (01-06): replay-mode integration ────────────────────────────────
+// Tests use cassette file as mock gh response — RED until cassette + constant captured.
+
+test('J1 (01-06): resolveChain devflow-claude#20 walks parent #9 and returns roadmap_issue + milestone', () => {
+  const cassettePath = path.join(CASSETTE_DIR, 'devflow-claude-9-walk.json');
+  assert.ok(fs.existsSync(cassettePath), `cassette must exist at ${cassettePath}`);
+  const cassette = JSON.parse(fs.readFileSync(cassettePath, 'utf-8'));
+
+  // Inject mock: graphql query → cassette; issue list → empty (no fallback needed)
+  const responses = new Map([
+    ['api graphql', { ok: true, status: 0, stdout: JSON.stringify(cassette), stderr: '' }],
+    ['issue list', fx.buildGhResponse_issueListRoadmap({ hits: [] })],
+  ]);
+  const mock = fx.buildMockRunGh(responses);
+  gh._setRunGh(mock);
+  gh._resetCache();
+
+  const r = gh.resolveChain(
+    fx.buildFrontmatter({
+      github_issue: 'AO-Cyber-Systems/devflow-claude#20',
+      parent_issue: 'AO-Cyber-Systems/devflow-claude#9',
+    }),
+    fx.buildProjectCtx({
+      github_repo: 'AO-Cyber-Systems/devflow-claude',
+      org_project: 'PVT_kwDODwqLrc4BRsOP',
+    })
+  );
+
+  assert.strictEqual(r.roadmap_issue, 'AO-Cyber-Systems/devflow-claude#9');
+  assert.strictEqual(r.provenance.roadmap_issue, 'walked_from_parent');
+  assert.ok(r.milestone, 'milestone should populate from cassette walk');
+  assert.strictEqual(r.milestone.product, 'DevFlow');
+});
+
+test('J2 (01-06): resolveChain replay — provenance.roadmap_issue is walked_from_parent', () => {
+  const cassettePath = path.join(CASSETTE_DIR, 'devflow-claude-9-walk.json');
+  assert.ok(fs.existsSync(cassettePath), `cassette must exist at ${cassettePath}`);
+  const cassette = JSON.parse(fs.readFileSync(cassettePath, 'utf-8'));
+
+  const mock = fx.buildMockRunGh(new Map([
+    ['api graphql', { ok: true, status: 0, stdout: JSON.stringify(cassette), stderr: '' }],
+  ]));
+  gh._setRunGh(mock);
+  gh._resetCache();
+
+  const r = gh.resolveChain(
+    fx.buildFrontmatter({
+      github_issue: 'AO-Cyber-Systems/devflow-claude#20',
+      parent_issue: 'AO-Cyber-Systems/devflow-claude#9',
+    }),
+    fx.buildProjectCtx({ github_repo: 'AO-Cyber-Systems/devflow-claude', org_project: 'PVT_kwDODwqLrc4BRsOP' })
+  );
+
+  assert.strictEqual(r.provenance.roadmap_issue, 'walked_from_parent');
+});
+
+test('J3 (01-06): resolveChain replay — second call returns cached result (same shape)', () => {
+  const cassettePath = path.join(CASSETTE_DIR, 'devflow-claude-9-walk.json');
+  assert.ok(fs.existsSync(cassettePath), `cassette must exist at ${cassettePath}`);
+  const cassette = JSON.parse(fs.readFileSync(cassettePath, 'utf-8'));
+
+  const mock = fx.buildMockRunGh(new Map([
+    ['api graphql', { ok: true, status: 0, stdout: JSON.stringify(cassette), stderr: '' }],
+  ]));
+  gh._setRunGh(mock);
+  gh._resetCache();
+
+  const fm = fx.buildFrontmatter({
+    github_issue: 'AO-Cyber-Systems/devflow-claude#20',
+    parent_issue: 'AO-Cyber-Systems/devflow-claude#9',
+  });
+  const ctx = fx.buildProjectCtx({ github_repo: 'AO-Cyber-Systems/devflow-claude', org_project: 'PVT_kwDODwqLrc4BRsOP' });
+
+  const r1 = gh.resolveChain(fm, ctx);
+  const callsAfterFirst = mock.callCount();
+
+  const r2 = gh.resolveChain(fm, ctx);
+  const callsAfterSecond = mock.callCount();
+
+  // Second call should not invoke gh (served from cache)
+  assert.strictEqual(callsAfterFirst, callsAfterSecond, 'second resolveChain call must serve from cache (no new gh calls)');
+  assert.strictEqual(r2.roadmap_issue, r1.roadmap_issue);
+  assert.strictEqual(r2.milestone && r2.milestone.product, r1.milestone && r1.milestone.product);
+});
+
+test('J4 (01-06): resolveChain replay — milestone.title is "Product Roadmap"', () => {
+  const cassettePath = path.join(CASSETTE_DIR, 'devflow-claude-9-walk.json');
+  assert.ok(fs.existsSync(cassettePath), `cassette must exist at ${cassettePath}`);
+  const cassette = JSON.parse(fs.readFileSync(cassettePath, 'utf-8'));
+
+  const mock = fx.buildMockRunGh(new Map([
+    ['api graphql', { ok: true, status: 0, stdout: JSON.stringify(cassette), stderr: '' }],
+  ]));
+  gh._setRunGh(mock);
+  gh._resetCache();
+
+  const r = gh.resolveChain(
+    fx.buildFrontmatter({
+      github_issue: 'AO-Cyber-Systems/devflow-claude#20',
+      parent_issue: 'AO-Cyber-Systems/devflow-claude#9',
+    }),
+    fx.buildProjectCtx({ github_repo: 'AO-Cyber-Systems/devflow-claude', org_project: 'PVT_kwDODwqLrc4BRsOP' })
+  );
+
+  assert.strictEqual(r.milestone && r.milestone.title, 'Product Roadmap');
+});
+
+// ─── Group K (01-06): PRODUCT_ROADMAP_FIELDS populated ───────────────────────
+// RED: _captured is currently false.
+
+test('K1 (01-06): PRODUCT_ROADMAP_FIELDS._captured is true', () => {
+  const fields = gh.PRODUCT_ROADMAP_FIELDS;
+  assert.ok(fields, 'PRODUCT_ROADMAP_FIELDS must be exported');
+  assert.strictEqual(fields._captured, true, 'PRODUCT_ROADMAP_FIELDS._captured must be true after cassette capture');
+});
+
+test('K2 (01-06): PRODUCT_ROADMAP_FIELDS.Status.field_id starts with PVTSSF_', () => {
+  const fields = gh.PRODUCT_ROADMAP_FIELDS;
+  assert.ok(fields && fields._captured, 'PRODUCT_ROADMAP_FIELDS must be captured');
+  assert.ok(fields.Status, 'Status field must be present');
+  assert.match(fields.Status.field_id, /^PVTSSF_/, 'Status field_id must start with PVTSSF_');
+});
+
+test('K3 (01-06): PRODUCT_ROADMAP_FIELDS.Status.options["In Progress"] is a non-empty string', () => {
+  const fields = gh.PRODUCT_ROADMAP_FIELDS;
+  assert.ok(fields && fields._captured, 'PRODUCT_ROADMAP_FIELDS must be captured');
+  assert.ok(fields.Status && fields.Status.options, 'Status.options must be present');
+  const optId = fields.Status.options['In Progress'];
+  assert.ok(typeof optId === 'string' && optId.length > 0, '"In Progress" option ID must be a non-empty string');
+});
+
+test('K4 (01-06): updateProjectFields with known field+option sends GraphQL mutation with captured IDs', () => {
+  const fields = gh.PRODUCT_ROADMAP_FIELDS;
+  if (!fields || !fields._captured) {
+    assert.fail('PRODUCT_ROADMAP_FIELDS must be captured before K4 can run');
+    return;
+  }
+
+  const capturedCalls = [];
+  const mockFn = (args) => {
+    capturedCalls.push(args);
+    return { ok: true, status: 0, stdout: JSON.stringify({ data: { updateProjectV2ItemFieldValue: { projectV2Item: { id: 'PVTI_test123' } } } }), stderr: '' };
+  };
+
+  // Mock all calls including addToProject (item lookup + project add)
+  const responses = new Map();
+  // addToProject first step: issue node ID
+  responses.set('api graphql -f query=query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) { issue(number: $number) { id } } }', {
+    ok: true, status: 0, stdout: JSON.stringify({ data: { repository: { issue: { id: 'I_kwDOtest' } } } }), stderr: ''
+  });
+
+  // Use a custom mock that captures mutation calls
+  let callCount = 0;
+  const mock = (args) => {
+    callCount++;
+    capturedCalls.push([...args]);
+    const key = args.join(' ');
+    if (key.includes('mutation($projectId')) {
+      // This is either addToProject mutation or updateProjectV2ItemFieldValue mutation
+      if (key.includes('addProjectV2ItemById')) {
+        return { ok: true, status: 0, stdout: JSON.stringify({ data: { addProjectV2ItemById: { item: { id: 'PVTI_item123' } } } }), stderr: '' };
+      }
+      if (key.includes('updateProjectV2ItemFieldValue')) {
+        return { ok: true, status: 0, stdout: JSON.stringify({ data: { updateProjectV2ItemFieldValue: { projectV2Item: { id: 'PVTI_item123' } } } }), stderr: '' };
+      }
+    }
+    if (key.includes('repository') && key.includes('issue(number')) {
+      return { ok: true, status: 0, stdout: JSON.stringify({ data: { repository: { issue: { id: 'I_kwDOtest' } } } }), stderr: '' };
+    }
+    return { ok: false, status: 1, stdout: '', stderr: `[mock K4] no match for: ${key}` };
+  };
+  gh._setRunGh(mock);
+
+  const result = gh.updateProjectFields(
+    'AO-Cyber-Systems/devflow-claude#20',
+    'PVT_kwDODwqLrc4BRsOP',
+    { Status: 'In Progress' }
+  );
+
+  // Verify a mutation call was made with the captured Status field_id
+  const statusFieldId = fields.Status.field_id;
+  const mutationCall = capturedCalls.find(c => c.some(a => a.includes('updateProjectV2ItemFieldValue')));
+  assert.ok(mutationCall, 'updateProjectV2ItemFieldValue mutation must be called');
+  // The mutation must include the captured field ID
+  const callStr = mutationCall.join(' ');
+  assert.ok(callStr.includes(statusFieldId), `mutation must include Status field_id ${statusFieldId}`);
+});
+
+test('K5 (01-06): updateProjectFields with unknown field name warns and skips (no throw)', () => {
+  const fields = gh.PRODUCT_ROADMAP_FIELDS;
+  if (!fields || !fields._captured) {
+    assert.fail('PRODUCT_ROADMAP_FIELDS must be captured for K5');
+    return;
+  }
+
+  // Mock: return success for any graphql calls (addToProject-related)
+  const mock = (args) => {
+    const key = args.join(' ');
+    if (key.includes('repository') && key.includes('issue(number')) {
+      return { ok: true, status: 0, stdout: JSON.stringify({ data: { repository: { issue: { id: 'I_kwDOtest' } } } }), stderr: '' };
+    }
+    if (key.includes('addProjectV2ItemById')) {
+      return { ok: true, status: 0, stdout: JSON.stringify({ data: { addProjectV2ItemById: { item: { id: 'PVTI_item' } } } }), stderr: '' };
+    }
+    return { ok: false, status: 1, stdout: '', stderr: `[mock K5] no match for: ${key}` };
+  };
+  gh._setRunGh(mock);
+
+  let result;
+  assert.doesNotThrow(() => {
+    result = gh.updateProjectFields(
+      'AO-Cyber-Systems/devflow-claude#20',
+      'PVT_kwDODwqLrc4BRsOP',
+      { NotAField: 'someValue' }
+    );
+  }, 'updateProjectFields must not throw on unknown field');
+  assert.ok(result, 'must return a result object');
+  assert.ok(
+    (result.warnings && result.warnings.some(w => /unknown field/i.test(w))) ||
+    (result.errors && result.errors.some(e => /not found/i.test(e.error))),
+    `must emit warning or error for unknown field; got: ${JSON.stringify(result)}`
+  );
+});
+
+test('K6 (01-06): updateProjectFields with unknown option name warns and skips (no throw)', () => {
+  const fields = gh.PRODUCT_ROADMAP_FIELDS;
+  if (!fields || !fields._captured) {
+    assert.fail('PRODUCT_ROADMAP_FIELDS must be captured for K6');
+    return;
+  }
+
+  const mock = (args) => {
+    const key = args.join(' ');
+    if (key.includes('repository') && key.includes('issue(number')) {
+      return { ok: true, status: 0, stdout: JSON.stringify({ data: { repository: { issue: { id: 'I_kwDOtest' } } } }), stderr: '' };
+    }
+    if (key.includes('addProjectV2ItemById')) {
+      return { ok: true, status: 0, stdout: JSON.stringify({ data: { addProjectV2ItemById: { item: { id: 'PVTI_item' } } } }), stderr: '' };
+    }
+    return { ok: false, status: 1, stdout: '', stderr: `[mock K6] no match for: ${key}` };
+  };
+  gh._setRunGh(mock);
+
+  let result;
+  assert.doesNotThrow(() => {
+    result = gh.updateProjectFields(
+      'AO-Cyber-Systems/devflow-claude#20',
+      'PVT_kwDODwqLrc4BRsOP',
+      { Status: 'NotAnOption' }
+    );
+  }, 'updateProjectFields must not throw on unknown option');
+  assert.ok(result, 'must return a result object');
+  assert.ok(
+    (result.warnings && result.warnings.some(w => /unknown option/i.test(w))) ||
+    (result.errors && result.errors.some(e => /not found/i.test(e.error))),
+    `must emit warning or error for unknown option; got: ${JSON.stringify(result)}`
+  );
+});
+
+// ─── Group L (01-06): live-mode integration (gated on GH_INTEGRATION=1) ──────
+// All L tests skip when GH_INTEGRATION !== '1'.
+
+const LIVE = process.env.GH_INTEGRATION === '1';
+
+test('L1 (01-06): live — resolveChain walks devflow-claude#9 and returns roadmap_issue + DevFlow product', { skip: !LIVE }, () => {
+  // Real gh calls — don't mock
+  gh._setRunGh(null);
+  gh._resetCache();
+
+  const r = gh.resolveChain(
+    fx.buildFrontmatter({
+      github_issue: 'AO-Cyber-Systems/devflow-claude#20',
+      parent_issue: 'AO-Cyber-Systems/devflow-claude#9',
+    }),
+    fx.buildProjectCtx({
+      github_repo: 'AO-Cyber-Systems/devflow-claude',
+      org_project: 'PVT_kwDODwqLrc4BRsOP',
+    })
+  );
+
+  assert.strictEqual(r.roadmap_issue, 'AO-Cyber-Systems/devflow-claude#9', `expected roadmap_issue to be #9; got: ${r.roadmap_issue}`);
+  assert.ok(r.milestone, 'milestone must populate from live walk');
+  assert.strictEqual(r.milestone.product, 'DevFlow', `expected milestone.product = DevFlow; got: ${r.milestone && r.milestone.product}`);
+});
+
+test('L2 (01-06): live — resolveChain live result matches cassette shape', { skip: !LIVE }, () => {
+  gh._setRunGh(null);
+  gh._resetCache();
+
+  const liveResult = gh.resolveChain(
+    fx.buildFrontmatter({
+      github_issue: 'AO-Cyber-Systems/devflow-claude#20',
+      parent_issue: 'AO-Cyber-Systems/devflow-claude#9',
+    }),
+    fx.buildProjectCtx({
+      github_repo: 'AO-Cyber-Systems/devflow-claude',
+      org_project: 'PVT_kwDODwqLrc4BRsOP',
+    })
+  );
+
+  // Compare against replay result (using saved cassette)
+  const cassettePath = path.join(CASSETTE_DIR, 'devflow-claude-9-walk.json');
+  assert.ok(fs.existsSync(cassettePath), 'cassette must exist for drift detection');
+  const cassette = JSON.parse(fs.readFileSync(cassettePath, 'utf-8'));
+
+  const cassetteProduct = (() => {
+    try {
+      const nodes = cassette.data.repository.issue.projectItems.nodes[0].fieldValues.nodes;
+      const productNode = nodes.find(n => n.field && n.field.name === 'Product');
+      return productNode ? productNode.name : null;
+    } catch { return null; }
+  })();
+
+  assert.strictEqual(
+    liveResult.milestone && liveResult.milestone.product,
+    cassetteProduct,
+    `live.milestone.product (${liveResult.milestone && liveResult.milestone.product}) must match cassette (${cassetteProduct}); if different, cassette drift detected — re-record devflow-claude-9-walk.json`
+  );
+});
+
+test('L3 (01-06): live — sync round-trip returns ok:true', { skip: !LIVE }, () => {
+  gh._setRunGh(null);
+  const root = path.resolve(__dirname, '..', '..', '..', '..', '..');
+  gh._resetCache();
+
+  const r = gh.syncObjective('00-refine-defaults-table', root);
+  assert.ok(r.ok, `syncObjective returned ok:false — error: ${r.error}`);
+  assert.ok(r.issue_updated !== undefined, 'issue_updated must be in result');
+  assert.ok(r.comment_action, 'comment_action must be in result');
+});
+
+test('L4 (01-06): live — sync is idempotent (second run edits, not creates)', { skip: !LIVE }, () => {
+  gh._setRunGh(null);
+  const root = path.resolve(__dirname, '..', '..', '..', '..', '..');
+  gh._resetCache();
+
+  const r1 = gh.syncObjective('00-refine-defaults-table', root);
+  assert.ok(r1.ok, `first syncObjective failed: ${r1.error}`);
+
+  gh._resetCache();
+  const r2 = gh.syncObjective('00-refine-defaults-table', root);
+  assert.ok(r2.ok, `second syncObjective failed: ${r2.error}`);
+  assert.notStrictEqual(r2.comment_action, 'created', 'second sync must edit existing sticky comment, not create a new one');
+});
