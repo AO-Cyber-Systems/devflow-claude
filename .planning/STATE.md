@@ -13,8 +13,8 @@
 **Objective complete:** 0 — Refine (kind, work) defaults table from codebase evidence (verified 2026-05-04, 443/443 tests, all 10 SC met)
 **Objective complete:** 1 — GitHub coordination layer (verified 2026-05-04, 563/563 tests, all 6 TRDs done, SC-9 + SC-10 met)
 **Objective in flight:** 2 — Cross-worktree session telemetry (next)
-**Current TRD:** 02-05 (next: skill-and-cli; 02-01/02/03/04 complete)
-**Status:** TRD 02-03 complete — org scanner shipped (walkProject + scanOrg + parseTaskListFallback, 31 tests, 667/667 pass)
+**Current TRD:** 02-06 (next: lifecycle-integration; 02-01/02/03/04/05 complete)
+**Status:** TRD 02-05 complete — /devflow:awareness skill + df-tools awareness CLI shipped (parseShowFlags + renderMarkdown + cmdAwarenessShow/ScanPeer/ScanOrg/Route, 29 tests, 696/696 pass)
 
 ## Branch State (post-merge)
 
@@ -83,6 +83,10 @@
 - **walkProject auth boundary locked (TRD 02-03)** — walkProject does NOT call requireGhAuth; auth is caller's responsibility. scanOrg calls requireGhAuth as first action. walkProject reusable by obj 5/6 with their own auth context.
 - **parseTaskListFallback regex locked (TRD 02-03)** — `\S*#\d+` (zero-or-more before `#`) handles both full refs (owner/repo#NN) and shorthand (#NN). Auth mocks for requireGhAuth tests must use 'Token scopes: ...' text format, not JSON, to match parseScopes() in gh.cjs.
 - **sub_issues_source annotation (TRD 02-03)** — scanOrg adds `sub_issues_source: 'tracked_issues'|'task_list'|'none'` per enriched item. Skill renderer can use this for provenance display.
+- **TRD 02-05 complete (2026-05-04)** — `/devflow:awareness` skill + `df-tools awareness` CLI subcommand routing shipped. `lib/awareness-cli.cjs`: parseShowFlags (pure flag parser, 15 tests), renderMarkdown (pure markdown renderer, 14 tests), cmdAwarenessShow/ScanPeer/ScanOrg/Route. `df-tools.cjs`: `case 'awareness':` router. `skills/awareness/SKILL.md`: invokes `df-tools awareness show $ARGUMENTS`. 29 new tests; 696/696 pass. Commits: d183052 (feat: lib+CLI+tests), 183339b (feat: SKILL.md). SC-6 complete.
+- **Standard TRD commit pattern for 02-05** — CONTEXT.md §"TRD types" locks standard TRDs to single feat commit for tests + impl. Two commits used: one for lib/CLI surface (d183052) + one for skill file (183339b) as different surfaces per TRD instructions.
+- **Quarter filter normalization (TRD 02-05)** — `--quarter Q2-2026` matches `quarter: "Q2 2026"` items (dash/space normalized, case-insensitive substring). Locked in renderMarkdown.
+- **Soft-fail org auth pattern (TRD 02-05)** — When default mode (both sections) and org GhAuthError: render peer-only + warning. Hard-fail only on --org-only or when peer also unavailable. Mirrors cmdGhResolve pattern for the hard-fail path.
 
 ## Blockers / Concerns
 
@@ -90,7 +94,7 @@
 
 ## Session Continuity
 
-Last session: 2026-05-04 — TRD 02-03 (org scanner) complete. walkProject + scanOrg + parseTaskListFallback shipped.
+Last session: 2026-05-04 — TRD 02-05 (/devflow:awareness skill + CLI) complete. parseShowFlags + renderMarkdown + cmdAwarenessShow shipped.
 Resume file: `.planning/SESSION_PICKUP.md`
-Stopped at: Completed 02-03-org-scanner-TRD.md
-Next: Objective 2 TRD 02-05 — Skill + CLI subcommand routing (Wave 5)
+Stopped at: Completed 02-05-skill-and-cli-TRD.md
+Next: Objective 2 TRD 02-06 — Lifecycle integration (Wave 6)
