@@ -212,12 +212,112 @@ function buildGitFixtureRepo({
   return { root, cleanup, ranGit };
 }
 
+// ─── TRD 02-02: peer scanner mocks ──────────────────────────────────────────
+
+/**
+ * Mirror of buildMockRunGh from gh-fixtures.cjs — for git invocations.
+ * `responses` is a Map<string, { ok, stdout, stderr }> keyed by joined args.
+ * Exact match first, then prefix match (longest prefix wins).
+ */
+function buildMockRunGit(responses = new Map()) {
+  let callCount = 0;
+  const calls = [];
+
+  function mockRunGit(args, opts) {
+    callCount++;
+    const key = args.join(' ');
+    calls.push({ args, opts, key });
+    if (responses.has(key)) return responses.get(key);
+    let bestKey = null, bestLen = -1;
+    for (const [k] of responses.entries()) {
+      if (key.startsWith(k) && k.length > bestLen) { bestKey = k; bestLen = k.length; }
+    }
+    if (bestKey !== null) return responses.get(bestKey);
+    return { ok: false, status: 1, stdout: '', stderr: `[mock] no match for: ${key}` };
+  }
+
+  mockRunGit.callCount = () => callCount;
+  mockRunGit.calls = () => [...calls];
+  return mockRunGit;
+}
+
+/**
+ * Canned response for `git for-each-ref refs/remotes/origin/* --format='%(refname:short)'`.
+ * `branches` is an array of short ref names (e.g., 'origin/feature/v1.1').
+ */
+function buildGitForEachRefOutput({ branches = [] } = {}) {
+  return {
+    ok: true, status: 0,
+    stdout: branches.map(b => b.startsWith('origin/') ? b : `origin/${b}`).join('\n'),
+    stderr: '',
+  };
+}
+
+/**
+ * Canned response for `git log -1 --format='%H%x00%cI%x00%s' <branch>`.
+ * Returns NUL-separated SHA, ISO timestamp, subject.
+ */
+function buildGitLogOutput({ sha = 'abc123def4567890', timestamp = '2026-05-04T08:31:00Z', subject = 'feat: test commit' } = {}) {
+  return {
+    ok: true, status: 0,
+    stdout: `${sha}\x00${timestamp}\x00${subject}`,
+    stderr: '',
+  };
+}
+
+/**
+ * Canned response for `git show <branch>:.planning/STATE.md`.
+ * Pass either `state_md` (full content) or { objective, trd, ... } and
+ * fixture builder calls buildStateMd internally.
+ */
+function buildGitShowStateMd({ state_md, objective, trd, branch, github_issue, objective_complete } = {}) {
+  const content = state_md != null
+    ? state_md
+    : buildStateMd({ objective, trd, branch, github_issue, objective_complete });
+  return { ok: true, status: 0, stdout: content, stderr: '' };
+}
+
+/**
+ * Canned ENOENT response — STATE.md missing on branch.
+ */
+function buildGitShowMissingFile() {
+  return { ok: false, status: 128, stdout: '', stderr: 'fatal: path does not exist in branch' };
+}
+
+/**
+ * Canned response for `git fetch --all --prune`.
+ */
+function buildGitFetchSuccess() {
+  return { ok: true, status: 0, stdout: '', stderr: '' };
+}
+
+function buildGitFetchFailure({ stderr = 'fatal: unable to access remote' } = {}) {
+  return { ok: false, status: 128, stdout: '', stderr };
+}
+
+/**
+ * Canned response for `git config user.name`.
+ */
+function buildGitConfigUserName({ name = 'mark' } = {}) {
+  return { ok: true, status: 0, stdout: name, stderr: '' };
+}
+
 // ─── exports ──────────────────────────────────────────────────────────────────
 
 module.exports = {
+  // TRD 02-01:
   buildStateMd,
   buildOrgItem,
   buildSubIssue,
   buildOrgScanResult,
   buildGitFixtureRepo,
+  // TRD 02-02:
+  buildMockRunGit,
+  buildGitForEachRefOutput,
+  buildGitLogOutput,
+  buildGitShowStateMd,
+  buildGitShowMissingFile,
+  buildGitFetchSuccess,
+  buildGitFetchFailure,
+  buildGitConfigUserName,
 };
