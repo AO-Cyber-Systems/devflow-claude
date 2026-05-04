@@ -650,7 +650,9 @@ describe('cmdGhResolve / df-tools gh resolve', () => {
     );
 
     // Mock runGh to avoid live gh calls
+    // TRD 01-03: auth status mock added so requireGhAuth passes before resolve
     const mock = fx.buildMockRunGh(new Map([
+      ['auth status', { ok: true, status: 0, stdout: AUTH_STDOUT_FULL_SCOPES, stderr: '' }],
       ['api graphql', { ok: false, status: 1, stdout: '', stderr: '[mock] no walk' }],
     ]));
     gh._setRunGh(mock);
@@ -693,7 +695,10 @@ describe('cmdGhResolve / df-tools gh resolve', () => {
       'utf-8'
     );
 
-    const mock = fx.buildMockRunGh(new Map());
+    // TRD 01-03: auth status mock added so requireGhAuth passes before resolve
+    const mock = fx.buildMockRunGh(new Map([
+      ['auth status', { ok: true, status: 0, stdout: AUTH_STDOUT_FULL_SCOPES, stderr: '' }],
+    ]));
     gh._setRunGh(mock);
 
     // Test pretty (raw=false)
@@ -720,7 +725,10 @@ describe('cmdGhResolve / df-tools gh resolve', () => {
   });
 
   test('H3: OBJECTIVE.md absent → exits non-zero with "objective not found" message on stderr', () => {
-    const mock = fx.buildMockRunGh(new Map());
+    // TRD 01-03: auth status must succeed so the "objective not found" check is reached
+    const mock = fx.buildMockRunGh(new Map([
+      ['auth status', { ok: true, status: 0, stdout: AUTH_STDOUT_FULL_SCOPES, stderr: '' }],
+    ]));
     gh._setRunGh(mock);
 
     let stderrOutput = '';
@@ -767,7 +775,10 @@ describe('cmdGhResolve / df-tools gh resolve', () => {
       'utf-8'
     );
 
-    const mock = fx.buildMockRunGh(new Map());
+    // TRD 01-03: auth status mock added so requireGhAuth passes before resolve
+    const mock = fx.buildMockRunGh(new Map([
+      ['auth status', { ok: true, status: 0, stdout: AUTH_STDOUT_FULL_SCOPES, stderr: '' }],
+    ]));
     gh._setRunGh(mock);
 
     let capturedOutput = '';

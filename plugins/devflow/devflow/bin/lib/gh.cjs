@@ -77,6 +77,117 @@ function runGh(args, opts = {}) {
 let _runGh = runGh;
 function _setRunGh(fn) { _runGh = (fn != null) ? fn : runGh; }
 
+// ─── Auth + error handling (TRD 01-03) ───────────────────────────────────────
+
+/**
+ * Structured error thrown by requireGhAuth when gh is missing, unauthenticated,
+ * or has insufficient scopes.
+ *
+ * Shape: { name: 'GhAuthError', message, remediation, scopes_missing }
+ *   - message:       human-readable failure description
+ *   - remediation:   runnable shell command string (no placeholders)
+ *   - scopes_missing: array of missing scope strings (empty for non-scope failures)
+ */
+class GhAuthError extends Error {
+  constructor({ message, remediation, scopes_missing = [] }) {
+    super(message);
+    this.name = 'GhAuthError';
+    this.remediation = remediation;
+    this.scopes_missing = scopes_missing;
+  }
+}
+
+/**
+ * Parse token scopes from `gh auth status` stdout.
+ * Returns array of scope strings; empty array if no scopes line found.
+ *
+ * Handles both gh output formats:
+ *   - Modern (2.40+):  - Token scopes: 'repo', 'gist', 'project'
+ *   - Older:           - Token scopes: "repo", "gist"
+ *   - Multiline:       - Token scopes: 'repo',\n      'gist'
+ */
+function parseScopes(stdout) {
+  if (!stdout) return [];
+
+  // Match the line starting with "Token scopes:" and capture everything until
+  // we reach a line that doesn't start with whitespace+quote (handles multiline).
+  // Strategy: find "Token scopes:" then extract all quoted tokens from that point.
+  const scopesIdx = stdout.indexOf('Token scopes:');
+  if (scopesIdx === -1) return [];
+
+  // Grab text from "Token scopes:" to end of the section
+  // Stop at the next line that starts with "  -" (another field) or end of string
+  const rest = stdout.slice(scopesIdx);
+  const nextField = rest.match(/\n\s+-\s+\w/);
+  const scopeSection = nextField ? rest.slice(0, nextField.index) : rest;
+
+  // Extract all quoted tokens — strip both single and double quotes
+  const scopes = [];
+  const re = /['"]([^'"]+)['"]/g;
+  let m;
+  while ((m = re.exec(scopeSection)) !== null) {
+    scopes.push(m[1]);
+  }
+  return scopes;
+}
+
+/**
+ * Hard-fail auth check. Throws GhAuthError when:
+ *   - gh binary is missing (ok:false, status:null or stderr contains 'command not found')
+ *   - not authenticated (ok:false, stderr contains 'not logged in' / 'hosts')
+ *   - token has expired (ok:false, stderr contains 'expired')
+ *   - authenticated but missing required scopes
+ *
+ * Returns silently (undefined) when gh is installed, authenticated, and has all
+ * required scopes. Callers that need hard-fail use this; graceful-skip callers
+ * (cmdGhSyncObjectives etc.) continue using ghStatus() — back-compat preserved.
+ *
+ * @param {string[]} requiredScopes - scope strings that must be present
+ */
+function requireGhAuth(requiredScopes = []) {
+  const r = _runGh(['auth', 'status']);
+
+  if (!r.ok) {
+    const stderr = r.stderr || '';
+
+    // No gh binary: spawnSync sets status:null on ENOENT, or stderr says "command not found"
+    if (r.status === null || /command not found|ENOENT/i.test(stderr)) {
+      throw new GhAuthError({
+        message: 'GitHub CLI (gh) is not installed.',
+        remediation: 'Install gh from https://cli.github.com',
+      });
+    }
+
+    // Expired token (must check before "not authenticated" catch-all)
+    if (/expired/i.test(stderr)) {
+      throw new GhAuthError({
+        message: 'GitHub CLI token has expired.',
+        remediation: 'gh auth refresh',
+      });
+    }
+
+    // Not authenticated (default for any other ok:false)
+    throw new GhAuthError({
+      message: 'GitHub CLI is not authenticated.',
+      remediation: 'gh auth login',
+    });
+  }
+
+  // Authenticated — check that all required scopes are present
+  const scopes = parseScopes(r.stdout);
+  const missing = requiredScopes.filter((s) => !scopes.includes(s));
+
+  if (missing.length > 0) {
+    throw new GhAuthError({
+      message: `GitHub CLI is missing required scopes: ${missing.join(', ')}`,
+      // CRITICAL: comma-joined form with -h github.com first, per verifier briefings
+      remediation: `gh auth refresh -h github.com -s ${missing.join(',')}`,
+      scopes_missing: missing,
+    });
+  }
+  // OK — all scopes present; return silently
+}
+
 // Per-process in-memory cache for resolveChain (SC-3).
 // Module-scope Map; dies with the process. NEVER persisted to disk.
 let _cachedChains = new Map();
@@ -433,6 +544,11 @@ function linkSubIssue(parentRef, childRef) {
 /**
  * CLI entry point for `df-tools gh resolve <objectiveId>`.
  * Reads OBJECTIVE.md + PROJECT.md from cwd, calls resolveChain, writes JSON.
+ *
+ * Hard-fails on missing/expired/insufficient auth (SC-8, TRD 01-03):
+ * requireGhAuth(['project', 'read:project', 'repo']) is called before any gh API
+ * calls. On failure, structured JSON error is written to stderr and process exits 1.
+ * Stdout stays clean so downstream JSON consumers are not corrupted.
  */
 function cmdGhResolve(cwd, objectiveId, raw) {
   const USAGE = 'Usage: df-tools gh resolve <objectiveId> [--raw]\n' +
@@ -443,6 +559,24 @@ function cmdGhResolve(cwd, objectiveId, raw) {
     process.stderr.write(USAGE);
     process.exit(objectiveId ? 0 : 1);
     return;
+  }
+
+  // Hard-fail auth check before any gh API calls (SC-8)
+  try {
+    requireGhAuth(['project', 'read:project', 'repo']);
+  } catch (e) {
+    if (e.name === 'GhAuthError') {
+      // Write structured error to STDERR — stdout stays clean for JSON consumers
+      const errPayload = {
+        error: e.message,
+        remediation: e.remediation,
+        scopes_missing: e.scopes_missing,
+      };
+      process.stderr.write(JSON.stringify(errPayload, null, 2) + '\n');
+      process.exit(1);
+      return;
+    }
+    throw e; // Unknown error — propagate up
   }
 
   const objPath = path.join(cwd, '.planning', 'objectives', objectiveId, 'OBJECTIVE.md');
@@ -806,7 +940,7 @@ function cmdGhSyncRelease(cwd, tag, raw) {
 }
 
 module.exports = {
-  // EXISTING (preserved unchanged):
+  // EXISTING (preserved unchanged — graceful-skip behavior):
   ghStatus,
   cmdGhStatus,
   cmdGhSyncObjectives,
@@ -820,6 +954,10 @@ module.exports = {
   addToProject,
   linkSubIssue,
   cmdGhResolve,
+
+  // NEW in TRD 01-03 — hard-fail auth layer:
+  requireGhAuth,
+  GhAuthError,
 
   // Test hooks (TRD 01-02):
   _resetCache,
