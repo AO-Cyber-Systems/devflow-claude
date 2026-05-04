@@ -173,11 +173,13 @@ function resolve({ projectRoot, objectiveId, trdPath, userHome, tablePath } = {}
   }
   const tableDefaults = { ...table[kind][work] };
 
-  // Build resolved config + provenance
+  // Build resolved config + provenance.
+  // Seed config with all table fields so new fields (security_isolation,
+  // back_compat, tdd_default, test_list_first, fixture_strategy) are available
+  // to consumers before TRD 02 adds explicit provenance tracking for them.
   const sources = {};
-  const config = {};
+  const config = { ...tableDefaults };
   for (const field of ['tdd', 'depth', 'model_profile', 'verification']) {
-    config[field] = tableDefaults[field];
     sources[field] = `defaults table (${kind}, ${work})`;
   }
 
