@@ -169,6 +169,7 @@ const {
 } = require('./lib/workstreams.cjs');
 const {
   cmdGhStatus, cmdGhSyncObjectives, cmdGhComment, cmdGhCloseIssue, cmdGhSyncRelease,
+  cmdGhResolve,
 } = require('./lib/gh.cjs');
 const {
   cmdChangelogUpdate, cmdChangelogCheck,
@@ -738,8 +739,11 @@ async function main() {
       } else if (subcommand === 'sync-release') {
         // df-tools gh sync-release <tag>
         cmdGhSyncRelease(cwd, args[2], raw);
+      } else if (subcommand === 'resolve') {
+        // df-tools gh resolve <objectiveId> [--raw]
+        cmdGhResolve(cwd, args[2], raw);
       } else {
-        error('Unknown gh subcommand. Available: status, sync-objectives, comment, close-issue, sync-release');
+        error('Unknown gh subcommand. Available: status, sync-objectives, resolve, comment, close-issue, sync-release');
       }
       break;
     }
