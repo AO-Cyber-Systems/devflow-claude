@@ -12,8 +12,8 @@
 **Branch:** `feature/v1.1`
 **Objective complete:** 0 — Refine (kind, work) defaults table from codebase evidence (verified 2026-05-04, 443/443 tests, all 10 SC met)
 **Objective in flight:** 1 — GitHub coordination layer (#10)
-**Current TRD:** 01-03 (wave 3 — auth + error handling)
-**Status:** TRD 01-02 complete (wave 2 done)
+**Current TRD:** 01-04 (wave 4 — gh-sync skill + CLI)
+**Status:** TRD 01-03 complete (wave 3 done — auth + error handling)
 
 ## Branch State (post-merge)
 
@@ -53,6 +53,9 @@
 - **TRD 01-02 complete (2026-05-04)** — `resolveChain(frontmatter, projectCtx)` walks GH-link fields through full org chain with per-field provenance; shorthand `#NN` expansion with graceful warnings; per-process in-memory cache (module-scope Map); `findRoadmapIssue`, `addToProject`, `linkSubIssue` helpers; `cmdGhResolve` + `df-tools gh resolve` CLI routing. 32 new tests (Groups A-I). 483/483 tests pass. Commits: 8ac655c (test:), b91e7e6 (feat:). Wave 2 complete.
 - **_setRunGh test injection hook added (TRD 01-02)** — Production code uses `_runGh` (shadows `runGh`); tests inject mock via `_setRunGh(fn)`. Existing cmdGhSync*/cmdGhComment/etc. continue using `runGh` directly (back-compat). TRD 01-03 should follow the same pattern when wrapping runGh with auth checks.
 - **Cache provenance transform locked (TRD 01-02)** — `walked_from_parent` and `inherited_from_project` become `'cached'` on hit; `frontmatter` and `absent` stay unchanged. Re-reading frontmatter is free; only walked/fetched values are the "cache value".
+- **TRD 01-03 complete (2026-05-04)** — `GhAuthError` class + `requireGhAuth(requiredScopes)` hard-fail auth check added to `lib/gh.cjs`. `cmdGhResolve` now calls `requireGhAuth(['project','read:project','repo'])` as first action; structured JSON to stderr + exit(1) on failure. `parseScopes()` handles single/double-quote and multiline scope formats. 20 new tests (Groups A-E). 503/503 tests pass. Commits: f673a31 (test:), 91289c4 (feat:). Wave 3 complete.
+- **Hard-fail vs graceful-skip pattern locked (TRD 01-03)** — `requireGhAuth` throws `GhAuthError` (hard-fail for new resolver/sync subcommands); `ghStatus` returns status dict (graceful-skip for existing cmdGhSyncObjectives/cmdGhComment/cmdGhCloseIssue/cmdGhSyncRelease). Both coexist in same module. Back-compat locked in CONTEXT.md §7.
+- **Exact remediation format locked (TRD 01-03)** — `gh auth refresh -h github.com -s scope1,scope2` (comma-joined scopes, `-h` before `-s`). Test B4 enforces this. Future TRDs must use same format.
 
 ## Blockers / Concerns
 
@@ -60,7 +63,7 @@
 
 ## Session Continuity
 
-Last session: 2026-05-04 — TRD 01-02 (resolver chain walk) complete. Wave 2 done.
+Last session: 2026-05-04 — TRD 01-03 (auth + error handling) complete. Wave 3 done.
 Resume file: `.planning/SESSION_PICKUP.md`
-Stopped at: Completed 01-02-resolver-chain-walk-TRD.md
-Next: TRD 01-03 (auth + error handling — wave 3, TDD)
+Stopped at: Completed 01-03-auth-and-error-handling-TRD.md
+Next: TRD 01-04 (gh-sync skill + CLI — wave 4, TDD)
