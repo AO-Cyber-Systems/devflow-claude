@@ -11,7 +11,7 @@
 **Milestone:** v1.1 — DevFlow Coordination Layer (in flight)
 **Branch:** `feature/v1.1`
 **Objective in flight:** 0 — Refine (kind, work) defaults table from codebase evidence
-**Status:** Objective 0 IN EXECUTION. TRD 0.6 (testing-strategy-doc) COMPLETE 2026-05-04. 5 TRDs remaining (0.1, 0.2, 0.3, 0.4, 0.5). Wave 1 complete when TRD 0.1 ships (table + testing-strategy doc both Wave 1). GH tracking: #20 (sub-issue of #9; closes #7 in PR via TRD 0.6 commit df9fb0e).
+**Status:** Objective 0 IN EXECUTION. Wave 1 COMPLETE (TRD 0.1 + 0.6 done). 4 TRDs remaining (0.2, 0.3, 0.4, 0.5). Next: Wave 2 — TRD 0.2 (resolver schema, solo soak). GH tracking: #20 (sub-issue of #9; closes #7 in PR).
 
 ## Branch State (post-merge)
 
@@ -34,6 +34,8 @@
 - **kind/work intent model is canonical** — devflow-claude's PROJECT.md uses `kind: plugin, default_work: feature`. Defaults table at `plugins/devflow/devflow/references/defaults-table.md` is the (kind, work) → defaults source of truth.
 - **Objective 0 wave structure (LOCKED — see `00-CONTEXT.md` §7):** Wave 1 = TRD 0.1 (table) + 0.6 (testing-strategy doc); Wave 2 = TRD 0.2 (resolver schema, solo soak); Wave 3 = TRD 0.3 (planner) + 0.4 (CLAUDE.md absorption); Wave 4 = TRD 0.5 (migration + provenance). TRD 0.1 ≠ Wave with TRD 0.2 — hard sequencing constraint.
 - **TRD 0.6 complete (2026-05-04)** — `references/testing-strategy.md` authored with layer x tool x stack matrix (4 stacks, 7 layers), Flutter-web gotcha, codegen discipline, platform routing. Visual/golden and AI exploratory cells marked deferred per codebase survey. Closes GH #7. Commit: df9fb0e.
+- **TRD 0.1 complete (2026-05-04)** — `defaults-table.md` rewritten to 42 cells × 9 fields. All 6 port cells drop spec-match (contract-list-first parity). All 4 non-skip ui-lib cells drop visual regression. api cells carry security_isolation. constraints: block added. Resolver seeded from full tableDefaults so all 9 fields propagate. Commits: 30e6ed2, 57c8be9. Wave 1 now complete.
+- **Resolver config seeding fix (TRD 0.1 deviation)** — `intent.cjs` initialized `config = { ...tableDefaults }` so new fields (security_isolation, back_compat, tdd_default, test_list_first, fixture_strategy) surface in `df-tools intent resolve` output. Provenance for new fields deferred to TRD 0.2.
 
 ## Blockers / Concerns
 
@@ -41,7 +43,7 @@
 
 ## Session Continuity
 
-Last session: 2026-05-04 — TRD 0.6 (testing-strategy-doc) complete. Wave 1 partial (0.6 done; 0.1 table pending).
+Last session: 2026-05-04 — TRD 0.1 (defaults-table update) complete. Wave 1 complete (both TRD 0.1 + 0.6 done).
 Resume file: `.planning/SESSION_PICKUP.md`
-Stopped at: Completed 00-refine-defaults-table-06-TRD.md (testing-strategy-doc)
-Next: Execute remaining TRDs — Wave 1: TRD 0.1 (defaults-table update); Wave 2: TRD 0.2 (resolver schema); Wave 3: TRD 0.3 + 0.4; Wave 4: TRD 0.5.
+Stopped at: Completed 00-01-defaults-table-update-TRD.md
+Next: Execute Wave 2 — TRD 0.2 (resolver schema, solo soak). Then Wave 3: TRD 0.3 + 0.4; Wave 4: TRD 0.5.
