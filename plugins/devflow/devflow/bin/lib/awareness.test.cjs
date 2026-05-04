@@ -1407,12 +1407,13 @@ test('T7 (02-03): body with headings + checkboxes mixed → only checkbox lines 
 
 // ─── Group O: scanOrg orchestrator happy paths ───────────────────────────────
 
+// Shared auth status text format (matches parseScopes expected format in gh.cjs)
+const GH_AUTH_STATUS_OK = "github.com\n  ✓ Logged in\n  - Token scopes: 'project', 'read:project', 'repo'";
+
 test('O1 (02-03): scanOrg calls requireGhAuth FIRST (mock counter asserts ordering)', () => {
   // requireGhAuth is called before walkProject; if gh mock for "auth status" succeeds,
   // requireGhAuth passes; if walkProject mock also set, we get items.
-  const authStatusResp = { ok: true, status: 0, stdout: JSON.stringify([
-    { token: { scopes: ['project', 'read:project', 'repo'] } }
-  ]), stderr: '' };
+  const authStatusResp = { ok: true, status: 0, stdout: GH_AUTH_STATUS_OK, stderr: '' };
   const itemsResp = buildGhResponse_projectItemsList({ items: [], hasNextPage: false });
 
   let authCallIndex = -1;
@@ -1441,9 +1442,7 @@ test('O1 (02-03): scanOrg calls requireGhAuth FIRST (mock counter asserts orderi
 });
 
 test('O2 (02-03): scanOrg uses default project_id from PRODUCT_ROADMAP_FIELDS._project_id when opts.project_id undefined', () => {
-  const authResp = { ok: true, status: 0, stdout: JSON.stringify([
-    { token: { scopes: ['project', 'read:project', 'repo'] } }
-  ]), stderr: '' };
+  const authResp = { ok: true, status: 0, stdout: GH_AUTH_STATUS_OK, stderr: '' };
   const itemsResp = buildGhResponse_projectItemsList({ items: [], hasNextPage: false });
 
   let usedProjectId = null;
@@ -1479,9 +1478,7 @@ test('O2 (02-03): scanOrg uses default project_id from PRODUCT_ROADMAP_FIELDS._p
 });
 
 test('O3 (02-03): 3 items returned by walkProject → result.items has sub_issues (mix of trackedIssues + task-list)', () => {
-  const authResp = { ok: true, status: 0, stdout: JSON.stringify([
-    { token: { scopes: ['project', 'read:project', 'repo'] } }
-  ]), stderr: '' };
+  const authResp = { ok: true, status: 0, stdout: GH_AUTH_STATUS_OK, stderr: '' };
 
   const subNodes = buildGhResponse_subIssuesByTrackedIssues({
     subIssues: [{ ref: 'AO-Cyber-Systems/aodex#101', title: 'Sub', state: 'OPEN' }],
@@ -1530,9 +1527,7 @@ test('O3 (02-03): 3 items returned by walkProject → result.items has sub_issue
 });
 
 test('O4 (02-03): result shape is { items, fetched_at: ISO, project_id, warnings }', () => {
-  const authResp = { ok: true, status: 0, stdout: JSON.stringify([
-    { token: { scopes: ['project', 'read:project', 'repo'] } }
-  ]), stderr: '' };
+  const authResp = { ok: true, status: 0, stdout: GH_AUTH_STATUS_OK, stderr: '' };
   const itemsResp = buildGhResponse_projectItemsList({ items: [], hasNextPage: false });
 
   gh._setRunGh((args) => {
@@ -1553,9 +1548,7 @@ test('O4 (02-03): result shape is { items, fetched_at: ISO, project_id, warnings
 });
 
 test('O5 (02-03): walkProject warnings propagated into scanOrg result.warnings', () => {
-  const authResp = { ok: true, status: 0, stdout: JSON.stringify([
-    { token: { scopes: ['project', 'read:project', 'repo'] } }
-  ]), stderr: '' };
+  const authResp = { ok: true, status: 0, stdout: GH_AUTH_STATUS_OK, stderr: '' };
   // walkProject failing mid-run produces a warning
   const failResp = { ok: false, status: 1, stdout: '', stderr: 'rate limit exceeded' };
 
@@ -1619,9 +1612,7 @@ test('OA2 (02-03): scanOrg never calls walkProject when auth fails', () => {
 // ─── Group OS: scanOrg silent-on-permissions ─────────────────────────────────
 
 test('OS1 (02-03): items missing repository field (permission gap) → returned as-is, no warning per SC-5', () => {
-  const authResp = { ok: true, status: 0, stdout: JSON.stringify([
-    { token: { scopes: ['project', 'read:project', 'repo'] } }
-  ]), stderr: '' };
+  const authResp = { ok: true, status: 0, stdout: GH_AUTH_STATUS_OK, stderr: '' };
 
   // Issue with no repository (issue_ref will be null — user can see project but not repo)
   const itemsResp = buildGhResponse_projectItemsList({

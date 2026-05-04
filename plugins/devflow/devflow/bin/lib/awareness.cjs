@@ -401,7 +401,101 @@ function scanPeer({
   return result;
 }
 
-// ─── module.exports (TRD 02-01 + TRD 02-04 + TRD 02-02) ─────────────────────
+// ─── TRD 02-03: scanOrg orchestrator + task-list fallback ────────────────────
+
+const gh = require('./gh.cjs');
+
+/**
+ * Parse task-list bullet items from issue body for sub-issue fallback.
+ * Matches lines like:
+ *   - [ ] AO-Cyber-Systems/aodex#101 — Some title
+ *   - [x] #50 — Other title
+ * Plain bullets without checkboxes are IGNORED.
+ *
+ * Returns array of { ref, title, state } where state is 'OPEN'|'CLOSED'.
+ *
+ * @param {string|null} body - issue body text
+ * @returns {{ ref: string, title: string, state: 'OPEN'|'CLOSED' }[]}
+ */
+function parseTaskListFallback(body) {
+  if (!body || typeof body !== 'string') return [];
+  const out = [];
+  const lines = body.split('\n');
+  // Match: - [ ] or - [x] (or * variants) followed by issue ref (full or shorthand)
+  // ref pattern: owner/repo#NN or #NN
+  // \S*#\d+ allows shorthand (#50) and full refs (owner/repo#50)
+  const re = /^\s*[-*]\s+\[([ xX])\]\s+(\S*#\d+)(?:\s*[—\-:]\s*(.+))?/;
+  for (const line of lines) {
+    const m = line.match(re);
+    if (!m) continue;
+    const checked = m[1].toLowerCase() === 'x';
+    const ref = m[2];
+    const title = (m[3] || '').trim();
+    out.push({ ref, title, state: checked ? 'CLOSED' : 'OPEN' });
+  }
+  return out;
+}
+
+/**
+ * Scan the org Product Roadmap project (or another project by ID) and return
+ * structured items + their sub-issues.
+ *
+ * Composes:
+ *   - requireGhAuth(['project', 'read:project', 'repo'])  (hard-fail per locked decision #10)
+ *   - walkProject(projectId) from gh.cjs
+ *   - parseTaskListFallback for items with trackedIssues.totalCount === 0
+ *
+ * Returns { items, fetched_at, project_id, warnings }.
+ *
+ * Throws GhAuthError on auth failure — caller (skill / CLI) renders the structured error.
+ *
+ * @param {object} [opts]
+ * @param {string} [opts.project_id] - Project node ID; defaults to PRODUCT_ROADMAP_FIELDS._project_id
+ * @returns {{ items: object[], fetched_at: string, project_id: string|null, warnings: string[] }}
+ */
+function scanOrg({
+  project_id,
+} = {}) {
+  // 1. Hard-fail auth (locked decision #10) — MUST be first action
+  gh.requireGhAuth(['project', 'read:project', 'repo']);
+
+  // 2. Resolve default project_id (org Product Roadmap from cassette)
+  const resolvedId = project_id || (gh.PRODUCT_ROADMAP_FIELDS && gh.PRODUCT_ROADMAP_FIELDS._project_id) || null;
+  if (!resolvedId) {
+    return {
+      items: [],
+      fetched_at: new Date().toISOString(),
+      project_id: null,
+      warnings: ['scanOrg: no project_id supplied and no default available (cassette missing?)'],
+    };
+  }
+
+  // 3. Walk project items
+  const walk = gh.walkProject(resolvedId);
+
+  // 4. For each item with empty sub_issues, fall back to task-list parsing of body
+  const enriched = walk.items.map(item => {
+    if (item.item_type === 'issue' && item.sub_issues.length === 0 && item.body) {
+      const fallback = parseTaskListFallback(item.body);
+      if (fallback.length > 0) {
+        return Object.assign({}, item, { sub_issues: fallback, sub_issues_source: 'task_list' });
+      }
+    }
+    if (item.sub_issues.length > 0) {
+      return Object.assign({}, item, { sub_issues_source: 'tracked_issues' });
+    }
+    return Object.assign({}, item, { sub_issues_source: 'none' });
+  });
+
+  return {
+    items: enriched,
+    fetched_at: new Date().toISOString(),
+    project_id: resolvedId,
+    warnings: [...(walk.warnings || [])],
+  };
+}
+
+// ─── module.exports (TRD 02-01 + TRD 02-04 + TRD 02-02 + TRD 02-03) ─────────
 
 module.exports = {
   parseStateMd,
@@ -410,6 +504,8 @@ module.exports = {
   writeCache,
   isStale,
   scanPeer,
+  scanOrg,
+  parseTaskListFallback,
   _setRunGit,
   _resetGitMock,
   DEFAULT_TTL_MINUTES,
