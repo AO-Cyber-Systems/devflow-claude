@@ -12,7 +12,8 @@
 **Branch:** `feature/v1.1`
 **Objective complete:** 0 — Refine (kind, work) defaults table from codebase evidence (verified 2026-05-04, 443/443 tests, all 10 SC met)
 **Objective in flight:** 1 — GitHub coordination layer (#10)
-**Status:** Ready to plan
+**Current TRD:** 01-02 (wave 2 — resolver chain walk)
+**Status:** TRD 01-01 complete (wave 1 done)
 
 ## Branch State (post-merge)
 
@@ -46,6 +47,9 @@
 - **TRD 0.5 complete (2026-05-04)** — `result.provenance` enum-normalized map added to resolver output; `normalizeProvenance()` helper maps freeform sources→{table|user_playbook|objective_override|trd_override}. OBJECTIVE.md and TRD frontmatter override loops extended to all 6 new structured fields (Wave-2 gap-repair). 18 new integration tests (Groups A-F + C migration regression against real 01-handoff-watcher). 443/443 tests pass. Commits: 120bc7d (test:), df9f8fa (feat:). Wave 4 complete. Objective 0 DONE.
 - **Wave-2 gap-repair (TRD 0.5)** — OBJECTIVE.md overrides and TRD frontmatter loops in intent.cjs only covered original 3/2 fields; extended to security_isolation, back_compat, tdd_default, test_list_first, fixture_strategy, outside_in. outside_in bool-coercion added for both paths. Surfaced by Wave-4 integration tests (expected pattern).
 - **B2 table truth correction** — (api, foundation) is security_isolation:single_tenant, not multi_tenant_required. Wrong-tenant injection applies to 4 api cells (feature, port, refactor, bugfix), not 5. TRD 0.5 test corrected to match table data.
+- **TRD 01-01 complete (2026-05-04)** — GH-link frontmatter fields documented in 3 templates (project.md: github_repo + org_project; objective.md: github_issue + parent_issue + org_initiative + org_project; job-prompt.md: per-TRD github_issue). `frontmatter.test.cjs` created: 8 tests proving back-compat + new-field parse + shorthand round-trip. 449/449 relevant tests pass (2 pre-existing unrelated failures). Commits: 5a11cb5 (docs), 6c3da20 (test). Wave 1 complete.
+- **Frontmatter parser is permissive (TRD 01-01 confirmed)** — extractFrontmatter accepts any unknown field without warnings; no parser changes required for GH-link fields. Unquoted #9 and quoted "#9" both parse to literal string; reconstruction wraps # values in quotes (serialization artifact, not a bug).
+- **org_project inheritance chain documented (TRD 01-01)** — PROJECT.md sets org_project as default; OBJECTIVE.md can override; TRD frontmatter inherits from objective. Resolution provenance vocabulary locked: frontmatter → inherited_from_project → walked_from_parent → absent.
 
 ## Blockers / Concerns
 
@@ -53,7 +57,7 @@
 
 ## Session Continuity
 
-Last session: 2026-05-04 — TRD 0.5 (migration + provenance) complete. Objective 0 ALL WAVES DONE.
+Last session: 2026-05-04 — TRD 01-01 (frontmatter fields + templates) complete. Wave 1 done.
 Resume file: `.planning/SESSION_PICKUP.md`
-Stopped at: Completed 00-05-migration-provenance-TRD.md
-Next: PR feature/v1.1 → main (closes GH #20, #7). Then proceed to Objective 1.
+Stopped at: Completed 01-01-frontmatter-fields-and-templates-TRD.md
+Next: TRD 01-02 (resolver chain walk — wave 2, TDD)
