@@ -258,11 +258,44 @@ If "Keep exploring" — ask what they want to add, or identify gaps and probe na
 
 Loop until "Create PROJECT.md" selected.
 
+## 3.5. Identify project `kind` (required)
+
+Before writing PROJECT.md, identify what the project IS. This sets the project-level half of the (kind, work) defaults lookup the planner uses on every objective.
+
+**Ask the user via AskUserQuestion:**
+
+- header: "Project kind"
+- question: "What is this project? (drives test/planning defaults for every future objective)"
+- options:
+  - "api" — backend API/service consumed by clients
+  - "app" — end-user application (web, mobile, desktop)
+  - "library" — code consumed by other code via API
+  - "ui-lib" — UI components consumed by other apps
+  - "cli" — command-line tool consumed by humans in a terminal
+  - "plugin" — extends a host system via plugin contract
+
+**Then ask about `default_work` (optional):**
+
+- header: "Default work type"
+- question: "Will most objectives in this project be the same work type? (e.g., a Rails→Go port has 10+ sequential `port` objectives)"
+- options:
+  - "Skip — work types vary" — most projects pick this
+  - "feature" — most objectives ship new behavior
+  - "port" — most objectives re-implement existing behavior
+  - "refactor" — most objectives restructure without behavior change
+  - "foundation" — most objectives are scaffolding (rare for whole project)
+  - "bugfix" — most objectives are list-driven bug fixes
+  - "prototype" — most objectives are exploratory throwaways
+
+If "Skip" is chosen, omit `default_work` from PROJECT.md frontmatter — the planner falls back to `feature` per objective. If a specific work type is chosen, write it as `default_work` in the frontmatter; the planner is louder about inheritance so users can override per objective when needed.
+
+**In auto mode:** Infer `kind` from the provided document (heuristic: presence of "API"/"endpoints"/"backend" → `api`; "UI"/"app"/"mobile" → `app`; "library"/"package"/"npm"/"gem" → `library`; "components"/"design system" → `ui-lib`; "CLI"/"command-line" → `cli`; "plugin"/"extension" → `plugin`). If the document is ambiguous, default to `api` and surface a warning. Skip `default_work` in auto mode.
+
 ## 4. Write PROJECT.md
 
 **If auto mode:** Synthesize from provided document. No "Ready?" gate was shown — proceed directly to commit.
 
-Synthesize all context into `.planning/PROJECT.md` using the template from `templates/project.md`.
+Synthesize all context into `.planning/PROJECT.md` using the template from `templates/project.md`. **Include the `kind` (and optionally `default_work`) values from Step 3.5 in the YAML frontmatter at the top of the file.**
 
 **For greenfield projects:**
 

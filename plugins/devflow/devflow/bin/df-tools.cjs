@@ -162,6 +162,8 @@ const {
   cmdInitNewMilestone, cmdInitQuick, cmdInitResume, cmdInitVerifyWork, cmdInitObjectiveOp,
   cmdInitTodos, cmdInitMilestoneOp, cmdInitMapCodebase, cmdInitSecurityAudit, cmdInitProgress,
 } = require('./lib/init.cjs');
+const intent = require('./lib/intent.cjs');
+const migrate = require('./lib/migrate.cjs');
 const {
   cmdWorkstreamsAnalyze, cmdWorkstreamsProvision, cmdWorkstreamsReconcile,
 } = require('./lib/workstreams.cjs');
@@ -390,6 +392,72 @@ async function main() {
 
     case 'history-digest': {
       cmdHistoryDigest(cwd, raw);
+      break;
+    }
+
+    case 'migrate': {
+      const subcommand = args[1];
+      if (subcommand === 'plan') {
+        try {
+          const result = migrate.plan({ projectRoot: cwd });
+          process.stdout.write(JSON.stringify(result, null, 2));
+          process.exit(0);
+        } catch (e) {
+          error(e.message);
+        }
+      } else if (subcommand === 'apply') {
+        const kindIdx = args.indexOf('--kind');
+        const defaultWorkIdx = args.indexOf('--default-work');
+        const workChoicesIdx = args.indexOf('--work-choices');
+        const dryRun = args.includes('--dry-run');
+        let workChoices = {};
+        if (workChoicesIdx !== -1 && args[workChoicesIdx + 1]) {
+          try { workChoices = JSON.parse(args[workChoicesIdx + 1]); }
+          catch { error('Invalid JSON for --work-choices'); }
+        }
+        try {
+          const result = migrate.apply({
+            projectRoot: cwd,
+            kind: kindIdx !== -1 ? args[kindIdx + 1] : undefined,
+            defaultWork: defaultWorkIdx !== -1 ? args[defaultWorkIdx + 1] : undefined,
+            workChoices,
+            dryRun,
+          });
+          process.stdout.write(JSON.stringify(result, null, 2));
+          process.exit(0);
+        } catch (e) {
+          error(e.message);
+        }
+      } else {
+        error('Unknown migrate subcommand. Available: plan, apply');
+      }
+      break;
+    }
+
+    case 'intent': {
+      const subcommand = args[1];
+      if (subcommand === 'resolve') {
+        const objectiveIndex = args.indexOf('--objective');
+        const trdIndex = args.indexOf('--trd');
+        const options = {
+          projectRoot: cwd,
+          objectiveId: objectiveIndex !== -1 ? args[objectiveIndex + 1] : undefined,
+          trdPath: trdIndex !== -1 ? args[trdIndex + 1] : undefined,
+        };
+        try {
+          const result = intent.resolve(options);
+          if (raw) {
+            process.stdout.write(JSON.stringify(result));
+          } else {
+            process.stdout.write(JSON.stringify(result, null, 2));
+          }
+          process.exit(0);
+        } catch (e) {
+          error(e.message);
+        }
+      } else {
+        error('Unknown intent subcommand. Available: resolve');
+      }
       break;
     }
 

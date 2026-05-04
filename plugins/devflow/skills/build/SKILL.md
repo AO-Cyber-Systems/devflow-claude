@@ -4,7 +4,7 @@ description: |
   Build a feature from start to finish — plans the work, executes it, and verifies the result in one command.
   Use when the user wants to build something, implement a feature, or work on an objective end-to-end.
   Triggers on: "build this", "build objective", "let's build", "implement this", "ship this", "make this work", "build the", "work on objective", "start building", "let's implement"
-argument-hint: "<objective-number-or-description> [--pause] [--skip-research]"
+argument-hint: "<objective-number-or-description> [--pause] [--skip-research] [--work TYPE] [--tdd POSTURE] [--depth LEVEL] [--model PROFILE]"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash, Task, TaskCreate, TaskUpdate, TaskList, AskUserQuestion, EnterPlanMode, ExitPlanMode
 ---
 
@@ -18,6 +18,10 @@ Usage:
 - `/devflow:build "add user authentication"` — Build from description (creates temporary objective if no match)
 - `/devflow:build 3 --pause` — Stop between phases for review
 - `/devflow:build 3 --skip-research` — Skip research phase
+- `/devflow:build 3 --work refactor` — Override the resolved work type for this objective
+- `/devflow:build 3 --tdd skip` — Override TDD posture (use sparingly; documents itself in OBJECTIVE.md)
+
+**Intent override flags** are forwarded to the planner phase and persisted in OBJECTIVE.md so the executor honors them. See `/devflow:plan-objective` for full enum values.
 </objective>
 
 <execution_context>
