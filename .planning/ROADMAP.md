@@ -137,6 +137,63 @@ Dependency order:
 - [ ] 01-05-pm-backend-seam-TRD.md — scaffold abstraction for v1.2+ Linear/Jira backends (Wave 5, standard)
 - [ ] 01-06-dogfood-and-integration-TRD.md — backfill obj 0 frontmatter, capture cassettes, live round-trip (Wave 6, tdd)
 
+### Objective 2: Cross-repo awareness layer (peer + org views)
+
+**Goal:** Two-fold awareness so a developer at any worktree sees (a) what teammates are working on right now and (b) how their work fits into the org's larger progress. No new storage backend — git is the storage for peer awareness; the org Product Roadmap project (already populated, walkable via obj 1's resolver) is the storage for org progress. A single `df:awareness` skill renders both views.
+
+**Tracks:** devflow-claude#11
+
+**Inputs (research complete):**
+- `.planning/research/cross-session-coordination.md` — heartbeat schema repurposed as read-time aggregation (write-side daemon dropped per locked decision)
+- `.planning/research/github-coordination-layer.md` — Product Roadmap project (#3, PVT_kwDODwqLrc4BRsOP) is the org-progress source of truth; obj 1 already walks one objective's chain
+
+**Locked decisions:**
+1. **Git is the storage for peer awareness.** No new repo, no new schema. `.planning/STATE.md` on each remote branch is the source of truth for that branch's session state.
+2. **Read-side aggregation, not write-side daemon.** Developers don't push more than they already do. Both scanners are pull-only.
+3. **Org progress reuses obj 1's resolver primitives.** `lib/gh.cjs::resolveChain` walks one objective; obj 2 adds `walkProject(projectId)` that iterates ALL items in the Product Roadmap project, then walks each item's sub-issues one hop deep.
+4. **Single skill, two sections.** `/devflow:awareness` renders peer (git-branch) view and org (Project-board) view side by side. Default shows both; `--peer-only` / `--org-only` flags filter.
+5. **Single cache file, namespaced.** `.planning/.awareness-cache.json` (gitignored) has `{ peer: {...}, org: {...} }` sections with independent TTLs. 10-min TTL default, configurable.
+6. **Local-repo scope for peer awareness.** Walks `origin/*` of the CURRENT repo only. Cross-repo peer awareness (teammate in aodex while you're in devflow-claude) is obj 5/6 territory and explicitly out of scope.
+7. **Org-progress scope = Product Roadmap project + 1 hop sub-issues.** Walks the project's items + each item's direct sub-issues. Going deeper (sub-sub-issues, TRD-level rollup) is obj 8 (TUI) territory.
+8. **No "blocked_on_user" / handoff state.** That's obj 7 (already shipped). Awareness here is purely informational.
+9. **Stale = invisible (peer side).** A dev who hasn't pushed in N hours is invisible. Documented limitation. Push for visibility.
+10. **Hard-fail on org-side gh auth.** Reuses obj 1's `requireGhAuth` — same remediation surface. Peer-side has no gh dep so works offline.
+
+**Success Criteria:**
+
+*Peer awareness (git-branch scanner)*
+1. `df-tools awareness scan-peer` walks `origin/*` refs (after `git fetch --all --prune` unless `--no-fetch`) and returns structured JSON: per branch with `.planning/STATE.md`, parsed objective-in-flight, current TRD, last commit timestamp, branch name, github_issue ref. Branches matching configurable patterns (`awareness.branch_patterns`, default `["feature/*", "df/*", "fix/*", "proposal/*"]`); ignores branches > 30 days stale; ignores `main`/`master`/`HEAD`.
+2. Scanner is fault-tolerant — branches without `.planning/STATE.md` silently skipped; malformed STATE.md logs warning and continues; works offline with `--no-fetch`.
+
+*Org progress (Project-board walker)*
+3. `df-tools awareness scan-org` walks the org Product Roadmap project (`PVT_kwDODwqLrc4BRsOP`, configurable via `awareness.org_project_id`) and returns hierarchical JSON: project items grouped by Product × Quarter, each item's direct sub-issues with status. Reuses obj 1's GraphQL chain helpers.
+4. Org walker fetches each item's `Status`, `Product`, `Quarter` custom fields + any `Iteration` field if present. Sub-issues fetched via `trackedIssues` GraphQL field; falls back to parsing task-list bullet items in the issue body when sub-issues aren't used (most current `[Roadmap]` issues use prose lists).
+5. Hard-fails (via `requireGhAuth`) on missing scopes; silent on items the auth'd user can't see.
+
+*Combined skill + cache*
+6. `/devflow:awareness` skill renders both views. Default: peer first (sorted by recency), then org (grouped by Product × Quarter, then sub-issues). Filters: `--peer-only`, `--org-only`, `--quarter Q2-2026`, `--product DevFlow`.
+7. Single cache file `.planning/.awareness-cache.json` with `peer` + `org` namespaced sections, each carrying its own `fetched_at` timestamp. Default 10-min TTL each; `--refresh` flag forces re-fetch of both; `--refresh peer` / `--refresh org` for single-namespace refresh.
+8. **Cache lifecycle:**
+   - SessionStart hook (fire-and-forget, async): populate cache IF missing/expired (TTL-based, lazy)
+   - `/df:plan-objective` entry: force-refresh awareness cache before planner spawns (parallels obj 1's gh resolve refresh)
+   - `/df:execute-objective` entry: force-refresh awareness cache before first wave (lets obj 4's future dup-detect see fresh state)
+   - Manual `/devflow:awareness` invocation: TTL-based read; `--refresh` flag forces re-fetch
+
+*Library surface + tests*
+9. `lib/awareness.cjs` exports stable surface: `scanPeer(opts)`, `scanOrg(opts)`, `parseStateMd(content)`, `aggregateOrgByProductQuarter(scans)`, `readCache(path)`, `writeCache(path, sections)`. `scanPeer` uses `_setRunGit` injection for unit tests; `scanOrg` uses obj 1's `_setRunGh` (no live calls in unit suite).
+10. Round-trip integration tests gated on `GIT_INTEGRATION=1` (peer side: 2 fixture branches in tmp clones) AND `GH_INTEGRATION=1` (org side: live walk of Product Roadmap; cassettes captured to `__fixtures__/gh-cassettes/product-roadmap-walk.json`).
+
+**Out of scope (v1.1 — explicit):**
+- Cross-repo peer awareness (teammate working in another repo) — obj 5/6 territory
+- Real-time / push notifications — v1.2 (needs a daemon)
+- Duplicate-work detection — obj 4 consumes this scanner's output
+- Initiative-level rollup with planner-readable Why/Open-questions — obj 5
+- Unified todo aggregation — obj 6
+- TUI rendering — obj 8
+- Multi-org visibility (only walks the org configured in `awareness.org_project_id`)
+
+**Gates** (downstream consumers): obj 4 (dup-detect reads peer scanner's output), obj 5 (initiatives layer extends org walker), obj 6 (check-todos aggregates this), obj 8 (TUI renders this).
+
 ---
 
 ## Milestone v1.2 — Handoff Watcher PTY + Coordination-Layer Polish (next)
