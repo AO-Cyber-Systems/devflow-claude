@@ -1676,3 +1676,258 @@ test('F3 (02-03): buildGhResponse_subIssuesByTaskList builds body with - [ ] lin
   assert.ok(body.includes('- [ ] AO-Cyber-Systems/aodex#101'), 'F3: unchecked line must be present');
   assert.ok(body.includes('- [x] AO-Cyber-Systems/aodex#102'), 'F3: checked line must be present');
 });
+
+// ─── TRD 02-07: library surface lock + integration tests ──────────────────────
+//
+// Test list (TDD Playbook habit 2 — enumerated before test code):
+//
+// Group L — Library surface lock:
+//   L1: Object.keys(require('awareness.cjs')).sort() === expected 14-entry list (deepStrictEqual)
+//   L2: each expected export has the correct typeof (function vs constant)
+//
+// Group CT — Cache round-trip integration:
+//   CT1: writeCache synthetic peer → readCache → assert peer section deep-equals input
+//   CT2: writeCache peer only → writeCache org only → readCache → both sections present
+//   CT3: cache file is valid JSON after round-trip
+//
+// Group IT — Peer integration (GIT_INTEGRATION=1 only):
+//   IT1: buildGitFixtureRepo 2-branch repo → scanPeer(no_fetch=true) → 2 entries with correct objectives
+//   IT2: fixture cleanup() removes tmp dir
+//
+// Group CR — Cassette replay (default test run, no env required):
+//   CR1: cassette file exists with expected shape (data.node.items.nodes array)
+//   CR2: replaying cassette via _setRunGh + walkProject → items array with correct item_type shape
+//   CR3: scanOrg with cassette replay → items with sub_issues_source field populated
+//
+// Group OT — Org integration + cassette capture (GH_INTEGRATION=1 only):
+//   OT1: walkProject against live Product Roadmap returns items.length > 0; write cassette
+//   OT2: drift-detection — capture fresh response, warn on diff vs committed cassette (don't fail)
+//
+// Total: 12 test cases.
+//
+// ─────────────────────────────────────────────────────────────────────────────
+
+const cassetteRel = path.join(
+  __dirname, '__fixtures__', 'gh-cassettes', 'product-roadmap-walk.json'
+);
+
+// ─── Group L: Library surface lock ───────────────────────────────────────────
+
+test('L1 (02-07): awareness.cjs exports exactly 14 expected entries', () => {
+  const aw = require('./awareness.cjs');
+  const exported = Object.keys(aw).sort();
+  const expected = [
+    'AWARENESS_CACHE_REL', 'DEFAULT_BRANCH_PATTERNS', 'DEFAULT_STALE_DAYS', 'DEFAULT_TTL_MINUTES',
+    '_resetGitMock', '_setRunGit',
+    'aggregateOrgByProductQuarter', 'isStale', 'parseStateMd', 'parseTaskListFallback',
+    'readCache', 'scanOrg', 'scanPeer', 'writeCache',
+  ].sort();
+  assert.deepStrictEqual(
+    exported,
+    expected,
+    `Export surface drift.\n  unexpected: ${exported.filter(e => !expected.includes(e)).join(', ')}\n  missing: ${expected.filter(e => !exported.includes(e)).join(', ')}`
+  );
+});
+
+test('L2 (02-07): each export has the expected type', () => {
+  const aw = require('./awareness.cjs');
+  const fns = [
+    'parseStateMd', 'aggregateOrgByProductQuarter', 'scanPeer', 'scanOrg',
+    'parseTaskListFallback', 'readCache', 'writeCache', 'isStale',
+    '_setRunGit', '_resetGitMock',
+  ];
+  for (const k of fns) {
+    assert.strictEqual(typeof aw[k], 'function', `${k} should be typeof function`);
+  }
+  assert.strictEqual(typeof aw.DEFAULT_TTL_MINUTES, 'number', 'DEFAULT_TTL_MINUTES should be number');
+  assert.strictEqual(typeof aw.DEFAULT_STALE_DAYS, 'number', 'DEFAULT_STALE_DAYS should be number');
+  assert.ok(Array.isArray(aw.DEFAULT_BRANCH_PATTERNS), 'DEFAULT_BRANCH_PATTERNS should be array');
+  assert.strictEqual(typeof aw.AWARENESS_CACHE_REL, 'string', 'AWARENESS_CACHE_REL should be string');
+});
+
+// ─── Group CT: Cache round-trip integration ───────────────────────────────────
+
+function tempCwdCT() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'df-awareness-ct-'));
+  return {
+    cwd: dir,
+    cleanup: () => { try { fs.rmSync(dir, { recursive: true, force: true }); } catch (_) {} },
+  };
+}
+
+test('CT1 (02-07): writeCache peer → readCache → peer section deep-equals input', () => {
+  const t = tempCwdCT();
+  try {
+    const synthPeer = {
+      branches: [{
+        branch: 'feature/x', objective: '2 — Test', trd: '02-07',
+        last_commit: { sha: 'abc1234', timestamp: '2026-05-04T12:00:00Z', subject: 'feat: test' },
+        developer: 'mark', github_issue: null,
+      }],
+      fetched_at: '2026-05-04T12:01:00Z',
+      warnings: [],
+      current_branch: 'main',
+    };
+    writeCache(t.cwd, { peer: synthPeer });
+    const cached = readCache(t.cwd);
+    assert.ok(cached, 'readCache should return non-null');
+    assert.deepStrictEqual(cached.peer.branches, synthPeer.branches, 'peer.branches should deep-equal input');
+    assert.strictEqual(cached.peer.fetched_at, synthPeer.fetched_at);
+  } finally { t.cleanup(); }
+});
+
+test('CT2 (02-07): writeCache merge — peer preserved through org rewrite', () => {
+  const t = tempCwdCT();
+  try {
+    writeCache(t.cwd, { peer: { branches: [{ branch: 'feature/a' }] } });
+    writeCache(t.cwd, { org: { items: [{ title: 'Org item 1' }], fetched_at: '2026-05-04T13:00:00Z' } });
+    const cached = readCache(t.cwd);
+    assert.ok(cached, 'readCache should return non-null');
+    assert.ok(Array.isArray(cached.peer.branches), 'peer section preserved');
+    assert.strictEqual(cached.peer.branches[0].branch, 'feature/a', 'peer data intact');
+    assert.ok(Array.isArray(cached.org.items), 'org section present after merge');
+    assert.strictEqual(cached.org.items[0].title, 'Org item 1', 'org data correct');
+  } finally { t.cleanup(); }
+});
+
+test('CT3 (02-07): cache file remains valid JSON after round-trip', () => {
+  const t = tempCwdCT();
+  try {
+    writeCache(t.cwd, { peer: { x: 1, y: [1, 2, 3] }, org: { z: 'hello' } });
+    const cacheFile = path.join(t.cwd, '.planning', '.awareness-cache.json');
+    const content = fs.readFileSync(cacheFile, 'utf-8');
+    assert.doesNotThrow(() => JSON.parse(content), 'cache file must be valid JSON');
+    // Verify it ends with newline (pretty-print contract from writeCache)
+    assert.ok(content.endsWith('\n'), 'cache file should end with newline');
+  } finally { t.cleanup(); }
+});
+
+// ─── Group IT: Peer integration (gated on GIT_INTEGRATION=1) ─────────────────
+
+const SKIP_GIT_INTEG = process.env.GIT_INTEGRATION !== '1';
+
+test('IT1 (02-07): scanPeer integration — 2-branch fixture repo → 2 entries with correct objective fields',
+  { skip: SKIP_GIT_INTEG }, () => {
+    const fixture = buildGitFixtureRepo({
+      branches: [
+        { name: 'feature/foo', state_md: buildStateMd({ objective: '2 — Awareness Test', trd: '02-07' }) },
+        { name: 'feature/bar', state_md: buildStateMd({ objective: '3 — Other Objective', trd: '03-01' }) },
+      ],
+      dev_name: 'test-dev',
+    });
+    try {
+      _resetGitMock(); // ensure no mock injection for integration test
+      const result = scanPeer({ cwd: fixture.root, no_fetch: true });
+      assert.ok(Array.isArray(result.branches), 'IT1: branches should be array');
+      assert.strictEqual(result.branches.length, 2, `IT1: expected 2 branches, got ${result.branches.length}`);
+      const objectives = result.branches.map(b => b.objective).sort();
+      assert.ok(objectives.some(o => o && o.includes('Awareness Test')), 'IT1: first objective found');
+      assert.ok(objectives.some(o => o && o.includes('Other Objective')), 'IT1: second objective found');
+    } finally { fixture.cleanup(); }
+  }
+);
+
+test('IT2 (02-07): fixture cleanup removes tmp dir', { skip: SKIP_GIT_INTEG }, () => {
+  const fixture = buildGitFixtureRepo({ branches: [], dev_name: 'test' });
+  const root = fixture.root;
+  assert.ok(fs.existsSync(root), 'IT2: root should exist before cleanup');
+  fixture.cleanup();
+  assert.strictEqual(fs.existsSync(root), false, 'IT2: root should not exist after cleanup');
+});
+
+// ─── Group CR: Cassette replay (default test run, no env required) ────────────
+
+test('CR1 (02-07): cassette file exists with expected shape', () => {
+  if (!fs.existsSync(cassetteRel)) return; // skip if cassette not yet captured
+  const raw = fs.readFileSync(cassetteRel, 'utf-8');
+  let c;
+  assert.doesNotThrow(() => { c = JSON.parse(raw); }, 'CR1: cassette must parse as valid JSON');
+  if (c._placeholder) return; // skip replay assertions for placeholder cassette
+  assert.ok(c && c.data, 'CR1: cassette must have top-level data key');
+  assert.ok(c.data.node, 'CR1: cassette must have data.node');
+  assert.ok(c.data.node.items, 'CR1: cassette must have data.node.items');
+  assert.ok(Array.isArray(c.data.node.items.nodes), 'CR1: items.nodes must be array');
+  assert.ok(c.data.node.items.nodes.length > 0, 'CR1: items.nodes must have at least 1 entry');
+});
+
+test('CR2 (02-07): replaying cassette via _setRunGh → walkProject returns items array with correct shape', () => {
+  if (!fs.existsSync(cassetteRel)) return;
+  const cassetteContent = fs.readFileSync(cassetteRel, 'utf-8');
+  const parsed = JSON.parse(cassetteContent);
+  if (parsed._placeholder) return;
+  gh._setRunGh(() => ({ ok: true, status: 0, stdout: cassetteContent, stderr: '' }));
+  try {
+    const { walkProject } = require('./gh.cjs');
+    const result = walkProject('PVT_kwDODwqLrc4BRsOP');
+    assert.ok(Array.isArray(result.items), 'CR2: walkProject result.items must be array');
+    assert.ok(result.items.length > 0, 'CR2: walkProject result.items must have at least 1 entry');
+    // Shape check on first item
+    const first = result.items[0];
+    assert.ok(['issue', 'draft'].includes(first.item_type), `CR2: item_type must be issue or draft, got: ${first.item_type}`);
+    assert.ok('title' in first, 'CR2: item must have title field');
+  } finally { gh._setRunGh(null); }
+});
+
+test('CR3 (02-07): scanOrg with cassette replay → items with sub_issues_source field populated', () => {
+  if (!fs.existsSync(cassetteRel)) return;
+  const cassetteContent = fs.readFileSync(cassetteRel, 'utf-8');
+  const parsed = JSON.parse(cassetteContent);
+  if (parsed._placeholder) return;
+  // Mock both auth check AND walkProject GraphQL call
+  gh._setRunGh((args) => {
+    if (args[0] === 'auth' && args[1] === 'status') {
+      return { ok: true, status: 0, stdout: "Token scopes: 'project', 'read:project', 'repo'", stderr: '' };
+    }
+    // All other calls (graphql) → serve the cassette
+    return { ok: true, status: 0, stdout: cassetteContent, stderr: '' };
+  });
+  try {
+    const result = scanOrg();
+    assert.ok(Array.isArray(result.items), 'CR3: result.items must be array');
+    assert.ok(result.items.length > 0, 'CR3: result.items must have at least 1 entry');
+    for (const item of result.items) {
+      assert.ok(
+        ['tracked_issues', 'task_list', 'none'].includes(item.sub_issues_source),
+        `CR3: sub_issues_source must be tracked_issues|task_list|none, got: ${item.sub_issues_source}`
+      );
+    }
+  } finally { gh._setRunGh(null); }
+});
+
+// ─── Group OT: Org integration + cassette (GH_INTEGRATION=1 only) ─────────────
+
+const SKIP_GH_INTEG = process.env.GH_INTEGRATION !== '1';
+
+test('OT1 (02-07): live walkProject returns items.length > 0 and cassette still valid after capture',
+  { skip: SKIP_GH_INTEG }, () => {
+    // Reset to production _runGh (no mock)
+    gh._setRunGh(null);
+    const { walkProject } = require('./gh.cjs');
+    const result = walkProject('PVT_kwDODwqLrc4BRsOP');
+    assert.ok(result.items.length > 0, `OT1: expected at least 1 item from live walk, got ${result.items.length}`);
+    // Verify cassette file was written and has correct structure
+    assert.ok(fs.existsSync(cassetteRel), 'OT1: cassette must exist on disk');
+    const c = JSON.parse(fs.readFileSync(cassetteRel, 'utf-8'));
+    assert.ok(c.data && c.data.node && Array.isArray(c.data.node.items.nodes), 'OT1: cassette must have items.nodes array');
+    assert.ok(c.data.node.items.nodes.length > 0, 'OT1: cassette must have at least 1 node');
+  }
+);
+
+test('OT2 (02-07): drift detection — warn (not fail) when live response differs from committed cassette',
+  { skip: SKIP_GH_INTEG }, () => {
+    gh._setRunGh(null);
+    const { walkProject } = require('./gh.cjs');
+    const live = walkProject('PVT_kwDODwqLrc4BRsOP');
+    const liveCount = live.items.length;
+    if (fs.existsSync(cassetteRel)) {
+      const cassette = JSON.parse(fs.readFileSync(cassetteRel, 'utf-8'));
+      const cassetteCount = cassette._placeholder ? 0 : cassette.data.node.items.nodes.length;
+      if (liveCount !== cassetteCount) {
+        // WARN, do not fail — cassette evolution is expected
+        console.warn(`OT2 DRIFT: live items=${liveCount}, cassette nodes=${cassetteCount}`);
+      }
+    }
+    // Always passes — drift is informational only
+    assert.ok(liveCount >= 0, 'OT2: live count must be non-negative');
+  }
+);
