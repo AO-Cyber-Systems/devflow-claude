@@ -126,3 +126,20 @@ Declares the marketplace and the plugins it ships. Users add the marketplace via
 ## User-Facing Workflow
 
 The system drives a structured development loop: **new-project** → **discuss-objective** → **plan-objective** → **execute-objective** → **verify-work** → **complete-milestone**. Each step produces files in `.planning/` that feed the next step. Execution uses wave-based parallelism where independent jobs run concurrently, each in a fresh context window.
+
+## Intent Model: `kind` and `work`
+
+Every project declares a `kind` (`api | app | library | ui-lib | cli | plugin`) on PROJECT.md frontmatter. Every objective declares a `work` type (`feature | port | refactor | foundation | bugfix | prototype | spike`) on OBJECTIVE.md frontmatter, or inherits PROJECT.md `default_work`. The planner reads both and applies the `(kind, work)` defaults table at `plugins/devflow/devflow/references/defaults-table.md` to derive TDD posture, planning depth, model profile, and verification rigor.
+
+**Resolution chain (highest wins):**
+1. TRD frontmatter explicit override (`type: tdd`, `confidence: high`, etc.)
+2. OBJECTIVE.md `overrides` block (`tdd`, `depth`, `model_profile`)
+3. CLAUDE.md user playbook directives — the planner reads `~/.claude/CLAUDE.md` and `./CLAUDE.md` for sections matching `^##.*TDD`, `^##.*Test`, `^##.*Quality`, `^##.*Scope` and applies extracted directives
+4. `(kind, work)` defaults table
+5. Built-in fallback (preserves pre-intent-model planner behavior)
+
+**Resolution is exposed via `df-tools intent resolve --objective <id>`** — used by the planner agent, available for inspection. Each resolved field carries provenance metadata so users see exactly which level supplied each value.
+
+**Migration** for projects created before this model: `/devflow:health --migrate`. Always backs up to `.planning/.migrate-backup-{timestamp}/` before writing.
+
+See `docs/PROPOSAL-kind-and-work.md` for the full design rationale.

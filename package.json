@@ -26,6 +26,6 @@
     "node": ">=16.7.0"
   },
   "scripts": {
-    "test": "node --test plugins/devflow/devflow/bin/df-tools.test.cjs"
+    "test": "node --test 'plugins/devflow/**/*.test.cjs' 'plugins/devflow/**/*.test.js'"
   }
 }

@@ -4,7 +4,7 @@ description: |
   Create a detailed execution plan for an objective, breaking it into concrete tasks with success criteria.
   Use when the user wants to plan an objective, create execution plans, or prepare for building.
   Triggers on: "plan objective", "create plans", "plan the next objective", "let's plan", "prepare objective", "make plans for"
-argument-hint: "[objective] [--auto] [--research] [--skip-research] [--gaps] [--skip-verify]"
+argument-hint: "[objective] [--auto] [--research] [--skip-research] [--gaps] [--skip-verify] [--work TYPE] [--tdd POSTURE] [--depth LEVEL] [--model PROFILE]"
 agent: planner
 allowed-tools:
   - Read
@@ -40,6 +40,14 @@ Objective number: $ARGUMENTS (optional — auto-detects next unplanned objective
 - `--skip-research` — Skip research, go straight to planning
 - `--gaps` — Gap closure mode (reads VERIFICATION.md, skips research)
 - `--skip-verify` — Skip verification loop
+
+**Intent override flags** (one-shot overrides for the resolved (kind, work) configuration):
+- `--work TYPE` — Override `work` for this objective. Valid: `feature | port | refactor | foundation | bugfix | prototype | spike`
+- `--tdd POSTURE` — Override TDD posture: `strict | per-feature | skip`
+- `--depth LEVEL` — Override planning depth: `quick | standard | comprehensive`
+- `--model PROFILE` — Override model profile: `quality | balanced | budget`
+
+When any intent override flag is set, the planner persists the override to `.planning/objectives/<id>/OBJECTIVE.md` so future executor runs honor it.
 
 Normalize objective input in step 2 before any directory lookups.
 </context>

@@ -26,6 +26,8 @@ Quick mode is the same system with a shorter path:
 **Default:** Skips research, job-checker, verifier. Use when you know exactly what to do.
 
 **`--full` flag:** Enables job-checking (max 2 iterations) and post-execution verification. Use when you want quality guarantees without full milestone ceremony.
+
+**Intent defaults for quick mode:** `work: bugfix` (smallest TDD posture commensurate with quick's purpose). CLAUDE.md absorption is **skipped** — quick mode honors the no-ceremony promise rather than applying user playbook directives that would require strict TDD on a typo fix. To opt back into the user playbook, prefer `/devflow:build` or `/devflow:plan-objective --work <type>` instead.
 </objective>
 
 <execution_context>

@@ -6,6 +6,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Two-axis intent model: `kind` + `work`.** Every project declares what it IS (`kind`: `api | app | library | ui-lib | cli | plugin`) on PROJECT.md; every objective declares what it DOES (`work`: `feature | port | refactor | foundation | bugfix | prototype | spike`) on OBJECTIVE.md. The planner reads both and applies a 42-cell `(kind, work) → defaults` lookup table to derive TDD posture, planning depth, model profile, and verification rigor — replacing the previous silent "Can you write `expect(fn(input))`?" heuristic. Defaults are visible at planning time (printed before TRD generation) and overridable at four levels: TRD frontmatter > OBJECTIVE.md `overrides` > CLAUDE.md user playbook directives > defaults table. Postures grounded in Feathers (characterization tests for refactor), Beck/Fowler (TDD), ThoughtWorks (test pyramid), Pact (consumer-driven contracts), and visual-regression industry tooling.
+- **PROJECT.md `default_work` field.** Optional. Sets the default `work` value inherited by objectives that don't declare their own. The planner emits a louder message when an objective inherits this default, surfacing the inheritance source and inviting override so silent inheritance can't mask a wrong default.
+- **CLAUDE.md absorption.** The planner now reads `~/.claude/CLAUDE.md` and `./CLAUDE.md` for sections matching TDD/Test/Quality/Scope policy headings, and applies the directives as overrides on the defaults table. Conservative pattern matching avoids false positives.
+- **`df-tools intent resolve --objective <id>`.** New CLI subcommand that returns the resolved configuration as JSON with provenance metadata for each field. Used by the planner; available for inspection and tooling.
+- **`/devflow:health --migrate`.** One-time migration for projects created before the kind/work model. Adds `kind` to PROJECT.md and `work` to OBJECTIVE.md frontmatter, with backup at `.planning/.migrate-backup-{timestamp}/` before any write. Idempotent. Supports `--dry-run`.
+- **Intent override flags on `/devflow:plan-objective` and `/devflow:build`.** `--work TYPE`, `--tdd POSTURE`, `--depth LEVEL`, `--model PROFILE` for one-shot per-objective overrides. Persisted to OBJECTIVE.md so the executor honors them.
+- **OBJECTIVE.md template.** New file at `plugins/devflow/devflow/templates/objective.md` — the schema is now explicit; previously objective metadata was implicit.
+- **Defaults table reference.** New machine-readable file at `plugins/devflow/devflow/references/defaults-table.md` with all 42 (kind, work) cells.
+- See `docs/PROPOSAL-kind-and-work.md` for full design rationale and `docs/IMPLEMENTATION-PLAN-kind-and-work.md` for the wave/TRD breakdown.
+
 ### Changed
 - Terminology rename: **Phase → Objective**, **Plan (noun) → Job**
   - New hierarchy: Milestone → Objective → Job → Task

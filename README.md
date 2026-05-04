@@ -543,6 +543,35 @@ You're never locked in. The system adapts.
 
 DevFlow stores project settings in `.planning/config.json`. Configure during `/devflow:new-project` or update later with `/devflow:settings`. For the full config schema, workflow toggles, git branching options, and per-agent model breakdown, see the [User Guide](docs/USER-GUIDE.md#configuration-reference).
 
+### Project Intent: `kind` and `work`
+
+Two enumerated fields drive how DevFlow plans every objective:
+
+- **`kind`** (PROJECT.md frontmatter, required) — what the project IS:
+  - `api` · backend API/service consumed by clients
+  - `app` · end-user application (web, mobile, desktop)
+  - `library` · code consumed by other code via API
+  - `ui-lib` · UI components consumed by other apps
+  - `cli` · command-line tool consumed by humans in a terminal
+  - `plugin` · extends a host system via plugin contract
+
+- **`work`** (OBJECTIVE.md frontmatter, optional) — what the objective DOES:
+  - `feature` · net-new behavior
+  - `port` · re-implement existing behavior on a new substrate (source IS the spec)
+  - `refactor` · restructure without changing user-facing behavior
+  - `foundation` · scaffolding the rest of the project depends on
+  - `bugfix` · fix specific known issues
+  - `prototype` · exploratory throwaway code
+  - `spike` · research; output is learning, not code
+
+The planner combines them into a `(kind, work)` lookup that derives TDD posture, planning depth, model profile, and verification rigor automatically. Set `default_work` in PROJECT.md to inherit a default for every objective (e.g., a Rails→Go port project sets `default_work: port`); the planner is louder about inherited values so silent inheritance can't mask a wrong default.
+
+**Override at four levels** (highest wins): TRD frontmatter > `OBJECTIVE.md overrides` block > `~/.claude/CLAUDE.md` or `./CLAUDE.md` user playbook directives > the defaults table. One-shot overrides via skill flags: `--work TYPE`, `--tdd POSTURE`, `--depth LEVEL`, `--model PROFILE` on `/devflow:plan-objective` and `/devflow:build`.
+
+**Migrating an existing project**: `/devflow:health --migrate` walks you through setting `kind` and (optionally) per-objective `work` for projects created before this model. Always backs up before writing.
+
+See `docs/PROPOSAL-kind-and-work.md` for the full design and `plugins/devflow/devflow/references/defaults-table.md` for the 42-cell defaults lookup.
+
 ### Core Settings
 
 | Setting | Options | Default | What it controls |
