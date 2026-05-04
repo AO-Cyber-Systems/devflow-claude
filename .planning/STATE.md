@@ -11,7 +11,7 @@
 **Milestone:** v1.1 — DevFlow Coordination Layer (in flight)
 **Branch:** `feature/v1.1`
 **Objective in flight:** 0 — Refine (kind, work) defaults table from codebase evidence
-**Status:** Objective 0 IN EXECUTION. Wave 2 COMPLETE (TRD 0.2 done). 3 TRDs remaining (0.3, 0.4, 0.5). Next: Wave 3 — TRD 0.3 (planner agent update) + TRD 0.4 (CLAUDE.md absorption). GH tracking: #20 (sub-issue of #9; closes #7 in PR).
+**Status:** Objective 0 IN EXECUTION. Wave 3 partial — TRD 0.3 COMPLETE. 2 TRDs remaining (0.4, 0.5). Next: TRD 0.4 (CLAUDE.md absorption — Wave 3 sibling). Then Wave 4: TRD 0.5 (migration + provenance). GH tracking: #20 (sub-issue of #9; closes #7 in PR).
 
 ## Branch State (post-merge)
 
@@ -38,6 +38,8 @@
 - **Resolver config seeding fix (TRD 0.1 deviation)** — `intent.cjs` initialized `config = { ...tableDefaults }` so new fields (security_isolation, back_compat, tdd_default, test_list_first, fixture_strategy) surface in `df-tools intent resolve` output. Provenance for new fields deferred to TRD 0.2.
 - **TRD 0.2 complete (2026-05-04)** — Extended `intent.cjs` resolver: `loadConstraints()` added; 5 new fields + provenance emitted per field; CLAUDE.md TDD Playbook promotions (skip→auto→strict, optional→required, inline→generators, n/a→multi_tenant_required for api kind); multi-tenant hard-enforcement via `wrong_tenant_assertion` in `verification_commands`; `buildMatrixProject()` fixture added. 408/408 tests pass. Commits: 8847c85 (test:), 6cb0cce (feat:). Wave 2 complete.
 - **outside_in boolean field added (TRD 0.2 deviation)** — Field was in TRD 0.2's NEW_FIELDS but omitted from TRD 0.1's cell schema. Added to `(api, feature)` and `(app, feature)`. Parser extended with bool coercion for bare YAML `true`/`false`.
+- **TRD 0.3 complete (2026-05-04)** — Planner agent extended: `<constraints>` block, Step 1 JSON (5 new fields + constraints), Step 2 print (9 fields grouped), Step 3 replaced with field-driven emission rules (test_list_first/fixture_strategy/security_isolation/outside_in/back_compat), new Step 4 (testing-strategy.md conditional load), new Step 5 (constraint enforcement), old Step 4 → Step 6. Merged TRDs 03+07 (same file). All 6 verification greps pass. Closes SC-3, SC-6. Commit: 21e150d. Wave 3 partial (0.4 remaining).
+- **TRD 0.3+0.7 merge confirmed** — Both TRDs edit planner.md's Intent Resolution section; merged into single TRD per CONTEXT.md discretion note. Content split: TRD-03 supplies field-consumption steps; TRD-07 supplies testing-strategy.md Step 4.
 
 ## Blockers / Concerns
 
@@ -45,7 +47,7 @@
 
 ## Session Continuity
 
-Last session: 2026-05-04 — TRD 0.2 (resolver schema extension) complete. Wave 2 complete.
+Last session: 2026-05-04 — TRD 0.3 (planner agent update) complete. Wave 3 half done.
 Resume file: `.planning/SESSION_PICKUP.md`
-Stopped at: Completed 00-02-resolver-schema-TRD.md
-Next: Execute Wave 3 — TRD 0.3 (planner agent update) + TRD 0.4 (CLAUDE.md absorption). Then Wave 4: TRD 0.5.
+Stopped at: Completed 00-03-planner-agent-update-TRD.md
+Next: Execute TRD 0.4 (CLAUDE.md absorption — Wave 3 sibling). Note: TRD 0.4 RED tests already in working tree (claude-md.test.cjs groups A-D, 8 tests failing). Start GREEN phase for TRD 0.4.
