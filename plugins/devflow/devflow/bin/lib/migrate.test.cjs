@@ -212,36 +212,36 @@ describe('migrate.apply', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Group C — migration validation: 01-handoff-watcher regression
+// Group C — migration validation: 07-handoff-watcher regression
 //
 // Uses the REAL disk at REPO_ROOT — not a synthetic fixture.
-// These tests verify that pre-existing project state (01-handoff-watcher)
+// These tests verify that pre-existing project state (07-handoff-watcher)
 // round-trips through the extended resolver without breakage.
 // The 5 new fields are additive; the objective has no explicit overrides for them.
 // ---------------------------------------------------------------------------
 
-describe('migration — 01-handoff-watcher regression', () => {
+describe('migration — 07-handoff-watcher regression', () => {
   afterEach(() => {
     intent._resetCache();
   });
 
-  test('C1: 01-handoff-watcher objective resolves cleanly — kind=plugin, work set, all 9 config fields populated', () => {
+  test('C1: 07-handoff-watcher objective resolves cleanly — kind=plugin, work set, all 9 config fields populated', () => {
     // Verify the objective directory exists on disk (fails loudly if not)
-    const objDir = path.join(REPO_ROOT, '.planning', 'objectives', '01-handoff-watcher');
+    const objDir = path.join(REPO_ROOT, '.planning', 'objectives', '07-handoff-watcher');
     assert.ok(
       fs.existsSync(objDir),
-      `01-handoff-watcher directory missing at ${objDir} — objective must be present on this branch`
+      `07-handoff-watcher directory missing at ${objDir} — objective must be present on this branch`
     );
 
     let result;
     try {
       result = intent.resolve({
         projectRoot: REPO_ROOT,
-        objectiveId: '01-handoff-watcher',
+        objectiveId: '07-handoff-watcher',
         userHome: '/nonexistent',
       });
     } catch (e) {
-      throw new Error(`01-handoff-watcher resolution failed: ${e.message} (projectRoot: ${REPO_ROOT})`);
+      throw new Error(`07-handoff-watcher resolution failed: ${e.message} (projectRoot: ${REPO_ROOT})`);
     }
 
     assert.ok(result, 'resolve must return a result');
@@ -255,20 +255,20 @@ describe('migration — 01-handoff-watcher regression', () => {
       'security_isolation', 'back_compat', 'tdd_default', 'test_list_first', 'fixture_strategy'];
     for (const f of SCALAR_FIELDS) {
       assert.ok(result.config[f] !== undefined,
-        `01-handoff-watcher config.${f} is undefined — 5 new fields must apply cleanly`);
+        `07-handoff-watcher config.${f} is undefined — 5 new fields must apply cleanly`);
     }
   });
 
-  test('C2: 01-handoff-watcher resolution produces no new warnings from the 5 new fields', () => {
+  test('C2: 07-handoff-watcher resolution produces no new warnings from the 5 new fields', () => {
     let result;
     try {
       result = intent.resolve({
         projectRoot: REPO_ROOT,
-        objectiveId: '01-handoff-watcher',
+        objectiveId: '07-handoff-watcher',
         userHome: '/nonexistent',
       });
     } catch (e) {
-      throw new Error(`01-handoff-watcher resolution failed: ${e.message}`);
+      throw new Error(`07-handoff-watcher resolution failed: ${e.message}`);
     }
 
     // Allow only the pre-existing 'kind missing' warning (which should NOT appear for plugin kind)
@@ -277,13 +277,13 @@ describe('migration — 01-handoff-watcher regression', () => {
       (w) => !w.includes("kind missing") && !w.includes("'kind'")
     );
     assert.strictEqual(unexpectedWarnings.length, 0,
-      `01-handoff-watcher resolution produced unexpected warnings: ${JSON.stringify(unexpectedWarnings)}`);
+      `07-handoff-watcher resolution produced unexpected warnings: ${JSON.stringify(unexpectedWarnings)}`);
   });
 
-  test('C3: each TRD file under 01-handoff-watcher resolves without error (config fields populated)', () => {
+  test('C3: each TRD file under 07-handoff-watcher resolves without error (config fields populated)', () => {
     // The TRD files use informal frontmatter (no --- delimiters) — extractFrontmatter returns null.
     // The resolver handles this gracefully (trdFm will be null/empty).
-    const objDir = path.join(REPO_ROOT, '.planning', 'objectives', '01-handoff-watcher');
+    const objDir = path.join(REPO_ROOT, '.planning', 'objectives', '07-handoff-watcher');
     const trdFiles = fs.readdirSync(objDir)
       .filter((f) => f.match(/^\d{2}-\d{2}-TRD.*\.md$/) || f.match(/^01-\d{2}-TRD/));
 
@@ -298,12 +298,12 @@ describe('migration — 01-handoff-watcher regression', () => {
       try {
         result = intent.resolve({
           projectRoot: REPO_ROOT,
-          objectiveId: '01-handoff-watcher',
+          objectiveId: '07-handoff-watcher',
           trdPath,
           userHome: '/nonexistent',
         });
       } catch (e) {
-        throw new Error(`01-handoff-watcher/${trdFile} resolution failed: ${e.message}`);
+        throw new Error(`07-handoff-watcher/${trdFile} resolution failed: ${e.message}`);
       }
 
       assert.ok(result, `resolve must return result for ${trdFile}`);
