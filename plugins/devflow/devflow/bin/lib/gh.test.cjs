@@ -1615,11 +1615,14 @@ describe('updateProjectFields', () => {
   });
 
   test('E1: happy path — Status + Quarter fields → calls graphql mutation per field, returns { ok: true, fields_updated }', () => {
-    // Mock graphql calls: first to get item ID, then mutations for each field
+    // updateProjectFields now calls addToProject first (2 graphql calls: issue nodeId + addProjectV2ItemById),
+    // then one mutation per field. Total: 4 calls for Status + Quarter.
     let callIdx = 0;
     const responses = [
-      // getItemId query
-      { ok: true, status: 0, stdout: JSON.stringify({ data: { repository: { issue: { projectItems: { nodes: [{ id: 'PVTI_item1', project: { id: 'PVT_kwDODwqLrc4BRsOP' } }] } } } } }), stderr: '' },
+      // addToProject step 1: issue node ID lookup
+      { ok: true, status: 0, stdout: JSON.stringify({ data: { repository: { issue: { id: 'I_kwDOissue10' } } } }), stderr: '' },
+      // addToProject step 2: addProjectV2ItemById mutation
+      { ok: true, status: 0, stdout: JSON.stringify({ data: { addProjectV2ItemById: { item: { id: 'PVTI_item1' } } } }), stderr: '' },
       // mutation for Status
       { ok: true, status: 0, stdout: JSON.stringify({ data: { updateProjectV2ItemFieldValue: { projectV2Item: { id: 'PVTI_item1' } } } }), stderr: '' },
       // mutation for Quarter
@@ -1646,8 +1649,10 @@ describe('updateProjectFields', () => {
   test('E2: one mutation fails → returns { ok: false, fields_updated with successes, errors }', () => {
     let callIdx = 0;
     const responses = [
-      // getItemId
-      { ok: true, status: 0, stdout: JSON.stringify({ data: { repository: { issue: { projectItems: { nodes: [{ id: 'PVTI_item1', project: { id: 'PVT_kwDODwqLrc4BRsOP' } }] } } } } }), stderr: '' },
+      // addToProject step 1: issue node ID
+      { ok: true, status: 0, stdout: JSON.stringify({ data: { repository: { issue: { id: 'I_kwDOissue10' } } } }), stderr: '' },
+      // addToProject step 2: add to project
+      { ok: true, status: 0, stdout: JSON.stringify({ data: { addProjectV2ItemById: { item: { id: 'PVTI_item1' } } } }), stderr: '' },
       // Status mutation succeeds
       { ok: true, status: 0, stdout: JSON.stringify({ data: { updateProjectV2ItemFieldValue: { projectV2Item: { id: 'PVTI_item1' } } } }), stderr: '' },
       // Quarter mutation fails
@@ -1687,9 +1692,17 @@ describe('updateProjectFields', () => {
 
   test('E4: item already in project (idempotent membership) → treats as success, does not error', () => {
     let callIdx = 0;
-    // item already in project — getItemId finds it; no need to add; mutations succeed
+    // addToProject: issue nodeId lookup succeeds; addProjectV2ItemById says already_exists.
+    // updateProjectFields falls back to projectItems query to get item_id.
+    // Then mutation for Status succeeds.
     const responses = [
+      // addToProject step 1: issue node ID
+      { ok: true, status: 0, stdout: JSON.stringify({ data: { repository: { issue: { id: 'I_kwDOissue10' } } } }), stderr: '' },
+      // addToProject step 2: already_exists error
+      { ok: false, status: 1, stdout: '', stderr: 'item_already_exists' },
+      // fallback: project items query to find existing item_id
       { ok: true, status: 0, stdout: JSON.stringify({ data: { repository: { issue: { projectItems: { nodes: [{ id: 'PVTI_already', project: { id: 'PVT_kwDODwqLrc4BRsOP' } }] } } } } }), stderr: '' },
+      // mutation for Status
       { ok: true, status: 0, stdout: JSON.stringify({ data: { updateProjectV2ItemFieldValue: { projectV2Item: { id: 'PVTI_already' } } } }), stderr: '' },
     ];
     const mockFn = (args) => responses[callIdx++] || { ok: false, status: 1, stdout: '', stderr: '[mock] unexpected' };

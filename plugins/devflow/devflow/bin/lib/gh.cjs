@@ -173,9 +173,16 @@ function requireGhAuth(requiredScopes = []) {
     });
   }
 
-  // Authenticated — check that all required scopes are present
+  // Authenticated — check that all required scopes are present.
+  // GitHub scope inheritance: 'project' covers 'read:project'; 'repo' covers 'public_repo'.
   const scopes = parseScopes(r.stdout);
-  const missing = requiredScopes.filter((s) => !scopes.includes(s));
+  const SCOPE_SUPERSET = { 'read:project': ['project'] };
+  const missing = requiredScopes.filter((s) => {
+    if (scopes.includes(s)) return false; // exact match
+    const supersets = SCOPE_SUPERSET[s] || [];
+    if (supersets.some(sup => scopes.includes(sup))) return false; // covered by broader scope
+    return true; // genuinely missing
+  });
 
   if (missing.length > 0) {
     throw new GhAuthError({
@@ -1117,19 +1124,41 @@ function upsertStickyComment(issueRef, body, mappingState = {}) {
 }
 
 /**
- * Project v2 field IDs and Status option IDs for "Product Roadmap" (#3) — captured once.
- * _captured: false until TRD 01-06 runs the integration capture step.
- * Exported so TRD 01-06 tests can read/modify PRODUCT_ROADMAP_FIELDS directly.
+ * Project v2 field IDs and option IDs for "Product Roadmap" (#3) — loaded from cassette at module init.
+ * Shape: { _captured: true, _project_id: 'PVT_...', Status: { field_id, options }, Product: { ... }, Quarter: { ... } }
+ * _captured: false when cassette file is absent or unreadable (safe fallback for environments without captured data).
+ * Exported so TRD 01-06 tests can read PRODUCT_ROADMAP_FIELDS directly.
  */
-const PRODUCT_ROADMAP_FIELDS = {
-  _captured: false,
-  // To be populated by TRD 01-06: { projectId, fields: { Status: { id, options }, Quarter: { id, options } } }
-};
+const PRODUCT_ROADMAP_FIELDS = (() => {
+  const cassettePath = path.join(__dirname, '__fixtures__', 'gh-cassettes', 'product-roadmap-fields.json');
+  if (!fs.existsSync(cassettePath)) {
+    return { _captured: false };
+  }
+  let cassette;
+  try {
+    cassette = JSON.parse(fs.readFileSync(cassettePath, 'utf-8'));
+  } catch {
+    return { _captured: false };
+  }
+  const out = { _captured: true, _project_id: 'PVT_kwDODwqLrc4BRsOP' };
+  for (const f of (cassette.fields || [])) {
+    if (!['Status', 'Product', 'Quarter'].includes(f.name)) continue;
+    const options = {};
+    for (const o of (f.options || [])) {
+      options[o.name] = o.id;
+    }
+    out[f.name] = { field_id: f.id, options };
+  }
+  return out;
+})();
 
 /**
  * updateProjectFields(issueRef, projectId, fields) — update Project v2 field values.
- * Stubs if PRODUCT_ROADMAP_FIELDS._captured is false.
- * Returns { ok, fields_updated, errors?, warnings?, error? }.
+ * Uses PRODUCT_ROADMAP_FIELDS (populated from cassette at module load).
+ * Stubs safely if PRODUCT_ROADMAP_FIELDS._captured is false.
+ * Returns { ok, fields_updated, warnings?, errors?, error? }.
+ *
+ * Field shape: PRODUCT_ROADMAP_FIELDS[fieldName] = { field_id, options: { optionName: optionId } }
  */
 function updateProjectFields(issueRef, projectId, fields = {}) {
   if (!projectId) {
@@ -1139,54 +1168,54 @@ function updateProjectFields(issueRef, projectId, fields = {}) {
   if (!PRODUCT_ROADMAP_FIELDS._captured) {
     return {
       ok: false,
-      error: 'Project field IDs not yet captured; run TRD 01-06 integration to capture',
+      error: 'Project field IDs not yet captured (cassette missing)',
       fields_updated: [],
       warnings: ['field IDs missing — Project field updates skipped'],
     };
   }
 
-  const m = issueRef && issueRef.match(/^([^/]+)\/([^#]+)#(\d+)$/);
-  if (!m) return { ok: false, error: `malformed issueRef: ${issueRef}`, fields_updated: [] };
-  const [, owner, repo, num] = m;
+  if (!issueRef || !/^[^/]+\/[^#]+#\d+$/.test(issueRef)) {
+    return { ok: false, error: `malformed issueRef: ${issueRef}`, fields_updated: [] };
+  }
 
-  // Step 1: get item ID for this issue in the project
-  const PRMF = PRODUCT_ROADMAP_FIELDS;
-  const itemIdQuery = PRMF.itemIdQuery ||
-    `query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) { issue(number: $number) { projectItems(first: 5) { nodes { id project { id } } } } } }`;
-
-  const idR = _runGh(['api', 'graphql', '-f', `query=${itemIdQuery}`, '-F', `owner=${owner}`, '-F', `name=${repo}`, '-F', `number=${num}`]);
-  let itemId = null;
-  if (idR.ok) {
-    try {
-      const data = JSON.parse(idR.stdout);
-      const nodes = data && data.data && data.data.repository && data.data.repository.issue &&
-        data.data.repository.issue.projectItems && data.data.repository.issue.projectItems.nodes;
-      if (nodes) {
-        // Find item in the target project
-        const item = nodes.find(n => n.project && n.project.id === projectId) || nodes[0];
+  // Step 1: Add issue to project (idempotent — already_exists is OK).
+  // We need the project item_id for the mutation.
+  const addR = addToProject(issueRef, projectId);
+  let itemId = addR.item_id;
+  if (!addR.ok && !/already.?exists/i.test(addR.error || '')) {
+    // If it truly failed (not just "already exists"), fall back to querying project items
+    const m = issueRef.match(/^([^/]+)\/([^#]+)#(\d+)$/);
+    const [, owner, repo, num] = m;
+    const itemIdQuery = `query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) { issue(number: $number) { projectItems(first: 5) { nodes { id project { id } } } } } }`;
+    const idR = _runGh(['api', 'graphql', '-f', `query=${itemIdQuery}`, '-F', `owner=${owner}`, '-F', `name=${repo}`, '-F', `number=${num}`]);
+    if (idR.ok) {
+      try {
+        const data = JSON.parse(idR.stdout);
+        const nodes = data.data.repository.issue.projectItems.nodes;
+        const item = (nodes || []).find(n => n.project && n.project.id === projectId) || (nodes || [])[0];
         if (item) itemId = item.id;
-      }
-    } catch {}
+      } catch {}
+    }
   }
 
   if (!itemId) {
-    return { ok: false, error: 'issue not found in project', fields_updated: [] };
+    return { ok: false, error: 'issue not found in project and could not be added', fields_updated: [] };
   }
 
-  // Step 2: mutate each field
+  // Step 2: Mutate each field. Unknown fields/options are warnings (not errors).
   const fields_updated = [];
+  const warnings = [];
   const errors = [];
 
-  const fieldDefs = (PRMF.fields) || {};
   for (const [fieldName, fieldValue] of Object.entries(fields)) {
-    const def = fieldDefs[fieldName];
-    if (!def) {
-      errors.push({ field: fieldName, error: 'field ID not found in PRODUCT_ROADMAP_FIELDS' });
+    const fieldDef = PRODUCT_ROADMAP_FIELDS[fieldName];
+    if (!fieldDef || !fieldDef.field_id) {
+      warnings.push(`unknown field: ${fieldName}`);
       continue;
     }
-    const optionId = def.options && def.options[fieldValue];
+    const optionId = fieldDef.options && fieldDef.options[fieldValue];
     if (!optionId) {
-      errors.push({ field: fieldName, error: `option "${fieldValue}" not found for field ${fieldName}` });
+      warnings.push(`unknown option for ${fieldName}: ${fieldValue}`);
       continue;
     }
 
@@ -1196,8 +1225,8 @@ function updateProjectFields(issueRef, projectId, fields = {}) {
       '-f', `query=${mutation}`,
       '-F', `projectId=${projectId}`,
       '-F', `itemId=${itemId}`,
-      '-F', `fieldId=${def.id}`,
-      '-f', `optionId=${optionId}`,
+      '-F', `fieldId=${fieldDef.field_id}`,
+      '-F', `optionId=${optionId}`,
     ]);
     if (r.ok) {
       fields_updated.push(fieldName);
@@ -1209,6 +1238,7 @@ function updateProjectFields(issueRef, projectId, fields = {}) {
   return {
     ok: errors.length === 0,
     fields_updated,
+    ...(warnings.length > 0 ? { warnings } : {}),
     ...(errors.length > 0 ? { errors } : {}),
   };
 }
