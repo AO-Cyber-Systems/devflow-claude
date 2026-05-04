@@ -1,4 +1,6 @@
-# Objective 01: Seamless Handoff Watcher
+# Objective 07: Seamless Handoff Watcher
+
+> **Status:** ✅ shipped via PR #19 (2026-05-04). Renumbered from 01 → 07 on 2026-05-04 to match its v1.1 ROADMAP slot. Originally planned and executed before the v1.1 milestone was seeded as a numbered scope; retroactively absorbed as v1.1 obj 7. v1.2 PTY backend will close the remaining TTY-interactive gap (tracked separately).
 
 Bring `feature/seamless-handoff` from Approach A (paste-`!`) to Approach B (daemon-driven, zero-paste) while preserving Approach A as a fallback when the daemon isn't running.
 

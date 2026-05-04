@@ -1,0 +1,22 @@
+{
+  "current_objective": null,
+  "current_job": 0,
+  "total_jobs": 0,
+  "progress_pct": 67,
+  "status": null,
+  "last_activity": null,
+  "metrics": {
+    "jobs_completed": 0,
+    "jobs_failed": 0,
+    "sessions": 0
+  },
+  "decisions": [
+    {
+      "objective": "00-refine-defaults-table",
+      "summary": "TRD 0.3 complete: Planner agent extended with 5-field consumption + testing-strategy.md routing + constraint enforcement. All 6 greps pass. Closes SC-3, SC-6.",
+      "rationale": null
+    }
+  ],
+  "blockers": [],
+  "session_log": []
+}

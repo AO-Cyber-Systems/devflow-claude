@@ -231,14 +231,20 @@ Wave-2 (TRD 0.2) omitted OBJECTIVE.md and TRD frontmatter override handling for 
 1. **Task 1 (RED): 18 failing integration tests** — `120bc7d` (`test(00-05):`)
 2. **Task 2 (GREEN): normalizeProvenance + gap-repairs + test corrections** — `df9f8fa` (`feat(00-05):`)
 
-## Self-Check (preliminary — pre-state-update)
+## Self-Check: PASSED
 
-Checking claimed artifacts:
-- `plugins/devflow/devflow/bin/lib/intent.cjs` — contains `normalizeProvenance` and `result.provenance` in return shape
-- `plugins/devflow/devflow/bin/lib/intent-cli.test.cjs` — contains `describe('provenance`, `describe('matrix`, `describe('overrides`, `describe('CLI`, `describe('back-compat`
-- `plugins/devflow/devflow/bin/lib/migrate.test.cjs` — contains `describe('migration — 01-handoff-watcher regression`
+Files confirmed present:
+- `plugins/devflow/devflow/bin/lib/intent.cjs` — FOUND (contains `normalizeProvenance` and `provenance` in return shape)
+- `plugins/devflow/devflow/bin/lib/intent-cli.test.cjs` — FOUND (Groups A, B, D, E, F present)
+- `plugins/devflow/devflow/bin/lib/migrate.test.cjs` — FOUND (Group C migration regression present)
+- `.planning/objectives/00-refine-defaults-table/00-05-migration-provenance-SUMMARY.md` — FOUND
 
-Commits confirmed: `120bc7d` (test:), `df9f8fa` (feat:) both present.
+Commits confirmed:
+- `120bc7d` test(00-05): add migration + provenance integration tests — FOUND
+- `df9f8fa` feat(00-05): add result.provenance enum normalization for resolver output — FOUND
+- `213c9d2` docs(00-05): complete migration-provenance TRD — SUMMARY + STATE — FOUND
+
+Final test run: 443/443 pass, 0 fail.
 
 ## Objective 0 Final Status
 

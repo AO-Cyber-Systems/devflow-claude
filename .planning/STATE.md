@@ -10,7 +10,8 @@
 
 **Milestone:** v1.1 — DevFlow Coordination Layer (in flight)
 **Branch:** `feature/v1.1`
-**Objective in flight:** 0 — Refine (kind, work) defaults table from codebase evidence
+**Objective complete:** 0 — Refine (kind, work) defaults table from codebase evidence (verified 2026-05-04, 443/443 tests, all 10 SC met)
+**Objective in flight:** 1 — GitHub coordination layer (#10)
 **Status:** Ready to plan
 
 ## Branch State (post-merge)
