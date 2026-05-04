@@ -11,7 +11,7 @@
 **Milestone:** v1.1 — DevFlow Coordination Layer (in flight)
 **Branch:** `feature/v1.1`
 **Objective in flight:** 0 — Refine (kind, work) defaults table from codebase evidence
-**Status:** Objective 0 IN EXECUTION. Wave 3 COMPLETE (TRD 0.3 + TRD 0.4 done). 1 TRD remaining (0.5). Next: Wave 4 — TRD 0.5 (migration + provenance). GH tracking: #20 (sub-issue of #9; closes #7 in PR).
+**Status:** Objective 0 COMPLETE. All 6 TRDs shipped. 443/443 tests pass. All 10 success criteria satisfied. Wave 4 (TRD 0.5) done. Ready to PR feature/v1.1 → main. GH tracking: #20 (sub-issue of #9; closes #7 in PR).
 
 ## Branch State (post-merge)
 
@@ -42,6 +42,9 @@
 - **TRD 0.3+0.7 merge confirmed** — Both TRDs edit planner.md's Intent Resolution section; merged into single TRD per CONTEXT.md discretion note. Content split: TRD-03 supplies field-consumption steps; TRD-07 supplies testing-strategy.md Step 4.
 - **TRD 0.4 complete (2026-05-04)** — `claude-md.cjs` extended: `PLAYBOOK_HABITS` constant (6 habits) + extended `deriveOverrides` loop. All 6 TDD Playbook habits detected; 5 structured fields emitted (tdd_default, test_list_first, fixture_strategy, outside_in, security_isolation). Habit 3 freeform-only (field:null). Legacy fields preserved. `realCLAUDEMd()` fixture added. Real `~/.claude/CLAUDE.md` round-trip confirmed. 425/425 tests pass. Commits: 49634dc (test:), cf8a12a (feat:). Wave 3 complete.
 - **PLAYBOOK_HABITS design (TRD 0.4)** — 6-entry constant: field:null for habit 3 (freeform-only); /i-flagged patterns on original body text (not lowercased); legacy patterns retained unchanged alongside new loop. tdd_default:'auto' emitted by absorber; promotion to strict is resolver's job.
+- **TRD 0.5 complete (2026-05-04)** — `result.provenance` enum-normalized map added to resolver output; `normalizeProvenance()` helper maps freeform sources→{table|user_playbook|objective_override|trd_override}. OBJECTIVE.md and TRD frontmatter override loops extended to all 6 new structured fields (Wave-2 gap-repair). 18 new integration tests (Groups A-F + C migration regression against real 01-handoff-watcher). 443/443 tests pass. Commits: 120bc7d (test:), df9f8fa (feat:). Wave 4 complete. Objective 0 DONE.
+- **Wave-2 gap-repair (TRD 0.5)** — OBJECTIVE.md overrides and TRD frontmatter loops in intent.cjs only covered original 3/2 fields; extended to security_isolation, back_compat, tdd_default, test_list_first, fixture_strategy, outside_in. outside_in bool-coercion added for both paths. Surfaced by Wave-4 integration tests (expected pattern).
+- **B2 table truth correction** — (api, foundation) is security_isolation:single_tenant, not multi_tenant_required. Wrong-tenant injection applies to 4 api cells (feature, port, refactor, bugfix), not 5. TRD 0.5 test corrected to match table data.
 
 ## Blockers / Concerns
 
@@ -49,7 +52,7 @@
 
 ## Session Continuity
 
-Last session: 2026-05-04 — TRD 0.4 (CLAUDE.md absorption) complete. Wave 3 complete.
+Last session: 2026-05-04 — TRD 0.5 (migration + provenance) complete. Objective 0 ALL WAVES DONE.
 Resume file: `.planning/SESSION_PICKUP.md`
-Stopped at: Completed 00-04-claude-md-absorption-TRD.md
-Next: Execute Wave 4 — TRD 0.5 (migration + provenance round-trip).
+Stopped at: Completed 00-05-migration-provenance-TRD.md
+Next: PR feature/v1.1 → main (closes GH #20, #7). Then proceed to Objective 1.
