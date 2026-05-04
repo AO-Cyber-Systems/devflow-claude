@@ -12,8 +12,8 @@
 **Branch:** `feature/v1.1`
 **Objective complete:** 0 — Refine (kind, work) defaults table from codebase evidence (verified 2026-05-04, 443/443 tests, all 10 SC met)
 **Objective in flight:** 1 — GitHub coordination layer (#10)
-**Current TRD:** 01-04 (wave 4 — gh-sync skill + CLI)
-**Status:** TRD 01-03 complete (wave 3 done — auth + error handling)
+**Current TRD:** 01-05 (wave 5 — mapping refactor + existing callers)
+**Status:** TRD 01-04 complete (wave 4 done — gh-sync skill + CLI + syncObjective)
 
 ## Branch State (post-merge)
 
@@ -56,6 +56,10 @@
 - **TRD 01-03 complete (2026-05-04)** — `GhAuthError` class + `requireGhAuth(requiredScopes)` hard-fail auth check added to `lib/gh.cjs`. `cmdGhResolve` now calls `requireGhAuth(['project','read:project','repo'])` as first action; structured JSON to stderr + exit(1) on failure. `parseScopes()` handles single/double-quote and multiline scope formats. 20 new tests (Groups A-E). 503/503 tests pass. Commits: f673a31 (test:), 91289c4 (feat:). Wave 3 complete.
 - **Hard-fail vs graceful-skip pattern locked (TRD 01-03)** — `requireGhAuth` throws `GhAuthError` (hard-fail for new resolver/sync subcommands); `ghStatus` returns status dict (graceful-skip for existing cmdGhSyncObjectives/cmdGhComment/cmdGhCloseIssue/cmdGhSyncRelease). Both coexist in same module. Back-compat locked in CONTEXT.md §7.
 - **Exact remediation format locked (TRD 01-03)** — `gh auth refresh -h github.com -s scope1,scope2` (comma-joined scopes, `-h` before `-s`). Test B4 enforces this. Future TRDs must use same format.
+- **TRD 01-04 complete (2026-05-04)** — `syncObjective` + 6 helpers + `cmdGhSyncObjective` added to `lib/gh.cjs`. Sticky comment idempotency via `<!-- df:state -->` marker + `state_comment_id` persistence in `.gh-mapping.json` schema v2. `PRODUCT_ROADMAP_FIELDS` exported (stub, `_captured=false`). `df-tools gh sync <id>` CLI routed. SKILL.md documents 4-mode docs. 31 new tests (Groups A-G). 534/534 tests pass. Commits: 8f11060 (test:), 783fda4 (feat:). Wave 4 complete.
+- **upsertStickyComment three-path fallback locked (TRD 01-04)** — Path 1: PATCH known ID. Path 2: marker scan + PATCH found ID. Path 3: create new. Idempotency contract: D4/F4 assert zero CREATE calls on second invocation.
+- **readMappingV2 non-destructive + PRODUCT_ROADMAP_FIELDS export locked (TRD 01-04)** — v2 shape `{ issue_id, state_comment_id }` per objective; v1 number entries migrated on read, written as v2 objects. `PRODUCT_ROADMAP_FIELDS` exported for TRD 01-06 seeding; `_captured=true` guard pattern.
+- **Group G tests in-process (TRD 01-04 verifier briefing #2)** — `cmdGhSyncObjective` tested via in-process IO capture, not `spawnSync` subprocess, to preserve `_setRunGh` mock coverage.
 
 ## Blockers / Concerns
 
@@ -63,7 +67,7 @@
 
 ## Session Continuity
 
-Last session: 2026-05-04 — TRD 01-03 (auth + error handling) complete. Wave 3 done.
+Last session: 2026-05-04 — TRD 01-04 (gh-sync skill + CLI) complete. Wave 4 done.
 Resume file: `.planning/SESSION_PICKUP.md`
-Stopped at: Completed 01-03-auth-and-error-handling-TRD.md
-Next: TRD 01-04 (gh-sync skill + CLI — wave 4, TDD)
+Stopped at: Completed 01-04-gh-sync-skill-and-cli-TRD.md
+Next: TRD 01-05 (mapping refactor + existing callers — wave 5)
