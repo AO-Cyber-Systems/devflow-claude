@@ -11,7 +11,7 @@
 **Milestone:** v1.1 — DevFlow Coordination Layer (in flight)
 **Branch:** `feature/v1.1`
 **Objective in flight:** 0 — Refine (kind, work) defaults table from codebase evidence
-**Status:** Objective 0 COMPLETE. All 6 TRDs shipped. 443/443 tests pass. All 10 success criteria satisfied. Wave 4 (TRD 0.5) done. Ready to PR feature/v1.1 → main. GH tracking: #20 (sub-issue of #9; closes #7 in PR).
+**Status:** Ready to plan
 
 ## Branch State (post-merge)
 
