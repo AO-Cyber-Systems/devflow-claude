@@ -8,32 +8,36 @@
 
 ## Current Position
 
-**Milestone:** v1.1 — DevFlow Coordination Layer (planning)
-**Status:** Foundational research complete (2 docs in `.planning/research/`); awaiting `/df:new-milestone` to formalize objective roadmap.
+**Milestone:** v1.1 — DevFlow Coordination Layer (planning + TDD scope research)
+**Branch:** `feature/v1.1` — fresh off main 2026-05-04, after PR #19 + #8 merged
+**Status:** TDD scope research framing committed (`.planning/research/tdd-scope-by-kind-work.md`); awaiting first survey pass against real codebases.
 
-## Branch State
+## Branch State (post-merge)
 
-Three feature branches exist in flight, none merged to main yet:
-
-- `feature/seamless-handoff` — Approach A foundation (PreToolUse hook + handoff records). Test coverage 162/162. **Not merge-ready** as-is — Approach A is disruptive. Background agent working on Approach B (watcher daemon) at `../devflow-claude-handoff-completion`.
-- `proposal/kind-and-work` — Intent model (kind/work + defaults table + CLAUDE.md absorption + migrate). Test coverage 159/159. **Merge-ready** pending one rebase to drop two duplicated handoff commits (`173ed66`, `0c94b9c`).
-- `feature/v1.1-coordination` (this branch) — clean off main; planning state for v1.1 milestone goes here.
+- `main` — has the merged kind/work intent model (PR #8) + seamless-handoff watcher (PR #19). 349/349 tests pass.
+- `feature/v1.1` (this branch) — clean off new main; carries v1.1 planning + TDD-scope research framing. 381/381 tests pass (349 + 32 from draft v1.1 hooks).
+- `feature/v1.1-coordination` (superseded) — earlier name for v1.1 work; same content, can be deleted.
+- `feature/seamless-handoff`, `handoff-completion-work`, `proposal/kind-and-work` — all merged via PRs #19 and #8; safe to delete.
 
 ## Recent Decisions
 
 - **Plan org-aware, execute repo-focused** — devflow-claude consults org state at planning time; execution stays repo-local. Brains at plan time, not exec time. (Project memory: `project_devflow_claude_scope`)
-- **Continue executing — no manual paste** — seamless-handoff's MVP (Approach A) is foundation; Approach B watcher daemon is the actual goal. The `!` prefix is disruptive; daemon executes queued commands in user's interactive shell, injects results back.
-- **Org-level coordination via GitHub** — Product Roadmap project (`PVT_kwDODwqLrc4BRsOP`) with Product × Quarter fields is the substrate. 9 existing repo `[Roadmap]` parent issues exist; sub-issues are unpopulated. devflow-claude is missing its own `[Roadmap]` issue — gap to fill in v1.1 adoption work.
-- **Two complementary research docs** drive v1.1 planning: `github-coordination-layer.md` (structural) + `cross-session-coordination.md` (runtime). Together they cover the 8 v1.1 objectives.
-- **kind/work intent model lives on `proposal/kind-and-work`** — once merged, devflow-claude's PROJECT.md uses `kind: plugin, default_work: feature`. This branch's PROJECT.md is forward-compatible with that model.
+- **Continue executing — no manual paste** — seamless-handoff watcher daemon (Approach B) shipped; daemon executes queued commands in user's interactive shell, injects results back via UserPromptSubmit hook. v1.1 limit: stdio-pipe dispatch can't satisfy true TTY-required prompts (doctl auth init etc.); v1.2 PTY backend closes that gap.
+- **Org-level coordination via GitHub** — Product Roadmap project (`PVT_kwDODwqLrc4BRsOP`) is the substrate. devflow-claude#9 [Roadmap] now exists with 9 v1.1 sub-issues (#10–#18). Linked as sub-issue of devflow#30 (DevFlow Internal Alpha Q2 2026 epic).
+- **Three research docs anchor v1.1**:
+  - `github-coordination-layer.md` — structural (GH Issues + Projects v2 + sub-issues)
+  - `cross-session-coordination.md` — runtime (heartbeat + duplicate detection + initiatives + check-todos + handoff)
+  - `org-context-resolver.md` — foundational service every other v1.1 capability depends on
+- **TDD scope is the next gating research** — the merged kind/work defaults table has TDD opinions per cell that haven't been validated against real codebases. Open questions 6 and 7 from the kind-and-work proposal are direct inputs. Research artifact at `.planning/research/tdd-scope-by-kind-work.md` frames the questions, methodology, and acceptance criteria. Treat as an objective-0 prerequisite to v1.1 sub-issues #12 and #13.
+- **kind/work intent model is canonical** — devflow-claude's PROJECT.md uses `kind: plugin, default_work: feature`. Defaults table at `plugins/devflow/devflow/references/defaults-table.md` is the (kind, work) → defaults source of truth.
 
 ## Blockers / Concerns
 
-- v1.1 milestone planning depends on `proposal/kind-and-work` merging first (so the planner agent has the intent resolver to use). Order: (1) merge kind-and-work, (2) merge seamless-handoff successor with watcher daemon, (3) plan v1.1 against clean main.
-- The seamless-handoff watcher daemon is significant scope (Node + interactive shell session management + result-injection hook). Background agent estimated 3-5 TRDs.
+- **TDD scope research is framing-only right now** — no survey data yet. The structure is in place; populating it requires reading real test suites across 6+ codebases. Could be done by a focused `/df:research-objective` invocation or a dedicated subagent.
+- **`feature/v1.1-coordination` is duplicative** — same content as `feature/v1.1`. Should be deleted to avoid confusion. Its worktree at `/Users/markemerson/Source/devflow-claude-v11` can be removed.
 
 ## Session Continuity
 
-Last session: 2026-04-29 — research docs written, v1.1 working branch initialized, seamless-handoff completion handed off to background agent.
+Last session: 2026-05-04 — main updated post-merge; new feature/v1.1 branch created off main; TDD scope research framing committed.
 Resume file: none
-Next: User invokes `/df:new-milestone v1.1 — DevFlow Coordination Layer`
+Next: Either (a) populate the TDD-scope research with codebase survey findings, or (b) invoke `/df:new-milestone v1.1 — DevFlow Coordination Layer` to formalize the objective roadmap (with TDD-scope as objective 0 / prerequisite).
