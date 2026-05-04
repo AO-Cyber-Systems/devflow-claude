@@ -319,8 +319,11 @@ function scanPeer({
   const developer = devR.ok ? devR.stdout.trim() : null;
 
   // 4. Enumerate remote branches
+  // NOTE: 'refs/remotes/origin/*' does NOT match nested paths like feature/foo
+  // (git glob * does not cross /). Use 'refs/remotes/origin/' (trailing slash)
+  // which recursively matches all refs under that prefix. [Rule 1 fix — TRD 02-07]
   const refsR = _runGit(
-    ['for-each-ref', 'refs/remotes/origin/*', '--format=%(refname:short)'],
+    ['for-each-ref', 'refs/remotes/origin/', '--format=%(refname:short)'],
     { cwd }
   );
   if (!refsR.ok) {

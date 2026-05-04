@@ -242,7 +242,7 @@ function buildMockRunGit(responses = new Map()) {
 }
 
 /**
- * Canned response for `git for-each-ref refs/remotes/origin/* --format='%(refname:short)'`.
+ * Canned response for `git for-each-ref refs/remotes/origin/ --format='%(refname:short)'`.
  * `branches` is an array of short ref names (e.g., 'origin/feature/v1.1').
  */
 function buildGitForEachRefOutput({ branches = [] } = {}) {

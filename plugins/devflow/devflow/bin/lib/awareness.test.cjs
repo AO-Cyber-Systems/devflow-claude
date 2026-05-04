@@ -760,7 +760,7 @@ function buildScanResponses({
   responses.set('config user.name', buildGitConfigUserName({ name: user_name }));
   responses.set('rev-parse --abbrev-ref HEAD', { ok: true, status: 0, stdout: current_branch, stderr: '' });
   responses.set(
-    'for-each-ref refs/remotes/origin/* --format=%(refname:short)',
+    'for-each-ref refs/remotes/origin/ --format=%(refname:short)',
     buildGitForEachRefOutput({ branches })
   );
   for (const [branch, fields] of Object.entries(state_md_per_branch)) {
@@ -985,7 +985,7 @@ test('SF5: git for-each-ref returns empty stdout → branches=[], no warnings', 
   responses.set('rev-parse --abbrev-ref HEAD', { ok: true, status: 0, stdout: 'main', stderr: '' });
   responses.set('config user.name', buildGitConfigUserName());
   responses.set(
-    'for-each-ref refs/remotes/origin/* --format=%(refname:short)',
+    'for-each-ref refs/remotes/origin/ --format=%(refname:short)',
     { ok: true, status: 0, stdout: '', stderr: '' }
   );
   _setRunGit(buildMockRunGit(responses));
@@ -1114,7 +1114,7 @@ test('SP2: branch main → filtered out unconditionally', () => {
   responses.set('rev-parse --abbrev-ref HEAD', { ok: true, status: 0, stdout: 'develop', stderr: '' });
   responses.set('config user.name', buildGitConfigUserName());
   responses.set(
-    'for-each-ref refs/remotes/origin/* --format=%(refname:short)',
+    'for-each-ref refs/remotes/origin/ --format=%(refname:short)',
     buildGitForEachRefOutput({ branches: ['origin/main'] })
   );
   _setRunGit(buildMockRunGit(responses));
@@ -1134,7 +1134,7 @@ test('SP3: branch random-branch (no pattern match) → filtered out', () => {
   responses.set('rev-parse --abbrev-ref HEAD', { ok: true, status: 0, stdout: 'main', stderr: '' });
   responses.set('config user.name', buildGitConfigUserName());
   responses.set(
-    'for-each-ref refs/remotes/origin/* --format=%(refname:short)',
+    'for-each-ref refs/remotes/origin/ --format=%(refname:short)',
     buildGitForEachRefOutput({ branches: ['origin/random-branch'] })
   );
   _setRunGit(buildMockRunGit(responses));
@@ -1173,7 +1173,7 @@ test('SP5: branch HEAD → filtered out unconditionally', () => {
   responses.set('rev-parse --abbrev-ref HEAD', { ok: true, status: 0, stdout: 'main', stderr: '' });
   responses.set('config user.name', buildGitConfigUserName());
   responses.set(
-    'for-each-ref refs/remotes/origin/* --format=%(refname:short)',
+    'for-each-ref refs/remotes/origin/ --format=%(refname:short)',
     buildGitForEachRefOutput({ branches: ['origin/HEAD'] })
   );
   _setRunGit(buildMockRunGit(responses));
@@ -1247,7 +1247,7 @@ test('SI4: scanPeer calls git fetch --all --prune as first git call when no_fetc
 
 test('SU1: buildMockRunGit returns a function', () => {
   const mock = buildMockRunGit(new Map([
-    ['for-each-ref refs/remotes/origin/*', { ok: true, stdout: 'origin/feature/v1.1\n', stderr: '' }],
+    ['for-each-ref refs/remotes/origin/ --format=%(refname:short)', { ok: true, stdout: 'origin/feature/v1.1\n', stderr: '' }],
   ]));
   assert.strictEqual(typeof mock, 'function', 'buildMockRunGit returns a function');
   assert.strictEqual(typeof mock.callCount, 'function', 'has callCount()');
@@ -1257,9 +1257,9 @@ test('SU1: buildMockRunGit returns a function', () => {
 test('SU2: mockRunGit called with matching args returns canned response', () => {
   const expected = { ok: true, status: 0, stdout: 'origin/feature/v1.1\n', stderr: '' };
   const mock = buildMockRunGit(new Map([
-    ['for-each-ref refs/remotes/origin/*', expected],
+    ['for-each-ref refs/remotes/origin/ --format=%(refname:short)', expected],
   ]));
-  const result = mock(['for-each-ref', 'refs/remotes/origin/*']);
+  const result = mock(['for-each-ref', 'refs/remotes/origin/', '--format=%(refname:short)']);
   assert.deepStrictEqual(result, expected, 'canned response returned for matching args');
   assert.strictEqual(mock.callCount(), 1, 'callCount incremented');
 });
@@ -1817,6 +1817,12 @@ test('IT1 (02-07): scanPeer integration — 2-branch fixture repo → 2 entries 
     });
     try {
       _resetGitMock(); // ensure no mock injection for integration test
+      // Self-remote trick: add fixture root as 'origin' so remote refs populate
+      const { spawnSync: spawn } = require('child_process');
+      spawn('git', ['-C', fixture.root, 'remote', 'add', 'origin', fixture.root],
+        { encoding: 'utf-8', stdio: 'pipe' });
+      spawn('git', ['-C', fixture.root, 'fetch', '--all'],
+        { encoding: 'utf-8', stdio: 'pipe' });
       const result = scanPeer({ cwd: fixture.root, no_fetch: true });
       assert.ok(Array.isArray(result.branches), 'IT1: branches should be array');
       assert.strictEqual(result.branches.length, 2, `IT1: expected 2 branches, got ${result.branches.length}`);
