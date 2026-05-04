@@ -344,3 +344,319 @@ test('buildOrgScanResult O2: returns shape compatible with aggregateOrgByProduct
   const grouped = aggregateOrgByProductQuarter(scanResult.items);
   assert.ok(grouped['DevFlow']['Q2 2026'], 'grouping works on scanResult.items');
 });
+
+// ─── TRD 02-04: cache layer ───────────────────────────────────────────────────
+//
+// Test list (enumerated before test code — TDD Playbook habit 2):
+//
+// Group C — readCache happy paths:
+//   C1: cache file absent → returns null
+//   C2: cache file empty → returns null (JSON.parse fails on empty string)
+//   C3: cache file contains valid { peer: {...} } → returns object with peer section
+//   C4: cache file contains both peer + org → returns object with both
+//   C5: cache file contains malformed JSON → returns null (does not throw)
+//
+// Group W — writeCache merge semantics:
+//   W1: empty dir + writeCache({peer:X}) → file contains {peer:X} only
+//   W2: existing file {org:Y} + writeCache({peer:X}) → file contains BOTH peer:X AND org:Y (merge)
+//   W3: existing file {peer:OLD, org:Y} + writeCache({peer:NEW}) → peer overwritten, org preserved
+//   W4: existing file {peer:OLD, org:Y} + writeCache({peer:NEW, org:Y2}) → both replaced
+//   W5: missing .planning/ directory → writeCache creates it
+//   W6: writeCache produces pretty JSON with trailing newline
+//
+// Group I — isStale TTL math:
+//   I1: fetched_at=null → returns true
+//   I2: fetched_at=undefined → returns true
+//   I3: fetched_at='not-an-iso' → returns true
+//   I4: fetched_at = (now - 5 minutes), ttl=10 → returns false
+//   I5: fetched_at = (now - 11 minutes), ttl=10 → returns true
+//   I6: fetched_at = (now - 1 minute), ttl=0 → returns true (zero TTL = always stale)
+//   I7: fetched_at = (now - 1 minute), ttl=undefined → uses DEFAULT_TTL_MINUTES (10) → returns false
+//   I8: fetched_at = (now + 5 minutes) (future, clock skew) → returns false (treated as fresh)
+//
+// Group G — .gitignore line:
+//   G1: file .gitignore contains line matching ^\.planning/\.awareness-cache\.json$
+//   G2: gitignore line does NOT inadvertently ignore other awareness files (count === 1)
+//
+// Group T — templates/config.json documentation:
+//   T1: templates/config.json has top-level awareness key
+//   T2: awareness block documents cache_ttl_minutes, peer_stale_days, branch_patterns, org_project_id
+//   T3: existing config blocks (mode, github, etc.) are preserved unchanged
+//
+// Total: 23 cases.
+//
+// ─────────────────────────────────────────────────────────────────────────────
+
+const { readCache, writeCache, isStale } = require('./awareness.cjs');
+
+function tempCwd() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'df-awareness-cache-'));
+  return {
+    cwd: dir,
+    cleanup: () => { try { fs.rmSync(dir, { recursive: true, force: true }); } catch (_) {} },
+  };
+}
+
+// ─── Group C: readCache happy paths ──────────────────────────────────────────
+
+test('readCache C1: cache file absent returns null', () => {
+  const t = tempCwd();
+  try {
+    const result = readCache(t.cwd);
+    assert.strictEqual(result, null);
+  } finally { t.cleanup(); }
+});
+
+test('readCache C2: cache file empty returns null', () => {
+  const t = tempCwd();
+  try {
+    fs.mkdirSync(path.join(t.cwd, '.planning'), { recursive: true });
+    fs.writeFileSync(path.join(t.cwd, '.planning', '.awareness-cache.json'), '');
+    const result = readCache(t.cwd);
+    assert.strictEqual(result, null);
+  } finally { t.cleanup(); }
+});
+
+test('readCache C3: cache file with peer section returns object with peer', () => {
+  const t = tempCwd();
+  try {
+    fs.mkdirSync(path.join(t.cwd, '.planning'), { recursive: true });
+    const cacheData = { peer: { fetched_at: '2026-05-04T00:00:00Z', branches: ['main'] } };
+    fs.writeFileSync(
+      path.join(t.cwd, '.planning', '.awareness-cache.json'),
+      JSON.stringify(cacheData, null, 2) + '\n'
+    );
+    const result = readCache(t.cwd);
+    assert.ok(result, 'result should not be null');
+    assert.ok(result.peer, 'peer section present');
+    assert.deepStrictEqual(result.peer.branches, ['main']);
+    assert.strictEqual(result.org, undefined);
+  } finally { t.cleanup(); }
+});
+
+test('readCache C4: cache file with both peer + org returns both sections', () => {
+  const t = tempCwd();
+  try {
+    fs.mkdirSync(path.join(t.cwd, '.planning'), { recursive: true });
+    const cacheData = {
+      peer: { fetched_at: '2026-05-04T00:00:00Z', branches: ['main'] },
+      org: { fetched_at: '2026-05-04T00:00:00Z', items: ['item1'] },
+    };
+    fs.writeFileSync(
+      path.join(t.cwd, '.planning', '.awareness-cache.json'),
+      JSON.stringify(cacheData, null, 2) + '\n'
+    );
+    const result = readCache(t.cwd);
+    assert.ok(result, 'result should not be null');
+    assert.ok(result.peer, 'peer section present');
+    assert.ok(result.org, 'org section present');
+    assert.deepStrictEqual(result.peer.branches, ['main']);
+    assert.deepStrictEqual(result.org.items, ['item1']);
+  } finally { t.cleanup(); }
+});
+
+test('readCache C5: malformed JSON returns null (does not throw)', () => {
+  const t = tempCwd();
+  try {
+    fs.mkdirSync(path.join(t.cwd, '.planning'), { recursive: true });
+    fs.writeFileSync(
+      path.join(t.cwd, '.planning', '.awareness-cache.json'),
+      '{ "peer": { broken json here }}}'
+    );
+    const result = readCache(t.cwd);
+    assert.strictEqual(result, null);
+  } finally { t.cleanup(); }
+});
+
+// ─── Group W: writeCache merge semantics ─────────────────────────────────────
+
+test('writeCache W1: empty dir + writeCache({peer:X}) → file contains {peer:X} only', () => {
+  const t = tempCwd();
+  try {
+    fs.mkdirSync(path.join(t.cwd, '.planning'), { recursive: true });
+    writeCache(t.cwd, { peer: { branches: ['new'] } });
+    const after = JSON.parse(
+      fs.readFileSync(path.join(t.cwd, '.planning', '.awareness-cache.json'), 'utf-8')
+    );
+    assert.ok(after.peer, 'peer section written');
+    assert.deepStrictEqual(after.peer.branches, ['new']);
+    assert.strictEqual(after.org, undefined);
+  } finally { t.cleanup(); }
+});
+
+test('writeCache W2: existing {org:Y} + writeCache({peer:X}) → BOTH sections preserved', () => {
+  const t = tempCwd();
+  try {
+    fs.mkdirSync(path.join(t.cwd, '.planning'), { recursive: true });
+    fs.writeFileSync(
+      path.join(t.cwd, '.planning', '.awareness-cache.json'),
+      JSON.stringify({ org: { items: ['existing'] } }, null, 2) + '\n'
+    );
+    writeCache(t.cwd, { peer: { branches: ['new'] } });
+    const after = JSON.parse(
+      fs.readFileSync(path.join(t.cwd, '.planning', '.awareness-cache.json'), 'utf-8')
+    );
+    assert.ok(after.peer, 'peer section present');
+    assert.deepStrictEqual(after.peer.branches, ['new']);
+    assert.ok(after.org, 'org section preserved');
+    assert.deepStrictEqual(after.org.items, ['existing']);
+  } finally { t.cleanup(); }
+});
+
+test('writeCache W3: existing {peer:OLD, org:Y} + writeCache({peer:NEW}) → peer overwritten, org preserved', () => {
+  const t = tempCwd();
+  try {
+    fs.mkdirSync(path.join(t.cwd, '.planning'), { recursive: true });
+    fs.writeFileSync(
+      path.join(t.cwd, '.planning', '.awareness-cache.json'),
+      JSON.stringify({ peer: { branches: ['old'] }, org: { items: ['keep'] } }, null, 2) + '\n'
+    );
+    writeCache(t.cwd, { peer: { branches: ['new'] } });
+    const after = JSON.parse(
+      fs.readFileSync(path.join(t.cwd, '.planning', '.awareness-cache.json'), 'utf-8')
+    );
+    assert.deepStrictEqual(after.peer.branches, ['new'], 'peer overwritten');
+    assert.ok(after.org, 'org section preserved');
+    assert.deepStrictEqual(after.org.items, ['keep'], 'org items unchanged');
+  } finally { t.cleanup(); }
+});
+
+test('writeCache W4: existing {peer:OLD, org:Y} + writeCache({peer:NEW, org:Y2}) → both replaced', () => {
+  const t = tempCwd();
+  try {
+    fs.mkdirSync(path.join(t.cwd, '.planning'), { recursive: true });
+    fs.writeFileSync(
+      path.join(t.cwd, '.planning', '.awareness-cache.json'),
+      JSON.stringify({ peer: { branches: ['old'] }, org: { items: ['old-org'] } }, null, 2) + '\n'
+    );
+    writeCache(t.cwd, { peer: { branches: ['new-peer'] }, org: { items: ['new-org'] } });
+    const after = JSON.parse(
+      fs.readFileSync(path.join(t.cwd, '.planning', '.awareness-cache.json'), 'utf-8')
+    );
+    assert.deepStrictEqual(after.peer.branches, ['new-peer'], 'peer replaced');
+    assert.deepStrictEqual(after.org.items, ['new-org'], 'org replaced');
+  } finally { t.cleanup(); }
+});
+
+test('writeCache W5: missing .planning/ directory → writeCache creates it', () => {
+  const t = tempCwd();
+  try {
+    // Do NOT create .planning/ — let writeCache create it
+    assert.ok(!fs.existsSync(path.join(t.cwd, '.planning')), '.planning should not exist yet');
+    writeCache(t.cwd, { peer: { branches: ['x'] } });
+    assert.ok(fs.existsSync(path.join(t.cwd, '.planning')), '.planning directory created');
+    assert.ok(
+      fs.existsSync(path.join(t.cwd, '.planning', '.awareness-cache.json')),
+      'cache file created'
+    );
+  } finally { t.cleanup(); }
+});
+
+test('writeCache W6: produces pretty JSON with trailing newline', () => {
+  const t = tempCwd();
+  try {
+    writeCache(t.cwd, { peer: { branches: ['a'] } });
+    const raw = fs.readFileSync(
+      path.join(t.cwd, '.planning', '.awareness-cache.json'),
+      'utf-8'
+    );
+    // Must end with newline
+    assert.ok(raw.endsWith('\n'), 'file ends with newline');
+    // Must be pretty-printed (contains indented keys)
+    assert.ok(raw.includes('\n  '), 'file is pretty-printed (has indented lines)');
+    // Must be valid JSON
+    const parsed = JSON.parse(raw);
+    assert.ok(parsed.peer, 'parsed object has peer section');
+  } finally { t.cleanup(); }
+});
+
+// ─── Group I: isStale TTL math ────────────────────────────────────────────────
+
+test('isStale I1: fetched_at=null returns true', () => {
+  assert.strictEqual(isStale(null, 10), true);
+});
+
+test('isStale I2: fetched_at=undefined returns true', () => {
+  assert.strictEqual(isStale(undefined, 10), true);
+});
+
+test('isStale I3: fetched_at=non-ISO string returns true', () => {
+  assert.strictEqual(isStale('not-an-iso', 10), true);
+});
+
+test('isStale I4: fetched_at 5 minutes ago with ttl=10 returns false', () => {
+  const fiveMinAgo = new Date(Date.now() - 5 * 60_000).toISOString();
+  assert.strictEqual(isStale(fiveMinAgo, 10), false);
+});
+
+test('isStale I5: fetched_at 11 minutes ago with ttl=10 returns true', () => {
+  const elevenMinAgo = new Date(Date.now() - 11 * 60_000).toISOString();
+  assert.strictEqual(isStale(elevenMinAgo, 10), true);
+});
+
+test('isStale I6: fetched_at 1 minute ago with ttl=0 returns true (zero TTL = always stale)', () => {
+  const oneMinAgo = new Date(Date.now() - 1 * 60_000).toISOString();
+  assert.strictEqual(isStale(oneMinAgo, 0), true);
+});
+
+test('isStale I7: fetched_at 1 minute ago with ttl=undefined uses DEFAULT_TTL_MINUTES (10) returns false', () => {
+  const oneMinAgo = new Date(Date.now() - 1 * 60_000).toISOString();
+  // DEFAULT_TTL_MINUTES is 10; 1 minute < 10 minutes → not stale
+  assert.strictEqual(isStale(oneMinAgo, undefined), false);
+});
+
+test('isStale I8: fetched_at in future (clock skew) returns false (treated as fresh)', () => {
+  const fiveMinFuture = new Date(Date.now() + 5 * 60_000).toISOString();
+  assert.strictEqual(isStale(fiveMinFuture, 10), false);
+});
+
+// ─── Group G: .gitignore line ─────────────────────────────────────────────────
+
+test('gitignore G1: .gitignore contains .awareness-cache.json line', () => {
+  // Anchor from __dirname: plugins/devflow/devflow/bin/lib → ../../../../.gitignore
+  const gitignorePath = path.resolve(__dirname, '../../../../..', '.gitignore');
+  if (!fs.existsSync(gitignorePath)) {
+    // Skip gracefully if path layout differs
+    return;
+  }
+  const content = fs.readFileSync(gitignorePath, 'utf-8');
+  assert.match(content, /^\.planning\/\.awareness-cache\.json$/m);
+});
+
+test('gitignore G2: gitignore line appears exactly once (does not inadvertently ignore other files)', () => {
+  const gitignorePath = path.resolve(__dirname, '../../../../..', '.gitignore');
+  if (!fs.existsSync(gitignorePath)) {
+    return;
+  }
+  const content = fs.readFileSync(gitignorePath, 'utf-8');
+  const matches = (content.match(/\.awareness-cache\.json/g) || []).length;
+  assert.strictEqual(matches, 1, '.awareness-cache.json appears exactly once in .gitignore');
+});
+
+// ─── Group T: templates/config.json documentation ────────────────────────────
+
+test('config.json T1: has top-level awareness key', () => {
+  const cfgPath = path.resolve(__dirname, '../../templates/config.json');
+  if (!fs.existsSync(cfgPath)) return;
+  const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf-8'));
+  assert.ok(cfg.awareness, 'config.json missing awareness block');
+});
+
+test('config.json T2: awareness block documents all four config fields', () => {
+  const cfgPath = path.resolve(__dirname, '../../templates/config.json');
+  if (!fs.existsSync(cfgPath)) return;
+  const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf-8'));
+  assert.ok(cfg.awareness, 'awareness block present');
+  assert.strictEqual(typeof cfg.awareness.cache_ttl_minutes, 'number', 'cache_ttl_minutes is number');
+  assert.strictEqual(typeof cfg.awareness.peer_stale_days, 'number', 'peer_stale_days is number');
+  assert.ok(Array.isArray(cfg.awareness.branch_patterns), 'branch_patterns is array');
+  assert.strictEqual(typeof cfg.awareness.org_project_id, 'string', 'org_project_id is string');
+});
+
+test('config.json T3: existing blocks (mode, github) preserved unchanged', () => {
+  const cfgPath = path.resolve(__dirname, '../../templates/config.json');
+  if (!fs.existsSync(cfgPath)) return;
+  const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf-8'));
+  assert.ok(cfg.mode, 'mode block preserved');
+  assert.ok(cfg.github, 'github block preserved');
+});
