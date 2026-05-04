@@ -11,9 +11,10 @@
 **Milestone:** v1.1 — DevFlow Coordination Layer (in flight)
 **Branch:** `feature/v1.1`
 **Objective complete:** 0 — Refine (kind, work) defaults table from codebase evidence (verified 2026-05-04, 443/443 tests, all 10 SC met)
-**Objective in flight:** 1 — GitHub coordination layer (#10)
-**Current TRD:** 01-06 (wave 6 — dogfood + integration)
-**Status:** TRD 01-05 complete (wave 5 done — pm-backend seam scaffolded; 541/541 tests)
+**Objective complete:** 1 — GitHub coordination layer (verified 2026-05-04, 563/563 tests, all 6 TRDs done, SC-9 + SC-10 met)
+**Objective in flight:** 2 — Cross-worktree session telemetry (next)
+**Current TRD:** 02-01 (not yet started)
+**Status:** TRD 01-06 complete (wave 6 done — dogfood + integration; 559/563 tests default, 563/563 with GH_INTEGRATION=1)
 
 ## Branch State (post-merge)
 
@@ -62,6 +63,10 @@
 - **Group G tests in-process (TRD 01-04 verifier briefing #2)** — `cmdGhSyncObjective` tested via in-process IO capture, not `spawnSync` subprocess, to preserve `_setRunGh` mock coverage.
 - **TRD 01-05 complete (2026-05-04)** — `lib/pm-backend.cjs` scaffolded: `getBackend(projectConfig)` returns `lib/gh.cjs` on github/unset; throws with v1.2+ guidance for linear/jira; throws with backend name for unknown. `VALID_BACKENDS=['github']` exported. 7 new tests. 541/541 tests pass. Single atomic commit: 7616e6a (feat:). Wave 5 complete.
 - **pm-backend seam design locked (TRD 01-05)** — Return `require('./gh.cjs')` directly (no facade); explicit case arms for linear+jira give v1.2+ guidance; df-tools.cjs call sites unchanged per CONTEXT.md §6; v1.2 wires call sites through seam.
+- **TRD 01-06 complete (2026-05-04)** — obj 0 OBJECTIVE.md backfilled (github_issue + parent_issue); gh-cassettes captured from live API; PRODUCT_ROADMAP_FIELDS populated from cassette (_captured=true, flat structure); updateProjectFields rewritten with addToProject-first pattern; requireGhAuth SCOPE_SUPERSET (project covers read:project). 22 new tests (Groups H-L). 559/563 tests pass default; 563/563 with GH_INTEGRATION=1. Commits: 2c74f9e (test:), 97855d0 (feat:). Wave 6 complete. Objective 1 DONE.
+- **PRODUCT_ROADMAP_FIELDS flat structure (TRD 01-06)** — Fields live directly on constant (PRODUCT_ROADMAP_FIELDS.Status = { field_id, options }) not under nested .fields sub-key. Loaded from cassette at module-init time.
+- **requireGhAuth SCOPE_SUPERSET (TRD 01-06)** — SCOPE_SUPERSET = { 'read:project': ['project'] }. GitHub's project scope implicitly grants read:project; literal check was a false positive.
+- **Cassette-based replay testing pattern (TRD 01-06)** — Committed JSON cassettes in __fixtures__/gh-cassettes/; tests load via fs.readFileSync; NOT regenerated on test runs. Live re-capture only with GH_INTEGRATION=1 in E4/L2 drift-detection tests.
 
 ## Blockers / Concerns
 
@@ -69,7 +74,7 @@
 
 ## Session Continuity
 
-Last session: 2026-05-04 — TRD 01-05 (pm-backend seam) complete. Wave 5 done.
+Last session: 2026-05-04 — TRD 01-06 (dogfood + integration) complete. Wave 6 done. Objective 1 DONE.
 Resume file: `.planning/SESSION_PICKUP.md`
-Stopped at: Completed 01-05-pm-backend-seam-TRD.md
-Next: TRD 01-06 (dogfood + integration — wave 6)
+Stopped at: Completed 01-06-dogfood-and-integration-TRD.md
+Next: Objective 2 — Cross-worktree session telemetry (TRD 02-01)
