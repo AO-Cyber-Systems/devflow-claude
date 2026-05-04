@@ -178,6 +178,9 @@ const {
   cmdHistoryDigest, cmdObjectiveJobIndex, cmdSummaryExtract, cmdWebsearch,
   cmdCommit, cmdTodoComplete, cmdScaffold, cmdRequirementsMarkComplete,
 } = require('./lib/misc.cjs');
+const {
+  cmdHandoffCreate, cmdHandoffComplete, cmdHandoffList, cmdHandoffGet,
+} = require('./lib/handoff.cjs');
 
 // ─── CLI Router ───────────────────────────────────────────────────────────────
 
@@ -565,6 +568,32 @@ async function main() {
         cmdTodoComplete(cwd, args[2], raw);
       } else {
         error('Unknown todo subcommand. Available: complete');
+      }
+      break;
+    }
+
+    case 'handoff': {
+      const subcommand = args[1];
+      if (subcommand === 'create') {
+        const cmd = args.slice(2).join(' ');
+        cmdHandoffCreate(cwd, cmd, raw);
+      } else if (subcommand === 'complete') {
+        const id = args[2];
+        const exitIdx = args.indexOf('--exit-code');
+        const outFileIdx = args.indexOf('--output-file');
+        const outIdx = args.indexOf('--output');
+        const opts = {
+          exitCode: exitIdx !== -1 ? parseInt(args[exitIdx + 1], 10) : undefined,
+          outputFile: outFileIdx !== -1 ? args[outFileIdx + 1] : undefined,
+          output: outIdx !== -1 ? args[outIdx + 1] : undefined,
+        };
+        cmdHandoffComplete(cwd, id, opts, raw);
+      } else if (subcommand === 'list') {
+        cmdHandoffList(cwd, raw);
+      } else if (subcommand === 'get') {
+        cmdHandoffGet(cwd, args[2], raw);
+      } else {
+        error('Unknown handoff subcommand. Available: create, complete, list, get');
       }
       break;
     }

@@ -7,6 +7,36 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **Seamless handoff watcher (`devflow-watch`)** — local daemon that
+  executes interactive and shell-flow commands in the user's interactive
+  shell so Claude Code can keep executing without instructing the user
+  to paste `! cmd`. New CLI subcommands: `start`, `stop`, `status`,
+  `logs`, `version`. Approach B from `docs/PROPOSAL-handoff-watcher.md`.
+- **`gate-interactive` hook is daemon-aware**: when watcher PID is live,
+  deny message says "queued for daemon — continue with other work" and
+  does not instruct paste. Falls back to original Approach A
+  ("tell user `! cmd`") when daemon is absent. Hook is useful in either
+  mode.
+- **13 new shell-flow patterns** in the curated allowlist: `nvm use`,
+  `nvm install`, `pyenv shell`, `pyenv install`, `conda activate`,
+  `direnv exec`, `direnv allow`, `mise use`, `mise install`, `mise run`,
+  `asdf shell`, `asdf install`, `rbenv shell`. Plus `aws sso login` added
+  to the TTY-interactive set. Pattern count 9 → 23.
+- **`route-results.js` UserPromptSubmit hook** — when the daemon
+  completes a queued command, this hook injects the result into Claude's
+  next turn as `additionalContext`. Closes the
+  Claude-continues-executing loop. Truncates per record, honors TTL
+  (default 1h), special-cases rejected/timeout with "Do NOT retry"
+  guidance.
+- **User-extensible allowlist** at `~/.devflow/devflow-watch-allow.json`
+  — JSON file with `commands: [{pattern, label, skipIf?}]`. Combined
+  with the curated default. Sanity-check deny list (sudo, su -, rm -rf /,
+  fork bombs, curl|bash, wget|bash) always rejects.
+- **`docs/handoff-watcher-guide.md`** — user-facing guide covering
+  install/start/stop, allowlist customization, security model,
+  troubleshooting.
+- **`docs/PROPOSAL-handoff-watcher.md`** — design rationale for the
+  watcher daemon (Approach B from the seamless-handoff proposal).
 - **Two-axis intent model: `kind` + `work`.** Every project declares what it IS (`kind`: `api | app | library | ui-lib | cli | plugin`) on PROJECT.md; every objective declares what it DOES (`work`: `feature | port | refactor | foundation | bugfix | prototype | spike`) on OBJECTIVE.md. The planner reads both and applies a 42-cell `(kind, work) → defaults` lookup table to derive TDD posture, planning depth, model profile, and verification rigor — replacing the previous silent "Can you write `expect(fn(input))`?" heuristic. Defaults are visible at planning time (printed before TRD generation) and overridable at four levels: TRD frontmatter > OBJECTIVE.md `overrides` > CLAUDE.md user playbook directives > defaults table. Postures grounded in Feathers (characterization tests for refactor), Beck/Fowler (TDD), ThoughtWorks (test pyramid), Pact (consumer-driven contracts), and visual-regression industry tooling.
 - **PROJECT.md `default_work` field.** Optional. Sets the default `work` value inherited by objectives that don't declare their own. The planner emits a louder message when an objective inherits this default, surfacing the inheritance source and inviting override so silent inheritance can't mask a wrong default.
 - **CLAUDE.md absorption.** The planner now reads `~/.claude/CLAUDE.md` and `./CLAUDE.md` for sections matching TDD/Test/Quality/Scope policy headings, and applies the directives as overrides on the defaults table. Conservative pattern matching avoids false positives.
