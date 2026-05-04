@@ -12,8 +12,8 @@
 **Branch:** `feature/v1.1`
 **Objective complete:** 0 — Refine (kind, work) defaults table from codebase evidence (verified 2026-05-04, 443/443 tests, all 10 SC met)
 **Objective in flight:** 1 — GitHub coordination layer (#10)
-**Current TRD:** 01-02 (wave 2 — resolver chain walk)
-**Status:** TRD 01-01 complete (wave 1 done)
+**Current TRD:** 01-03 (wave 3 — auth + error handling)
+**Status:** TRD 01-02 complete (wave 2 done)
 
 ## Branch State (post-merge)
 
@@ -50,6 +50,9 @@
 - **TRD 01-01 complete (2026-05-04)** — GH-link frontmatter fields documented in 3 templates (project.md: github_repo + org_project; objective.md: github_issue + parent_issue + org_initiative + org_project; job-prompt.md: per-TRD github_issue). `frontmatter.test.cjs` created: 8 tests proving back-compat + new-field parse + shorthand round-trip. 449/449 relevant tests pass (2 pre-existing unrelated failures). Commits: 5a11cb5 (docs), 6c3da20 (test). Wave 1 complete.
 - **Frontmatter parser is permissive (TRD 01-01 confirmed)** — extractFrontmatter accepts any unknown field without warnings; no parser changes required for GH-link fields. Unquoted #9 and quoted "#9" both parse to literal string; reconstruction wraps # values in quotes (serialization artifact, not a bug).
 - **org_project inheritance chain documented (TRD 01-01)** — PROJECT.md sets org_project as default; OBJECTIVE.md can override; TRD frontmatter inherits from objective. Resolution provenance vocabulary locked: frontmatter → inherited_from_project → walked_from_parent → absent.
+- **TRD 01-02 complete (2026-05-04)** — `resolveChain(frontmatter, projectCtx)` walks GH-link fields through full org chain with per-field provenance; shorthand `#NN` expansion with graceful warnings; per-process in-memory cache (module-scope Map); `findRoadmapIssue`, `addToProject`, `linkSubIssue` helpers; `cmdGhResolve` + `df-tools gh resolve` CLI routing. 32 new tests (Groups A-I). 483/483 tests pass. Commits: 8ac655c (test:), b91e7e6 (feat:). Wave 2 complete.
+- **_setRunGh test injection hook added (TRD 01-02)** — Production code uses `_runGh` (shadows `runGh`); tests inject mock via `_setRunGh(fn)`. Existing cmdGhSync*/cmdGhComment/etc. continue using `runGh` directly (back-compat). TRD 01-03 should follow the same pattern when wrapping runGh with auth checks.
+- **Cache provenance transform locked (TRD 01-02)** — `walked_from_parent` and `inherited_from_project` become `'cached'` on hit; `frontmatter` and `absent` stay unchanged. Re-reading frontmatter is free; only walked/fetched values are the "cache value".
 
 ## Blockers / Concerns
 
@@ -57,7 +60,7 @@
 
 ## Session Continuity
 
-Last session: 2026-05-04 — TRD 01-01 (frontmatter fields + templates) complete. Wave 1 done.
+Last session: 2026-05-04 — TRD 01-02 (resolver chain walk) complete. Wave 2 done.
 Resume file: `.planning/SESSION_PICKUP.md`
-Stopped at: Completed 01-01-frontmatter-fields-and-templates-TRD.md
-Next: TRD 01-02 (resolver chain walk — wave 2, TDD)
+Stopped at: Completed 01-02-resolver-chain-walk-TRD.md
+Next: TRD 01-03 (auth + error handling — wave 3, TDD)
