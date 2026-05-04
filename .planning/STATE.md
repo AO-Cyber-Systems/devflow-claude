@@ -13,8 +13,8 @@
 **Objective complete:** 0 — Refine (kind, work) defaults table from codebase evidence (verified 2026-05-04, 443/443 tests, all 10 SC met)
 **Objective complete:** 1 — GitHub coordination layer (verified 2026-05-04, 563/563 tests, all 6 TRDs done, SC-9 + SC-10 met)
 **Objective in flight:** 2 — Cross-worktree session telemetry (next)
-**Current TRD:** 02-01 (not yet started)
-**Status:** Ready to plan
+**Current TRD:** 02-02 (not yet started)
+**Status:** TRD 02-01 complete — awareness foundation shipped
 
 ## Branch State (post-merge)
 
@@ -67,6 +67,10 @@
 - **PRODUCT_ROADMAP_FIELDS flat structure (TRD 01-06)** — Fields live directly on constant (PRODUCT_ROADMAP_FIELDS.Status = { field_id, options }) not under nested .fields sub-key. Loaded from cassette at module-init time.
 - **requireGhAuth SCOPE_SUPERSET (TRD 01-06)** — SCOPE_SUPERSET = { 'read:project': ['project'] }. GitHub's project scope implicitly grants read:project; literal check was a false positive.
 - **Cassette-based replay testing pattern (TRD 01-06)** — Committed JSON cassettes in __fixtures__/gh-cassettes/; tests load via fs.readFileSync; NOT regenerated on test runs. Live re-capture only with GH_INTEGRATION=1 in E4/L2 drift-detection tests.
+- **TRD 02-01 complete (2026-05-04)** — `lib/awareness.cjs` created with parseStateMd (fault-tolerant, returns null on unrecognized content) + aggregateOrgByProductQuarter (stable Product×Quarter grouping) + 4 constants. `lib/__fixtures__/awareness-fixtures.cjs` created with 5 locked-signature factory builders. 29 test cases (27 non-gated pass; G1+G2 skip on GIT_INTEGRATION unset). 592/592 tests (586 pass, 6 skipped). Commits: d8b3c75 (test:), cddcc7e (feat:). Wave 1 complete.
+- **parseStateMd null-on-no-match contract (TRD 02-01)** — Returns null when no field is extracted; callers (TRD 02-02 scanner) skip the branch and log a warning. Never throws (try/catch wrapping entire function body).
+- **aggregateOrgByProductQuarter shape locked (TRD 02-01)** — { [Product]: { [Quarter]: items[] } }. Items missing product→'Unknown'; items missing quarter→'Unknown'. Input order preserved within buckets. TRD 02-03 emits this shape.
+- **GIT_INTEGRATION=1 gating pattern (TRD 02-01)** — buildGitFixtureRepo tests (G1/G2) skip when GIT_INTEGRATION env unset. Mirrors GH_INTEGRATION=1 from obj 1. Tests throw on git-not-available; caller catches and t.skip().
 
 ## Blockers / Concerns
 
@@ -74,7 +78,7 @@
 
 ## Session Continuity
 
-Last session: 2026-05-04 — TRD 01-06 (dogfood + integration) complete. Wave 6 done. Objective 1 DONE.
+Last session: 2026-05-04 — TRD 02-01 (STATE.md parser + fixtures) complete. Wave 1 done.
 Resume file: `.planning/SESSION_PICKUP.md`
-Stopped at: Completed 01-06-dogfood-and-integration-TRD.md
-Next: Objective 2 — Cross-worktree session telemetry (TRD 02-01)
+Stopped at: Completed 02-01-state-md-parser-and-fixtures-TRD.md
+Next: Objective 2 TRD 02-02 — Peer scanner (Wave 2 is 02-04, Wave 3 is 02-02)

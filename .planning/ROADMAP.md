@@ -195,7 +195,7 @@ Dependency order:
 **Gates** (downstream consumers): obj 4 (dup-detect reads peer scanner's output), obj 5 (initiatives layer extends org walker), obj 6 (check-todos aggregates this), obj 8 (TUI renders this).
 
 **TRDs:** 7 plans across 7 waves
-- [ ] 02-01-state-md-parser-and-fixtures-TRD.md — STATE.md parser + awareness-fixtures.cjs scaffold (Wave 1, tdd)
+- [x] 02-01-state-md-parser-and-fixtures-TRD.md — STATE.md parser + awareness-fixtures.cjs scaffold (Wave 1, tdd) — DONE 2026-05-04, 592/592 tests (586 pass), commits d8b3c75 + cddcc7e
 - [ ] 02-02-peer-scanner-TRD.md — scanPeer + git-branch walker + _setRunGit injection (Wave 3, tdd)
 - [ ] 02-03-org-scanner-TRD.md — walkProject (lib/gh.cjs) + scanOrg + task-list fallback (Wave 4, tdd)
 - [ ] 02-04-cache-layer-TRD.md — readCache + writeCache + isStale + .gitignore (Wave 2, tdd)
