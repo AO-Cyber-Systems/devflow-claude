@@ -200,7 +200,7 @@ Dependency order:
 - [ ] 02-03-org-scanner-TRD.md — walkProject (lib/gh.cjs) + scanOrg + task-list fallback (Wave 4, tdd)
 - [ ] 02-04-cache-layer-TRD.md — readCache + writeCache + isStale + .gitignore (Wave 2, tdd)
 - [ ] 02-05-skill-and-cli-TRD.md — /devflow:awareness skill + df-tools awareness CLI router (Wave 5, standard)
-- [ ] 02-06-lifecycle-integration-TRD.md — SessionStart hook + plan/execute init refresh wiring (Wave 6, tdd)
+- [x] 02-06-lifecycle-integration-TRD.md — SessionStart hook + plan/execute init refresh wiring (Wave 6, tdd) — DONE 2026-05-04, 710/719 tests pass, commits f35aaa3 + 5ddb3b6
 - [ ] 02-07-library-export-and-integration-TRD.md — export surface lock + integration tests + cassette capture (Wave 7, tdd)
 
 ---

@@ -137,3 +137,13 @@ None.
 ---
 *Objective: 02-cross-repo-awareness-layer*
 *Completed: 2026-05-04*
+
+## Self-Check: PASSED
+
+- FOUND: plugins/devflow/skills/awareness/SKILL.md
+- FOUND: plugins/devflow/devflow/bin/lib/awareness-cli.cjs
+- FOUND: plugins/devflow/devflow/bin/lib/awareness-cli.test.cjs
+- FOUND: .planning/objectives/02-cross-repo-awareness-layer/02-05-skill-and-cli-SUMMARY.md
+- FOUND commit: d183052 (feat(02-05): awareness CLI)
+- FOUND commit: 183339b (feat(02-05): SKILL.md)
+- FOUND commit: c0bcff6 (docs(02-05): metadata)

@@ -13,8 +13,8 @@
 **Objective complete:** 0 — Refine (kind, work) defaults table from codebase evidence (verified 2026-05-04, 443/443 tests, all 10 SC met)
 **Objective complete:** 1 — GitHub coordination layer (verified 2026-05-04, 563/563 tests, all 6 TRDs done, SC-9 + SC-10 met)
 **Objective in flight:** 2 — Cross-worktree session telemetry (next)
-**Current TRD:** 02-06 (next: lifecycle-integration; 02-01/02/03/04/05 complete)
-**Status:** TRD 02-05 complete — /devflow:awareness skill + df-tools awareness CLI shipped (parseShowFlags + renderMarkdown + cmdAwarenessShow/ScanPeer/ScanOrg/Route, 29 tests, 696/696 pass)
+**Current TRD:** 02-07 (next: library-export-and-integration; 02-01/02/03/04/05/06 complete)
+**Status:** TRD 02-06 complete — SessionStart awareness-cache-populate hook (fire-and-forget, detached+unref, H6 --no-fetch path) + init.cjs awareness_refresh flag shipped (16 tests, 710/719 pass)
 
 ## Branch State (post-merge)
 
@@ -87,6 +87,10 @@
 - **Standard TRD commit pattern for 02-05** — CONTEXT.md §"TRD types" locks standard TRDs to single feat commit for tests + impl. Two commits used: one for lib/CLI surface (d183052) + one for skill file (183339b) as different surfaces per TRD instructions.
 - **Quarter filter normalization (TRD 02-05)** — `--quarter Q2-2026` matches `quarter: "Q2 2026"` items (dash/space normalized, case-insensitive substring). Locked in renderMarkdown.
 - **Soft-fail org auth pattern (TRD 02-05)** — When default mode (both sections) and org GhAuthError: render peer-only + warning. Hard-fail only on --org-only or when peer also unavailable. Mirrors cmdGhResolve pattern for the hard-fail path.
+- **TRD 02-06 complete (2026-05-04)** — `hooks/awareness-cache-populate.js` SessionStart hook: lazy cache populate, fire-and-forget (detached:true, stdio:'ignore', unref()), <100ms parent exit. H6 --no-fetch path locked (peer-stale-only → scan-peer --no-fetch, avoids slow git fetch on session start). `hooks.json` updated with second SessionStart entry. `init.cjs` extended: `_awarenessLoadable()` + `awareness_refresh: true|false` in `cmdInitPlanObjective` + `cmdInitExecuteObjective`. 16 new tests; 710/719 pass. Commits: f35aaa3 (test:), 5ddb3b6 (feat:). SC-8 complete.
+- **H6 --no-fetch path locked (TRD 02-06)** — When only peer is stale, use `scan-peer --no-fetch` (skips git fetch). Rationale: git fetch is the slow part of peer scanning; local refs are still useful data. Full fetch only when both sections stale (uses show --refresh).
+- **awareness_refresh guidance-only flag (TRD 02-06)** — init.cjs sets `awareness_refresh` but does NOT spawn refresh itself. Plan-objective and execute-objective skills are responsible for consuming the flag. Wiring those skills is out of scope for TRD 02-06 (belongs to obj 4/5 work).
+- **subprocess test pattern for init commands (TRD 02-06)** — `output()` in helpers.cjs calls `process.exit(0)`, making in-process stdout capture impossible. Tests for init.cjs use `execSync('node df-tools.cjs init ...')` + JSON.parse(stdout). Pattern now established for future init tests.
 
 ## Blockers / Concerns
 
@@ -94,7 +98,7 @@
 
 ## Session Continuity
 
-Last session: 2026-05-04 — TRD 02-05 (/devflow:awareness skill + CLI) complete. parseShowFlags + renderMarkdown + cmdAwarenessShow shipped.
+Last session: 2026-05-04 — TRD 02-06 (lifecycle integration) complete. awareness-cache-populate hook + init.cjs awareness_refresh flag shipped.
 Resume file: `.planning/SESSION_PICKUP.md`
-Stopped at: Completed 02-05-skill-and-cli-TRD.md
-Next: Objective 2 TRD 02-06 — Lifecycle integration (Wave 6)
+Stopped at: Completed 02-06-lifecycle-integration-TRD.md
+Next: Objective 2 TRD 02-07 — Library export lock + integration tests (Wave 7)
