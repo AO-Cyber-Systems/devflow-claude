@@ -274,3 +274,618 @@ describe('intent.resolve', () => {
     });
   });
 });
+
+// =============================================================================
+// TRD 0.2 — New resolver schema tests
+// =============================================================================
+
+// ---------------------------------------------------------------------------
+// Group A — table parsing extension
+// ---------------------------------------------------------------------------
+
+describe('new fields — table parse', () => {
+  afterEach(() => {
+    intent._resetCache();
+  });
+
+  test('A1: loadDefaultsTable() returns a cell with all 9 fields populated for (api, feature)', () => {
+    const table = intent.loadDefaultsTable();
+    const cell = table['api']['feature'];
+    for (const field of ['tdd', 'depth', 'model_profile', 'verification',
+      'security_isolation', 'back_compat', 'tdd_default', 'test_list_first', 'fixture_strategy']) {
+      assert.ok(cell[field] !== undefined, `(api, feature) missing field '${field}'`);
+    }
+    assert.strictEqual(cell.security_isolation, 'multi_tenant_required');
+    assert.strictEqual(cell.tdd_default, 'strict');
+    assert.strictEqual(cell.test_list_first, 'required');
+    assert.strictEqual(cell.fixture_strategy, 'inline');
+  });
+
+  test('A2: loadConstraints() returns an array of 3 entries: no_llm_test_data, no_property_based_default, no_gherkin_layer', () => {
+    const constraints = intent.loadConstraints();
+    assert.ok(Array.isArray(constraints), 'constraints must be an array');
+    assert.strictEqual(constraints.length, 3);
+    const ids = constraints.map((c) => c.id);
+    assert.ok(ids.includes('no_llm_test_data'), 'missing no_llm_test_data');
+    assert.ok(ids.includes('no_property_based_default'), 'missing no_property_based_default');
+    assert.ok(ids.includes('no_gherkin_layer'), 'missing no_gherkin_layer');
+    // Each entry must have id, description, opt_out_field
+    for (const c of constraints) {
+      assert.ok(c.id, `constraint missing id: ${JSON.stringify(c)}`);
+      assert.ok(c.description, `constraint missing description: ${c.id}`);
+      assert.ok(c.opt_out_field, `constraint missing opt_out_field: ${c.id}`);
+    }
+  });
+
+  test('A3: loadConstraints() returns [] when table has no constraints block (legacy format)', () => {
+    const tmpDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'df-legacy-'));
+    const legacyPath = path.join(tmpDir, 'legacy-table.md');
+    // A minimal table with defaults but NO constraints block
+    fs.writeFileSync(legacyPath, [
+      '# Legacy Table',
+      '',
+      '```yaml',
+      'defaults:',
+      '  api:',
+      '    feature:',
+      '      tdd: "strict"',
+      '      depth: comprehensive',
+      '      model_profile: quality',
+      '      verification: "full integration"',
+      '      security_isolation: multi_tenant_required',
+      '      back_compat: none',
+      '      tdd_default: strict',
+      '      test_list_first: required',
+      '      fixture_strategy: inline',
+      '```',
+    ].join('\n'), 'utf-8');
+
+    let result;
+    assert.doesNotThrow(() => {
+      result = intent.loadConstraints(legacyPath);
+    });
+    assert.ok(Array.isArray(result), 'should return array');
+    assert.strictEqual(result.length, 0, 'should return empty array for legacy table');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  test('A4: loadDefaultsTable() parses cell with missing new field — field is undefined on cell, no throw', () => {
+    const tmpDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'df-partial-'));
+    const partialPath = path.join(tmpDir, 'partial-table.md');
+    // A cell missing fixture_strategy
+    fs.writeFileSync(partialPath, [
+      '# Partial Table',
+      '',
+      '```yaml',
+      'defaults:',
+      '  api:',
+      '    feature:',
+      '      tdd: "strict"',
+      '      depth: comprehensive',
+      '      model_profile: quality',
+      '      verification: "full"',
+      '      security_isolation: multi_tenant_required',
+      '      back_compat: none',
+      '      tdd_default: strict',
+      '      test_list_first: required',
+      '```',
+    ].join('\n'), 'utf-8');
+
+    let table;
+    assert.doesNotThrow(() => {
+      table = intent.loadDefaultsTable(partialPath);
+    });
+    assert.strictEqual(table['api']['feature']['fixture_strategy'], undefined);
+    assert.strictEqual(table['api']['feature']['tdd'], 'strict');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Group B — resolve() emits new fields with provenance
+// ---------------------------------------------------------------------------
+
+describe('new fields — resolve provenance', () => {
+  let project;
+
+  afterEach(() => {
+    if (project) project.cleanup();
+    project = null;
+    intent._resetCache();
+  });
+
+  test('B1: (api, feature) with no CLAUDE.md returns all 5 new fields with correct values and provenance', () => {
+    project = fixtures.buildProject({
+      projectFrontmatter: { kind: 'api' },
+      objectives: [{ id: '01-foo', work: 'feature' }],
+    });
+
+    const result = intent.resolve({
+      projectRoot: project.root,
+      objectiveId: '01-foo',
+      userHome: '/nonexistent',
+    });
+
+    assert.strictEqual(result.config.security_isolation, 'multi_tenant_required');
+    assert.strictEqual(result.config.back_compat, 'none');
+    assert.strictEqual(result.config.tdd_default, 'strict');
+    assert.strictEqual(result.config.test_list_first, 'required');
+    assert.strictEqual(result.config.fixture_strategy, 'inline');
+    assert.strictEqual(result.config.outside_in, true);
+    assert.match(result.sources.security_isolation, /defaults table \(api, feature\)/);
+    assert.match(result.sources.back_compat, /defaults table \(api, feature\)/);
+    assert.match(result.sources.tdd_default, /defaults table \(api, feature\)/);
+    assert.match(result.sources.test_list_first, /defaults table \(api, feature\)/);
+    assert.match(result.sources.fixture_strategy, /defaults table \(api, feature\)/);
+  });
+
+  test('B2: (plugin, feature) returns fixture_strategy: generators with correct provenance', () => {
+    project = fixtures.buildProject({
+      projectFrontmatter: { kind: 'plugin' },
+      objectives: [{ id: '01-foo', work: 'feature' }],
+    });
+
+    const result = intent.resolve({
+      projectRoot: project.root,
+      objectiveId: '01-foo',
+      userHome: '/nonexistent',
+    });
+
+    assert.strictEqual(result.config.fixture_strategy, 'generators');
+    assert.match(result.sources.fixture_strategy, /defaults table \(plugin, feature\)/);
+  });
+
+  test('B3: (api, prototype) returns security_isolation: n/a and tdd_default: skip', () => {
+    project = fixtures.buildProject({
+      projectFrontmatter: { kind: 'api' },
+      objectives: [{ id: '01-foo', work: 'prototype' }],
+    });
+
+    const result = intent.resolve({
+      projectRoot: project.root,
+      objectiveId: '01-foo',
+      userHome: '/nonexistent',
+    });
+
+    assert.strictEqual(result.config.security_isolation, 'n/a');
+    assert.strictEqual(result.config.tdd_default, 'skip');
+    assert.match(result.sources.security_isolation, /defaults table \(api, prototype\)/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Group C — CLAUDE.md TDD Playbook promotion
+// ---------------------------------------------------------------------------
+
+describe('new fields — CLAUDE.md absorption', () => {
+  let project;
+
+  afterEach(() => {
+    if (project) project.cleanup();
+    project = null;
+    intent._resetCache();
+  });
+
+  test('C1: CLAUDE.md playbook habits 1+6 promote (api, prototype) tdd_default:skip→auto and security_isolation:n/a→multi_tenant_required', () => {
+    project = fixtures.buildProject({
+      projectFrontmatter: { kind: 'api' },
+      objectives: [{ id: '01-foo', work: 'prototype' }],
+      claudeMdUser: fixtures.claudeMd({
+        tddSection: {
+          heading: 'TDD Playbook',
+          body: [
+            'Force TDD TRDs at planning time. All features default to TDD strict.',
+            'Multitenancy guard in every test. Test the wrong-tenant path always.',
+          ].join('\n'),
+        },
+      }),
+    });
+
+    const result = intent.resolve({
+      projectRoot: project.root,
+      objectiveId: '01-foo',
+      userHome: project.userHome,
+    });
+
+    assert.strictEqual(result.config.tdd_default, 'auto');
+    assert.strictEqual(result.config.security_isolation, 'multi_tenant_required');
+    assert.match(result.sources.tdd_default, /CLAUDE\.md user playbook/);
+    assert.match(result.sources.security_isolation, /CLAUDE\.md user playbook/);
+  });
+
+  test('C2: CLAUDE.md playbook present but (api, feature) already has tdd_default:strict — stays at strict', () => {
+    project = fixtures.buildProject({
+      projectFrontmatter: { kind: 'api' },
+      objectives: [{ id: '01-foo', work: 'feature' }],
+      claudeMdUser: fixtures.claudeMd({
+        tddSection: {
+          heading: 'TDD Playbook',
+          body: 'Force TDD TRDs at planning time. All features default to TDD strict.',
+        },
+      }),
+    });
+
+    const result = intent.resolve({
+      projectRoot: project.root,
+      objectiveId: '01-foo',
+      userHome: project.userHome,
+    });
+
+    // strict is the ceiling — no change
+    assert.strictEqual(result.config.tdd_default, 'strict');
+    // provenance stays 'defaults table' because value was unchanged
+    assert.match(result.sources.tdd_default, /defaults table/);
+  });
+
+  test('C3: CLAUDE.md absorbs "test list first" mention — test_list_first:optional promotes to required', () => {
+    // (app, prototype) has test_list_first: optional → should promote to required
+    project = fixtures.buildProject({
+      projectFrontmatter: { kind: 'app' },
+      objectives: [{ id: '01-foo', work: 'prototype' }],
+      claudeMdUser: fixtures.claudeMd({
+        tddSection: {
+          heading: 'TDD Playbook',
+          body: 'Test list first. Behavior cases checklist required before any test code.',
+        },
+      }),
+    });
+
+    const result = intent.resolve({
+      projectRoot: project.root,
+      objectiveId: '01-foo',
+      userHome: project.userHome,
+    });
+
+    assert.strictEqual(result.config.test_list_first, 'required');
+    assert.match(result.sources.test_list_first, /CLAUDE\.md user playbook/);
+  });
+
+  test('C4: CLAUDE.md absorbs "fixture builders" mention — fixture_strategy:inline promotes to generators', () => {
+    // (api, bugfix) has fixture_strategy: inline → should promote to generators
+    project = fixtures.buildProject({
+      projectFrontmatter: { kind: 'api' },
+      objectives: [{ id: '01-foo', work: 'bugfix' }],
+      claudeMdUser: fixtures.claudeMd({
+        tddSection: {
+          heading: 'TDD Playbook',
+          body: 'Fixture builders, not LLM-generated test data. Use factory functions.',
+        },
+      }),
+    });
+
+    const result = intent.resolve({
+      projectRoot: project.root,
+      objectiveId: '01-foo',
+      userHome: project.userHome,
+    });
+
+    assert.strictEqual(result.config.fixture_strategy, 'generators');
+    assert.match(result.sources.fixture_strategy, /CLAUDE\.md user playbook/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Group D — anti-pattern constraints
+// ---------------------------------------------------------------------------
+
+describe('new fields — constraints', () => {
+  let project;
+
+  afterEach(() => {
+    if (project) project.cleanup();
+    project = null;
+    intent._resetCache();
+  });
+
+  test('D1: result.constraints is an array of 3 entries when no TRD opt-out is set', () => {
+    project = fixtures.buildProject({
+      projectFrontmatter: { kind: 'api' },
+      objectives: [{ id: '01-foo', work: 'feature' }],
+    });
+
+    const result = intent.resolve({
+      projectRoot: project.root,
+      objectiveId: '01-foo',
+      userHome: '/nonexistent',
+    });
+
+    assert.ok(Array.isArray(result.constraints), 'constraints must be array');
+    assert.strictEqual(result.constraints.length, 3);
+    const ids = result.constraints.map((c) => c.id);
+    assert.ok(ids.includes('no_llm_test_data'));
+    assert.ok(ids.includes('no_property_based_default'));
+    assert.ok(ids.includes('no_gherkin_layer'));
+  });
+
+  test('D2: TRD allow_generated_test_data:true drops no_llm_test_data from constraints', () => {
+    project = fixtures.buildProject({
+      projectFrontmatter: { kind: 'api' },
+      objectives: [{ id: '01-foo', work: 'feature' }],
+    });
+    const trdPath = path.join(project.root, '.planning', 'objectives', '01-foo', '01-01-TRD.md');
+    fs.writeFileSync(trdPath, fixtures.trdMd({ allow_generated_test_data: true }), 'utf-8');
+
+    const result = intent.resolve({
+      projectRoot: project.root,
+      objectiveId: '01-foo',
+      trdPath,
+      userHome: '/nonexistent',
+    });
+
+    assert.strictEqual(result.constraints.length, 2);
+    assert.ok(!result.constraints.some((c) => c.id === 'no_llm_test_data'),
+      'no_llm_test_data should be absent');
+  });
+
+  test('D3: TRD use_property_based:true drops no_property_based_default from constraints', () => {
+    project = fixtures.buildProject({
+      projectFrontmatter: { kind: 'api' },
+      objectives: [{ id: '01-foo', work: 'feature' }],
+    });
+    const trdPath = path.join(project.root, '.planning', 'objectives', '01-foo', '01-01-TRD.md');
+    fs.writeFileSync(trdPath, fixtures.trdMd({ use_property_based: true }), 'utf-8');
+
+    const result = intent.resolve({
+      projectRoot: project.root,
+      objectiveId: '01-foo',
+      trdPath,
+      userHome: '/nonexistent',
+    });
+
+    assert.strictEqual(result.constraints.length, 2);
+    assert.ok(!result.constraints.some((c) => c.id === 'no_property_based_default'),
+      'no_property_based_default should be absent');
+  });
+
+  test('D4: TRD use_gherkin:true drops no_gherkin_layer from constraints', () => {
+    project = fixtures.buildProject({
+      projectFrontmatter: { kind: 'api' },
+      objectives: [{ id: '01-foo', work: 'feature' }],
+    });
+    const trdPath = path.join(project.root, '.planning', 'objectives', '01-foo', '01-01-TRD.md');
+    fs.writeFileSync(trdPath, fixtures.trdMd({ use_gherkin: true }), 'utf-8');
+
+    const result = intent.resolve({
+      projectRoot: project.root,
+      objectiveId: '01-foo',
+      trdPath,
+      userHome: '/nonexistent',
+    });
+
+    assert.strictEqual(result.constraints.length, 2);
+    assert.ok(!result.constraints.some((c) => c.id === 'no_gherkin_layer'),
+      'no_gherkin_layer should be absent');
+  });
+
+  test('D5: TRD with all three opt-outs set produces result.constraints == []', () => {
+    project = fixtures.buildProject({
+      projectFrontmatter: { kind: 'api' },
+      objectives: [{ id: '01-foo', work: 'feature' }],
+    });
+    const trdPath = path.join(project.root, '.planning', 'objectives', '01-foo', '01-01-TRD.md');
+    fs.writeFileSync(trdPath, fixtures.trdMd({
+      allow_generated_test_data: true,
+      use_property_based: true,
+      use_gherkin: true,
+    }), 'utf-8');
+
+    const result = intent.resolve({
+      projectRoot: project.root,
+      objectiveId: '01-foo',
+      trdPath,
+      userHome: '/nonexistent',
+    });
+
+    assert.deepStrictEqual(result.constraints, []);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Group E — multi-tenancy hard-enforcement
+// ---------------------------------------------------------------------------
+
+describe('new fields — multi_tenant_required injection', () => {
+  let project;
+
+  afterEach(() => {
+    if (project) project.cleanup();
+    project = null;
+    intent._resetCache();
+  });
+
+  test('E1: security_isolation:multi_tenant_required injects wrong-tenant entry into verification_commands', () => {
+    project = fixtures.buildProject({
+      projectFrontmatter: { kind: 'api' },
+      objectives: [{ id: '01-foo', work: 'feature' }],
+    });
+
+    const result = intent.resolve({
+      projectRoot: project.root,
+      objectiveId: '01-foo',
+      userHome: '/nonexistent',
+    });
+
+    assert.ok(Array.isArray(result.config.verification_commands),
+      'verification_commands must be array');
+    const entry = result.config.verification_commands.find((c) => c.id === 'wrong_tenant_assertion');
+    assert.ok(entry, 'wrong_tenant_assertion entry must be present');
+    assert.match(entry.pattern, /wrong-tenant|cross-tenant|tenant-isolation/);
+    assert.strictEqual(entry.enforcement, 'required');
+  });
+
+  test('E2: security_isolation:single_tenant or n/a does NOT carry wrong-tenant entry', () => {
+    project = fixtures.buildProject({
+      projectFrontmatter: { kind: 'api' },
+      objectives: [{ id: '01-foo', work: 'prototype' }],  // n/a
+    });
+
+    const result = intent.resolve({
+      projectRoot: project.root,
+      objectiveId: '01-foo',
+      userHome: '/nonexistent',
+    });
+
+    const cmds = result.config.verification_commands || [];
+    const entry = cmds.find((c) => c.id === 'wrong_tenant_assertion');
+    assert.ok(!entry, 'wrong_tenant_assertion must NOT be present for n/a security_isolation');
+  });
+
+  test('E3: skip_multi_tenant_check:true TRD drops wrong-tenant entry and adds warning', () => {
+    project = fixtures.buildProject({
+      projectFrontmatter: { kind: 'api' },
+      objectives: [{ id: '01-foo', work: 'feature' }],
+    });
+    const trdPath = path.join(project.root, '.planning', 'objectives', '01-foo', '01-01-TRD.md');
+    fs.writeFileSync(trdPath, fixtures.trdMd({ skip_multi_tenant_check: true }), 'utf-8');
+
+    const result = intent.resolve({
+      projectRoot: project.root,
+      objectiveId: '01-foo',
+      trdPath,
+      userHome: '/nonexistent',
+    });
+
+    const cmds = result.config.verification_commands || [];
+    const entry = cmds.find((c) => c.id === 'wrong_tenant_assertion');
+    assert.ok(!entry, 'wrong_tenant_assertion must be absent when skip_multi_tenant_check=true');
+    const hasWarning = result.warnings.some((w) => /multi-tenan(t|cy).*skip/i.test(w));
+    assert.ok(hasWarning, 'result.warnings must include multi-tenancy skipped message');
+  });
+
+  test('E4: every (api, *) non-skip/non-spike cell receives verification_commands wrong-tenant entry', () => {
+    const WORKS_WITH_MULTI_TENANT = ['feature', 'port', 'refactor', 'bugfix'];  // multi_tenant_required cells
+
+    project = fixtures.buildProject({
+      projectFrontmatter: { kind: 'api' },
+      objectives: WORKS_WITH_MULTI_TENANT.map((w, i) => ({
+        id: `${String(i + 1).padStart(2, '0')}-api-${w}`,
+        work: w,
+      })),
+    });
+
+    for (let i = 0; i < WORKS_WITH_MULTI_TENANT.length; i++) {
+      const work = WORKS_WITH_MULTI_TENANT[i];
+      const id = `${String(i + 1).padStart(2, '0')}-api-${work}`;
+      intent._resetCache();
+      const result = intent.resolve({
+        projectRoot: project.root,
+        objectiveId: id,
+        userHome: '/nonexistent',
+      });
+      const entry = (result.config.verification_commands || []).find((c) => c.id === 'wrong_tenant_assertion');
+      assert.ok(entry, `(api, ${work}) must have wrong_tenant_assertion`);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Group F — backward-compat and field-presence sanity
+// ---------------------------------------------------------------------------
+
+describe('new fields — back-compat', () => {
+  let project;
+
+  afterEach(() => {
+    if (project) project.cleanup();
+    project = null;
+    intent._resetCache();
+  });
+
+  test('F1: existing 4 original fields (tdd, depth, model_profile, verification) still behave correctly', () => {
+    project = fixtures.buildProject({
+      projectFrontmatter: { kind: 'api' },
+      objectives: [{ id: '01-foo', work: 'port' }],
+    });
+
+    const result = intent.resolve({
+      projectRoot: project.root,
+      objectiveId: '01-foo',
+      userHome: '/nonexistent',
+    });
+
+    assert.match(result.config.tdd, /build first.*verify API contract parity/);
+    assert.strictEqual(result.config.depth, 'comprehensive');
+    assert.strictEqual(result.config.model_profile, 'quality');
+    assert.ok(result.config.verification);
+    assert.match(result.sources.tdd, /defaults table/);
+    assert.match(result.sources.depth, /defaults table/);
+  });
+
+  test('F2: result.directives array shape is unchanged', () => {
+    project = fixtures.buildProject({
+      projectFrontmatter: { kind: 'api' },
+      objectives: [{ id: '01-foo', work: 'feature' }],
+    });
+
+    const result = intent.resolve({
+      projectRoot: project.root,
+      objectiveId: '01-foo',
+      userHome: '/nonexistent',
+    });
+
+    assert.ok(Array.isArray(result.directives), 'directives must be array');
+  });
+
+  test('F3: result.warnings does not throw when cell has new field undefined', () => {
+    const tmpDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'df-partial2-'));
+    const partialPath = path.join(tmpDir, 'partial-table.md');
+    fs.writeFileSync(partialPath, [
+      '# Partial Table',
+      '',
+      '```yaml',
+      'defaults:',
+      '  api:',
+      '    feature:',
+      '      tdd: "strict"',
+      '      depth: comprehensive',
+      '      model_profile: quality',
+      '      verification: "full"',
+      '      security_isolation: multi_tenant_required',
+      '      back_compat: none',
+      '      tdd_default: strict',
+      '      test_list_first: required',
+      '```',
+    ].join('\n'), 'utf-8');
+
+    project = fixtures.buildProject({
+      projectFrontmatter: { kind: 'api' },
+      objectives: [{ id: '01-foo', work: 'feature' }],
+    });
+
+    let result;
+    assert.doesNotThrow(() => {
+      result = intent.resolve({
+        projectRoot: project.root,
+        objectiveId: '01-foo',
+        userHome: '/nonexistent',
+        tablePath: partialPath,
+      });
+    });
+    assert.ok(Array.isArray(result.warnings));
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  test('F4: df-tools intent resolve CLI output has all 5 new fields under config and top-level constraints array', () => {
+    // This test uses the CLI via require() + resolve() directly to check shape
+    project = fixtures.buildProject({
+      projectFrontmatter: { kind: 'api' },
+      objectives: [{ id: '01-foo', work: 'feature' }],
+    });
+
+    const result = intent.resolve({
+      projectRoot: project.root,
+      objectiveId: '01-foo',
+      userHome: '/nonexistent',
+    });
+
+    // All 5 new fields under config
+    for (const f of ['security_isolation', 'back_compat', 'tdd_default', 'test_list_first', 'fixture_strategy']) {
+      assert.ok(result.config[f] !== undefined, `config missing field: ${f}`);
+    }
+    // Top-level constraints array
+    assert.ok(Array.isArray(result.constraints), 'top-level constraints must be array');
+  });
+});

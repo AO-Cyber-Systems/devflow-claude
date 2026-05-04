@@ -28,11 +28,24 @@ function objectiveMd({ work, overrides, body = 'Test objective.' } = {}) {
   return lines.join('\n');
 }
 
-function trdMd({ type, confidence, work, body = 'Test TRD.' } = {}) {
+function trdMd({
+  type,
+  confidence,
+  work,
+  allow_generated_test_data,
+  use_property_based,
+  use_gherkin,
+  skip_multi_tenant_check,
+  body = 'Test TRD.',
+} = {}) {
   const lines = ['---', 'objective: 01-test', 'trd: 01'];
   if (type !== undefined) lines.push(`type: ${type}`);
   if (confidence !== undefined) lines.push(`confidence: ${confidence}`);
   if (work !== undefined) lines.push(`work: ${work}`);
+  if (allow_generated_test_data !== undefined) lines.push(`allow_generated_test_data: ${allow_generated_test_data}`);
+  if (use_property_based !== undefined) lines.push(`use_property_based: ${use_property_based}`);
+  if (use_gherkin !== undefined) lines.push(`use_gherkin: ${use_gherkin}`);
+  if (skip_multi_tenant_check !== undefined) lines.push(`skip_multi_tenant_check: ${skip_multi_tenant_check}`);
   lines.push('---', '', body, '');
   return lines.join('\n');
 }
@@ -99,10 +112,67 @@ function buildProject({
   };
 }
 
+// Build a matrix project with 7 objectives covering every work type for a given kind.
+// Returns { root, userHome, cleanup, objectiveIds }.
+//
+// Hand-built factory — no LLM-generated data, no faker. Per TDD Playbook habit 4.
+//
+// Options:
+//   kind — which kind to set on PROJECT.md (default: 'api')
+//   claudeMdUser — optional CLAUDE.md content for user home dir
+function buildMatrixProject({ kind = 'api', claudeMdUser } = {}) {
+  const WORKS = ['feature', 'port', 'refactor', 'foundation', 'bugfix', 'prototype', 'spike'];
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'df-matrix-'));
+  fs.mkdirSync(path.join(root, '.planning', 'objectives'), { recursive: true });
+
+  fs.writeFileSync(
+    path.join(root, '.planning', 'PROJECT.md'),
+    projectMd({ kind }),
+    'utf-8'
+  );
+
+  const objectiveIds = [];
+  WORKS.forEach((work, i) => {
+    const id = `0${i + 1}-${kind}-${work}`;
+    objectiveIds.push(id);
+    const dir = path.join(root, '.planning', 'objectives', id);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(
+      path.join(dir, 'OBJECTIVE.md'),
+      objectiveMd({ work }),
+      'utf-8'
+    );
+    // Add a stub TRD in each objective dir
+    fs.writeFileSync(
+      path.join(dir, '01-01-TRD.md'),
+      trdMd({ work }),
+      'utf-8'
+    );
+  });
+
+  let userHome;
+  if (claudeMdUser !== undefined) {
+    userHome = fs.mkdtempSync(path.join(os.tmpdir(), 'df-home-'));
+    fs.mkdirSync(path.join(userHome, '.claude'), { recursive: true });
+    fs.writeFileSync(path.join(userHome, '.claude', 'CLAUDE.md'), claudeMdUser, 'utf-8');
+  }
+
+  return {
+    root,
+    userHome,
+    objectiveIds,
+    cleanup() {
+      fs.rmSync(root, { recursive: true, force: true });
+      if (userHome) fs.rmSync(userHome, { recursive: true, force: true });
+    },
+  };
+}
+
 module.exports = {
   projectMd,
   objectiveMd,
   trdMd,
   claudeMd,
   buildProject,
+  buildMatrixProject,
 };

@@ -426,3 +426,79 @@ describe('TRD frontmatter — type:standard and confidence', () => {
     assert.match(result.sources.tdd, /defaults table/);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Group G — fixture builder for the 6×7 matrix
+// ---------------------------------------------------------------------------
+
+describe('intent-fixtures — buildMatrixProject', () => {
+  test('G1: buildMatrixProject() creates a project with 7 objectives for all work types', () => {
+    const matrix = fixtures.buildMatrixProject({ kind: 'api' });
+    try {
+      assert.ok(matrix.root, 'root must be set');
+      assert.ok(typeof matrix.cleanup === 'function', 'cleanup must be function');
+      assert.ok(Array.isArray(matrix.objectiveIds), 'objectiveIds must be array');
+      assert.strictEqual(matrix.objectiveIds.length, 7, 'must have 7 objectives (one per work type)');
+
+      // Verify all 7 work types are represented
+      const works = ['feature', 'port', 'refactor', 'foundation', 'bugfix', 'prototype', 'spike'];
+      for (const work of works) {
+        const found = matrix.objectiveIds.some((id) => id.includes(work));
+        assert.ok(found, `objectiveIds must include work: ${work}`);
+      }
+    } finally {
+      matrix.cleanup();
+    }
+  });
+
+  test('G2: each objective dir has valid OBJECTIVE.md with correct work frontmatter and a stub TRD', () => {
+    const matrix = fixtures.buildMatrixProject({ kind: 'api' });
+    try {
+      for (const objectiveId of matrix.objectiveIds) {
+        const objDir = path.join(matrix.root, '.planning', 'objectives', objectiveId);
+        assert.ok(fs.existsSync(objDir), `objective dir missing: ${objectiveId}`);
+
+        const objPath = path.join(objDir, 'OBJECTIVE.md');
+        assert.ok(fs.existsSync(objPath), `OBJECTIVE.md missing for: ${objectiveId}`);
+        const objContent = fs.readFileSync(objPath, 'utf-8');
+        assert.ok(objContent.includes('work:'), `OBJECTIVE.md missing work field for: ${objectiveId}`);
+
+        const trdPath = path.join(objDir, '01-01-TRD.md');
+        assert.ok(fs.existsSync(trdPath), `stub TRD missing for: ${objectiveId}`);
+        const trdContent = fs.readFileSync(trdPath, 'utf-8');
+        assert.ok(trdContent.includes('---'), `stub TRD missing frontmatter for: ${objectiveId}`);
+      }
+    } finally {
+      matrix.cleanup();
+    }
+  });
+
+  test('G3: buildMatrixProject with kind:plugin resolves all 7 cells cleanly and intent.resolve round-trips', () => {
+    const matrix = fixtures.buildMatrixProject({ kind: 'plugin' });
+    intent._resetCache();
+    try {
+      for (const objectiveId of matrix.objectiveIds) {
+        intent._resetCache();
+        let result;
+        assert.doesNotThrow(() => {
+          result = intent.resolve({
+            projectRoot: matrix.root,
+            objectiveId,
+            userHome: '/nonexistent',
+          });
+        }, `resolve threw for ${objectiveId}`);
+        assert.strictEqual(result.kind, 'plugin');
+        // All 5 new fields must be present
+        for (const f of ['security_isolation', 'back_compat', 'tdd_default', 'test_list_first', 'fixture_strategy']) {
+          assert.ok(result.config[f] !== undefined,
+            `(plugin, ${result.work}) missing config.${f} for ${objectiveId}`);
+        }
+        // constraints must be top-level array
+        assert.ok(Array.isArray(result.constraints),
+          `constraints must be array for ${objectiveId}`);
+      }
+    } finally {
+      matrix.cleanup();
+    }
+  });
+});
