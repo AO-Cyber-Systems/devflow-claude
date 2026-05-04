@@ -213,6 +213,155 @@ function buildGhResponse_graphqlError({ message = 'not_authorized' } = {}) {
   };
 }
 
+// ─── TRD 01-04: syncObjective fixture builders ───────────────────────────────
+
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+
+/**
+ * Build a tmp project with OBJECTIVE.md + N stub TRD files + M stub SUMMARY files + ROADMAP.md.
+ * Returns { root, objectiveId, cleanup, expected }.
+ */
+function buildSyncTargetProject({
+  objectiveId = '01-foo',
+  github_issue = 'AO-Cyber-Systems/devflow-claude#10',
+  parent_issue = 'AO-Cyber-Systems/devflow-claude#9',
+  org_project = 'PVT_kwDODwqLrc4BRsOP',
+  github_repo = 'AO-Cyber-Systems/devflow-claude',
+  trd_count = 3,
+  summary_count = 1,
+  goal = 'Test objective goal',
+  success_criteria = [
+    { id: 'SC-1', text: 'first criterion', done: true },
+    { id: 'SC-2', text: 'second criterion', done: false },
+  ],
+} = {}) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'df-sync-test-'));
+
+  // .planning/PROJECT.md
+  const planningDir = path.join(root, '.planning');
+  fs.mkdirSync(planningDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(planningDir, 'PROJECT.md'),
+    `---\nkind: plugin\ngithub_repo: ${github_repo}\norg_project: ${org_project}\n---\n\n# Test Project\n`,
+    'utf-8'
+  );
+
+  // .planning/ROADMAP.md with the objective
+  const objNum = parseInt(objectiveId.match(/^(\d+)/)?.[1] || '1', 10);
+  const roadmapContent = [
+    '# ROADMAP',
+    '',
+    `### Objective ${objNum}: Test Objective`,
+    '',
+    `**Goal:** ${goal}`,
+    '',
+    '**Success Criteria:**',
+    ...success_criteria.map((sc, i) => `${i + 1}. ${sc.text}`),
+    '',
+  ].join('\n');
+  fs.writeFileSync(path.join(planningDir, 'ROADMAP.md'), roadmapContent, 'utf-8');
+
+  // .planning/objectives/<objectiveId>/
+  const objDir = path.join(planningDir, 'objectives', objectiveId);
+  fs.mkdirSync(objDir, { recursive: true });
+
+  // OBJECTIVE.md
+  const objFm = [
+    '---',
+    `github_issue: ${github_issue}`,
+    `parent_issue: ${parent_issue}`,
+    `org_project: ${org_project}`,
+    '---',
+    '',
+    `# Objective ${objNum}`,
+    '',
+  ].join('\n');
+  fs.writeFileSync(path.join(objDir, 'OBJECTIVE.md'), objFm, 'utf-8');
+
+  // TRD files
+  const objPrefix = objectiveId.replace(/^(\d+)-.*$/, (_, n) => n.padStart(2, '0'));
+  for (let i = 1; i <= trd_count; i++) {
+    const trdName = `${objPrefix}-0${i}-task-${i}-TRD.md`;
+    fs.writeFileSync(
+      path.join(objDir, trdName),
+      `---\ntitle: Task ${i}\nwave: ${i}\n---\n\n# TRD ${i}\n`,
+      'utf-8'
+    );
+  }
+
+  // SUMMARY files (for the first summary_count TRDs)
+  for (let i = 1; i <= summary_count; i++) {
+    const summaryName = `${objPrefix}-0${i}-task-${i}-SUMMARY.md`;
+    fs.writeFileSync(
+      path.join(objDir, summaryName),
+      `# Summary ${i}\n\nSC-${i} addressed.\n`,
+      'utf-8'
+    );
+  }
+
+  function cleanup() {
+    try { fs.rmSync(root, { recursive: true, force: true }); } catch {}
+  }
+
+  return {
+    root,
+    objectiveId,
+    cleanup,
+    expected: {
+      trd_total: trd_count,
+      trd_done: summary_count,
+      current_wave: summary_count < trd_count ? summary_count + 1 : trd_count,
+      summary_count,
+    },
+  };
+}
+
+/**
+ * Canned response for `gh api repos/.../issues/{N}/comments` listing.
+ */
+function buildGhResponse_commentsList({ comments = [] } = {}) {
+  return { ok: true, status: 0, stdout: JSON.stringify(comments), stderr: '' };
+}
+
+/**
+ * Canned response for `gh issue comment {issue} --body ...` (POST creating new comment).
+ * The stdout is the URL of the created comment.
+ */
+function buildGhResponse_commentCreated({ commentId = 12345678, htmlUrl } = {}) {
+  return {
+    ok: true,
+    status: 0,
+    stdout: htmlUrl || `https://github.com/AO-Cyber-Systems/devflow-claude/issues/10#issuecomment-${commentId}`,
+    stderr: '',
+  };
+}
+
+/**
+ * Canned response for `gh issue edit --body ...`.
+ */
+function buildGhResponse_issueEdit({ issueNumber = 10 } = {}) {
+  return {
+    ok: true,
+    status: 0,
+    stdout: `https://github.com/AO-Cyber-Systems/devflow-claude/issues/${issueNumber}`,
+    stderr: '',
+  };
+}
+
+/**
+ * Canned response for a PATCH on a comment (edit in-place).
+ */
+function buildGhResponse_commentPatch({ commentId = 12345678 } = {}) {
+  return {
+    ok: true,
+    status: 0,
+    stdout: JSON.stringify({ id: commentId, body: '<!-- df:state -->\n...' }),
+    stderr: '',
+  };
+}
+
 module.exports = {
   buildFrontmatter,
   buildProjectCtx,
@@ -223,4 +372,10 @@ module.exports = {
   buildGhResponse_addProjectItem,
   buildGhResponse_addSubIssue,
   buildGhResponse_graphqlError,
+  // TRD 01-04:
+  buildSyncTargetProject,
+  buildGhResponse_commentsList,
+  buildGhResponse_commentCreated,
+  buildGhResponse_issueEdit,
+  buildGhResponse_commentPatch,
 };

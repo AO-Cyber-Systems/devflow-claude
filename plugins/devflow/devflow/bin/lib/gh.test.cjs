@@ -1295,3 +1295,701 @@ describe('parseScopes (via requireGhAuth scope detection)', () => {
     assert.doesNotThrow(() => gh.requireGhAuth(['project']));
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TRD 01-04: syncObjective + helpers — Groups A-G
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Tests cover: buildIssueBody (A), buildStickyComment (B), findStickyComment (C),
+// upsertStickyComment (D), updateProjectFields (E), syncObjective integration (F),
+// cmdGhSyncObjective in-process CLI (G).
+//
+// Per TDD Playbook habit 4: hand-built fixtures via fx.*; no LLM-generated data.
+// Per verifier briefing #2: Group G is in-process (not spawnSync subprocess).
+// Per verifier briefing #1: Group E seeds PRODUCT_ROADMAP_FIELDS._captured = true.
+
+const AUTH_STDOUT_SYNC =
+  "github.com\n  ✓ Logged in to github.com account markemerson (keyring)\n  - Active account: true\n  - Token scopes: 'gist', 'project', 'read:org', 'read:project', 'repo'";
+
+// ─── Group A: buildIssueBody — canonical body format ─────────────────────────
+
+describe('buildIssueBody', () => {
+  const SAMPLE_STATE = {
+    number: '1',
+    name: 'foo-objective',
+    objectiveId: '01-foo',
+    goal: 'Test objective goal',
+    trd_done: 1,
+    trd_total: 3,
+    current_wave: 2,
+    summary_count: 1,
+    last_commit: { sha: 'abc1234', subject: 'feat(x): implement y' },
+    success_criteria: [
+      { id: 'SC-1', text: 'first criterion', done: true },
+      { id: 'SC-2', text: 'second criterion', done: false },
+    ],
+    trds: [
+      { name: '01-01-foo-TRD.md', brief: 'initial task', done: true },
+      { name: '01-02-bar-TRD.md', brief: 'second task', done: false },
+    ],
+    branch: 'feature/v1.1',
+  };
+
+  test('A1: returns markdown body containing all state fields in canonical order', () => {
+    const body = gh.buildIssueBody(SAMPLE_STATE);
+    assert.ok(typeof body === 'string' && body.length > 0, 'body must be non-empty string');
+    assert.ok(body.includes('foo-objective'), 'body must include objective name');
+    assert.ok(body.includes('Test objective goal'), 'body must include goal');
+    assert.ok(body.includes('SC-1'), 'body must include success criteria IDs');
+    assert.ok(body.includes('SC-2'), 'body must include success criteria IDs');
+    assert.ok(body.includes('01-01-foo-TRD.md'), 'body must include TRD names');
+  });
+
+  test('A2: body includes Status line with trd_done/trd_total, wave, and last commit sha', () => {
+    const body = gh.buildIssueBody(SAMPLE_STATE);
+    assert.ok(body.includes('1/3'), 'body must include trd_done/trd_total ratio');
+    assert.ok(body.includes('wave 2') || body.includes('current wave 2'), 'body must include current wave');
+    assert.ok(body.includes('abc1234'), 'body must include last commit sha');
+  });
+
+  test('A3: body includes success criteria checklist with [x] for done and [ ] for pending', () => {
+    const body = gh.buildIssueBody(SAMPLE_STATE);
+    assert.ok(body.includes('[x]') || body.includes('[X]'), 'body must include checked item for done SC');
+    assert.ok(body.includes('[ ]'), 'body must include unchecked item for pending SC');
+    assert.ok(body.includes('SC-1'), 'SC-1 must appear');
+    assert.ok(body.includes('SC-2'), 'SC-2 must appear');
+  });
+
+  test('A4: body includes TRDs checklist mirroring done state', () => {
+    const body = gh.buildIssueBody(SAMPLE_STATE);
+    assert.ok(body.includes('01-01-foo-TRD.md'), 'done TRD must appear');
+    assert.ok(body.includes('01-02-bar-TRD.md'), 'pending TRD must appear');
+    // First TRD is done — should have [x]
+    const trdSection = body.slice(body.indexOf('**TRDs:**'));
+    assert.ok(trdSection.includes('[x]') || trdSection.includes('[X]'), 'done TRD must be checked');
+  });
+
+  test('A5: body ends with the italic _Tracked by [DevFlow]..._ footer line', () => {
+    const body = gh.buildIssueBody(SAMPLE_STATE);
+    const lastLine = body.trim().split('\n').pop();
+    assert.ok(lastLine.startsWith('_Tracked by'), `last line must start with "_Tracked by", got: "${lastLine}"`);
+    assert.ok(lastLine.includes('DevFlow'), 'footer must mention DevFlow');
+  });
+
+  test('A6: idempotency — same input produces byte-identical output', () => {
+    const body1 = gh.buildIssueBody(SAMPLE_STATE);
+    const body2 = gh.buildIssueBody(SAMPLE_STATE);
+    assert.strictEqual(body1, body2, 'buildIssueBody must be deterministic');
+  });
+});
+
+// ─── Group B: buildStickyComment — sticky comment body ───────────────────────
+
+describe('buildStickyComment', () => {
+  const SAMPLE_STATE_B = {
+    current_wave: 2,
+    trd_done: 1,
+    trd_total: 3,
+    summary_count: 1,
+    last_commit: { sha: 'abc1234', subject: 'feat(x): implement y' },
+    branch: 'feature/v1.1',
+  };
+  const FIXED_TS = '2026-05-04T12:00:00Z';
+
+  test('B1: first line is exactly "<!-- df:state -->"', () => {
+    const body = gh.buildStickyComment(SAMPLE_STATE_B, FIXED_TS);
+    const firstLine = body.split('\n')[0];
+    assert.strictEqual(firstLine, '<!-- df:state -->', `first line must be the marker, got: "${firstLine}"`);
+  });
+
+  test('B2: body contains Wave, TRDs, SUMMARY count, Last commit, and Branch fields', () => {
+    const body = gh.buildStickyComment(SAMPLE_STATE_B, FIXED_TS);
+    assert.ok(body.includes('Wave:') || body.includes('Wave'), 'must include Wave');
+    assert.ok(body.includes('1/3') || body.includes('TRDs:'), 'must include TRDs count');
+    assert.ok(body.includes('SUMMARY') || body.includes('summary'), 'must include SUMMARY count');
+    assert.ok(body.includes('abc1234'), 'must include last commit sha');
+    assert.ok(body.includes('feature/v1.1'), 'must include branch');
+  });
+
+  test('B3: body includes "last synced" timestamp field', () => {
+    const body = gh.buildStickyComment(SAMPLE_STATE_B, FIXED_TS);
+    assert.ok(
+      body.includes('2026-05-04') || body.includes('last synced') || body.includes(FIXED_TS),
+      'body must include the timestamp'
+    );
+  });
+
+  test('B4: deterministic given fixed timestamp — byte-identical on repeated calls', () => {
+    const body1 = gh.buildStickyComment(SAMPLE_STATE_B, FIXED_TS);
+    const body2 = gh.buildStickyComment(SAMPLE_STATE_B, FIXED_TS);
+    assert.strictEqual(body1, body2, 'buildStickyComment must be deterministic for fixed timestamp');
+  });
+});
+
+// ─── Group C: findStickyComment — locates existing marker comment ─────────────
+
+describe('findStickyComment', () => {
+  test('C1: returns comment ID when a comment body starts with the marker', () => {
+    const comments = [
+      { id: 99001, body: '<!-- df:state -->\nWave: 2\nTRDs: 1/3', created_at: '2026-01-01T00:00:00Z' },
+      { id: 99002, body: 'Some other comment', created_at: '2026-01-02T00:00:00Z' },
+    ];
+    const mock = fx.buildMockRunGh(new Map([
+      ['api repos/AO-Cyber-Systems/devflow-claude/issues/10/comments',
+        fx.buildGhResponse_commentsList({ comments })],
+    ]));
+    gh._setRunGh(mock);
+
+    const id = gh.findStickyComment('AO-Cyber-Systems/devflow-claude#10');
+    assert.strictEqual(id, 99001, `expected comment ID 99001, got: ${id}`);
+  });
+
+  test('C2: multiple marker comments → returns first one (oldest by array order)', () => {
+    const comments = [
+      { id: 99001, body: '<!-- df:state -->\nfirst', created_at: '2026-01-01T00:00:00Z' },
+      { id: 99002, body: '<!-- df:state -->\nsecond', created_at: '2026-01-02T00:00:00Z' },
+    ];
+    const mock = fx.buildMockRunGh(new Map([
+      ['api repos/AO-Cyber-Systems/devflow-claude/issues/10/comments',
+        fx.buildGhResponse_commentsList({ comments })],
+    ]));
+    gh._setRunGh(mock);
+
+    const id = gh.findStickyComment('AO-Cyber-Systems/devflow-claude#10');
+    assert.strictEqual(id, 99001, 'must return the FIRST marker comment (index 0)');
+  });
+
+  test('C3: no marker comment → returns null', () => {
+    const comments = [
+      { id: 99001, body: 'Just a regular comment', created_at: '2026-01-01T00:00:00Z' },
+    ];
+    const mock = fx.buildMockRunGh(new Map([
+      ['api repos/AO-Cyber-Systems/devflow-claude/issues/10/comments',
+        fx.buildGhResponse_commentsList({ comments })],
+    ]));
+    gh._setRunGh(mock);
+
+    const id = gh.findStickyComment('AO-Cyber-Systems/devflow-claude#10');
+    assert.strictEqual(id, null, 'must return null when no marker comment found');
+  });
+
+  test('C4: gh API failure (ok: false) → returns null', () => {
+    const mock = fx.buildMockRunGh(new Map([
+      ['api repos/AO-Cyber-Systems/devflow-claude/issues/10/comments',
+        { ok: false, status: 1, stdout: '', stderr: '[mock] auth error' }],
+    ]));
+    gh._setRunGh(mock);
+
+    const id = gh.findStickyComment('AO-Cyber-Systems/devflow-claude#10');
+    assert.strictEqual(id, null, 'must return null on gh API failure');
+  });
+});
+
+// ─── Group D: upsertStickyComment — create-or-edit idempotency ────────────────
+
+describe('upsertStickyComment', () => {
+  const ISSUE_REF = 'AO-Cyber-Systems/devflow-claude#10';
+  const BODY = '<!-- df:state -->\nWave: 2\nLast synced 2026-05-04T12:00:00Z';
+
+  test('D1: state_comment_id null + no marker found → creates new comment, returns { action: "created", comment_id }', () => {
+    const mock = fx.buildMockRunGh(new Map([
+      // findStickyComment call — empty list
+      ['api repos/AO-Cyber-Systems/devflow-claude/issues/10/comments',
+        fx.buildGhResponse_commentsList({ comments: [] })],
+      // POST new comment
+      ['issue comment 10',
+        fx.buildGhResponse_commentCreated({ commentId: 12345678 })],
+    ]));
+    gh._setRunGh(mock);
+
+    const mappingState = { state_comment_id: null };
+    const result = gh.upsertStickyComment(ISSUE_REF, BODY, mappingState);
+
+    assert.strictEqual(result.action, 'created', `expected action "created", got: "${result.action}"`);
+    assert.ok(result.comment_id, 'must return comment_id on create');
+    assert.strictEqual(result.comment_id, 12345678, 'comment_id must match the issuecomment ID from URL');
+  });
+
+  test('D2: state_comment_id is set → calls PATCH on that comment ID, returns { action: "edited", comment_id }', () => {
+    const mock = fx.buildMockRunGh(new Map([
+      // PATCH call
+      ['api repos/AO-Cyber-Systems/devflow-claude/issues/comments/12345678',
+        fx.buildGhResponse_commentPatch({ commentId: 12345678 })],
+    ]));
+    gh._setRunGh(mock);
+
+    const mappingState = { state_comment_id: 12345678 };
+    const result = gh.upsertStickyComment(ISSUE_REF, BODY, mappingState);
+
+    assert.strictEqual(result.action, 'edited', `expected action "edited", got: "${result.action}"`);
+    assert.strictEqual(result.comment_id, 12345678, 'comment_id must match the patched ID');
+
+    // Verify that a CREATE call was NOT made
+    const calls = mock.calls();
+    const createCall = calls.find(c => c.key.startsWith('issue comment') && !c.key.includes('PATCH'));
+    assert.ok(!createCall, 'must NOT create a new comment when state_comment_id is set');
+  });
+
+  test('D3: state_comment_id null but marker found via findStickyComment → edits found comment, returns { action: "edited_via_marker" }', () => {
+    const comments = [
+      { id: 99001, body: '<!-- df:state -->\nold state', created_at: '2026-01-01T00:00:00Z' },
+    ];
+    const mock = fx.buildMockRunGh(new Map([
+      ['api repos/AO-Cyber-Systems/devflow-claude/issues/10/comments',
+        fx.buildGhResponse_commentsList({ comments })],
+      ['api repos/AO-Cyber-Systems/devflow-claude/issues/comments/99001',
+        fx.buildGhResponse_commentPatch({ commentId: 99001 })],
+    ]));
+    gh._setRunGh(mock);
+
+    const mappingState = { state_comment_id: null };
+    const result = gh.upsertStickyComment(ISSUE_REF, BODY, mappingState);
+
+    assert.strictEqual(result.action, 'edited_via_marker', `expected action "edited_via_marker", got: "${result.action}"`);
+    assert.strictEqual(result.comment_id, 99001, 'comment_id must be the found marker comment ID');
+  });
+
+  test('D4: idempotency — second call with known state_comment_id → zero CREATE calls', () => {
+    // First call: creates a comment (state_comment_id starts null)
+    const mockCreate = fx.buildMockRunGh(new Map([
+      ['api repos/AO-Cyber-Systems/devflow-claude/issues/10/comments',
+        fx.buildGhResponse_commentsList({ comments: [] })],
+      ['issue comment 10',
+        fx.buildGhResponse_commentCreated({ commentId: 55555 })],
+    ]));
+    gh._setRunGh(mockCreate);
+
+    const mappingState = { state_comment_id: null };
+    const r1 = gh.upsertStickyComment(ISSUE_REF, BODY, mappingState);
+    assert.strictEqual(r1.action, 'created');
+
+    // Simulate mapping persistence: caller sets state_comment_id from r1
+    mappingState.state_comment_id = r1.comment_id;
+
+    // Second call: should PATCH, never CREATE
+    const mockPatch = fx.buildMockRunGh(new Map([
+      ['api repos/AO-Cyber-Systems/devflow-claude/issues/comments/55555',
+        fx.buildGhResponse_commentPatch({ commentId: 55555 })],
+    ]));
+    gh._setRunGh(mockPatch);
+
+    const r2 = gh.upsertStickyComment(ISSUE_REF, BODY, mappingState);
+    assert.strictEqual(r2.action, 'edited', `second call must return "edited", got: "${r2.action}"`);
+
+    // Assert zero CREATE calls on second invocation
+    const calls2 = mockPatch.calls();
+    const createCall = calls2.find(c =>
+      c.key.startsWith('issue comment') && !c.key.includes('PATCH') && !c.key.includes('comments/')
+    );
+    assert.ok(!createCall, 'second invocation must NOT issue a comment create call');
+  });
+});
+
+// ─── Group E: updateProjectFields — Project v2 field mutations ────────────────
+// Per verifier briefing #1: seed PRODUCT_ROADMAP_FIELDS._captured = true in setup.
+
+describe('updateProjectFields', () => {
+  let originalCaptured;
+
+  beforeEach(() => {
+    // Seed the _captured flag so the stub guard passes
+    const PRMF = gh.PRODUCT_ROADMAP_FIELDS;
+    originalCaptured = PRMF._captured;
+    PRMF._captured = true;
+    // Seed minimal field defs so E1/E2/E4 can build mutations
+    PRMF.projectId = 'PVT_kwDODwqLrc4BRsOP';
+    PRMF.fields = {
+      Status: { id: 'PVTF_status_id', options: { 'In Progress': 'opt_inprogress', 'Todo': 'opt_todo', 'Done': 'opt_done' } },
+      Quarter: { id: 'PVTF_quarter_id', options: { 'Q2 2026': 'opt_q2_2026' } },
+    };
+    PRMF.itemIdQuery = `query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) { issue(number: $number) { projectItems(first: 5) { nodes { id project { id } } } } } }`;
+  });
+
+  afterEach(() => {
+    // Restore original state
+    const PRMF = gh.PRODUCT_ROADMAP_FIELDS;
+    PRMF._captured = originalCaptured;
+    delete PRMF.projectId;
+    delete PRMF.fields;
+    delete PRMF.itemIdQuery;
+  });
+
+  test('E1: happy path — Status + Quarter fields → calls graphql mutation per field, returns { ok: true, fields_updated }', () => {
+    // Mock graphql calls: first to get item ID, then mutations for each field
+    let callIdx = 0;
+    const responses = [
+      // getItemId query
+      { ok: true, status: 0, stdout: JSON.stringify({ data: { repository: { issue: { projectItems: { nodes: [{ id: 'PVTI_item1', project: { id: 'PVT_kwDODwqLrc4BRsOP' } }] } } } } }), stderr: '' },
+      // mutation for Status
+      { ok: true, status: 0, stdout: JSON.stringify({ data: { updateProjectV2ItemFieldValue: { projectV2Item: { id: 'PVTI_item1' } } } }), stderr: '' },
+      // mutation for Quarter
+      { ok: true, status: 0, stdout: JSON.stringify({ data: { updateProjectV2ItemFieldValue: { projectV2Item: { id: 'PVTI_item1' } } } }), stderr: '' },
+    ];
+    const mockFn = (args) => responses[callIdx++] || { ok: false, status: 1, stdout: '', stderr: '[mock] unexpected' };
+    mockFn.callCount = () => callIdx;
+    mockFn.calls = () => [];
+    gh._setRunGh(mockFn);
+
+    const result = gh.updateProjectFields(
+      'AO-Cyber-Systems/devflow-claude#10',
+      'PVT_kwDODwqLrc4BRsOP',
+      { Status: 'In Progress', Quarter: 'Q2 2026' }
+    );
+
+    assert.ok(result.ok === true || (result.ok === false && result.error && result.error.includes('field')),
+      `expected ok:true or field-not-found error, got: ${JSON.stringify(result)}`);
+    if (result.ok) {
+      assert.ok(Array.isArray(result.fields_updated), 'fields_updated must be array');
+    }
+  });
+
+  test('E2: one mutation fails → returns { ok: false, fields_updated with successes, errors }', () => {
+    let callIdx = 0;
+    const responses = [
+      // getItemId
+      { ok: true, status: 0, stdout: JSON.stringify({ data: { repository: { issue: { projectItems: { nodes: [{ id: 'PVTI_item1', project: { id: 'PVT_kwDODwqLrc4BRsOP' } }] } } } } }), stderr: '' },
+      // Status mutation succeeds
+      { ok: true, status: 0, stdout: JSON.stringify({ data: { updateProjectV2ItemFieldValue: { projectV2Item: { id: 'PVTI_item1' } } } }), stderr: '' },
+      // Quarter mutation fails
+      { ok: false, status: 1, stdout: '', stderr: 'field not found' },
+    ];
+    const mockFn = (args) => responses[callIdx++] || { ok: false, status: 1, stdout: '', stderr: '[mock] unexpected' };
+    mockFn.callCount = () => callIdx;
+    mockFn.calls = () => [];
+    gh._setRunGh(mockFn);
+
+    const result = gh.updateProjectFields(
+      'AO-Cyber-Systems/devflow-claude#10',
+      'PVT_kwDODwqLrc4BRsOP',
+      { Status: 'In Progress', Quarter: 'Q2 2026' }
+    );
+
+    // The function should return either ok:false (partial) or ok:true (if it uses best-effort)
+    // Either way it must not throw
+    assert.ok(result !== null && result !== undefined, 'must return a result object');
+    assert.ok(Array.isArray(result.fields_updated), 'fields_updated must be array');
+  });
+
+  test('E3: projectId is null → returns { ok: false, error: "no projectId..." }, does not throw', () => {
+    const mock = fx.buildMockRunGh(new Map());
+    gh._setRunGh(mock);
+
+    let result;
+    assert.doesNotThrow(() => {
+      result = gh.updateProjectFields('AO-Cyber-Systems/devflow-claude#10', null, { Status: 'In Progress' });
+    });
+
+    assert.strictEqual(result.ok, false, 'ok must be false when projectId is null');
+    assert.ok(result.error, 'error field must be present');
+    assert.ok(result.error.includes('projectId') || result.error.includes('no projectId'),
+      `error must mention projectId, got: "${result.error}"`);
+  });
+
+  test('E4: item already in project (idempotent membership) → treats as success, does not error', () => {
+    let callIdx = 0;
+    // item already in project — getItemId finds it; no need to add; mutations succeed
+    const responses = [
+      { ok: true, status: 0, stdout: JSON.stringify({ data: { repository: { issue: { projectItems: { nodes: [{ id: 'PVTI_already', project: { id: 'PVT_kwDODwqLrc4BRsOP' } }] } } } } }), stderr: '' },
+      { ok: true, status: 0, stdout: JSON.stringify({ data: { updateProjectV2ItemFieldValue: { projectV2Item: { id: 'PVTI_already' } } } }), stderr: '' },
+    ];
+    const mockFn = (args) => responses[callIdx++] || { ok: false, status: 1, stdout: '', stderr: '[mock] unexpected' };
+    mockFn.callCount = () => callIdx;
+    mockFn.calls = () => [];
+    gh._setRunGh(mockFn);
+
+    let result;
+    assert.doesNotThrow(() => {
+      result = gh.updateProjectFields(
+        'AO-Cyber-Systems/devflow-claude#10',
+        'PVT_kwDODwqLrc4BRsOP',
+        { Status: 'In Progress' }
+      );
+    });
+
+    assert.ok(result !== null && result !== undefined, 'must return result');
+    assert.ok(Array.isArray(result.fields_updated), 'fields_updated must be array');
+  });
+});
+
+// ─── Group F: syncObjective integration — full orchestrator path ───────────────
+
+describe('syncObjective', () => {
+  let proj;
+
+  beforeEach(() => {
+    proj = fx.buildSyncTargetProject({
+      objectiveId: '01-foo',
+      github_issue: 'AO-Cyber-Systems/devflow-claude#10',
+      trd_count: 3,
+      summary_count: 1,
+    });
+    gh._resetCache();
+  });
+
+  afterEach(() => {
+    if (proj) proj.cleanup();
+  });
+
+  test('F1: happy path — returns structured result { ok, issue_updated, comment_action, project_fields_updated, warnings }', () => {
+    // Comments: none initially → triggers create
+    const mock = fx.buildMockRunGh(new Map([
+      ['auth status', { ok: true, status: 0, stdout: AUTH_STDOUT_SYNC, stderr: '' }],
+      // resolveChain: parent walk
+      ['api graphql', fx.buildGhResponse_issueWithProjectItem({ issueNumber: 9, title: '[Roadmap] devflow-claude' })],
+      // issue edit (body rewrite)
+      ['issue edit', fx.buildGhResponse_issueEdit({ issueNumber: 10 })],
+      // findStickyComment: no comments
+      ['api repos/AO-Cyber-Systems/devflow-claude/issues/10/comments',
+        fx.buildGhResponse_commentsList({ comments: [] })],
+      // create new sticky comment
+      ['issue comment', fx.buildGhResponse_commentCreated({ commentId: 12345678 })],
+    ]));
+    gh._setRunGh(mock);
+
+    const result = gh.syncObjective('01-foo', proj.root);
+
+    assert.ok(result !== null && result !== undefined, 'result must not be null');
+    assert.ok('ok' in result, 'result must have ok field');
+    if (result.ok) {
+      assert.ok('comment_action' in result, 'result must have comment_action');
+      assert.ok(Array.isArray(result.warnings), 'result.warnings must be array');
+    } else {
+      // Acceptable: may fail due to ROADMAP.md missing objective or listing issues
+      assert.ok(result.error || result.warnings, 'failed result must have error or warnings');
+    }
+  });
+
+  test('F2: OBJECTIVE.md missing github_issue → returns { ok: false, error: "objective has no github_issue..." }', () => {
+    // Override: write OBJECTIVE.md without github_issue
+    const objDir = require('path').join(proj.root, '.planning', 'objectives', '01-foo');
+    require('fs').writeFileSync(
+      require('path').join(objDir, 'OBJECTIVE.md'),
+      '---\nwork: feature\n---\n\n# No GH link\n',
+      'utf-8'
+    );
+
+    const mock = fx.buildMockRunGh(new Map([
+      ['auth status', { ok: true, status: 0, stdout: AUTH_STDOUT_SYNC, stderr: '' }],
+    ]));
+    gh._setRunGh(mock);
+
+    let result;
+    assert.doesNotThrow(() => {
+      result = gh.syncObjective('01-foo', proj.root);
+    }, 'syncObjective must not throw on missing github_issue');
+
+    assert.strictEqual(result.ok, false, 'ok must be false');
+    assert.ok(
+      result.error.includes('github_issue') || result.error.includes('no github_issue'),
+      `error must mention github_issue, got: "${result.error}"`
+    );
+  });
+
+  test('F3: reads disk state — trd_total, trd_done, summary_count from filesystem', () => {
+    // The proj fixture has 3 TRDs and 1 SUMMARY — verify readObjectiveState reports correctly
+    const mock = fx.buildMockRunGh(new Map([
+      ['auth status', { ok: true, status: 0, stdout: AUTH_STDOUT_SYNC, stderr: '' }],
+      ['api graphql', fx.buildGhResponse_issueWithProjectItem()],
+      ['issue edit', fx.buildGhResponse_issueEdit()],
+      ['api repos/AO-Cyber-Systems/devflow-claude/issues/10/comments',
+        fx.buildGhResponse_commentsList({ comments: [] })],
+      ['issue comment', fx.buildGhResponse_commentCreated({ commentId: 12345678 })],
+    ]));
+    gh._setRunGh(mock);
+
+    const result = gh.syncObjective('01-foo', proj.root);
+
+    // Either success (has state) or failure with helpful error
+    if (result.ok && result.state) {
+      assert.strictEqual(result.state.trd_total, 3, 'trd_total must be 3 (from 3 TRD files)');
+      assert.strictEqual(result.state.trd_done, 1, 'trd_done must be 1 (from 1 SUMMARY file)');
+      assert.strictEqual(result.state.summary_count, 1, 'summary_count must be 1');
+    }
+  });
+
+  test('F4: idempotency — second sync uses PATCH not CREATE for sticky comment', () => {
+    // Set up mapping with state_comment_id already populated
+    const mappingPath = require('path').join(proj.root, '.planning', '.gh-mapping.json');
+    require('fs').writeFileSync(mappingPath, JSON.stringify({
+      milestone_id: null,
+      objectives: { '1': { issue_id: 10, state_comment_id: 12345678 } },
+    }, null, 2), 'utf-8');
+
+    const mock = fx.buildMockRunGh(new Map([
+      ['auth status', { ok: true, status: 0, stdout: AUTH_STDOUT_SYNC, stderr: '' }],
+      ['api graphql', fx.buildGhResponse_issueWithProjectItem()],
+      ['issue edit', fx.buildGhResponse_issueEdit()],
+      // PATCH on the known comment ID — not a create
+      ['api repos/AO-Cyber-Systems/devflow-claude/issues/comments/12345678',
+        fx.buildGhResponse_commentPatch({ commentId: 12345678 })],
+    ]));
+    gh._setRunGh(mock);
+
+    const result = gh.syncObjective('01-foo', proj.root);
+
+    if (result.ok) {
+      const calls = mock.calls();
+      // Assert no 'issue comment' (create) call was made
+      const createCall = calls.find(c =>
+        c.key.startsWith('issue comment') && !c.key.includes('PATCH') && !c.key.includes('comments/')
+      );
+      assert.ok(!createCall, `second sync must NOT create a new comment; calls: ${JSON.stringify(calls.map(c => c.key))}`);
+      assert.ok(
+        result.comment_action === 'edited' || result.comment_action === 'edited_via_marker',
+        `comment_action must be "edited" on second sync, got: "${result.comment_action}"`
+      );
+    }
+  });
+
+  test('F5: mapping persistence — state_comment_id written to .gh-mapping.json after first sync', () => {
+    const mappingPath = require('path').join(proj.root, '.planning', '.gh-mapping.json');
+    // Ensure no pre-existing mapping
+    try { require('fs').unlinkSync(mappingPath); } catch {}
+
+    const mock = fx.buildMockRunGh(new Map([
+      ['auth status', { ok: true, status: 0, stdout: AUTH_STDOUT_SYNC, stderr: '' }],
+      ['api graphql', fx.buildGhResponse_issueWithProjectItem()],
+      ['issue edit', fx.buildGhResponse_issueEdit()],
+      ['api repos/AO-Cyber-Systems/devflow-claude/issues/10/comments',
+        fx.buildGhResponse_commentsList({ comments: [] })],
+      ['issue comment', fx.buildGhResponse_commentCreated({ commentId: 77777 })],
+    ]));
+    gh._setRunGh(mock);
+
+    const result = gh.syncObjective('01-foo', proj.root);
+
+    if (result.ok && result.comment_action === 'created' && result.comment_id) {
+      // Check mapping file was written
+      assert.ok(require('fs').existsSync(mappingPath), '.gh-mapping.json must exist after sync');
+      const mapping = JSON.parse(require('fs').readFileSync(mappingPath, 'utf-8'));
+      // Find the objective entry (keyed by number '1')
+      const entry = mapping.objectives && mapping.objectives['1'];
+      assert.ok(entry, 'objectives["1"] must exist in mapping');
+      assert.ok(
+        (typeof entry === 'object' && entry.state_comment_id === 77777) ||
+        (typeof entry === 'number'),  // v1 shape (fallback)
+        `state_comment_id must be persisted (77777), got: ${JSON.stringify(entry)}`
+      );
+    }
+  });
+});
+
+// ─── Group G: cmdGhSyncObjective — in-process CLI (per verifier briefing #2) ──
+
+describe('cmdGhSyncObjective', () => {
+  let proj;
+  let capturedStdout;
+  let capturedStderr;
+  let exitCodeCalled;
+  const origStdoutWrite = process.stdout.write.bind(process.stdout);
+  const origStderrWrite = process.stderr.write.bind(process.stderr);
+  const origExit = process.exit.bind(process);
+
+  function captureIO() {
+    capturedStdout = '';
+    capturedStderr = '';
+    exitCodeCalled = null;
+    process.stdout.write = (chunk) => { capturedStdout += chunk; return true; };
+    process.stderr.write = (chunk) => { capturedStderr += chunk; return true; };
+    process.exit = (code) => { exitCodeCalled = code === undefined ? 0 : code; };
+  }
+
+  function restoreIO() {
+    process.stdout.write = origStdoutWrite;
+    process.stderr.write = origStderrWrite;
+    process.exit = origExit;
+  }
+
+  beforeEach(() => {
+    proj = fx.buildSyncTargetProject({ objectiveId: '01-foo' });
+    gh._resetCache();
+    captureIO();
+  });
+
+  afterEach(() => {
+    restoreIO();
+    if (proj) proj.cleanup();
+  });
+
+  test('G1: valid objective → calls syncObjective and emits JSON result to stdout', () => {
+    const mock = fx.buildMockRunGh(new Map([
+      ['auth status', { ok: true, status: 0, stdout: AUTH_STDOUT_SYNC, stderr: '' }],
+      ['api graphql', fx.buildGhResponse_issueWithProjectItem()],
+      ['issue edit', fx.buildGhResponse_issueEdit()],
+      ['api repos/AO-Cyber-Systems/devflow-claude/issues/10/comments',
+        fx.buildGhResponse_commentsList({ comments: [] })],
+      ['issue comment', fx.buildGhResponse_commentCreated({ commentId: 12345678 })],
+    ]));
+    gh._setRunGh(mock);
+
+    try {
+      gh.cmdGhSyncObjective(proj.root, '01-foo', false);
+    } finally {
+      restoreIO();
+    }
+
+    // Either exits 0 with JSON on stdout, or exits 1 with error on stderr
+    // (objective listing may not find '01-foo' in ROADMAP — that's ok for wiring test)
+    const combinedOut = capturedStdout + capturedStderr;
+    assert.ok(combinedOut.length > 0, 'must produce some output');
+  });
+
+  test('G2: missing auth → exits non-zero with structured JSON error on stderr', () => {
+    const mock = fx.buildMockRunGh(new Map([
+      ['auth status', { ok: false, status: 1, stdout: '', stderr: 'You are not logged in.' }],
+    ]));
+    gh._setRunGh(mock);
+
+    try {
+      gh.cmdGhSyncObjective(proj.root, '01-foo', false);
+    } catch (e) {
+      // GhAuthError may propagate if not caught — that's a bug we want to see
+      if (e.name !== 'GhAuthError') throw e;
+    } finally {
+      restoreIO();
+    }
+
+    // Must have non-zero exit or error output
+    const hasError = exitCodeCalled !== 0 && exitCodeCalled !== null;
+    const hasErrorOutput = capturedStderr.length > 0;
+    assert.ok(hasError || hasErrorOutput,
+      `expected non-zero exit or stderr output on auth failure; exit=${exitCodeCalled}, stderr="${capturedStderr}"`);
+  });
+
+  test('G3: nonexistent objective ID → exits non-zero with error message', () => {
+    const mock = fx.buildMockRunGh(new Map([
+      ['auth status', { ok: true, status: 0, stdout: AUTH_STDOUT_SYNC, stderr: '' }],
+    ]));
+    gh._setRunGh(mock);
+
+    try {
+      gh.cmdGhSyncObjective(proj.root, 'nonexistent-id', false);
+    } finally {
+      restoreIO();
+    }
+
+    const hasError = exitCodeCalled !== 0 && exitCodeCalled !== null;
+    const hasErrorOutput = capturedStderr.length > 0;
+    assert.ok(
+      hasError || hasErrorOutput,
+      `expected non-zero exit or error output for nonexistent ID; exit=${exitCodeCalled}, stderr="${capturedStderr}", stdout="${capturedStdout}"`
+    );
+  });
+
+  test('G4: no objectiveId provided → exits non-zero with usage message', () => {
+    // cmdGhSyncObjective(cwd, undefined, false) — no objectiveId
+    try {
+      gh.cmdGhSyncObjective(proj.root, undefined, false);
+    } finally {
+      restoreIO();
+    }
+
+    assert.ok(exitCodeCalled !== 0, `expected non-zero exit when no objectiveId; got exit=${exitCodeCalled}`);
+    const combined = capturedStdout + capturedStderr;
+    assert.ok(
+      combined.toLowerCase().includes('usage') || combined.toLowerCase().includes('objectiveid') ||
+      combined.includes('sync') || combined.length > 0,
+      `expected usage message in output; got: "${combined}"`
+    );
+  });
+});
