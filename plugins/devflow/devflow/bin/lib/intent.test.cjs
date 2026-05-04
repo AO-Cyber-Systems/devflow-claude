@@ -34,7 +34,7 @@ describe('intent.resolve', () => {
       assert.strictEqual(result.work, 'port');
       assert.strictEqual(result.workSource, 'OBJECTIVE.md');
       assert.strictEqual(result.workInherited, false);
-      assert.match(result.config.tdd, /spec-match/);
+      assert.match(result.config.tdd, /build first.*verify API contract parity/);
       assert.strictEqual(result.config.depth, 'comprehensive');
       assert.strictEqual(result.config.model_profile, 'quality');
     });

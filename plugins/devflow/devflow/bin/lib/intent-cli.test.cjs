@@ -156,7 +156,7 @@ describe('df-tools intent resolve (CLI)', () => {
     assert.strictEqual(out.kind, 'api');
     assert.strictEqual(out.work, 'port');
     assert.strictEqual(out.workSource, 'OBJECTIVE.md');
-    assert.match(out.config.tdd, /spec-match/);
+    assert.match(out.config.tdd, /build first.*verify API contract parity/);
     assert.strictEqual(out.config.depth, 'comprehensive');
   });
 
