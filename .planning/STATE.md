@@ -13,8 +13,8 @@
 **Objective complete:** 0 — Refine (kind, work) defaults table from codebase evidence (verified 2026-05-04, 443/443 tests, all 10 SC met)
 **Objective complete:** 1 — GitHub coordination layer (verified 2026-05-04, 563/563 tests, all 6 TRDs done, SC-9 + SC-10 met)
 **Objective in flight:** 2 — Cross-worktree session telemetry (next)
-**Current TRD:** 02-02 (not yet started)
-**Status:** TRD 02-01 complete — awareness foundation shipped
+**Current TRD:** 02-05 (next: skill-and-cli; 02-02/03/04 complete)
+**Status:** TRD 02-04 complete — cache layer shipped (readCache/writeCache/isStale + merge semantics)
 
 ## Branch State (post-merge)
 
@@ -71,6 +71,10 @@
 - **parseStateMd null-on-no-match contract (TRD 02-01)** — Returns null when no field is extracted; callers (TRD 02-02 scanner) skip the branch and log a warning. Never throws (try/catch wrapping entire function body).
 - **aggregateOrgByProductQuarter shape locked (TRD 02-01)** — { [Product]: { [Quarter]: items[] } }. Items missing product→'Unknown'; items missing quarter→'Unknown'. Input order preserved within buckets. TRD 02-03 emits this shape.
 - **GIT_INTEGRATION=1 gating pattern (TRD 02-01)** — buildGitFixtureRepo tests (G1/G2) skip when GIT_INTEGRATION env unset. Mirrors GH_INTEGRATION=1 from obj 1. Tests throw on git-not-available; caller catches and t.skip().
+- **TRD 02-04 complete (2026-05-04)** — `readCache`, `writeCache`, `isStale` added to `lib/awareness.cjs` TRD 02-04 region. Merge semantics: writeCache(cwd, { peer: X }) preserves existing org section (Object.assign at namespace level). isStale handles null/undefined/invalid/zero-TTL/future-timestamp guard chain. .gitignore updated; templates/config.json documents awareness.* block. 23 new tests (Groups C/W/I/G/T). 610/616 tests (610 pass, 6 skipped). Commits: 2b6a999 (test:), bf9593f (feat:). SC-7 complete.
+- **writeCache merge semantics locked (TRD 02-04)** — Object.assign({}, existing || {}, sections) — writing one namespace preserves the other. Prerequisite for --refresh peer / --refresh org independence in TRD 02-05.
+- **isStale locked behaviors (TRD 02-04)** — zero-TTL returns true (always stale); future-timestamp returns false (clock skew tolerance — age_ms < 0 → fresh); null/undefined/invalid returns true (defensive default).
+- **readCache silent-null contract (TRD 02-04)** — missing file, empty string, malformed JSON all return null; regeneration on next scan is cheap. Never throws.
 
 ## Blockers / Concerns
 
@@ -78,7 +82,7 @@
 
 ## Session Continuity
 
-Last session: 2026-05-04 — TRD 02-01 (STATE.md parser + fixtures) complete. Wave 1 done.
+Last session: 2026-05-04 — TRD 02-04 (cache layer) complete. readCache/writeCache/isStale shipped.
 Resume file: `.planning/SESSION_PICKUP.md`
-Stopped at: Completed 02-01-state-md-parser-and-fixtures-TRD.md
-Next: Objective 2 TRD 02-02 — Peer scanner (Wave 2 is 02-04, Wave 3 is 02-02)
+Stopped at: Completed 02-04-cache-layer-TRD.md
+Next: Objective 2 TRD 02-02 — Peer scanner (Wave 2: 02-02 + 02-03 remain; 02-04 done)
