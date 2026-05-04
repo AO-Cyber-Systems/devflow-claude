@@ -14,7 +14,7 @@
 **Objective complete:** 1 — GitHub coordination layer (verified 2026-05-04, 563/563 tests, all 6 TRDs done, SC-9 + SC-10 met)
 **Objective in flight:** 2 — Cross-worktree session telemetry (next)
 **Current TRD:** 02-05 (next: skill-and-cli; 02-02/03/04 complete)
-**Status:** TRD 02-04 complete — cache layer shipped (readCache/writeCache/isStale + merge semantics)
+**Status:** TRD 02-02 complete — peer scanner shipped (scanPeer + _setRunGit injection + 29 tests, 636/636 pass)
 
 ## Branch State (post-merge)
 
@@ -75,6 +75,10 @@
 - **writeCache merge semantics locked (TRD 02-04)** — Object.assign({}, existing || {}, sections) — writing one namespace preserves the other. Prerequisite for --refresh peer / --refresh org independence in TRD 02-05.
 - **isStale locked behaviors (TRD 02-04)** — zero-TTL returns true (always stale); future-timestamp returns false (clock skew tolerance — age_ms < 0 → fresh); null/undefined/invalid returns true (defensive default).
 - **readCache silent-null contract (TRD 02-04)** — missing file, empty string, malformed JSON all return null; regeneration on next scan is cheap. Never throws.
+- **TRD 02-02 complete (2026-05-04)** — `scanPeer` + `_setRunGit` + `_resetGitMock` + `_runGit` added to `lib/awareness.cjs` TRD 02-02 region. 8 new fixture helpers in awareness-fixtures.cjs (buildMockRunGit + 7 canned-response builders). 29 test cases (Groups S/SF/SS/SP/SI/SU/SR; 26 non-gated pass + 3 GIT_INTEGRATION-gated skip). 636/645 tests (636 pass, 9 skipped). Commits: 843aca8 (test:), d377444 (feat:). SC-1 + SC-2 complete.
+- **_setRunGit injection pattern locked (TRD 02-02)** — `let _runGit = runGit; function _setRunGit(fn) { _runGit = (fn != null) ? fn : runGit; }` — exact mirror of _setRunGh from lib/gh.cjs. stdout NOT trimmed in runGit (git show content preserves whitespace); only stderr trimmed. All git calls in scanPeer route through _runGit.
+- **scanPeer fault-tolerance contract locked (TRD 02-02)** — missing STATE.md (git show exit non-zero) = SILENT skip (no warning); malformed STATE.md (parseStateMd returns null) = warning + skip; fetch failure = warning + continue with local refs. Locked per SC-2.
+- **peer_stale_days=0 disables stale filter (TRD 02-02)** — threshold set to -Infinity so all branches pass. peer_stale_days>0 computes Date.now() - (days * 86400000). Locked behavior per SS3 test.
 
 ## Blockers / Concerns
 
@@ -82,7 +86,7 @@
 
 ## Session Continuity
 
-Last session: 2026-05-04 — TRD 02-04 (cache layer) complete. readCache/writeCache/isStale shipped.
+Last session: 2026-05-04 — TRD 02-02 (peer scanner) complete. scanPeer + _setRunGit injection shipped.
 Resume file: `.planning/SESSION_PICKUP.md`
-Stopped at: Completed 02-04-cache-layer-TRD.md
-Next: Objective 2 TRD 02-02 — Peer scanner (Wave 2: 02-02 + 02-03 remain; 02-04 done)
+Stopped at: Completed 02-02-peer-scanner-TRD.md
+Next: Objective 2 TRD 02-03 — Org scanner (Wave 4: co-modifies gh.cjs + awareness.cjs)
