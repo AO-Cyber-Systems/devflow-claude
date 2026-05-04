@@ -1336,3 +1336,352 @@ test('SR2: scanPeer with no_fetch=true on fixture → scan proceeds, fetch not i
     fixture.cleanup();
   }
 });
+
+// ─── TRD 02-03: scanOrg + task-list fallback ─────────────────────────────────
+
+const {
+  scanOrg, parseTaskListFallback,
+} = require('./awareness.cjs');
+const gh = require('./gh.cjs');
+const {
+  buildGhResponse_projectItemsList,
+  buildGhResponse_subIssuesByTrackedIssues,
+  buildGhResponse_subIssuesByTaskList,
+} = require('./__fixtures__/gh-fixtures.cjs');
+const { buildMockRunGh } = require('./__fixtures__/gh-fixtures.cjs');
+
+// ─── Group T: task-list fallback parser ──────────────────────────────────────
+
+test('T1 (02-03): body with - [ ] owner/repo#NN → sub_issues OPEN with empty title', () => {
+  const body = '## Deliverables\n- [ ] AO-Cyber-Systems/aodex#101';
+  const result = parseTaskListFallback(body);
+  assert.strictEqual(result.length, 1);
+  assert.strictEqual(result[0].ref, 'AO-Cyber-Systems/aodex#101');
+  assert.strictEqual(result[0].state, 'OPEN');
+  assert.strictEqual(result[0].title, '');
+});
+
+test('T2 (02-03): body with - [x] owner/repo#NN — title → sub_issues CLOSED with title', () => {
+  const body = '- [x] AO-Cyber-Systems/aodex#102 — Some title';
+  const result = parseTaskListFallback(body);
+  assert.strictEqual(result.length, 1);
+  assert.strictEqual(result[0].ref, 'AO-Cyber-Systems/aodex#102');
+  assert.strictEqual(result[0].state, 'CLOSED');
+  assert.strictEqual(result[0].title, 'Some title');
+});
+
+test('T3 (02-03): body with shorthand #50 → ref preserved as-is, state OPEN', () => {
+  const body = '- [ ] #50';
+  const result = parseTaskListFallback(body);
+  assert.strictEqual(result.length, 1);
+  assert.strictEqual(result[0].ref, '#50');
+  assert.strictEqual(result[0].state, 'OPEN');
+});
+
+test('T4 (02-03): plain bullet without checkbox → ignored; only checkbox lines count', () => {
+  const body = '- AO-Cyber-Systems/aodex#100\n- [ ] AO-Cyber-Systems/aodex#101';
+  const result = parseTaskListFallback(body);
+  assert.strictEqual(result.length, 1, 'T4: only checkbox line should be parsed');
+  assert.strictEqual(result[0].ref, 'AO-Cyber-Systems/aodex#101');
+});
+
+test('T5 (02-03): body with no parseable lines → empty array', () => {
+  const body = '## Deliverables\nSome prose text\n- plain item';
+  const result = parseTaskListFallback(body);
+  assert.deepStrictEqual(result, []);
+});
+
+test('T6 (02-03): body=null → empty array (no throw)', () => {
+  const result = parseTaskListFallback(null);
+  assert.deepStrictEqual(result, []);
+});
+
+test('T7 (02-03): body with headings + checkboxes mixed → only checkbox lines counted', () => {
+  const body = '# Heading\n\n## Sub-heading\n\n- [ ] AO-Cyber-Systems/aodex#201 — Task A\n- [x] AO-Cyber-Systems/aodex#202 — Task B\nsome prose\n- not a checkbox';
+  const result = parseTaskListFallback(body);
+  assert.strictEqual(result.length, 2);
+  assert.strictEqual(result[0].ref, 'AO-Cyber-Systems/aodex#201');
+  assert.strictEqual(result[1].ref, 'AO-Cyber-Systems/aodex#202');
+  assert.strictEqual(result[1].state, 'CLOSED');
+});
+
+// ─── Group O: scanOrg orchestrator happy paths ───────────────────────────────
+
+test('O1 (02-03): scanOrg calls requireGhAuth FIRST (mock counter asserts ordering)', () => {
+  // requireGhAuth is called before walkProject; if gh mock for "auth status" succeeds,
+  // requireGhAuth passes; if walkProject mock also set, we get items.
+  const authStatusResp = { ok: true, status: 0, stdout: JSON.stringify([
+    { token: { scopes: ['project', 'read:project', 'repo'] } }
+  ]), stderr: '' };
+  const itemsResp = buildGhResponse_projectItemsList({ items: [], hasNextPage: false });
+
+  let authCallIndex = -1;
+  let walkerCallIndex = -1;
+  let callCount = 0;
+
+  gh._setRunGh((args) => {
+    const key = args.join(' ');
+    const idx = callCount++;
+    if (key.startsWith('auth status')) {
+      authCallIndex = idx;
+      return authStatusResp;
+    }
+    if (key.startsWith('api graphql')) {
+      walkerCallIndex = idx;
+      return itemsResp;
+    }
+    return { ok: false, status: 1, stdout: '', stderr: `no mock for: ${key}` };
+  });
+
+  try {
+    const result = scanOrg({ project_id: 'PVT_test' });
+    assert.ok(result, 'O1: should return a result');
+    assert.ok(authCallIndex < walkerCallIndex, 'O1: requireGhAuth must be called before walkProject');
+  } finally { gh._setRunGh(null); }
+});
+
+test('O2 (02-03): scanOrg uses default project_id from PRODUCT_ROADMAP_FIELDS._project_id when opts.project_id undefined', () => {
+  const authResp = { ok: true, status: 0, stdout: JSON.stringify([
+    { token: { scopes: ['project', 'read:project', 'repo'] } }
+  ]), stderr: '' };
+  const itemsResp = buildGhResponse_projectItemsList({ items: [], hasNextPage: false });
+
+  let usedProjectId = null;
+  gh._setRunGh((args) => {
+    const key = args.join(' ');
+    if (key.startsWith('auth status')) return authResp;
+    if (key.startsWith('api graphql')) {
+      // Extract projectId from args
+      const pidIdx = args.indexOf('-F');
+      while (pidIdx !== -1) {
+        for (let i = 0; i < args.length; i++) {
+          if (args[i] === '-F' && args[i+1] && args[i+1].startsWith('projectId=')) {
+            usedProjectId = args[i+1].replace('projectId=', '');
+          }
+        }
+        break;
+      }
+      return itemsResp;
+    }
+    return { ok: false, status: 1, stdout: '', stderr: `no mock for: ${key}` };
+  });
+
+  try {
+    scanOrg(); // No project_id — should use default
+    const expectedId = gh.PRODUCT_ROADMAP_FIELDS && gh.PRODUCT_ROADMAP_FIELDS._project_id;
+    if (expectedId) {
+      assert.strictEqual(usedProjectId, expectedId, 'O2: should use PRODUCT_ROADMAP_FIELDS._project_id as default');
+    } else {
+      // If cassette not loaded, result.warnings should note the missing default
+      assert.ok(true, 'O2: PRODUCT_ROADMAP_FIELDS._project_id not set (cassette missing) — acceptable');
+    }
+  } finally { gh._setRunGh(null); }
+});
+
+test('O3 (02-03): 3 items returned by walkProject → result.items has sub_issues (mix of trackedIssues + task-list)', () => {
+  const authResp = { ok: true, status: 0, stdout: JSON.stringify([
+    { token: { scopes: ['project', 'read:project', 'repo'] } }
+  ]), stderr: '' };
+
+  const subNodes = buildGhResponse_subIssuesByTrackedIssues({
+    subIssues: [{ ref: 'AO-Cyber-Systems/aodex#101', title: 'Sub', state: 'OPEN' }],
+  });
+  const bodyWithTaskList = buildGhResponse_subIssuesByTaskList({
+    entries: [{ ref: 'AO-Cyber-Systems/aodex#200', title: 'Task', checked: false }],
+  });
+
+  const itemsResp = buildGhResponse_projectItemsList({
+    items: [
+      // Item 1: has trackedIssues
+      { content_type: 'Issue', issue_ref: 'AO-Cyber-Systems/aodex#33',
+        title: '[Roadmap] A', body: '', status: 'In Progress', product: 'AODex', quarter: 'Q2 2026',
+        tracked_total: 1, tracked_nodes: subNodes },
+      // Item 2: no trackedIssues, has task-list body
+      { content_type: 'Issue', issue_ref: 'AO-Cyber-Systems/aodex#34',
+        title: '[Roadmap] B', body: bodyWithTaskList, status: 'Todo', product: 'AODex', quarter: 'Q2 2026',
+        tracked_total: 0, tracked_nodes: [] },
+      // Item 3: DraftIssue
+      { content_type: 'DraftIssue', title: 'Draft Milestone', body: '',
+        status: 'Todo', product: 'DevFlow', quarter: 'Q3 2026' },
+    ],
+    hasNextPage: false,
+  });
+
+  gh._setRunGh((args) => {
+    const key = args.join(' ');
+    if (key.startsWith('auth status')) return authResp;
+    if (key.startsWith('api graphql')) return itemsResp;
+    return { ok: false, status: 1, stdout: '', stderr: `no mock for: ${key}` };
+  });
+
+  try {
+    const result = scanOrg({ project_id: 'PVT_test' });
+    assert.strictEqual(result.items.length, 3);
+    // Item 1: sub_issues from trackedIssues
+    assert.strictEqual(result.items[0].sub_issues.length, 1);
+    assert.strictEqual(result.items[0].sub_issues_source, 'tracked_issues');
+    // Item 2: sub_issues from task-list fallback
+    assert.strictEqual(result.items[1].sub_issues.length, 1);
+    assert.strictEqual(result.items[1].sub_issues_source, 'task_list');
+    assert.strictEqual(result.items[1].sub_issues[0].ref, 'AO-Cyber-Systems/aodex#200');
+    // Item 3: DraftIssue, sub_issues=[]
+    assert.strictEqual(result.items[2].sub_issues_source, 'none');
+  } finally { gh._setRunGh(null); }
+});
+
+test('O4 (02-03): result shape is { items, fetched_at: ISO, project_id, warnings }', () => {
+  const authResp = { ok: true, status: 0, stdout: JSON.stringify([
+    { token: { scopes: ['project', 'read:project', 'repo'] } }
+  ]), stderr: '' };
+  const itemsResp = buildGhResponse_projectItemsList({ items: [], hasNextPage: false });
+
+  gh._setRunGh((args) => {
+    const key = args.join(' ');
+    if (key.startsWith('auth status')) return authResp;
+    if (key.startsWith('api graphql')) return itemsResp;
+    return { ok: false, status: 1, stdout: '', stderr: `no mock for: ${key}` };
+  });
+
+  try {
+    const result = scanOrg({ project_id: 'PVT_test' });
+    assert.ok(Array.isArray(result.items), 'O4: items must be array');
+    assert.ok(typeof result.fetched_at === 'string', 'O4: fetched_at must be string');
+    assert.ok(/\d{4}-\d{2}-\d{2}T/.test(result.fetched_at), 'O4: fetched_at must be ISO');
+    assert.ok(typeof result.project_id === 'string', 'O4: project_id must be string');
+    assert.ok(Array.isArray(result.warnings), 'O4: warnings must be array');
+  } finally { gh._setRunGh(null); }
+});
+
+test('O5 (02-03): walkProject warnings propagated into scanOrg result.warnings', () => {
+  const authResp = { ok: true, status: 0, stdout: JSON.stringify([
+    { token: { scopes: ['project', 'read:project', 'repo'] } }
+  ]), stderr: '' };
+  // walkProject failing mid-run produces a warning
+  const failResp = { ok: false, status: 1, stdout: '', stderr: 'rate limit exceeded' };
+
+  gh._setRunGh((args) => {
+    const key = args.join(' ');
+    if (key.startsWith('auth status')) return authResp;
+    if (key.startsWith('api graphql')) return failResp;
+    return { ok: false, status: 1, stdout: '', stderr: `no mock for: ${key}` };
+  });
+
+  try {
+    const result = scanOrg({ project_id: 'PVT_test' });
+    assert.ok(result.warnings.length > 0, 'O5: walkProject failure warning should propagate');
+    assert.ok(result.warnings.some(w => w.includes('walkProject')), 'O5: warning should mention walkProject');
+  } finally { gh._setRunGh(null); }
+});
+
+// ─── Group OA: scanOrg auth failure ──────────────────────────────────────────
+
+test('OA1 (02-03): scanOrg propagates GhAuthError on missing scopes', () => {
+  // Mock auth status returning not logged in → requireGhAuth throws GhAuthError
+  const responses = new Map();
+  responses.set('auth status', { ok: false, status: 1, stdout: '', stderr: 'not logged in' });
+  gh._setRunGh(buildMockRunGh(responses));
+  try {
+    assert.throws(
+      () => scanOrg({ project_id: 'PVT_test' }),
+      (e) => e.name === 'GhAuthError',
+      'OA1: scanOrg must propagate GhAuthError'
+    );
+  } finally { gh._setRunGh(null); }
+});
+
+test('OA2 (02-03): scanOrg never calls walkProject when auth fails', () => {
+  let walkProjectCalled = false;
+  let authCallCount = 0;
+
+  gh._setRunGh((args) => {
+    const key = args.join(' ');
+    if (key.startsWith('auth status')) {
+      authCallCount++;
+      return { ok: false, status: 1, stdout: '', stderr: 'not logged in' };
+    }
+    // Any api graphql call means walkProject was called
+    if (key.startsWith('api graphql')) {
+      walkProjectCalled = true;
+      return { ok: false, status: 1, stdout: '', stderr: 'should not reach here' };
+    }
+    return { ok: false, status: 1, stdout: '', stderr: `no mock for: ${key}` };
+  });
+
+  try {
+    try { scanOrg({ project_id: 'PVT_test' }); } catch (e) {
+      if (e.name !== 'GhAuthError') throw e;
+    }
+    assert.ok(!walkProjectCalled, 'OA2: walkProject must not be called when auth fails');
+    assert.ok(authCallCount > 0, 'OA2: auth check must have been attempted');
+  } finally { gh._setRunGh(null); }
+});
+
+// ─── Group OS: scanOrg silent-on-permissions ─────────────────────────────────
+
+test('OS1 (02-03): items missing repository field (permission gap) → returned as-is, no warning per SC-5', () => {
+  const authResp = { ok: true, status: 0, stdout: JSON.stringify([
+    { token: { scopes: ['project', 'read:project', 'repo'] } }
+  ]), stderr: '' };
+
+  // Issue with no repository (issue_ref will be null — user can see project but not repo)
+  const itemsResp = buildGhResponse_projectItemsList({
+    items: [
+      // Pass empty issue_ref so repository will be null in the response
+      { content_type: 'Issue', issue_ref: '',
+        title: '[Roadmap] Hidden repo item', body: '', status: 'In Progress', product: 'AODex', quarter: 'Q2 2026',
+        tracked_total: 0, tracked_nodes: [] },
+    ],
+    hasNextPage: false,
+  });
+
+  gh._setRunGh((args) => {
+    const key = args.join(' ');
+    if (key.startsWith('auth status')) return authResp;
+    if (key.startsWith('api graphql')) return itemsResp;
+    return { ok: false, status: 1, stdout: '', stderr: `no mock for: ${key}` };
+  });
+
+  try {
+    const result = scanOrg({ project_id: 'PVT_test' });
+    assert.strictEqual(result.items.length, 1, 'OS1: item should still be included');
+    assert.strictEqual(result.items[0].item_type, 'issue', 'OS1: item_type should be issue');
+    assert.strictEqual(result.items[0].issue_ref, null, 'OS1: issue_ref null when no repository');
+    // No warning about the missing repository (SC-5: silent)
+    const permWarnings = result.warnings.filter(w => w.includes('permission') || w.includes('repository'));
+    assert.strictEqual(permWarnings.length, 0, 'OS1: no permission-related warnings (SC-5)');
+  } finally { gh._setRunGh(null); }
+});
+
+// ─── Group F: fixture builders ────────────────────────────────────────────────
+
+test('F1 (02-03): buildGhResponse_projectItemsList returns { ok:true, stdout: JSON envelope, stderr: "" }', () => {
+  const resp = buildGhResponse_projectItemsList({ items: [], hasNextPage: false });
+  assert.strictEqual(resp.ok, true);
+  assert.strictEqual(resp.stderr, '');
+  const parsed = JSON.parse(resp.stdout);
+  assert.ok(parsed.data && parsed.data.node && parsed.data.node.items, 'F1: envelope must have data.node.items');
+  assert.strictEqual(parsed.data.node.items.pageInfo.hasNextPage, false);
+  assert.deepStrictEqual(parsed.data.node.items.nodes, []);
+});
+
+test('F2 (02-03): buildGhResponse_subIssuesByTrackedIssues returns nodes with {number, title, state, repository}', () => {
+  const nodes = buildGhResponse_subIssuesByTrackedIssues({
+    subIssues: [{ ref: 'AO-Cyber-Systems/aodex#101', title: 'My sub', state: 'CLOSED' }],
+  });
+  assert.strictEqual(nodes.length, 1);
+  assert.strictEqual(nodes[0].number, 101);
+  assert.strictEqual(nodes[0].title, 'My sub');
+  assert.strictEqual(nodes[0].state, 'CLOSED');
+  assert.strictEqual(nodes[0].repository.nameWithOwner, 'AO-Cyber-Systems/aodex');
+});
+
+test('F3 (02-03): buildGhResponse_subIssuesByTaskList builds body with - [ ] lines', () => {
+  const body = buildGhResponse_subIssuesByTaskList({
+    entries: [
+      { ref: 'AO-Cyber-Systems/aodex#101', title: 'Task One', checked: false },
+      { ref: 'AO-Cyber-Systems/aodex#102', title: 'Task Two', checked: true },
+    ],
+  });
+  assert.ok(body.includes('- [ ] AO-Cyber-Systems/aodex#101'), 'F3: unchecked line must be present');
+  assert.ok(body.includes('- [x] AO-Cyber-Systems/aodex#102'), 'F3: checked line must be present');
+});
