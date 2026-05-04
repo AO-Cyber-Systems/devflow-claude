@@ -495,19 +495,32 @@ function scanOrg({
   };
 }
 
-// ─── module.exports (TRD 02-01 + TRD 02-04 + TRD 02-02 + TRD 02-03) ─────────
+// ─── module.exports — LOCKED by TRD 02-07 (14-entry surface; SC-9) ───────────
+//
+// This block is the authoritative export surface for lib/awareness.cjs.
+// Asserted by L1 test: Object.keys(module.exports).sort() deepStrictEqual.
+// DO NOT add or remove entries without updating the L1 test + CONTEXT.md §"Module surface".
 
 module.exports = {
+  // Pure logic (TRD 02-01):
   parseStateMd,
   aggregateOrgByProductQuarter,
+  parseTaskListFallback,
+
+  // Scanners (TRD 02-02, 02-03):
+  scanPeer,
+  scanOrg,
+
+  // Cache (TRD 02-04):
   readCache,
   writeCache,
   isStale,
-  scanPeer,
-  scanOrg,
-  parseTaskListFallback,
+
+  // Test hooks (TRD 02-02):
   _setRunGit,
   _resetGitMock,
+
+  // Constants (TRD 02-01, 02-04):
   DEFAULT_TTL_MINUTES,
   DEFAULT_STALE_DAYS,
   DEFAULT_BRANCH_PATTERNS,
