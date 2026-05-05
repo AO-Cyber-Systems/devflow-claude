@@ -51,6 +51,26 @@ Group R (reconcile orchestrator):
 - R10: idempotency — second reconcile run returns changes=[] (the locked guarantee)
 - R11: ROADMAP.md missing → returns warning, no throw
 - R12: indent preserved in rewritten lines (composite of WTL3 + reconcile)
+
+TEST LIST — TRD 09-02 objective-level rollup
+============================================
+
+Group RU (_rollupObjectiveStatus pure logic):
+- RU1: ALL [x] + status='in flight' → flips status line to 'complete 2026-05-04', emits objective_rollup_status change
+- RU2: ALL [x] + status='complete 2026-04-01' → no change (idempotent)
+- RU3: ALL [x] + NO status line in section → no change emitted, no error
+- RU4: MIXED [x]/[ ] across multiple objectives → only the all-[x] obj is rolled up
+- RU5: ALL [x] + Progress table row exists → row's status cell updated to 'complete 2026-05-04', emits objective_rollup_progress
+- RU6: ALL [x] + malformed Progress table (3-cell row) → skipped silently
+- RU7: NOT all [x] (one [ ]) → no rollup change
+- RU8: TRD checkboxes empty → no rollup change
+
+Group RUI (rollup integration via reconcile):
+- RUI1: reconcile flips final TRD [ ] → [x] AND triggers rollup in same run (changes contains both kinds)
+- RUI2: reconcile dry-run mode + ALL [x] → emits rollup change but does NOT write ROADMAP.md
+- RUI3: reconcile write-mode + rollup → ROADMAP.md on disk has updated Status line
+- RUI4: idempotency — second reconcile run on rolled-up roadmap returns changes=[]
+- RUI5: 'today' parameter forwarded from reconcile → _rollupObjectiveStatus
 */
 
 const { test } = require('node:test');
@@ -636,4 +656,272 @@ test('R12: indent preserved in rewritten lines', () => {
   assert.ok(written.includes('  - [x] 01-01-alpha-TRD.md'), 'ROADMAP.md has indented [x] line');
 
   fs.rmSync(tmpBase, { recursive: true, force: true });
+});
+
+// ─── Group RU — _rollupObjectiveStatus pure logic ────────────────────────────
+
+test('RU1: ALL [x] + status=in flight → flips to complete 2026-05-04, emits objective_rollup_status', () => {
+  const lines = [
+    '### Objective 01: Foo',
+    '',
+    '**Status:** in flight',
+    '',
+    '- [x] 01-01-foo-TRD.md — task one',
+    '- [x] 01-02-bar-TRD.md — task two',
+    '',
+  ];
+  const result = reconcile._rollupObjectiveStatus(lines, '2026-05-04');
+  assert.strictEqual(result.changes.length, 1);
+  const ch = result.changes[0];
+  assert.strictEqual(ch.kind, 'objective_rollup_status');
+  assert.strictEqual(ch.objective_num, '1');
+  assert.strictEqual(ch.after, '**Status:** complete 2026-05-04');
+  assert.ok(ch.before.includes('in flight'));
+  // lines mutated in place
+  assert.strictEqual(lines[2], '**Status:** complete 2026-05-04');
+});
+
+test('RU2: ALL [x] + status=complete 2026-04-01 → no change (idempotent)', () => {
+  const lines = [
+    '### Objective 01: Foo',
+    '',
+    '**Status:** complete 2026-04-01',
+    '',
+    '- [x] 01-01-foo-TRD.md — task one',
+    '',
+  ];
+  const result = reconcile._rollupObjectiveStatus(lines, '2026-05-04');
+  assert.deepStrictEqual(result.changes, []);
+  // Line must not be modified
+  assert.strictEqual(lines[2], '**Status:** complete 2026-04-01');
+});
+
+test('RU3: ALL [x] + NO status line → no change emitted, no error', () => {
+  const lines = [
+    '### Objective 01: Foo',
+    '',
+    'Some narrative prose (no Status line).',
+    '',
+    '- [x] 01-01-foo-TRD.md — task one',
+    '',
+  ];
+  let result;
+  assert.doesNotThrow(() => {
+    result = reconcile._rollupObjectiveStatus(lines, '2026-05-04');
+  });
+  assert.deepStrictEqual(result.changes, []);
+});
+
+test('RU4: MIXED [x]/[ ] → only all-[x] objective is rolled up, other left alone', () => {
+  const lines = [
+    '### Objective 05: Alpha',
+    '',
+    '**Status:** in flight',
+    '',
+    '- [x] 05-01-a-TRD.md — task one',
+    '- [x] 05-02-b-TRD.md — task two',
+    '',
+    '### Objective 06: Beta',
+    '',
+    '**Status:** in flight',
+    '',
+    '- [x] 06-01-a-TRD.md — task one',
+    '- [ ] 06-02-b-TRD.md — task two (incomplete)',
+    '',
+  ];
+  const result = reconcile._rollupObjectiveStatus(lines, '2026-05-04');
+  assert.strictEqual(result.changes.length, 1);
+  assert.strictEqual(result.changes[0].kind, 'objective_rollup_status');
+  assert.strictEqual(result.changes[0].objective_num, '5');
+  // Obj 05 Status line flipped
+  assert.strictEqual(lines[2], '**Status:** complete 2026-05-04');
+  // Obj 06 Status line unchanged
+  assert.strictEqual(lines[9], '**Status:** in flight');
+});
+
+test('RU5: ALL [x] + Progress table row exists → row status cell updated, emits objective_rollup_progress', () => {
+  const lines = [
+    '### Objective 01: Foo',
+    '',
+    '**Status:** in flight',
+    '',
+    '- [x] 01-01-foo-TRD.md — task one',
+    '',
+    '## Progress',
+    '',
+    '| Objective | Title | Status |',
+    '| --- | --- | --- |',
+    '| 01 | Foo | in flight |',
+    '',
+  ];
+  const result = reconcile._rollupObjectiveStatus(lines, '2026-05-04');
+  // Should have status change + progress change
+  assert.ok(result.changes.length >= 1, 'at least one change');
+  const progressChange = result.changes.find(c => c.kind === 'objective_rollup_progress');
+  assert.ok(progressChange, 'objective_rollup_progress change emitted');
+  assert.strictEqual(progressChange.objective_num, '1');
+  assert.ok(progressChange.after.includes('complete 2026-05-04'), 'progress row updated');
+  // Table row line must be mutated
+  assert.ok(lines[10].includes('complete 2026-05-04'), 'line mutated in place');
+});
+
+test('RU6: ALL [x] + malformed Progress table (3-cell row) → skipped silently, no error', () => {
+  const lines = [
+    '### Objective 01: Foo',
+    '',
+    '**Status:** in flight',
+    '',
+    '- [x] 01-01-foo-TRD.md — task one',
+    '',
+    '## Progress',
+    '',
+    '| 01 | malformed',    // only 3 cells (not 4)
+    '',
+  ];
+  let result;
+  assert.doesNotThrow(() => {
+    result = reconcile._rollupObjectiveStatus(lines, '2026-05-04');
+  });
+  // No progress change (malformed row skipped), but status change still emitted
+  const progressChange = result.changes.find(c => c.kind === 'objective_rollup_progress');
+  assert.ok(!progressChange, 'no progress change on malformed row');
+});
+
+test('RU7: NOT all [x] → no rollup change', () => {
+  const lines = [
+    '### Objective 01: Foo',
+    '',
+    '**Status:** in flight',
+    '',
+    '- [x] 01-01-foo-TRD.md — task one',
+    '- [ ] 01-02-bar-TRD.md — task two (incomplete)',
+    '',
+  ];
+  const result = reconcile._rollupObjectiveStatus(lines, '2026-05-04');
+  assert.deepStrictEqual(result.changes, []);
+  assert.strictEqual(lines[2], '**Status:** in flight');
+});
+
+test('RU8: TRD checkboxes empty (no TRD lines in section) → no rollup change', () => {
+  const lines = [
+    '### Objective 01: Foo',
+    '',
+    '**Status:** in flight',
+    '',
+    'This objective has no TRD checkbox lines yet.',
+    '',
+  ];
+  const result = reconcile._rollupObjectiveStatus(lines, '2026-05-04');
+  assert.deepStrictEqual(result.changes, []);
+  assert.strictEqual(lines[2], '**Status:** in flight');
+});
+
+// ─── Group RUI — rollup integration via reconcile ─────────────────────────────
+
+test('RUI1: reconcile flips final TRD [ ] → [x] AND triggers rollup in same run', () => {
+  // All TRDs complete on disk (SUMMARY present+PASSED), but ROADMAP still has [ ] for last TRD
+  const { projectRoot, cleanup } = fixtures.buildReconcileFixtures({
+    objectives: [{
+      num: '05',
+      slug: 'alpha',
+      title: 'Alpha',
+      status: 'in flight',
+      trds: [
+        { id: '05-01', slug: 'a', desc: 'task one', initial_checkbox: 'x', summary: 'present' },
+        { id: '05-02', slug: 'b', desc: 'task two', initial_checkbox: ' ', summary: 'present' },
+      ],
+    }],
+  });
+  const result = reconcile.reconcile({ projectRoot, mode: 'write', today: '2026-05-04' });
+  // Should have both trd_summary_exists (for 05-02) and objective_rollup_status
+  const trdChange = result.changes.find(c => c.kind === 'trd_summary_exists');
+  const rollupChange = result.changes.find(c => c.kind === 'objective_rollup_status');
+  assert.ok(trdChange, 'trd_summary_exists change present');
+  assert.ok(rollupChange, 'objective_rollup_status change present');
+  assert.ok(rollupChange.after.includes('2026-05-04'), 'rollup uses injected today');
+  cleanup();
+});
+
+test('RUI2: reconcile dry-run + ALL [x] in ROADMAP → emits rollup change, does NOT write', () => {
+  // Build fixture where ROADMAP already has all [x] so no rule changes, but status still "in flight"
+  const { projectRoot, cleanup } = fixtures.buildReconcileFixtures({
+    objectives: [{
+      num: '05',
+      slug: 'alpha',
+      title: 'Alpha',
+      status: 'in flight',
+      trds: [
+        { id: '05-01', slug: 'a', desc: 'task one', initial_checkbox: 'x', summary: 'present' },
+      ],
+    }],
+  });
+  const roadmapPath = path.join(projectRoot, '.planning', 'ROADMAP.md');
+  const before = fs.readFileSync(roadmapPath, 'utf-8');
+
+  const result = reconcile.reconcile({ projectRoot, mode: 'dry-run', today: '2026-05-04' });
+
+  const after = fs.readFileSync(roadmapPath, 'utf-8');
+  assert.strictEqual(before, after, 'ROADMAP.md not written in dry-run');
+  const rollupChange = result.changes.find(c => c.kind === 'objective_rollup_status');
+  assert.ok(rollupChange, 'rollup change emitted even in dry-run');
+  cleanup();
+});
+
+test('RUI3: reconcile write-mode + rollup → ROADMAP.md has updated Status line on disk', () => {
+  const { projectRoot, cleanup } = fixtures.buildReconcileFixtures({
+    objectives: [{
+      num: '05',
+      slug: 'alpha',
+      title: 'Alpha',
+      status: 'in flight',
+      trds: [
+        { id: '05-01', slug: 'a', desc: 'task one', initial_checkbox: 'x', summary: 'present' },
+      ],
+    }],
+  });
+  reconcile.reconcile({ projectRoot, mode: 'write', today: '2026-05-04' });
+  const written = fs.readFileSync(path.join(projectRoot, '.planning', 'ROADMAP.md'), 'utf-8');
+  assert.ok(written.includes('**Status:** complete 2026-05-04'), 'Status line updated on disk');
+  cleanup();
+});
+
+test('RUI4: idempotency — second reconcile run on rolled-up roadmap returns changes=[]', () => {
+  const { projectRoot, cleanup } = fixtures.buildReconcileFixtures({
+    objectives: [{
+      num: '05',
+      slug: 'alpha',
+      title: 'Alpha',
+      status: 'in flight',
+      trds: [
+        { id: '05-01', slug: 'a', desc: 'task one', initial_checkbox: 'x', summary: 'present' },
+      ],
+    }],
+  });
+  // First run: flips status to complete
+  const first = reconcile.reconcile({ projectRoot, mode: 'write', today: '2026-05-04' });
+  assert.ok(first.changes.length > 0, 'first run has changes');
+
+  // Second run: already rolled up → no changes
+  const second = reconcile.reconcile({ projectRoot, mode: 'write', today: '2026-05-04' });
+  assert.deepStrictEqual(second.changes, [], 'second run is idempotent (no changes)');
+  cleanup();
+});
+
+test('RUI5: today parameter forwarded from reconcile to _rollupObjectiveStatus', () => {
+  const { projectRoot, cleanup } = fixtures.buildReconcileFixtures({
+    objectives: [{
+      num: '05',
+      slug: 'alpha',
+      title: 'Alpha',
+      status: 'in flight',
+      trds: [
+        { id: '05-01', slug: 'a', desc: 'task one', initial_checkbox: 'x', summary: 'present' },
+      ],
+    }],
+  });
+  const result = reconcile.reconcile({ projectRoot, mode: 'dry-run', today: '2099-01-15' });
+  const rollupChange = result.changes.find(c => c.kind === 'objective_rollup_status');
+  assert.ok(rollupChange, 'rollup change emitted');
+  assert.ok(rollupChange.after.includes('2099-01-15'), 'injected today date used in rollup');
+  cleanup();
 });

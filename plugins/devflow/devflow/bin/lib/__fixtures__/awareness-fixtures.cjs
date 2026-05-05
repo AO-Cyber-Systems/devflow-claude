@@ -1026,9 +1026,10 @@ function buildAdversarialInitiative({
  * @param {object}   opts
  * @param {object[]} [opts.objectives]         - array of { num, slug, title, status, trds: [{ id, desc, slug, summary, initial_checkbox, initial_annotation, no_trd_file }] }
  * @param {string}   [opts.milestone_status]   - "in flight" | "complete" (default: "in flight")
+ * @param {boolean}  [opts.progress_table]     - TRD 09-02: if true, append a '## Progress' section with one row per objective. Default: false (back-compat).
  * @returns {{ projectRoot: string, cleanup: () => void }}
  */
-function buildReconcileFixtures({ objectives = [], milestone_status = 'in flight' } = {}) {
+function buildReconcileFixtures({ objectives = [], milestone_status = 'in flight', progress_table = false } = {}) {
   const tmpdir = path.join(os.tmpdir(), `reconcile-fixture-${process.pid}-${Date.now()}`);
   fs.mkdirSync(path.join(tmpdir, '.planning', 'objectives'), { recursive: true });
 
@@ -1077,6 +1078,21 @@ function buildReconcileFixtures({ objectives = [], milestone_status = 'in flight
       const annotation = trd.initial_annotation ? ` ${trd.initial_annotation}` : '';
       const trdSlug = trd.slug || 'bar';
       roadmapLines.push(`- [${checkboxState}] ${trd.id}-${trdSlug}-TRD.md — ${trd.desc || 'desc'}${annotation}`);
+    }
+    roadmapLines.push('');
+  }
+
+  // TRD 09-02: optional '## Progress' table (default OFF for back-compat)
+  if (progress_table && objectives.length > 0) {
+    roadmapLines.push('## Progress');
+    roadmapLines.push('');
+    roadmapLines.push('| Objective | Title | Status |');
+    roadmapLines.push('| --- | --- | --- |');
+    for (const obj of objectives) {
+      const objNum = String(obj.num).padStart(2, '0');
+      const title = obj.title || 'Test obj';
+      const status = obj.progress_status || 'in flight';
+      roadmapLines.push(`| ${objNum} | ${title} | ${status} |`);
     }
     roadmapLines.push('');
   }
