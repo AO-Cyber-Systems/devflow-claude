@@ -15,7 +15,10 @@
 **Objective complete:** 2 — Cross-repo awareness layer (verified 2026-05-04, 731/731 tests with integration flags, all 10 SC met, 7 TRDs done)
 **Objective complete:** 3 — Planning-time org awareness (verified 2026-05-05, 842/842 tests, all 10 SC met, 7 TRDs done, SC-9 + SC-10 closed)
 **Objective complete:** 4 — Duplicate-work detection + 4-option resolution flow (verified 2026-05-05, 967/987 tests pass, all 10 SC met, 6 TRDs done)
-**Status:** Ready to plan
+**Objective in flight:** 5 — Initiative context layer
+**Current TRD:** 05-02
+**Branch:** `feature/v1.1-obj-5-initiatives`
+**Status:** In progress — TRD 05-01 complete (1005/1025 tests pass, 38 new tests, reader + fixtures + CLI list/show)
 
 ## Branch State (post-merge)
 
@@ -131,6 +134,10 @@
 - **--gaps-only skips dup-detect at execute-time (TRD 04-05)** — Gap closure plans are reactive to verification failures; they don't introduce new coordination concerns. Dup-detect step short-circuits when --gaps-only is set.
 - **TRD 04-06 complete (2026-05-05)** — `lib/dup-detect.cjs` module.exports finalized: banner comment 'LOCKED by TRD 04-06' + 19-entry locked surface (4 public + 4 hooks + 6 helpers + 5 constants). EX1 deepStrictEqual export-lock test + EX2/EX3 + E2E1-E2E6 covering all 4 resolution paths (Coordinate/Proceed-anyway/Defer/Merge) + no-match cases. 967/987 tests pass (9 new, 0 fail). Commits: 9957c2d (test:), 12a55ca (feat:). SC-10 closed. Objective 4 DONE.
 - **Export surface locked design (TRD 04-06)** — EX1 passes at RED because 04-01/02/03 already emitted the correct 19-entry surface; EX3 (banner absent) is the true RED gate. E2E fixture adaptation: buildDupDetectFixtures() takes options object not string arg; returns {current, hardPeerScan, ...}. No fixture code change needed.
+- **TRD 05-01 complete (2026-05-05)** — `lib/initiatives.cjs` created: loadInitiatives, matchByRepo, formatInitiativeForPlanner, _parseInitiativeFile, _truncateWhy, constants, injection hooks. `lib/initiatives-cli.cjs`: cmdInitiativesRoute with list/show wired; sync stub exits 1 with 'not yet implemented (TRD 05-02)'. `awareness-fixtures.cjs` extended: buildInitiativeFile, buildInitiativeYaml, buildInitiativesHomeTree. `df-tools.cjs`: case 'initiatives' arm added. 38 new tests (Groups L/M/F/P/T/CLI/I); 1005 total pass. Commits: 7f51f72 (chore:), ade8451 (test:), 862ca1a (feat:). SC-4 + SC-6 partial. Wave 1 complete.
+- **_extractSection split-on-## pattern locked (TRD 05-01)** — Multiline regex `(?=^## |$)` terminates at end-of-line (not end-of-string) in Node multiline mode. Replaced with `body.split(/(?=^## )/m)` boundary approach. Pattern iterates sections, finds matching ## header, returns content after header line. All 4 body sections extracted correctly.
+- **loadInitiatives graceful-empty contract (TRD 05-01)** — Returns [] silently when home dir missing; NO stderr, NO throw. Files with malformed frontmatter (missing slug field) emit stderr warning with offending filename and are skipped. Unreadable files (EACCES etc.) emit stderr warning and are skipped. Both gracefully return well-formed siblings.
+- **Sync CLI stub-and-fill pattern (TRD 05-01)** — cmdInitiativesSync stub exits 1 with {"error": "not yet implemented (TRD 05-02)"}. TRD 05-02 replaces stub body with real implementation. CLI6 test asserts stub behavior; TRD 05-02 must flip CLI6 assertion to real behavior (per obj 3 TRD 03-02 deviation pattern).
 
 ## Blockers / Concerns
 
@@ -138,7 +145,7 @@
 
 ## Session Continuity
 
-Last session: 2026-05-05 — TRD 04-06 (library export lock + e2e integration) complete. 967/987 tests pass (0 fail, 20 skip). Wave 5 complete. Objective 4 DONE.
+Last session: 2026-05-05 — TRD 05-01 (reader + fixtures + CLI list/show) complete. 1005/1025 tests pass (0 fail, 20 skip). Wave 1 of Objective 5 complete.
 Resume file: `.planning/SESSION_PICKUP.md`
-Stopped at: Completed 04-06-library-export-and-integration-TRD.md
-Next: Objective 5 (TBD — v1.1 roadmap)
+Stopped at: Completed 05-01-reader-and-fixtures-TRD.md
+Next: TRD 05-02 (writer + sync orchestration)
