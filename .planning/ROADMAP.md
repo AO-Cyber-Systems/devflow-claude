@@ -438,6 +438,67 @@ Dependency order:
 - [x] 09-02-objective-rollup-TRD.md — _rollupObjectiveStatus + Status line + Progress table updater + reconcile integration (Wave 2, tdd) — SC-4
 - [ ] 09-03-cli-skill-and-integration-TRD.md — df-tools sync-roadmap CLI + /devflow:sync-roadmap skill + module.exports lock + e2e self-test/idempotency (Wave 3, tdd+standard) — SC-5, SC-6, SC-7, SC-8, SC-9, SC-10
 
+### Objective 6: Unified df:check-todos
+
+**Goal:** Morning-standup view aggregating local todos + GH issues (assigned/mentioned/review-requested) + active peer sessions (obj 2) + initiative open questions (obj 5) + dup-detect log (obj 4) into a single command grouped by urgency lane. The "what should I work on right now?" answer.
+
+**Tracks:** devflow-claude#15. Depends on obj 2 ✓, obj 4 ✓, obj 5 ✓.
+
+**Inputs (research complete):**
+- `.planning/research/cross-session-coordination.md` — §"Unified df:check-todos"
+
+**Locked decisions:**
+1. **Aggregator pattern** — read-only consumer of multiple sources; no mutation of any source
+2. **Urgency lanes (top to bottom):**
+   - 🔥 Blocked-on-you (active peer waiting + dup-detect resolutions waiting)
+   - ⚡ Now (assigned GH issues with high priority + in-flight objectives + active TRDs)
+   - 📋 Soon (mentioned GH issues + review-requested + initiative open questions)
+   - 💡 Ideas (local todos via TodoWrite + low-priority GH issues)
+3. **Five sources:**
+   - Local todos via existing `df-tools state get todos`
+   - GH issues across primary repos (`gh issue list --assignee @me` + `--mentions @me` + `--review-requested @me`)
+   - Active peer sessions (obj 2 `awareness scan-peer`)
+   - Initiative open questions (obj 5 `initiatives list` + parse Open Questions section)
+   - Dup-detect resolution log (obj 4 `.dup-detect-log.jsonl`)
+4. **Cache mirrors obj 2's awareness pattern** — `.planning/.check-todos-cache.json` (gitignored), 10-min TTL, force-refresh via `--refresh`
+5. **Hard-fail on gh auth (sync mode only)** — read-only display falls back to file-only sources gracefully
+6. **Output format: terminal-rendered Markdown with emoji urgency markers + per-lane bullets + source attribution** (which obj surfaced it)
+7. **Token-bounded** — max 5 entries per lane in default render; `--all` flag shows everything
+
+**Success Criteria:**
+
+*Aggregator*
+1. `lib/check-todos.cjs` exports `aggregate({ projectRoot, refresh })` returning `{ blocked: [], now: [], soon: [], ideas: [], warnings: [], cached: bool }`. Hand-built fixtures.
+2. Five source fetchers: `_fetchLocalTodos`, `_fetchGhIssues`, `_fetchPeerSessions`, `_fetchInitiativeQuestions`, `_fetchDupDetectLog` — all with injection hooks (`_setRunGh`, `_setRunFs`).
+3. Lane assignment is deterministic + tested: each entry routes to exactly one lane based on rules.
+
+*Cache*
+4. `.planning/.check-todos-cache.json` (gitignored) namespaces sources; 10-min TTL; `--refresh` forces re-fetch.
+
+*Renderer + CLI*
+5. `formatCheckTodosMarkdown(aggregate, opts)` produces terminal-friendly output with urgency emoji + lane headers + per-entry attribution.
+6. `df-tools check-todos [--all] [--refresh] [--lane <name>]` runs aggregate + renders; `--all` removes per-lane truncation; `--lane <name>` filters single lane.
+7. `/devflow:check-todos` skill invokes the CLI.
+
+*Library + tests*
+8. `lib/check-todos.cjs` exports stable surface: `aggregate`, `formatCheckTodosMarkdown`, `_fetchLocalTodos`, `_fetchGhIssues`, `_fetchPeerSessions`, `_fetchInitiativeQuestions`, `_fetchDupDetectLog`, `_setRunGh`, `_setRunFs`, `_resetMocks`. Module surface locked.
+9. Round-trip integration test gated on `GH_INTEGRATION=1`: live aggregate against this repo + user's actual GH state. Skipped cleanly when env unset.
+10. Self-test: `df-tools check-todos --raw` against this repo returns valid JSON with all 5 sources surfacing data (since obj 2/4/5 all populated this repo's state).
+
+**Out of scope (v1.1 — explicit):**
+- Cross-org GH issue aggregation (only walks current org)
+- AI-powered prioritization / lane re-routing (deterministic rules only)
+- Persistent action history (this is read-only)
+- Mutation operations (e.g., `check-todos resolve <id>`) — separate work
+
+**Gates:** none — closes the v1.1 runtime layer.
+
+**TRDs:** 4 plans across 4 waves
+- [x] 06-01-aggregator-and-fixtures-TRD.md — aggregate() + 5 _fetch* helpers + lane assignment + buildCheckTodosFixtures + injection hooks (Wave 1, tdd) — SC-1, SC-2, SC-3
+- [x] 06-02-cache-layer-TRD.md — readCheckTodosCache + writeCheckTodosCache + isCheckTodosCacheStale + aggregate cache wiring + .gitignore (Wave 2, tdd) — SC-4 — DONE 2026-05-04, 1254/1254 tests pass, commits f2ad36f + 6c14638
+- [x] 06-03-formatter-TRD.md — formatCheckTodosMarkdown pure renderer + 4 lane sub-renderers + token bounding + --lane filter (Wave 3, tdd) — SC-5
+- [x] 06-04-cli-skill-and-integration-TRD.md — df-tools check-todos full flag wiring + /devflow:check-todos skill REWRITE + module.exports lock + e2e self-test + GH_INTEGRATION round-trip (Wave 4, mixed) — SC-6, SC-7, SC-8, SC-9, SC-10 — DONE 2026-05-05, 1290/1291 tests pass, commits d1125a6 + 08907d1 + cc1dcbd
+
 ---
 
 ## Milestone v1.2 — Handoff Watcher PTY + Coordination-Layer Polish (next)

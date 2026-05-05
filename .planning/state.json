@@ -35,6 +35,36 @@
       "objective": "?",
       "summary": "09-02: objective_num preserved verbatim from ROADMAP header regex capture; rollup co-emits with rule changes in same reconcile call",
       "rationale": null
+    },
+    {
+      "objective": "06",
+      "summary": "_fetchDupDetectLog propagates readFileSync errors so aggregate routes to warnings[]; gh._runGh exported as wrapper function for injection hook; buildCheckTodosFixtures auth mock puts Token scopes in stdout",
+      "rationale": null
+    },
+    {
+      "objective": "06-02",
+      "summary": "readCheckTodosCache/writeCheckTodosCache/isCheckTodosCacheStale route through _runFs (not bare fs) — injection-hook consistent with obj 4/5; realFs extended in-place with writeFileSync+mkdirSync; cached:true only when zero sources re-fetched",
+      "rationale": null
+    },
+    {
+      "objective": "06-unified-check-todos",
+      "summary": "formatCheckTodosMarkdown sub-renderers stay private; only public formatter exported to preserve clean API boundary",
+      "rationale": null
+    },
+    {
+      "objective": "06-unified-check-todos",
+      "summary": "Token bound is warn-not-truncate: appends footer when output > 8000 chars; never slices string mid-entry",
+      "rationale": null
+    },
+    {
+      "objective": "06-unified-check-todos",
+      "summary": "Surface count locked at 20 (not 19): 2 public + 5 fetchers + 1 lane + 3 cache + 4 hooks + 5 constants = 20 entries. CONTEXT.md claimed 19 but recount corrected.",
+      "rationale": null
+    },
+    {
+      "objective": "06-unified-check-todos",
+      "summary": "SKILL.md REWRITE: /devflow:check-todos now delegates to df-tools check-todos $ARGUMENTS (thin-orchestrator); legacy workflows/check-todos.md preserved for df-tools list-todos.",
+      "rationale": null
     }
   ],
   "blockers": [],

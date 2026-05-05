@@ -255,18 +255,24 @@ function _findObjectiveSections(lines) {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const objHeader = line.match(/^### Objective (\d+):/);
-    if (objHeader) {
+    // Section also terminates at any new ## (milestone) heading — prevents
+    // an objective with no Status line from grabbing a downstream milestone's Status.
+    const milestoneHeader = /^## /.test(line) && !line.startsWith('### ');
+    if (objHeader || milestoneHeader) {
       if (current) {
         current.endLine = i - 1;
         sections.push(current);
+        current = null;
       }
-      current = {
-        num: objHeader[1],
-        startLine: i,
-        endLine: -1,
-        statusLineIdx: -1,
-        trdCheckboxLines: [],
-      };
+      if (objHeader) {
+        current = {
+          num: objHeader[1],
+          startLine: i,
+          endLine: -1,
+          statusLineIdx: -1,
+          trdCheckboxLines: [],
+        };
+      }
       continue;
     }
     if (current) {
