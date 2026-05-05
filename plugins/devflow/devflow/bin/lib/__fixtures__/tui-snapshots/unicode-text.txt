@@ -1,0 +1,11 @@
+[1m┌─ Org Context ───────────────────────────────────────────────────────────────[0m
+[36m[1municode-product-⭐[0m
+  [2mQ2 2026[0m
+    Embedded ANSI ?fake color attack [2m#500[0m
+[1m├─ Peer Sessions ─────────────────────────────────────────────────────────────[0m
+* [1mfeature/🚀-emoji-name[0m — 日本語 objective [2m· feat: 日本語 commit message…
+  [1mfeature/very-long-branch-name-that-overflows-80-cols-in-most-terminals…
+[1m├─ Active Initiatives ────────────────────────────────────────────────────────[0m
+[1municode-slug-日本[0m — 🚀 CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC…
+  [2m0 open questions[0m
+[1m└───────────────────────────────────────────────────────────────────────────────[0m

@@ -1,0 +1,17 @@
+[1m┌─ Org Context ───────────────────────────────────────────────────────────────[0m
+[36m[1mdevflow-claude[0m
+  [2mQ2 2026[0m
+    v1.1 Coordination Layer [2m#9[0m
+    Refine kind/work defaults [2m#20[0m
+[36m[1mdevflow[0m
+  [2mQ2 2026[0m
+    Internal Alpha [2m#30[0m
+[1m├─ Peer Sessions ─────────────────────────────────────────────────────────────[0m
+  [1mfeature/v1.1-obj-7[0m — Roadmap reconciliation [2m· feat: reconcile d…
+* [1mfeature/v1.1-obj-8-tui[0m — Program-aware TUI viewer [2m· test: snaps…
+[1m├─ Active Initiatives ────────────────────────────────────────────────────────[0m
+[1mdevflow-internal-alpha-q2-2026[0m — Ship a workable internal alpha by end of Q2 2026 so AO-Cyber-Systems devs can d…
+  [2m2 open questions[0m
+[1mcross-repo-coordination-substrate[0m — GitHub Issues + Projects v2 + sub-issues becomes the org coordination substrate.
+  [2m0 open questions[0m
+[1m└───────────────────────────────────────────────────────────────────────────────[0m
