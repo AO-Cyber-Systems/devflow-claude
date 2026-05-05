@@ -7,6 +7,7 @@ const { output, error, safeReadFile, generateSlugInternal, pathExistsInternal, M
 const { loadConfig } = require('./config.cjs');
 const { findObjectiveInternal } = require('./objective.cjs');
 const { getMilestoneInfo, getRoadmapObjectiveInternal } = require('./roadmap.cjs');
+const { bootstrapProjectMd } = require('./project-bootstrap.cjs');
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
@@ -154,6 +155,12 @@ function cmdInitExecuteObjective(cwd, objective, includes, raw) {
   // init.cjs only sets it. Falls back to false if awareness.cjs is unavailable/broken.
   result.awareness_refresh = _awarenessLoadable();
 
+  // Self-healing bootstrap: ensure PROJECT.md has org + github_repo fields.
+  // If anything was added, the result.bootstrap object communicates what changed
+  // so the calling skill can surface it to the user (no auto-commit; user folds
+  // the change into their next commit).
+  result.bootstrap = bootstrapProjectMd(cwd);
+
   output(result, raw);
 }
 
@@ -254,6 +261,10 @@ function cmdInitPlanObjective(cwd, objective, includes, raw) {
   // before spawning the planner agent. The skill is responsible for consuming this flag;
   // init.cjs only sets it. Falls back to false if awareness.cjs is unavailable/broken.
   result.awareness_refresh = _awarenessLoadable();
+
+  // Self-healing bootstrap: ensure PROJECT.md has org + github_repo fields.
+  // See cmdInitExecuteObjective for the same pattern.
+  result.bootstrap = bootstrapProjectMd(cwd);
 
   output(result, raw);
 }
