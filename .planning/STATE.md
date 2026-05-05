@@ -14,8 +14,8 @@
 **Objective complete:** 1 — GitHub coordination layer (verified 2026-05-04, 563/563 tests, all 6 TRDs done, SC-9 + SC-10 met)
 **Objective complete:** 2 — Cross-repo awareness layer (verified 2026-05-04, 731/731 tests with integration flags, all 10 SC met, 7 TRDs done)
 **Objective complete:** 3 — Planning-time org awareness (verified 2026-05-05, 842/842 tests, all 10 SC met, 7 TRDs done, SC-9 + SC-10 closed)
-**Current TRD:** 04-02 complete (Wave 2 — resolution recorder + applyResolution dispatcher + JSONL log + CONTEXT.md writer + .deferred state + CLI wiring)
-**Status:** Objective 4 in flight — 2/6 TRDs done
+**Current TRD:** 04-03 complete (Wave 3 — formatDetectionMarkdown pure renderer: purpose=askuser adds 4-option resolution section; purpose=context omits it; execute-mode uses Recheck title)
+**Status:** Objective 4 in flight — 3/6 TRDs done
 
 ## Branch State (post-merge)
 
@@ -119,6 +119,9 @@
 - **TRD 04-02 complete (2026-05-05)** — `lib/dup-detect.cjs` extended: recordResolution (JSONL append), applyResolution (switch dispatcher), _writeCoordinationNote (append-only CONTEXT.md), _writeDeferredState (.planning/.deferred/<id>.json). `lib/dup-detect-cli.cjs`: cmdDupDetectResolve + cmdDupDetectLog replace 04-01 stubs. `.gitignore`: adds `.planning/.dup-detect-log.jsonl` (NOT .deferred/). 41 new tests; 944 total pass (0 fail). Commits: a4ccb04 (test:), e51094c (feat:). SC-6/SC-8/SC-9 complete. Wave 2 complete.
 - **merge abort message to stderr (TRD 04-02 deviation)** — `applyResolution` merge case writes abort message to stderr (not stdout) so CLI `output()` JSON is clean on stdout for `JSON.parse()`. CONTEXT.md discretion: "PRINT only, do not execute" — stderr is the correct channel for operator messages.
 - **realFs extended for write ops (TRD 04-02)** — TRD 04-01's realFs only had read methods. Extended with appendFileSync/writeFileSync/mkdirSync for 04-02 write operations; enables RR8 test to mock appendFileSync.
+- **TRD 04-03 complete (2026-05-04)** — `lib/dup-detect.cjs` extended with TRD 04-03 region: formatDetectionMarkdown pure renderer + 4 sub-renderers (_renderMatchEntry, _renderAdvisoryEntry, _renderWarnings, _renderResolutionOptions) + 2 helpers (_sanitize, _formatScore). 14 new tests (Group FD, FD1-FD14); 958 total pass (0 fail, 20 skip). Commits: ad7ec68 (test:), 07b3a09 (feat:). SC-5 + SC-6 rendering side complete. Wave 3 complete.
+- **formatDetectionMarkdown opts fallback design (TRD 04-03)** — Unknown opts.purpose falls back to 'askuser' (more verbose; safer default). Empty detection (no matches/advisory/warnings) short-circuits to placeholder before any section rendering. Pure: no fs/network/process.exit side effects; deterministic for fixed input.
+- **purpose='context' omits resolution options (TRD 04-03)** — Coordination Note body (CONTEXT.md) doesn't repeat the 4 options the user already chose. purpose='askuser' includes them for human readability before AskUserQuestion display. Both variants share same title/matches/advisory/warnings sections.
 
 ## Blockers / Concerns
 
@@ -126,7 +129,7 @@
 
 ## Session Continuity
 
-Last session: 2026-05-05 — TRD 04-02 (resolution recorder + applyResolution dispatcher + JSONL + CONTEXT.md + .deferred + CLI wiring) complete. 944 tests pass (0 fail, 20 skip).
+Last session: 2026-05-04 — TRD 04-03 (formatDetectionMarkdown pure renderer) complete. 958 tests pass (0 fail, 20 skip).
 Resume file: `.planning/SESSION_PICKUP.md`
-Stopped at: Completed 04-02-resolution-recorder-TRD.md
-Next: TRD 04-03 (formatDetectionMarkdown — markdown renderer for AskUserQuestion display + CONTEXT.md note)
+Stopped at: Completed 04-03-format-detection-markdown-TRD.md
+Next: TRD 04-04 (plan-objective skill integration) + TRD 04-05 (execute-objective skill integration) — parallel Wave 4
