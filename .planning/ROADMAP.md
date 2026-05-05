@@ -203,6 +203,57 @@ Dependency order:
 - [x] 02-06-lifecycle-integration-TRD.md — SessionStart hook + plan/execute init refresh wiring (Wave 6, tdd) — DONE 2026-05-04, 710/719 tests pass, commits f35aaa3 + 5ddb3b6
 - [ ] 02-07-library-export-and-integration-TRD.md — export surface lock + integration tests + cassette capture (Wave 7, tdd)
 
+### Objective 3: Planning-time org awareness — surface cross-repo considerations in CONTEXT.md
+
+**Goal:** Extend `/df:research-objective` and `/df:plan-objective` to consult the org's broader state at plan-time and surface findings as a "Cross-Repo Considerations" section in CONTEXT.md. The planner reads it and biases TRDs accordingly. Execution stays unchanged — no runtime org-polling, all the brains land at planning time.
+
+**Tracks:** devflow-claude#12 (sub-issue of #9 [Roadmap]). Depends on obj 0 ✓; consumes obj 1 ✓ (gh resolver) + obj 2 ✓ (org scanner).
+
+**Inputs (research complete):**
+- `.planning/research/github-coordination-layer.md` — §"Where org-awareness shows up" (during planning, not execution)
+- `.planning/research/cross-session-coordination.md` — runtime layer (informs the "active sessions" check at plan-time)
+
+**Locked decisions:**
+1. **Plan-time only.** Consultation runs at `/df:research-objective` and `/df:plan-objective` entry — never at execute-time.
+2. **Three signal sources:** sibling repos in this org, eden-libs reuse candidates, org Product Roadmap overlap (reuses obj 2's `scanOrg`).
+3. **Output as a NEW `## Cross-Repo Considerations` section in CONTEXT.md** that the researcher writes BEFORE the planner runs. Planner reads it and biases TRDs (advisory).
+4. **Read-only consumer of obj 1 + obj 2.** Reuses `lib/gh.cjs::resolveChain` + `lib/awareness.cjs::scanOrg/scanPeer` — no new network primitives.
+5. **Sibling-repo discovery via convention.** Default: walks `~/Source/*/` for repos with `.git/` + `.planning/` AND a `PROJECT.md` declaring `org: AO-Cyber-Systems` (or matching the current repo's `org`). Configurable via `awareness.sibling_repos: [<paths>]`.
+6. **Token-budget conscious.** Cross-Repo Considerations section bounded — top 3 sibling-repo matches + top 3 eden-libs candidates + top 3 org-project overlaps. Each entry one line.
+7. **Misfiling detection advisory.** When the resolved chain leads to a `[Roadmap]` issue in a different primary repo than the current repo, surface a one-line warning. Does NOT block planning.
+8. **Skip silently when offline / no auth.** If `gh` isn't available, sibling + eden-libs scans still run (local fs only); only the org-Project portion is omitted with a one-line note. No hard fail at plan-time.
+
+**Success Criteria:**
+
+*Sibling-repo scanner (lib/org-awareness.cjs)*
+1. `df-tools org-awareness scan-siblings <objective_id>` walks each sibling repo's `.planning/objectives/` reading PROJECT.md frontmatter + each objective's STATE.md + recent SUMMARY.md (last 90 days). Returns top-3 keyword/file overlaps relative to the current objective's frontmatter. Hand-built fixtures; `_setRunFs` injection mirrors `_setRunGh`.
+2. Sibling discovery: walks `~/Source/*/` by default; configurable via `awareness.sibling_repos`. Repos without PROJECT.md or with `org` field mismatching are silently skipped.
+
+*eden-libs reuse scanner*
+3. `df-tools org-awareness scan-libs <objective_id>` scans `eden-libs/` (or configured path) for exported surfaces matching keywords from the current objective. Returns top-3 candidates. If absent, returns empty + warning (not in Considerations section).
+4. Match heuristic: lexical match on objective title + `files_modified` extensions vs eden-libs's `index.*` / `package.json` main / exported symbols. Hand-built; no LLM scoring.
+
+*Org Project overlap (reuses obj 2)*
+5. `df-tools org-awareness scan-org-overlap <objective_id>` calls `scanOrg` and surfaces top-3 Project items where (a) same `parent_issue` chain leads to a sibling repo's [Roadmap], OR (b) title contains ≥2 keywords from current objective.
+6. Misfiling detection per locked decision #7 — one-line warning when resolved `parent_issue` lives in a different primary repo than the current repo's PROJECT.md.
+
+*CONTEXT.md integration*
+7. `/df:research-objective` skill runs the three scans and writes a `## Cross-Repo Considerations` section to CONTEXT.md (appends if section exists). Format: 3 bulleted subsections (Sibling repos / eden-libs / Org Project), each ≤3 one-line entries.
+8. `/df:plan-objective` skill reads the Cross-Repo Considerations section from CONTEXT.md and includes it in the planner agent's `<additional_context>`. Planner biases TRDs accordingly (advisory).
+
+*Library + tests*
+9. `lib/org-awareness.cjs` exports stable surface: `scanSiblings`, `scanLibs`, `scanOrgOverlap`, `formatConsiderations(scans)`, `_setRunFs`. Hand-built; unit-testable with fixture trees (no live fs/gh in unit suite). Cassettes for live tests gated on `GH_INTEGRATION=1`.
+10. End-to-end dogfood against obj 4: `/df:research-objective 4` generates a Cross-Repo Considerations section that includes at least the obj 2 awareness scanner reference. Captured to `__fixtures__/cross-repo-considerations-fixtures/dogfood-04.md`.
+
+**Out of scope (v1.1 — explicit):**
+- Hard-blocking enforcement of cross-repo overlap (advisory only)
+- Auto-creating shared-service objectives in eden-libs — v1.2+
+- Semantic / LLM-based similarity scoring — keeps v1.1 deterministic
+- Cross-repo objective MOVES — separate hygiene work
+- Real-time updates as sibling repos change — fits under plan-time-only locked decision
+
+**Gates** (downstream consumers): obj 4 (dup-detect uses scanSiblings + scanOrgOverlap), obj 5 (initiatives consumes scanOrgOverlap), obj 6 (check-todos uses sibling scan for cross-repo todos).
+
 ---
 
 ## Milestone v1.2 — Handoff Watcher PTY + Coordination-Layer Polish (next)
