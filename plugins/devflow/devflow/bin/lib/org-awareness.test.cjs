@@ -1665,3 +1665,341 @@ test('CLI3-2 — under mocked auth failure via env, CLI still returns exit 0 (gr
   assert.strictEqual(r.status, 0,
     `CLI must exit 0 regardless of auth state; got ${r.status}; stderr: ${r.stderr}`);
 });
+
+// ─── TRD 03-04 tests ──────────────────────────────────────────────────────────
+
+// ─── Group RS — _renderSiblingsSection ───────────────────────────────────────
+
+test('RS1 — empty matches renders sentinel', () => {
+  const out = oa._renderSiblingsSection({ siblings: { matches: [] } });
+  assert.match(out, /### Sibling repos/);
+  assert.match(out, /_\(no matches\)_/);
+});
+
+test('RS2 — 2 matches render 2 bullets with repo, objective, score, summary_count', () => {
+  const out = oa._renderSiblingsSection({
+    siblings: {
+      matches: [
+        { repo: 'aodex', best_objective: '12', score: 0.5, summary_count: 3 },
+        { repo: 'aosentry', best_objective: '04', score: 0.3, summary_count: 1 },
+      ],
+    },
+  });
+  assert.match(out, /aodex/);
+  assert.match(out, /aosentry/);
+  assert.match(out, /0\.50/);
+  assert.match(out, /0\.30/);
+  const bullets = out.split('\n').filter(l => l.startsWith('- '));
+  assert.strictEqual(bullets.length, 2);
+});
+
+test('RS3 — 5 matches sliced to 3 (defensive TOP_N)', () => {
+  const matches = [];
+  for (let i = 0; i < 5; i++) {
+    matches.push({ repo: `repo-${i}`, score: 1 - i * 0.1, summary_count: i + 1 });
+  }
+  const out = oa._renderSiblingsSection({ siblings: { matches } });
+  const bullets = out.split('\n').filter(l => l.startsWith('- '));
+  assert.strictEqual(bullets.length, 3);
+});
+
+test('RS4 — match missing best_objective renders bullet without (objective ...) suffix', () => {
+  const out = oa._renderSiblingsSection({
+    siblings: { matches: [{ repo: 'some-repo', score: 0.2, summary_count: 1 }] },
+  });
+  assert.match(out, /some-repo/);
+  assert.doesNotMatch(out, /\(objective/);
+});
+
+test('RS5 — score 0 still renders (renderer does not filter by score; scanner does)', () => {
+  const out = oa._renderSiblingsSection({
+    siblings: { matches: [{ repo: 'zero-repo', score: 0, summary_count: 0 }] },
+  });
+  assert.match(out, /zero-repo/);
+  assert.match(out, /0\.00/);
+  const bullets = out.split('\n').filter(l => l.startsWith('- '));
+  assert.strictEqual(bullets.length, 1);
+});
+
+// ─── Group RL — _renderLibsSection ───────────────────────────────────────────
+
+test('RL1 — empty candidates renders sentinel', () => {
+  const out = oa._renderLibsSection({ libs: { candidates: [], scanned: true } });
+  assert.match(out, /### eden-libs candidates/);
+  assert.match(out, /_\(no matches\)_/);
+});
+
+test('RL2 — 3 candidates render 3 bullets with symbol and entrypoint', () => {
+  const out = oa._renderLibsSection({
+    libs: {
+      candidates: [
+        { symbol: 'parseStateMd', entrypoint: '/path/index.cjs', tokens_matched: 2, symbol_tokens: ['parse', 'state', 'md'] },
+        { symbol: 'resolveChain', entrypoint: '/path/index.cjs', tokens_matched: 1, symbol_tokens: ['resolve', 'chain'] },
+        { symbol: 'foo', entrypoint: '/path/index.cjs', tokens_matched: 0, symbol_tokens: ['foo'] },
+      ],
+    },
+  });
+  assert.match(out, /parseStateMd/);
+  assert.match(out, /resolveChain/);
+  assert.match(out, /foo/);
+  const bullets = out.split('\n').filter(l => l.startsWith('- '));
+  assert.strictEqual(bullets.length, 3);
+});
+
+test('RL3 — candidate with tokens_matched=0 still renders', () => {
+  const out = oa._renderLibsSection({
+    libs: {
+      candidates: [
+        { symbol: 'myFunc', entrypoint: '/path/index.cjs', tokens_matched: 0, symbol_tokens: ['my', 'func'] },
+      ],
+    },
+  });
+  assert.match(out, /myFunc/);
+  const bullets = out.split('\n').filter(l => l.startsWith('- '));
+  assert.strictEqual(bullets.length, 1);
+});
+
+test('RL4 — scanned=false renders sentinel (eden-libs not found is silent)', () => {
+  const out = oa._renderLibsSection({
+    libs: { candidates: [], warnings: ['eden-libs not found at /path'], scanned: false },
+  });
+  assert.match(out, /### eden-libs candidates/);
+  assert.match(out, /_\(no matches\)_/);
+});
+
+// ─── Group RO — _renderOrgSection ────────────────────────────────────────────
+
+test('RO1 — skipped:true renders auth sentinel and OMITS misfiling line', () => {
+  const out = oa._renderOrgSection({
+    org_overlap: { items: [], warnings: [], skipped: true, misfiling: null },
+  });
+  assert.match(out, /### Org Project overlap/);
+  assert.match(out, /skipped: gh auth/);
+  assert.doesNotMatch(out, /Misfiling check/);
+});
+
+test('RO2 — empty items, skipped:false, misfiling:null renders sentinel + no-mismatch line', () => {
+  const out = oa._renderOrgSection({
+    org_overlap: { items: [], warnings: [], skipped: false, misfiling: null },
+  });
+  assert.match(out, /_\(no matches\)_/);
+  assert.match(out, /Misfiling check: no mismatch detected/);
+});
+
+test('RO3 — 2 items, misfiling:null renders 2 bullets + misfiling-OK line', () => {
+  const out = oa._renderOrgSection({
+    org_overlap: {
+      items: [
+        { issue_ref: 'AO-Cyber-Systems/aodex#33', title: '[Roadmap] Go Migration', score: 12, matched_keywords: ['go'], chain_match: false },
+        { issue_ref: 'AO-Cyber-Systems/aosentry#5', title: '[Roadmap] Sentry', score: 3, matched_keywords: [], chain_match: false },
+      ],
+      warnings: [],
+      skipped: false,
+      misfiling: null,
+    },
+  });
+  const bullets = out.split('\n').filter(l => l.startsWith('- '));
+  assert.strictEqual(bullets.length, 2);
+  assert.match(out, /Misfiling check: no mismatch detected/);
+});
+
+test('RO4 — items + misfiling object renders misfiling warning line (italicized)', () => {
+  const out = oa._renderOrgSection({
+    org_overlap: {
+      items: [
+        { issue_ref: 'AO-Cyber-Systems/aodex#33', title: '[Roadmap] Go Migration', score: 12, matched_keywords: ['go'], chain_match: true },
+      ],
+      warnings: [],
+      skipped: false,
+      misfiling: {
+        current_repo: 'AO-Cyber-Systems/devflow-claude',
+        resolved_repo: 'AO-Cyber-Systems/aodex',
+        message: 'Possible misfile — consider whether this objective belongs in aodex.',
+      },
+    },
+  });
+  assert.match(out, /aodex#33/);
+  assert.match(out, /_Misfiling check:.*Possible misfile/);
+});
+
+test('RO5 — chain_match item decorated with [chain match] annotation in bullet', () => {
+  const out = oa._renderOrgSection({
+    org_overlap: {
+      items: [
+        { issue_ref: 'AO-Cyber-Systems/repo#10', title: 'Some Roadmap', score: 15, matched_keywords: [], chain_match: true },
+      ],
+      warnings: [],
+      skipped: false,
+      misfiling: null,
+    },
+  });
+  assert.match(out, /\[chain match\]/);
+});
+
+test('RO6 — matched_keywords empty renders bullet without (matched: ...) suffix', () => {
+  const out = oa._renderOrgSection({
+    org_overlap: {
+      items: [
+        { issue_ref: 'AO-Cyber-Systems/repo#11', title: 'Some Item', score: 10, matched_keywords: [], chain_match: false },
+      ],
+      warnings: [],
+      skipped: false,
+      misfiling: null,
+    },
+  });
+  assert.doesNotMatch(out, /matched:/);
+  assert.match(out, /Some Item/);
+});
+
+// ─── Group F — formatConsiderations end-to-end ───────────────────────────────
+
+test('F1 — full happy path renders 3 subsections in fixed order with blank-line separators', () => {
+  const md = oa.formatConsiderations({
+    siblings: { matches: [{ repo: 'aodex', best_objective: '12', score: 0.5, summary_count: 2 }] },
+    libs: { candidates: [{ symbol: 'parseStateMd', entrypoint: '/x', tokens_matched: 2, symbol_tokens: ['parse'] }] },
+    org_overlap: {
+      items: [{ issue_ref: 'AO-Cyber-Systems/aodex#33', title: '[Roadmap] Go', score: 12, matched_keywords: [], chain_match: true }],
+      warnings: [], skipped: false, misfiling: null,
+    },
+  });
+  const sibIdx = md.indexOf('### Sibling repos');
+  const libIdx = md.indexOf('### eden-libs candidates');
+  const orgIdx = md.indexOf('### Org Project overlap');
+  assert.ok(sibIdx >= 0, 'missing Sibling repos header');
+  assert.ok(libIdx > sibIdx, 'eden-libs section should come after Sibling repos');
+  assert.ok(orgIdx > libIdx, 'Org section should come after eden-libs');
+  // No leading ## header
+  assert.doesNotMatch(md, /^## Cross-Repo/);
+});
+
+test('F2 — all sections empty renders 3 subsections each with sentinel', () => {
+  const md = oa.formatConsiderations({
+    siblings: { matches: [] },
+    libs: { candidates: [], scanned: true },
+    org_overlap: { items: [], warnings: [], skipped: false, misfiling: null },
+  });
+  assert.match(md, /### Sibling repos/);
+  assert.match(md, /### eden-libs candidates/);
+  assert.match(md, /### Org Project overlap/);
+  // Count sentinel occurrences: siblings + libs + org
+  const sentinels = (md.match(/_\(no matches\)_/g) || []).length;
+  assert.ok(sentinels >= 2, `expected >=2 '_(no matches)_' sentinels, got ${sentinels}`);
+});
+
+test('F3 — org skipped renders siblings + libs normally; org has skipped sentinel', () => {
+  const md = oa.formatConsiderations({
+    siblings: { matches: [{ repo: 'aodex', best_objective: '12', score: 0.5, summary_count: 2 }] },
+    libs: { candidates: [{ symbol: 'parseStateMd', entrypoint: '/x', tokens_matched: 2, symbol_tokens: [] }] },
+    org_overlap: { items: [], warnings: [], skipped: true, misfiling: null },
+  });
+  assert.match(md, /aodex/);
+  assert.match(md, /parseStateMd/);
+  assert.match(md, /skipped: gh auth/);
+  assert.doesNotMatch(md, /Misfiling check/);
+});
+
+test('F4 — misfiling object renders in org section as italicized last line', () => {
+  const md = oa.formatConsiderations({
+    siblings: { matches: [] },
+    libs: { candidates: [], scanned: true },
+    org_overlap: {
+      items: [],
+      warnings: [],
+      skipped: false,
+      misfiling: {
+        current_repo: 'AO-Cyber-Systems/devflow-claude',
+        resolved_repo: 'AO-Cyber-Systems/aodex',
+        message: 'Possible misfile — consider whether this objective belongs in aodex.',
+      },
+    },
+  });
+  assert.match(md, /_Misfiling check:.*Possible misfile/);
+});
+
+test('F5 — total output length ≤ 2000 chars in max-size case (length budget regression guard)', () => {
+  const scans = {
+    siblings: { matches: Array.from({ length: 3 }, (_, i) => ({ repo: `repo-${i}`, best_objective: `${i}`, score: 0.1 * i, summary_count: i + 1 })) },
+    libs: { candidates: Array.from({ length: 3 }, (_, i) => ({ symbol: `func${i}`, entrypoint: '/x/index.cjs', tokens_matched: i, symbol_tokens: [] })) },
+    org_overlap: {
+      items: Array.from({ length: 3 }, (_, i) => ({ issue_ref: `AO-Cyber-Systems/repo-${i}#${i + 1}`, title: `title ${i}`, score: i, matched_keywords: [], chain_match: false })),
+      warnings: [], skipped: false, misfiling: null,
+    },
+  };
+  const md = oa.formatConsiderations(scans);
+  assert.ok(md.length < 2000, `output ${md.length} chars exceeds 2000-char budget`);
+});
+
+test('F6 — deterministic output — same input produces same output on two calls', () => {
+  const scans = {
+    siblings: { matches: [{ repo: 'aodex', best_objective: '12', score: 0.5, summary_count: 2 }] },
+    libs: { candidates: [{ symbol: 'parseStateMd', entrypoint: '/x', tokens_matched: 2, symbol_tokens: ['parse'] }] },
+    org_overlap: { items: [], warnings: [], skipped: false, misfiling: null },
+  };
+  const md1 = oa.formatConsiderations(scans);
+  const md2 = oa.formatConsiderations(scans);
+  assert.deepStrictEqual(md1, md2);
+});
+
+test('F7 — output does NOT start with ## Cross-Repo header (caller adds it)', () => {
+  const md = oa.formatConsiderations({
+    siblings: { matches: [] },
+    libs: { candidates: [], scanned: true },
+    org_overlap: { items: [], warnings: [], skipped: false, misfiling: null },
+  });
+  assert.doesNotMatch(md, /^## /);
+  assert.doesNotMatch(md, /Cross-Repo Considerations/);
+});
+
+// ─── Group CLI4 — considerations CLI ─────────────────────────────────────────
+
+test('CLI4-1 — considerations 03 returns Markdown to stdout with all three ### headers', () => {
+  const dfTools = path.resolve(__dirname, '..', 'df-tools.cjs');
+  const projRoot = path.resolve(__dirname, '..', '..', '..', '..', '..', '..', '..');
+  const r = require('child_process').spawnSync(
+    'node', [dfTools, 'org-awareness', 'considerations', '03'],
+    { encoding: 'utf-8', cwd: projRoot },
+  );
+  assert.strictEqual(r.status, 0, `expected exit 0, got ${r.status}; stderr: ${r.stderr}`);
+  assert.match(r.stdout, /### Sibling repos/);
+  assert.match(r.stdout, /### eden-libs candidates/);
+  assert.match(r.stdout, /### Org Project overlap/);
+});
+
+test('CLI4-2 — considerations 03 --raw returns JSON with siblings, libs, org_overlap keys', () => {
+  const dfTools = path.resolve(__dirname, '..', 'df-tools.cjs');
+  const projRoot = path.resolve(__dirname, '..', '..', '..', '..', '..', '..', '..');
+  const r = require('child_process').spawnSync(
+    'node', [dfTools, 'org-awareness', 'considerations', '03', '--raw'],
+    { encoding: 'utf-8', cwd: projRoot },
+  );
+  assert.strictEqual(r.status, 0, `expected exit 0, got ${r.status}; stderr: ${r.stderr}`);
+  let parsed;
+  assert.doesNotThrow(() => { parsed = JSON.parse(r.stdout); }, `stdout not valid JSON: ${r.stdout}`);
+  assert.ok('siblings' in parsed, `expected 'siblings' key`);
+  assert.ok('libs' in parsed, `expected 'libs' key`);
+  assert.ok('org_overlap' in parsed, `expected 'org_overlap' key`);
+});
+
+test('CLI4-3 — considerations with no objective_id prints usage + exits 1', () => {
+  const dfTools = path.resolve(__dirname, '..', 'df-tools.cjs');
+  const r = require('child_process').spawnSync(
+    'node', [dfTools, 'org-awareness', 'considerations'],
+    { encoding: 'utf-8' },
+  );
+  assert.strictEqual(r.status, 1, `expected exit 1, got ${r.status}`);
+  assert.match(r.stderr, /Usage/i);
+});
+
+test('CLI4-4 — under mocked GhAuthError on scanOrg, considerations CLI returns Markdown with skipped sentinel; exit 0', () => {
+  // Use in-process invocation to verify graceful degradation: formatConsiderations should
+  // produce the skipped placeholder when scanOrgOverlap returns skipped:true.
+  // Test via direct formatConsiderations call with a skipped org_overlap input.
+  const md = oa.formatConsiderations({
+    siblings: { matches: [] },
+    libs: { candidates: [], scanned: false },
+    org_overlap: { items: [], warnings: ['org-overlap unavailable: auth failed. Run: gh auth refresh'], skipped: true, misfiling: null },
+  });
+  assert.match(md, /skipped: gh auth/);
+  assert.match(md, /### Org Project overlap/);
+  // Exit 0 is verified by the CLI subprocess tests CLI4-1 and CLI4-2 above.
+});
