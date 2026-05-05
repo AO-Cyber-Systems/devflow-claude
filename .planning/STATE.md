@@ -14,8 +14,8 @@
 **Objective complete:** 1 — GitHub coordination layer (verified 2026-05-04, 563/563 tests, all 6 TRDs done, SC-9 + SC-10 met)
 **Objective complete:** 2 — Cross-repo awareness layer (verified 2026-05-04, 731/731 tests with integration flags, all 10 SC met, 7 TRDs done)
 **Objective complete:** 3 — Planning-time org awareness (verified 2026-05-05, 842/842 tests, all 10 SC met, 7 TRDs done, SC-9 + SC-10 closed)
-**Current TRD:** 04-04 complete (Wave 4 — plan-objective workflow integration: ## 6.5 step, dup-detect --mode plan, 4-option AskUserQuestion Merge/Defer/Coordinate/Proceed, early-exit routing, advisory JSONL-only)
-**Status:** Objective 4 in flight — 4/6 TRDs done
+**Current TRD:** 04-05 complete (Wave 4 — execute-objective workflow integration: <step name="dup_detect_check">, dup-detect --mode execute, 4-option AskUserQuestion Merge/Defer/Coordinate/Proceed, silent no-match log, early-exit on Merge/Defer)
+**Status:** Objective 4 in flight — 5/6 TRDs done
 
 ## Branch State (post-merge)
 
@@ -126,6 +126,9 @@
 - **'Proceed' label for AskUserQuestion (TRD 04-04)** — AskUserQuestion option labels have ≤12-char constraint. "Proceed-anyway" (14 chars) → "Proceed" label; dispatch case maps Proceed → proceed-anyway resolution string. Documented in mapping table in the workflow step.
 - **Advisory entries JSONL-only in v1.1 (TRD 04-04)** — Tightening from CONTEXT.md decision #6: only blocking matches write Coordination Notes to CONTEXT.md; advisory-only runs log to JSONL and display inline without persistence. Reduces CONTEXT.md noise.
 - **--gaps flag skips dup-detect (TRD 04-04)** — Gap-closure mode operates on already-shipped plans; dup-detect irrelevant. Skip step 6.5 entirely when --gaps is set.
+- **TRD 04-05 complete (2026-05-05)** — `plugins/devflow/devflow/workflows/execute-objective.md` updated: new `<step name="dup_detect_check">` inserted between validate_objective and discover_and_group_plans. Runs df-tools dup-detect --mode execute; friction-minimal (silent JSONL log on no-match); blocking match → AskUserQuestion 4-option (Merge/Defer/Coordinate/Proceed); dispatches via df-tools dup-detect resolve; Merge/Defer exit cleanly before executor agents spawn; Coordinate/Proceed-anyway continue to discover_and_group_plans; --gaps-only flag skips dup-detect. 958/958 tests pass (no regressions). Commit: ecfdf48 (feat:). SC-7 + SC-8 workflow side complete. Wave 4 TRD 04-05 complete.
+- **execute-time dup-detect friction-minimal (TRD 04-05)** — Per CONTEXT.md decision #5: no advisory display, no inline notes on no-match; only blocking matches trigger AskUserQuestion. Advisory filtered upstream by detectDuplicates(mode='execute').
+- **--gaps-only skips dup-detect at execute-time (TRD 04-05)** — Gap closure plans are reactive to verification failures; they don't introduce new coordination concerns. Dup-detect step short-circuits when --gaps-only is set.
 
 ## Blockers / Concerns
 
@@ -133,7 +136,7 @@
 
 ## Session Continuity
 
-Last session: 2026-05-05 — TRD 04-04 (plan-objective workflow integration) complete. 958 tests pass (0 fail, 20 skip).
+Last session: 2026-05-05 — TRD 04-05 (execute-objective workflow integration) complete. 958 tests pass (0 fail, 20 skip). Wave 4 complete (both 04-04 + 04-05 done).
 Resume file: `.planning/SESSION_PICKUP.md`
-Stopped at: Completed 04-04-plan-skill-integration-TRD.md
-Next: TRD 04-05 (execute-objective skill integration, parallel Wave 4) + TRD 04-06 (library export lock + e2e integration, Wave 5)
+Stopped at: Completed 04-05-execute-skill-integration-TRD.md
+Next: TRD 04-06 (library export lock + e2e integration, Wave 5)
