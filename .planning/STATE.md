@@ -14,7 +14,7 @@
 **Objective complete:** 1 — GitHub coordination layer (verified 2026-05-04, 563/563 tests, all 6 TRDs done, SC-9 + SC-10 met)
 **Objective complete:** 2 — Cross-repo awareness layer (verified 2026-05-04, 731/731 tests with integration flags, all 10 SC met, 7 TRDs done)
 **Objective in flight:** 3 — Planning-time org awareness (in progress)
-**Current TRD:** 03-02 complete (eden-libs reuse scanner + lexical match heuristic)
+**Current TRD:** 03-03 complete (scanOrgOverlap + misfiling detection + graceful auth degradation)
 **Status:** Executing objective 3
 
 ## Branch State (post-merge)
@@ -99,6 +99,9 @@
 - **TRD 03-02 complete (2026-05-05)** — `lib/org-awareness.cjs` extended with TRD 03-02 region: scanLibs + _camelSplit + _parseExports + _resolveEdenLibsPath + _entrypointsFromPackageJson. CLI scan-libs replaces stub. buildEdenLibsTree fixture added. CLI5 test updated from stub-exit to real JSON assertion. 35 new tests (Groups CS/PE/RP/L/CLI2/F2); 805/805 tests pass (790 pass, 0 fail, 15 skip). Commits: c6dfdb9 (test:), 4303bec (feat:). SC-3 + SC-4 complete.
 - **_parseExports regex patterns locked (TRD 03-02)** — 5 patterns: `module.exports.foo=...`, `exports.foo=...`, `module.exports = {...}` object literal, ESM `export function/const/let/var/class foo`, ESM `export { foo, bar }`. Default exports skipped via negative lookahead `(?!default\s+)`. Best-effort: comments not stripped (PE10 accepted behavior).
 - **CLI5 stub test updated (TRD 03-02 deviation)** — TRD 03-01 wrote CLI5 asserting exit-1 stub; TRD 03-02 replaces stub with real implementation (exit 0 + JSON). CLI5 updated to assert real behavior. Rule 1 auto-fix; no scope creep.
+- **TRD 03-03 complete (2026-05-05)** — `lib/org-awareness.cjs` extended with TRD 03-03 region: scanOrgOverlap + _scoreOrgItem + _detectMisfiling + _extractRepoFromRef. CRITICAL auth inversion: GhAuthError caught at scanOrgOverlap level (returns skipped:true + remediation warning); non-auth errors re-thrown. resolveChain failure during misfiling check independently caught. CLI scan-org-overlap replaces stub; exits 0 regardless of auth state. buildOrgOverlapFixture added. 25 new tests (Groups SOI/MF/OO/AD/CLI3); 813 tests pass. Commits: cf65e28 (test:), 20e5786 (feat:). SC-5 + SC-6 complete.
+- **GhAuthError graceful degradation locked (TRD 03-03)** — scanOrgOverlap catches GhAuthError from aw.scanOrg(); returns { items:[], warnings:[...remediation...], skipped:true, misfiling:null }. Inverts obj 1/obj 2 hard-fail per CONTEXT.md locked decision #8. Non-auth errors re-thrown.
+- **Misfiling detection advisory-only locked (TRD 03-03)** — _detectMisfiling returns { current_repo, resolved_repo, message } or null. No AskUserQuestion, no hard fail, no checkpoint. Null when github_repo absent (no false positives on legacy projects).
 
 ## Blockers / Concerns
 
@@ -106,7 +109,7 @@
 
 ## Session Continuity
 
-Last session: 2026-05-05 — TRD 03-02 (eden-libs reuse scanner) complete. 805/790/0 tests pass.
+Last session: 2026-05-05 — TRD 03-03 (scanOrgOverlap + misfiling detection + auth degradation) complete. 813 tests pass (0 fail, 15 skip).
 Resume file: `.planning/SESSION_PICKUP.md`
-Stopped at: Completed 03-02-eden-libs-scanner-TRD.md
-Next: TRD 03-03 (org-overlap and misfiling detection)
+Stopped at: Completed 03-03-org-overlap-and-misfiling-TRD.md
+Next: TRD 03-04 (formatConsiderations markdown renderer)
