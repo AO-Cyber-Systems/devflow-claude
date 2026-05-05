@@ -1,0 +1,131 @@
+'use strict';
+
+/**
+ * CLI subcommand router for `df-tools initiatives <subcommand>`.
+ *
+ * TRD 05-01: list + show wired; sync stub returns exit-1 with "filled by TRD 05-02".
+ * TRD 05-02: replaces sync stub with real implementation.
+ * TRD 05-03: adds --force flag handling to sync.
+ */
+
+const init = require('./initiatives.cjs');
+const { output } = require('./helpers.cjs');
+
+function _parseFlags(args) {
+  const flags = {};
+  const positional = [];
+  let i = 0;
+  while (i < args.length) {
+    const a = args[i];
+    if (a === '--home' || a === '--initiative' || a === '--project-id') {
+      flags[a.slice(2)] = args[i + 1];
+      i += 2;
+    } else if (a === '--raw' || a === '--force') {
+      flags[a.slice(2)] = true;
+      i++;
+    } else if (a.startsWith('--')) {
+      flags[a.slice(2)] = true;
+      i++;
+    } else {
+      positional.push(a);
+      i++;
+    }
+  }
+  return { flags, positional };
+}
+
+function cmdInitiativesList(cwd, args) {
+  const { flags } = _parseFlags(args);
+  const home = flags.home || init.defaultInitiativesHome();
+  const initiatives = init.loadInitiatives({ home });
+  const summary = initiatives.map(i => ({
+    slug: i.slug,
+    github_issue: i.github_issue,
+    key_repos: i.key_repos,
+    updated_at: i.updated_at,
+  }));
+  output(summary, flags.raw, JSON.stringify(summary, null, 2));
+}
+
+function cmdInitiativesShow(cwd, args) {
+  const { flags, positional } = _parseFlags(args);
+  const slug = positional[0];
+  if (!slug) {
+    process.stderr.write(JSON.stringify({ error: 'Usage: initiatives show <slug>' }) + '\n');
+    process.exit(1);
+    return;
+  }
+  const home = flags.home || init.defaultInitiativesHome();
+  const initiatives = init.loadInitiatives({ home });
+  const found = initiatives.find(i => i.slug === slug);
+  if (!found) {
+    process.stderr.write(JSON.stringify({
+      error: `initiative not found: ${slug}`,
+      available: initiatives.map(i => i.slug),
+    }) + '\n');
+    process.exit(1);
+    return;
+  }
+  if (flags.raw) {
+    process.stdout.write(JSON.stringify(found, null, 2));
+    process.exit(0);
+    return;
+  }
+  // Human-readable: re-render from parsed data
+  const lines = [];
+  lines.push(`# ${found.slug}`);
+  lines.push(`Tracks: ${found.github_issue}`);
+  lines.push(`Key repos: ${(found.key_repos || []).join(', ')}`);
+  lines.push('');
+  if (found.why) { lines.push('## Why'); lines.push(''); lines.push(found.why); lines.push(''); }
+  if (found.open_questions && found.open_questions.length > 0) {
+    lines.push('## Open Questions');
+    lines.push('');
+    for (const q of found.open_questions) lines.push(`- ${q}`);
+    lines.push('');
+  }
+  if (found.sub_issues && found.sub_issues.length > 0) {
+    lines.push('## Linked Sub-issues');
+    lines.push('');
+    for (const si of found.sub_issues) lines.push(`- ${si.ref} — ${si.title} (${si.state})`);
+    lines.push('');
+  }
+  process.stdout.write(lines.join('\n') + '\n');
+  process.exit(0);
+}
+
+function cmdInitiativesSync(cwd, args) {
+  // TRD 05-01 stub — replaced by TRD 05-02
+  process.stderr.write(JSON.stringify({
+    error: 'not yet implemented (TRD 05-02)',
+  }, null, 2) + '\n');
+  process.exit(1);
+}
+
+function cmdInitiativesRoute(cwd, args) {
+  const sub = args[0];
+  if (!sub) {
+    process.stderr.write(JSON.stringify({
+      error: 'Usage: initiatives <sync|list|show>',
+    }, null, 2) + '\n');
+    process.exit(1);
+    return;
+  }
+  switch (sub) {
+    case 'list': return cmdInitiativesList(cwd, args.slice(1));
+    case 'show': return cmdInitiativesShow(cwd, args.slice(1));
+    case 'sync': return cmdInitiativesSync(cwd, args.slice(1));
+    default:
+      process.stderr.write(JSON.stringify({
+        error: `Unknown initiatives subcommand: ${sub}. Available: sync, list, show`,
+      }, null, 2) + '\n');
+      process.exit(1);
+  }
+}
+
+module.exports = {
+  cmdInitiativesRoute,
+  cmdInitiativesList,
+  cmdInitiativesShow,
+  cmdInitiativesSync,
+};

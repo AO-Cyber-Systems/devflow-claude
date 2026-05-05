@@ -177,6 +177,7 @@ const {
 const { cmdAwarenessRoute } = require('./lib/awareness-cli.cjs');
 const { cmdOrgAwarenessRoute } = require('./lib/org-awareness-cli.cjs');
 const { cmdDupDetectRoute } = require('./lib/dup-detect-cli.cjs');
+const { cmdInitiativesRoute } = require('./lib/initiatives-cli.cjs');
 const {
   cmdGenerateSlug, cmdCurrentTimestamp, cmdListTodos, cmdVerifyPathExists,
   cmdHistoryDigest, cmdObjectiveJobIndex, cmdSummaryExtract, cmdWebsearch,
@@ -771,6 +772,11 @@ async function main() {
 
     case 'dup-detect': {
       cmdDupDetectRoute(cwd, args.slice(1), raw);
+      break;
+    }
+
+    case 'initiatives': {
+      cmdInitiativesRoute(cwd, args.slice(1));
       break;
     }
 

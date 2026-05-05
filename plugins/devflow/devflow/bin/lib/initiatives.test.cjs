@@ -494,7 +494,11 @@ test('T1: _truncateWhy returns input unchanged when <= MAX_WHY_CHARS', () => {
 });
 
 test('T2: _truncateWhy truncates at last paragraph break <= MAX_WHY_CHARS and appends ellipsis', () => {
-  const paragraph1 = 'First paragraph content.';
+  // Construct text where paragraph break falls at a good boundary:
+  // p1 = 800 chars (> 750, which is 50% of 1500), p2 starts at 802, p3 starts at 1204
+  // _truncateWhy slices at 1500, finds last \n\n before 1500 — the one at position 800
+  // Result should stop at end of p1 (not include p2 or p3)
+  const paragraph1 = 'A'.repeat(800);
   const paragraph2 = 'B'.repeat(200);
   const paragraph3 = 'C'.repeat(2000);
   const text = paragraph1 + '\n\n' + paragraph2 + '\n\n' + paragraph3;
@@ -503,8 +507,9 @@ test('T2: _truncateWhy truncates at last paragraph break <= MAX_WHY_CHARS and ap
   const result = init._truncateWhy(text);
   assert.ok(result.length <= init.MAX_WHY_CHARS + 10, `result too long: ${result.length}`);
   assert.ok(result.endsWith('…') || result.endsWith('\n\n…'), `should end with ellipsis; got: ${result.slice(-20)}`);
-  assert.ok(result.includes('First paragraph'), 'first paragraph preserved');
-  assert.ok(!result.includes('C'.repeat(100)), 'third paragraph not in output');
+  // The p1 content (800 A's) should be preserved, p3 (C's) should not appear
+  assert.ok(result.includes('A'), 'first paragraph content preserved');
+  assert.ok(!result.includes('C'), 'third paragraph content not in output');
 });
 
 test('T3: _truncateWhy falls back to hard truncation when no paragraph break exists', () => {
