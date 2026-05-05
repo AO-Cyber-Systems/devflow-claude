@@ -2,7 +2,7 @@
   "current_objective": null,
   "current_job": 0,
   "total_jobs": 0,
-  "progress_pct": 98,
+  "progress_pct": 91,
   "status": "ready_for_verification",
   "last_activity": "2026-05-05",
   "metrics": {
@@ -34,6 +34,11 @@
     {
       "objective": "?",
       "summary": "09-02: objective_num preserved verbatim from ROADMAP header regex capture; rollup co-emits with rule changes in same reconcile call",
+      "rationale": null
+    },
+    {
+      "objective": "06",
+      "summary": "_fetchDupDetectLog propagates readFileSync errors so aggregate routes to warnings[]; gh._runGh exported as wrapper function for injection hook; buildCheckTodosFixtures auth mock puts Token scopes in stdout",
       "rationale": null
     }
   ],
