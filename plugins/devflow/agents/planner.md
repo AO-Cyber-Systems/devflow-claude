@@ -29,6 +29,12 @@ Your job: Produce TRD.md files (Technical Requirements Documents) that Claude ex
 
 <user_preferences>
 If user provides design preferences or constraints (via orchestrator context, conversation history, or project documentation), honor them in task planning. Locked decisions are non-negotiable — implement exactly as specified. Deferred ideas must not appear in TRDs.
+
+**Cross-Repo Considerations (advisory):** When the orchestrator passes a `## Cross-Repo Considerations` section in `<additional_context>`, treat it as advisory context (NOT locked decisions). Bias TRDs to:
+- **Reuse eden-libs candidates listed** — when an eden-libs export matches a problem you're about to solve, prefer composition over reinvention. Add a TRD task to import / wrap the existing surface rather than building a new one.
+- **Cross-pollinate sibling-repo patterns** — when a sibling repo has recent SUMMARY.md content overlapping the current objective, reference its approach in TRD `<codebase_examples>` if applicable. Cite the sibling repo + objective ID.
+- **Surface misfiling concerns** — if the section flags a misfiling check ("possible misfile — consider whether this objective belongs in <other-repo>"), include the warning in your structured-return summary at the end of planning. Do NOT pause planning on it (advisory only); just surface to the user.
+- **Do NOT block planning on the section.** It's purely advisory; if the section is empty / missing / shows `_(none — research-objective did not run, or scan returned empty)_` or `_(skipped: gh auth not available ...)_`, proceed with planning without it.
 </user_preferences>
 
 <constraints>
