@@ -398,6 +398,22 @@ fi
 if [[ -z "$CROSS_REPO" ]]; then
   CROSS_REPO="_(none — research-objective did not run, or scan returned empty)_"
 fi
+
+# Extract initiative context for current repo (TRD 05-04)
+# Plan-time read is file-only — never calls gh. df-tools initiatives format-for-planner
+# loads from ~/.claude/devflow/initiatives/, filters by PROJECT.md::github_repo,
+# returns formatted markdown bounded by MAX_FORMATTED_PLANNER_CHARS per initiative.
+PROJECT_GITHUB_REPO=""
+if [[ -f .planning/PROJECT.md ]]; then
+  PROJECT_GITHUB_REPO=$(awk '/^github_repo:/ { print $2; exit }' .planning/PROJECT.md | tr -d '"')
+fi
+INITIATIVES=""
+if [[ -n "$PROJECT_GITHUB_REPO" ]]; then
+  INITIATIVES=$(node ~/.claude/devflow/bin/df-tools.cjs initiatives format-for-planner --repo "$PROJECT_GITHUB_REPO" 2>/dev/null || echo "")
+fi
+if [[ -z "$INITIATIVES" ]]; then
+  INITIATIVES="_(none — initiatives not synced or no matches for this repo. Run /devflow:initiatives sync to refresh.)_"
+fi
 ```
 
 ## 9. Spawn planner Agent
@@ -452,6 +468,10 @@ If context exists below, it contains user decisions. Honor them exactly.
 **Cross-Repo Considerations (from CONTEXT.md, advisory):**
 
 {CROSS_REPO}
+
+**Active Initiatives (from ~/.claude/devflow/initiatives/, advisory):**
+
+{INITIATIVES}
 </additional_context>
 
 <downstream_consumer>

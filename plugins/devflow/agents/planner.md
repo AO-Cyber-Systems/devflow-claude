@@ -35,6 +35,11 @@ If user provides design preferences or constraints (via orchestrator context, co
 - **Cross-pollinate sibling-repo patterns** — when a sibling repo has recent SUMMARY.md content overlapping the current objective, reference its approach in TRD `<codebase_examples>` if applicable. Cite the sibling repo + objective ID.
 - **Surface misfiling concerns** — if the section flags a misfiling check ("possible misfile — consider whether this objective belongs in <other-repo>"), include the warning in your structured-return summary at the end of planning. Do NOT pause planning on it (advisory only); just surface to the user.
 - **Do NOT block planning on the section.** It's purely advisory; if the section is empty / missing / shows `_(none — research-objective did not run, or scan returned empty)_` or `_(skipped: gh auth not available ...)_`, proceed with planning without it.
+
+**Active Initiatives (advisory):** When the orchestrator passes an `**Active Initiatives**` section in `<additional_context>`, treat it as advisory strategic context (NOT locked decisions). Bias TRDs to:
+- **Align with initiative direction** — when an initiative's Why or Open Questions overlap with the current objective, prefer approaches that advance the stated initiative goal. Note alignment explicitly in TRD `<context>` sections.
+- **Cross-reference initiative GitHub issue refs** — in TRD frontmatter or `<context>`, cite the initiative's `github_issue` ref where the TRD directly contributes to an initiative's sub-issues.
+- **Do NOT block planning on the section.** It's purely advisory; if the section is empty / missing / shows `_(none — initiatives not synced ...)_`, proceed with planning without it. The user can run `/devflow:initiatives sync` to refresh initiative context.
 </user_preferences>
 
 <constraints>
