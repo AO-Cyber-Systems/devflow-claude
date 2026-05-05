@@ -362,6 +362,89 @@ function buildGhResponse_commentPatch({ commentId = 12345678 } = {}) {
   };
 }
 
+// ─── TRD 02-03: walkProject + scanOrg fixtures ───────────────────────────────
+
+/**
+ * Canned GraphQL response for `gh api graphql` walking a Project's items.
+ * `items` is an array of:
+ *   { content_type: 'Issue'|'DraftIssue', issue_ref?, title, body, status, product, quarter,
+ *     tracked_total?, tracked_nodes? }
+ * `hasNextPage` defaults to false; `endCursor` defaults to null.
+ */
+function buildGhResponse_projectItemsList({
+  items = [],
+  hasNextPage = false,
+  endCursor = null,
+} = {}) {
+  const nodes = items.map(item => {
+    const content = item.content_type === 'DraftIssue' ? {
+      __typename: 'DraftIssue',
+      title: item.title || 'Draft',
+      body: item.body || '',
+    } : (() => {
+      const m = (item.issue_ref || '').match(/^([^/]+)\/([^#]+)#(\d+)$/);
+      return {
+        __typename: 'Issue',
+        number: m ? parseInt(m[3], 10) : null,
+        title: item.title || 'Issue',
+        body: item.body || '',
+        repository: m ? { nameWithOwner: `${m[1]}/${m[2]}` } : null,
+        trackedIssues: {
+          totalCount: (item.tracked_total != null) ? item.tracked_total : 0,
+          nodes: item.tracked_nodes || [],
+        },
+      };
+    })();
+    const fieldValues = { nodes: [] };
+    if (item.status) fieldValues.nodes.push({ name: item.status, field: { name: 'Status' } });
+    if (item.product) fieldValues.nodes.push({ name: item.product, field: { name: 'Product' } });
+    if (item.quarter) fieldValues.nodes.push({ name: item.quarter, field: { name: 'Quarter' } });
+    return { content, fieldValues };
+  });
+
+  return {
+    ok: true, status: 0,
+    stdout: JSON.stringify({
+      data: { node: { items: { pageInfo: { hasNextPage, endCursor }, nodes } } },
+    }),
+    stderr: '',
+  };
+}
+
+/**
+ * Helper: build a trackedIssues node array for use in items[].tracked_nodes.
+ * Each entry shapes as { number, title, state, repository: { nameWithOwner } }.
+ * subIssues: [{ ref: 'owner/repo#NN', title, state }]
+ */
+function buildGhResponse_subIssuesByTrackedIssues({ subIssues = [] } = {}) {
+  return subIssues.map(s => {
+    const m = s.ref.match(/^([^/]+)\/([^#]+)#(\d+)$/);
+    return {
+      number: m ? parseInt(m[3], 10) : 0,
+      title: s.title || 'Sub-issue',
+      state: s.state || 'OPEN',
+      repository: m ? { nameWithOwner: `${m[1]}/${m[2]}` } : null,
+    };
+  });
+}
+
+/**
+ * Helper: build an Issue body string with task-list bullet items for fallback parsing.
+ * `entries`: [{ ref, title?, checked? }]
+ *   ref: 'AO-Cyber-Systems/aodex#101' or '#50'
+ *   title: optional; rendered as `- [ ] <ref> — <title>`
+ *   checked: bool, default false
+ */
+function buildGhResponse_subIssuesByTaskList({ entries = [], header = '## Deliverables\n\n' } = {}) {
+  const lines = [header];
+  for (const e of entries) {
+    const mark = e.checked ? 'x' : ' ';
+    const titlePart = e.title ? ` — ${e.title}` : '';
+    lines.push(`- [${mark}] ${e.ref}${titlePart}`);
+  }
+  return lines.join('\n');
+}
+
 module.exports = {
   buildFrontmatter,
   buildProjectCtx,
@@ -378,4 +461,8 @@ module.exports = {
   buildGhResponse_commentCreated,
   buildGhResponse_issueEdit,
   buildGhResponse_commentPatch,
+  // TRD 02-03:
+  buildGhResponse_projectItemsList,
+  buildGhResponse_subIssuesByTrackedIssues,
+  buildGhResponse_subIssuesByTaskList,
 };

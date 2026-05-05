@@ -8,6 +8,14 @@
             "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/sync-runtime.js"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/awareness-cache-populate.js"
+          }
+        ]
       }
     ],
     "Stop": [
