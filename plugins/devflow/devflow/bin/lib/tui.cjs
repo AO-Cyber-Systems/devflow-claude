@@ -274,14 +274,32 @@ function _resetMocks() {
   _runStdout = (s) => process.stdout.write(s);
 }
 
-// ─── 08-01: Exports (surface locked in TRD 08-03) ────────────────────────────
+// ─── module.exports — LOCKED by TRD 08-03 (7-entry surface; SC-9) ─────────────
+//
+// This block is the AUTHORITATIVE export surface for lib/tui.cjs.
+// Asserted by EX1 test in tui.test.cjs: Object.keys(module.exports).sort() deepStrictEqual.
+// DO NOT add or remove entries without updating EX1 + 08-CONTEXT.md §5 "Module surface".
+//
+// Surface recount:
+//   1 public renderer (render)
+//   3 sub-renderers (_renderOrgPanel, _renderPeerPanel, _renderInitiativesPanel)
+//   1 layout helper (_layoutPanels)
+//   2 test hooks (_setRunStdout, _resetMocks)
+//   Total = 7
 
 module.exports = {
+  // Public renderer (TRD 08-01):
   render,
+
+  // Sub-renderers (TRD 08-01):
   _renderOrgPanel,
   _renderPeerPanel,
   _renderInitiativesPanel,
+
+  // Layout helper (TRD 08-01):
   _layoutPanels,
+
+  // Test hooks (TRD 08-01):
   _setRunStdout,
   _resetMocks,
 };
