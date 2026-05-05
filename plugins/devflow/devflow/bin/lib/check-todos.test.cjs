@@ -9,6 +9,12 @@
 // Group I — _fetchInitiativeQuestions: I1-I6
 // Group D — _fetchDupDetectLog: D1-D5
 // Group AS — _assignLane (deterministic enumeration): AS1-AS17
+//
+// ## Test list — TRD 06-02 cache layer
+//
+// Group C — readCheckTodosCache / writeCheckTodosCache: C1-C8
+// Group SC — isCheckTodosCacheStale: SC1-SC8
+// Group AC — aggregate cache integration: AC1-AC8
 
 const { describe, it, afterEach, before } = require('node:test');
 const assert = require('node:assert/strict');
@@ -828,5 +834,408 @@ describe('check-todos: Group AS — _assignLane (deterministic enumeration)', ()
       ct._assignLane({ source: 'gh', assigned: true, mentioned: true, review_requested: false, labels: ['priority:high'] }, 'mark', null),
       'now',
     );
+  });
+});
+
+// ─── Group C — Cache primitives ───────────────────────────────────────────────
+
+describe('check-todos: Group C — readCheckTodosCache / writeCheckTodosCache', () => {
+  const fs = require('fs');
+  const os = require('os');
+
+  afterEach(() => {
+    ct._resetMocks();
+  });
+
+  it('C1: readCheckTodosCache returns null when cache file is missing', () => {
+    const fixture = buildCheckTodosFixtures();
+    // No cache file written — readCheckTodosCache should return null
+    const result = ct.readCheckTodosCache(fixture.projectRoot);
+    assert.strictEqual(result, null);
+    fixture.cleanup();
+  });
+
+  it('C2: readCheckTodosCache returns null when cache file is empty', () => {
+    const fixture = buildCheckTodosFixtures();
+    const cachePath = path.join(fixture.projectRoot, ct.CHECK_TODOS_CACHE_REL);
+    fs.mkdirSync(path.dirname(cachePath), { recursive: true });
+    fs.writeFileSync(cachePath, '', 'utf-8');
+    const result = ct.readCheckTodosCache(fixture.projectRoot);
+    assert.strictEqual(result, null);
+    fixture.cleanup();
+  });
+
+  it('C3: readCheckTodosCache returns null when cache file contains malformed JSON', () => {
+    const fixture = buildCheckTodosFixtures();
+    const cachePath = path.join(fixture.projectRoot, ct.CHECK_TODOS_CACHE_REL);
+    fs.mkdirSync(path.dirname(cachePath), { recursive: true });
+    fs.writeFileSync(cachePath, 'NOT VALID JSON {{{', 'utf-8');
+    const result = ct.readCheckTodosCache(fixture.projectRoot);
+    assert.strictEqual(result, null);
+    fixture.cleanup();
+  });
+
+  it('C4: readCheckTodosCache returns parsed object when cache file is valid JSON', () => {
+    const fixture = buildCheckTodosFixtures();
+    const cachePath = path.join(fixture.projectRoot, ct.CHECK_TODOS_CACHE_REL);
+    fs.mkdirSync(path.dirname(cachePath), { recursive: true });
+    const expected = { gh_issues: { data: [], fetched_at: '2026-05-04T10:00:00Z' } };
+    fs.writeFileSync(cachePath, JSON.stringify(expected, null, 2) + '\n', 'utf-8');
+    const result = ct.readCheckTodosCache(fixture.projectRoot);
+    assert.deepStrictEqual(result, expected);
+    fixture.cleanup();
+  });
+
+  it('C5: writeCheckTodosCache creates cache file with provided section', () => {
+    const fixture = buildCheckTodosFixtures();
+    const cachePath = path.join(fixture.projectRoot, ct.CHECK_TODOS_CACHE_REL);
+    const section = { gh_issues: { data: [{ ref: 'AO-Cyber-Systems/devflow#1' }], fetched_at: '2026-05-04T10:00:00Z' } };
+    ct.writeCheckTodosCache(fixture.projectRoot, section);
+    assert.ok(fs.existsSync(cachePath), 'cache file should exist after write');
+    const written = JSON.parse(fs.readFileSync(cachePath, 'utf-8'));
+    assert.deepStrictEqual(written.gh_issues.data, section.gh_issues.data);
+    fixture.cleanup();
+  });
+
+  it('C6: writeCheckTodosCache merges — writing one section preserves others', () => {
+    const fixture = buildCheckTodosFixtures();
+    const cachePath = path.join(fixture.projectRoot, ct.CHECK_TODOS_CACHE_REL);
+    fs.mkdirSync(path.dirname(cachePath), { recursive: true });
+    // Pre-write peer_sessions
+    const initial = { peer_sessions: { data: [{ branch: 'feature/old' }], fetched_at: '2026-05-04T09:00:00Z' } };
+    fs.writeFileSync(cachePath, JSON.stringify(initial, null, 2) + '\n', 'utf-8');
+    // Now write gh_issues — should NOT clobber peer_sessions
+    const newGh = { gh_issues: { data: [{ ref: 'AO-Cyber-Systems/devflow#5' }], fetched_at: '2026-05-04T10:00:00Z' } };
+    ct.writeCheckTodosCache(fixture.projectRoot, newGh);
+    const result = JSON.parse(fs.readFileSync(cachePath, 'utf-8'));
+    assert.ok(result.peer_sessions, 'peer_sessions should be preserved');
+    assert.deepStrictEqual(result.peer_sessions.data, initial.peer_sessions.data);
+    assert.ok(result.gh_issues, 'gh_issues should be present after merge');
+    assert.deepStrictEqual(result.gh_issues.data, newGh.gh_issues.data);
+    fixture.cleanup();
+  });
+
+  it('C7: writeCheckTodosCache lazy-creates .planning/ directory if missing', () => {
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-c7-'));
+    // Note: .planning dir is NOT created yet
+    ct.writeCheckTodosCache(tmpRoot, { local_todos: { data: [], fetched_at: new Date().toISOString() } });
+    const cachePath = path.join(tmpRoot, ct.CHECK_TODOS_CACHE_REL);
+    assert.ok(fs.existsSync(cachePath), 'cache file should exist after lazy-create');
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
+  });
+
+  it('C8: writeCheckTodosCache writes pretty-printed JSON (2-space indent + trailing newline)', () => {
+    const fixture = buildCheckTodosFixtures();
+    const cachePath = path.join(fixture.projectRoot, ct.CHECK_TODOS_CACHE_REL);
+    ct.writeCheckTodosCache(fixture.projectRoot, { local_todos: { data: [], fetched_at: '2026-05-04T10:00:00Z' } });
+    const raw = fs.readFileSync(cachePath, 'utf-8');
+    // Should end with newline
+    assert.ok(raw.endsWith('\n'), 'file should end with newline');
+    // Should be pretty-printed (2-space indent)
+    assert.ok(raw.includes('  "local_todos"'), 'should use 2-space indent');
+    fixture.cleanup();
+  });
+});
+
+// ─── Group SC — isCheckTodosCacheStale ───────────────────────────────────────
+
+describe('check-todos: Group SC — isCheckTodosCacheStale', () => {
+  it('SC1: null fetched_at → true (stale)', () => {
+    assert.strictEqual(ct.isCheckTodosCacheStale(null, 10), true);
+  });
+
+  it('SC1b: undefined fetched_at → true (stale)', () => {
+    assert.strictEqual(ct.isCheckTodosCacheStale(undefined, 10), true);
+  });
+
+  it('SC2: non-string fetched_at (number) → true', () => {
+    assert.strictEqual(ct.isCheckTodosCacheStale(Date.now(), 10), true);
+  });
+
+  it('SC2b: non-string fetched_at (object) → true', () => {
+    assert.strictEqual(ct.isCheckTodosCacheStale({ ts: 'foo' }, 10), true);
+  });
+
+  it('SC3: invalid date string → true', () => {
+    assert.strictEqual(ct.isCheckTodosCacheStale('not-a-date', 10), true);
+  });
+
+  it('SC4: ttl_minutes === 0 → true (always stale)', () => {
+    const freshTs = new Date().toISOString();
+    assert.strictEqual(ct.isCheckTodosCacheStale(freshTs, 0), true);
+  });
+
+  it('SC5: fresh timestamp (now - 1 minute, ttl 10) → false', () => {
+    const oneMinuteAgo = new Date(Date.now() - 60_000).toISOString();
+    assert.strictEqual(ct.isCheckTodosCacheStale(oneMinuteAgo, 10), false);
+  });
+
+  it('SC6: expired timestamp (now - 11 minutes, ttl 10) → true', () => {
+    const elevenMinutesAgo = new Date(Date.now() - 11 * 60_000).toISOString();
+    assert.strictEqual(ct.isCheckTodosCacheStale(elevenMinutesAgo, 10), true);
+  });
+
+  it('SC7: future timestamp (now + 1 hour) → false (clock-skew tolerance)', () => {
+    // Future timestamps are treated as "still fresh" — clock-skew tolerance
+    const oneHourFuture = new Date(Date.now() + 60 * 60_000).toISOString();
+    assert.strictEqual(ct.isCheckTodosCacheStale(oneHourFuture, 10), false);
+  });
+
+  it('SC8: default ttl_minutes uses CHECK_TODOS_TTL_MINUTES (10) when omitted', () => {
+    // Verify: timestamp at exactly 9 minutes ago → fresh (under 10-min default)
+    const nineMinutesAgo = new Date(Date.now() - 9 * 60_000).toISOString();
+    assert.strictEqual(ct.isCheckTodosCacheStale(nineMinutesAgo), false);
+    // And 11 minutes ago → stale
+    const elevenMinutesAgo = new Date(Date.now() - 11 * 60_000).toISOString();
+    assert.strictEqual(ct.isCheckTodosCacheStale(elevenMinutesAgo), true);
+  });
+});
+
+// ─── Group AC — Aggregate cache integration ───────────────────────────────────
+
+describe('check-todos: Group AC — aggregate cache integration', () => {
+  const fs = require('fs');
+
+  afterEach(() => {
+    ct._resetMocks();
+  });
+
+  it('AC1: aggregate with no cache file → all 5 sources fetched fresh, cached:false, cache file written', () => {
+    const fixture = buildCheckTodosFixtures({
+      localTodos: [{ title: 'Task A', area: 'dev', created: '2026-05-04' }],
+    });
+    ct._setRunGh(fixture.mockGh);
+    ct._setRunPeer(fixture.mockPeer);
+
+    const cachePath = path.join(fixture.projectRoot, ct.CHECK_TODOS_CACHE_REL);
+    assert.ok(!fs.existsSync(cachePath), 'cache should not exist before aggregate');
+
+    const result = ct.aggregate({ projectRoot: fixture.projectRoot });
+
+    assert.strictEqual(result.cached, false, 'cached should be false on first run');
+    assert.ok(fs.existsSync(cachePath), 'cache file should be written after aggregate');
+
+    const written = JSON.parse(fs.readFileSync(cachePath, 'utf-8'));
+    // At minimum local_todos should be written
+    assert.ok(written.local_todos, 'local_todos section should be in cache');
+    assert.ok(written.local_todos.fetched_at, 'local_todos.fetched_at should be set');
+    fixture.cleanup();
+  });
+
+  it('AC2: aggregate with all-fresh cache → all 5 from cache, cached:true, cache file UNCHANGED', () => {
+    const fixture = buildCheckTodosFixtures();
+    const cachePath = path.join(fixture.projectRoot, ct.CHECK_TODOS_CACHE_REL);
+    const freshTs = new Date().toISOString();
+    // Pre-write a fully-fresh cache with all 5 sections
+    const initialCache = {
+      local_todos: { data: [], fetched_at: freshTs },
+      gh_issues: { data: [], fetched_at: freshTs },
+      peer_sessions: { data: [], fetched_at: freshTs },
+      initiative_questions: { data: [], fetched_at: freshTs },
+      dup_detect_log: { data: [], fetched_at: freshTs },
+    };
+    fs.mkdirSync(path.dirname(cachePath), { recursive: true });
+    fs.writeFileSync(cachePath, JSON.stringify(initialCache, null, 2) + '\n', 'utf-8');
+    const mtimeBefore = fs.statSync(cachePath).mtimeMs;
+
+    ct._setRunGh(fixture.mockGh);
+    ct._setRunPeer(fixture.mockPeer);
+
+    const result = ct.aggregate({ projectRoot: fixture.projectRoot });
+
+    assert.strictEqual(result.cached, true, 'cached should be true when all 5 from cache');
+    // File should not have been rewritten (mtime unchanged or same content)
+    const written = JSON.parse(fs.readFileSync(cachePath, 'utf-8'));
+    assert.deepStrictEqual(written.local_todos.fetched_at, freshTs, 'fetched_at should be preserved (not overwritten)');
+    fixture.cleanup();
+  });
+
+  it('AC3: aggregate with stale gh_issues only → 4 from cache + 1 fresh fetch, cached:false, gh_issues rewritten', () => {
+    const fixture = buildCheckTodosFixtures();
+    const cachePath = path.join(fixture.projectRoot, ct.CHECK_TODOS_CACHE_REL);
+    const freshTs = new Date().toISOString();
+    const staleTs = new Date(Date.now() - 11 * 60_000).toISOString(); // 11 min ago — stale
+    // gh_issues is stale; other 4 are fresh
+    const initialCache = {
+      local_todos: { data: [], fetched_at: freshTs },
+      gh_issues: { data: [], fetched_at: staleTs },
+      peer_sessions: { data: [], fetched_at: freshTs },
+      initiative_questions: { data: [], fetched_at: freshTs },
+      dup_detect_log: { data: [], fetched_at: freshTs },
+    };
+    fs.mkdirSync(path.dirname(cachePath), { recursive: true });
+    fs.writeFileSync(cachePath, JSON.stringify(initialCache, null, 2) + '\n', 'utf-8');
+
+    ct._setRunGh(fixture.mockGh);
+    ct._setRunPeer(fixture.mockPeer);
+
+    const result = ct.aggregate({ projectRoot: fixture.projectRoot });
+
+    assert.strictEqual(result.cached, false, 'cached should be false when any source re-fetched');
+    // gh_issues section should be refreshed with new fetched_at
+    const written = JSON.parse(fs.readFileSync(cachePath, 'utf-8'));
+    assert.ok(written.gh_issues.fetched_at > staleTs, 'gh_issues.fetched_at should be updated to a newer timestamp');
+    // other sections should still have their original fetched_at (not re-fetched)
+    assert.strictEqual(written.local_todos.fetched_at, freshTs, 'local_todos.fetched_at should be unchanged');
+    fixture.cleanup();
+  });
+
+  it('AC4: aggregate with refresh:true and all-fresh cache → all 5 re-fetched, cached:false, cache rewritten', () => {
+    const fixture = buildCheckTodosFixtures();
+    const cachePath = path.join(fixture.projectRoot, ct.CHECK_TODOS_CACHE_REL);
+    const freshTs = new Date(Date.now() - 60_000).toISOString(); // 1 min ago — fresh
+    const initialCache = {
+      local_todos: { data: [], fetched_at: freshTs },
+      gh_issues: { data: [], fetched_at: freshTs },
+      peer_sessions: { data: [], fetched_at: freshTs },
+      initiative_questions: { data: [], fetched_at: freshTs },
+      dup_detect_log: { data: [], fetched_at: freshTs },
+    };
+    fs.mkdirSync(path.dirname(cachePath), { recursive: true });
+    fs.writeFileSync(cachePath, JSON.stringify(initialCache, null, 2) + '\n', 'utf-8');
+
+    ct._setRunGh(fixture.mockGh);
+    ct._setRunPeer(fixture.mockPeer);
+
+    const result = ct.aggregate({ projectRoot: fixture.projectRoot, refresh: true });
+
+    assert.strictEqual(result.cached, false, 'cached must be false when refresh:true');
+    // Cache should be rewritten with new timestamps
+    const written = JSON.parse(fs.readFileSync(cachePath, 'utf-8'));
+    // local_todos should have a NEW fetched_at (after the old one)
+    if (written.local_todos) {
+      assert.ok(written.local_todos.fetched_at >= freshTs, 'local_todos.fetched_at should be equal or newer');
+    }
+    fixture.cleanup();
+  });
+
+  it('AC5: aggregate with cache where 1 source has missing data → that source re-fetched', () => {
+    const fixture = buildCheckTodosFixtures();
+    const cachePath = path.join(fixture.projectRoot, ct.CHECK_TODOS_CACHE_REL);
+    const freshTs = new Date().toISOString();
+    // gh_issues exists as key but data: null (missing/malformed data) — should trigger re-fetch
+    const initialCache = {
+      local_todos: { data: [], fetched_at: freshTs },
+      gh_issues: null,  // null section → treated as missing → re-fetch
+      peer_sessions: { data: [], fetched_at: freshTs },
+      initiative_questions: { data: [], fetched_at: freshTs },
+      dup_detect_log: { data: [], fetched_at: freshTs },
+    };
+    fs.mkdirSync(path.dirname(cachePath), { recursive: true });
+    fs.writeFileSync(cachePath, JSON.stringify(initialCache, null, 2) + '\n', 'utf-8');
+
+    ct._setRunGh(fixture.mockGh);
+    ct._setRunPeer(fixture.mockPeer);
+
+    const result = ct.aggregate({ projectRoot: fixture.projectRoot });
+
+    // Should not be fully cached since gh_issues was re-fetched
+    assert.strictEqual(result.cached, false, 'cached should be false when gh_issues missing from cache');
+    fixture.cleanup();
+  });
+
+  it('AC6: aggregate with corrupt cache file → readCheckTodosCache returns null → all 5 re-fetched', () => {
+    const fixture = buildCheckTodosFixtures();
+    const cachePath = path.join(fixture.projectRoot, ct.CHECK_TODOS_CACHE_REL);
+    // Write corrupt JSON
+    fs.mkdirSync(path.dirname(cachePath), { recursive: true });
+    fs.writeFileSync(cachePath, 'CORRUPT JSON {{{', 'utf-8');
+
+    ct._setRunGh(fixture.mockGh);
+    ct._setRunPeer(fixture.mockPeer);
+
+    const result = ct.aggregate({ projectRoot: fixture.projectRoot });
+
+    // Should succeed without error (Iron Law)
+    assert.ok(Array.isArray(result.blocked));
+    assert.ok(Array.isArray(result.warnings));
+    assert.strictEqual(result.cached, false, 'cached should be false when cache is corrupt');
+    fixture.cleanup();
+  });
+
+  it('AC7: aggregate with cache write failure → emits cache_write_error warning + continues with data', () => {
+    const fixture = buildCheckTodosFixtures({
+      localTodos: [{ title: 'Local task', area: 'dev', created: '2026-05-04' }],
+    });
+
+    let writeFileCallCount = 0;
+    // Mock _runFs: reads work normally, writeFileSync throws permission denied
+    ct._setRunFs({
+      existsSync: (p) => {
+        const realFsNode = require('fs');
+        return realFsNode.existsSync(p);
+      },
+      readFileSync: (p, enc) => {
+        const realFsNode = require('fs');
+        return realFsNode.readFileSync(p, enc);
+      },
+      readdirSync: (p, opts) => {
+        const realFsNode = require('fs');
+        return realFsNode.readdirSync(p, opts);
+      },
+      statSync: (p) => {
+        const realFsNode = require('fs');
+        return realFsNode.statSync(p);
+      },
+      writeFileSync: (p, data, enc) => {
+        writeFileCallCount++;
+        throw new Error('EACCES: permission denied, open \'' + p + '\'');
+      },
+      mkdirSync: (p, opts) => {
+        const realFsNode = require('fs');
+        return realFsNode.mkdirSync(p, opts);
+      },
+    });
+    ct._setRunGh(fixture.mockGh);
+    ct._setRunPeer(fixture.mockPeer);
+
+    const result = ct.aggregate({ projectRoot: fixture.projectRoot });
+
+    // Should have emitted a cache_write_error warning
+    const writeWarn = result.warnings.find(w => w.kind === 'cache_write_error');
+    assert.ok(writeWarn, 'cache_write_error warning should be present');
+    // Despite the error, aggregate should return valid data
+    assert.ok(Array.isArray(result.blocked));
+    assert.ok(Array.isArray(result.now));
+    assert.ok(Array.isArray(result.ideas));
+    fixture.cleanup();
+  });
+
+  it('AC8: GhAuthError path — gh re-fetch fails with auth error, other 4 sources still cached/fetched normally', () => {
+    const fixture = buildCheckTodosFixtures();
+    const cachePath = path.join(fixture.projectRoot, ct.CHECK_TODOS_CACHE_REL);
+    const freshTs = new Date().toISOString();
+    const staleTs = new Date(Date.now() - 11 * 60_000).toISOString();
+    // gh_issues is stale → will try to re-fetch → auth error
+    const initialCache = {
+      local_todos: { data: [], fetched_at: freshTs },
+      gh_issues: { data: [], fetched_at: staleTs },
+      peer_sessions: { data: [], fetched_at: freshTs },
+      initiative_questions: { data: [], fetched_at: freshTs },
+      dup_detect_log: { data: [], fetched_at: freshTs },
+    };
+    fs.mkdirSync(path.dirname(cachePath), { recursive: true });
+    fs.writeFileSync(cachePath, JSON.stringify(initialCache, null, 2) + '\n', 'utf-8');
+
+    // Mock gh to fail auth
+    ct._setRunGh((args) => {
+      if (args[0] === 'auth' && args[1] === 'status') {
+        return { ok: false, status: 1, stdout: '', stderr: 'You are not logged into any GitHub hosts.' };
+      }
+      return { ok: false, status: 1, stdout: '', stderr: '' };
+    });
+    ct._setRunPeer(fixture.mockPeer);
+
+    const result = ct.aggregate({ projectRoot: fixture.projectRoot });
+
+    // Should have a gh_auth_failure warning
+    const ghWarn = result.warnings.find(w => w.source === 'gh' && w.kind === 'gh_auth_failure');
+    assert.ok(ghWarn, 'gh_auth_failure warning expected');
+    // cached should be false (gh was stale/re-fetch-attempted)
+    assert.strictEqual(result.cached, false);
+    // Other sources: local, peer, initiative, dup-detect came from cache → no new errors
+    const nonGhWarns = result.warnings.filter(w => w.source !== 'gh');
+    assert.strictEqual(nonGhWarns.length, 0, 'no warnings from non-gh sources expected');
+    fixture.cleanup();
   });
 });
