@@ -25,12 +25,20 @@ function cmdOrgAwarenessScanSiblings(cwd, args, raw) {
   output(result, raw);
 }
 
-// ─── Stubs for future TRDs ────────────────────────────────────────────────────
+// ─── cmdOrgAwarenessScanLibs ──────────────────────────────────────────────────
 
 function cmdOrgAwarenessScanLibs(cwd, args, raw) {
-  // TRD 03-02 fills this in
-  process.stderr.write('scan-libs not yet implemented (TRD 03-02)\n');
-  process.exit(1);
+  const objective_id = args[0];
+  if (!objective_id) {
+    process.stderr.write('Usage: df-tools org-awareness scan-libs <objective_id> [--raw]\n');
+    process.exit(1);
+    return;
+  }
+  // Tokenize objective_id as best-effort current_tokens
+  // (richer extraction from OBJECTIVE.md frontmatter lands in TRD 03-04+)
+  const current_tokens = oa._tokenize ? oa._tokenize(objective_id) : new Set();
+  const result = oa.scanLibs({ current_tokens, cwd });
+  output(result, raw);
 }
 
 function cmdOrgAwarenessScanOrgOverlap(cwd, args, raw) {

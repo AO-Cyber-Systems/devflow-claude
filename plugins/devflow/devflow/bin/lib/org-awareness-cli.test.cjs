@@ -52,12 +52,15 @@ test('CLI4 — --help prints help to stderr + exit 0', () => {
   assert.match(r.stderr, /scan-siblings|Usage/i, `expected help text in stderr, got: ${r.stderr}`);
 });
 
-test('CLI5 — scan-libs returns placeholder error with exit 1 (TRD 03-02 stub)', () => {
-  const r = spawnSync('node', [dfTools, 'org-awareness', 'scan-libs', '03'], {
+test('CLI5 — scan-libs with objective_id returns parseable JSON with exit 0 (TRD 03-02)', () => {
+  const r = spawnSync('node', [dfTools, 'org-awareness', 'scan-libs', '03', '--raw'], {
     encoding: 'utf-8',
-    timeout: 5000,
+    cwd: path.resolve(__dirname, '..', '..', '..', '..', '..', '..'),
+    timeout: 10000,
   });
-  assert.strictEqual(r.status, 1, `expected exit 1 for unimplemented command, got ${r.status}`);
-  assert.match(r.stderr, /not yet implemented|TRD 03-02/i,
-    `expected not-implemented message in stderr, got: ${r.stderr}`);
+  assert.strictEqual(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+  let parsed;
+  assert.doesNotThrow(() => { parsed = JSON.parse(r.stdout); }, `stdout should be valid JSON, got: ${r.stdout}`);
+  assert.ok('candidates' in parsed, 'result should have candidates field');
+  assert.ok('scanned' in parsed, 'result should have scanned field');
 });

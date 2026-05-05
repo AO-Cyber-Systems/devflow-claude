@@ -442,18 +442,304 @@ function scanSiblings({ objective_id, cwd = process.cwd(), config_paths = null }
   return out;
 }
 
-// ─── TRD 03-01: Partial exports ───────────────────────────────────────────────
+// ─── TRD 03-02: scanLibs (eden-libs reuse scanner) ────────────────────────────
+
+/**
+ * Split a camelCase or PascalCase identifier into its component parts.
+ *
+ * 'parseStateMd' → ['parse', 'State', 'Md']
+ * 'GH' → ['GH']
+ * '' → []
+ *
+ * Downstream callers pass each part to _tokenize for lowercase + stop-word + length filter.
+ *
+ * @param {string} name
+ * @returns {string[]}
+ */
+function _camelSplit(name) {
+  if (!name || typeof name !== 'string') return [];
+  return name.replace(/([A-Z]+)/g, ' $1').trim().split(/\s+/).filter(Boolean);
+}
+
+/**
+ * Extract exported symbol names from source text using regex-based parsing.
+ *
+ * Handles:
+ *   - CommonJS: module.exports.foo = ...
+ *   - CommonJS: exports.bar = ...
+ *   - CommonJS object literal: module.exports = { a, b: x, c };
+ *   - ES Modules: export function foo() / export const bar / export class Baz
+ *   - ES Modules: export { foo, bar }
+ *
+ * Skips export default (no useful symbol name for lexical matching).
+ * Best-effort — does not strip comments (PE10: accepted behavior).
+ *
+ * @param {string} source
+ * @returns {string[]}
+ */
+function _parseExports(source) {
+  if (!source || typeof source !== 'string') return [];
+  const names = new Set();
+
+  let m;
+
+  // CommonJS: module.exports.foo = ... OR exports.foo = ...
+  // Use the full prefix match to avoid double-matching module.exports.foo
+  const reCjsAssignModule = /module\.exports\.(\w+)\s*=/g;
+  while ((m = reCjsAssignModule.exec(source)) !== null) {
+    names.add(m[1]);
+  }
+  const reCjsAssignExports = /(?:^|[\s;])exports\.(\w+)\s*=/gm;
+  while ((m = reCjsAssignExports.exec(source)) !== null) {
+    names.add(m[1]);
+  }
+
+  // CommonJS object literal: module.exports = { a, b: x, c };
+  // Match only the FIRST occurrence; tolerant of newlines inside braces.
+  const reCjsObj = /module\.exports\s*=\s*\{([\s\S]*?)\}\s*;?/;
+  m = source.match(reCjsObj);
+  if (m) {
+    const inside = m[1];
+    // Split on commas — this is good-enough for flat export objects
+    const parts = inside.split(/,(?![^{[]*[}\]])/);
+    for (const p of parts) {
+      const trimmed = p.trim();
+      if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('...')) continue;
+      const km = trimmed.match(/^([A-Za-z_$][A-Za-z0-9_$]*)/);
+      if (km) names.add(km[1]);
+    }
+  }
+
+  // ES Modules: export function foo() / export const bar / export class Baz / export let / export var
+  // Must NOT match 'export default function foo()' — check there's no 'default' between 'export' and keyword
+  const reEsmDecl = /export\s+(?!default\s+)(function|const|let|var|class)\s+(\w+)/g;
+  while ((m = reEsmDecl.exec(source)) !== null) {
+    names.add(m[2]);
+  }
+
+  // ES Modules: export { foo, bar } or export { foo as bar }
+  // Match only named (non-default) re-exports
+  const reEsmList = /export\s+\{([^}]*)\}/g;
+  while ((m = reEsmList.exec(source)) !== null) {
+    const parts = m[1].split(',');
+    for (const p of parts) {
+      const trimmed = p.trim();
+      // 'foo' or 'foo as bar' — use local name (before 'as')
+      const km = trimmed.match(/^(\w+)(?:\s+as\s+\w+)?$/);
+      if (km && km[1] !== 'default') names.add(km[1]);
+    }
+  }
+
+  return Array.from(names);
+}
+
+/**
+ * Resolve the eden-libs filesystem path.
+ *
+ * Priority (highest wins):
+ *   1. opts.path (explicit override)
+ *   2. awareness.eden_libs_path in .planning/config.json
+ *   3. DEFAULT_EDEN_LIBS_PATH (~/ Source/eden-libs)
+ *
+ * All paths are home-expanded via _expandHome.
+ *
+ * @param {object} opts
+ * @param {string} [cwd]
+ * @returns {string}
+ */
+function _resolveEdenLibsPath(opts = {}, cwd = process.cwd()) {
+  if (opts.path) return _expandHome(opts.path);
+
+  // Check .planning/config.json
+  const configPath = path.join(cwd, '.planning', 'config.json');
+  if (_runFs.existsSync(configPath)) {
+    try {
+      const cfg = JSON.parse(_runFs.readFileSync(configPath, 'utf-8'));
+      if (cfg && cfg.awareness && cfg.awareness.eden_libs_path) {
+        return _expandHome(cfg.awareness.eden_libs_path);
+      }
+    } catch {
+      // Ignore malformed config; fall through to default
+    }
+  }
+
+  return _expandHome(DEFAULT_EDEN_LIBS_PATH);
+}
+
+/**
+ * Resolve entrypoint file paths from package.json `main` and `exports` fields.
+ *
+ * Handles:
+ *   - pkg.main: string → single entrypoint
+ *   - pkg.exports: string → single entrypoint
+ *   - pkg.exports: object → walk all values, collect .cjs/.js/.mjs/.ts paths
+ *
+ * @param {string} repoRoot
+ * @param {object} pkg
+ * @returns {string[]}
+ */
+function _entrypointsFromPackageJson(repoRoot, pkg) {
+  const out = [];
+
+  if (typeof pkg.main === 'string') {
+    out.push(path.join(repoRoot, pkg.main));
+  }
+
+  if (pkg.exports) {
+    if (typeof pkg.exports === 'string') {
+      out.push(path.join(repoRoot, pkg.exports));
+    } else if (typeof pkg.exports === 'object' && pkg.exports !== null) {
+      const walk = (node) => {
+        if (typeof node === 'string') {
+          if (/\.(cjs|mjs|js|ts)$/.test(node)) {
+            out.push(path.join(repoRoot, node));
+          }
+        } else if (typeof node === 'object' && node !== null) {
+          for (const k of Object.keys(node)) walk(node[k]);
+        }
+      };
+      walk(pkg.exports);
+    }
+  }
+
+  // Deduplicate
+  return Array.from(new Set(out));
+}
+
+/**
+ * Scan eden-libs for exported symbols matching the current objective's tokens.
+ *
+ * Returns:
+ *   {
+ *     candidates: Array<{
+ *       symbol: string,
+ *       entrypoint: string,
+ *       tokens_matched: number,
+ *       symbol_tokens: string[],
+ *     }>,
+ *     warnings: string[],
+ *     scanned: boolean,
+ *     path: string|null,
+ *   }
+ *
+ * Top-N by tokens_matched desc (up to TOP_N = 3).
+ * Empty-eden-libs: returns { candidates: [], warnings: ['eden-libs has no exported surface'], scanned: true }.
+ * Missing path:    returns { candidates: [], warnings: ['eden-libs not found at ...'], scanned: false }.
+ *
+ * Lexical match only — no LLM, no embeddings (per CONTEXT.md locked decision #2).
+ *
+ * @param {object} opts
+ * @param {string}      [opts.path]           - explicit eden-libs path (overrides config + default)
+ * @param {Set<string>} [opts.current_tokens] - tokens from the current objective
+ * @param {string}      [opts.cwd]            - working directory for config resolution
+ * @returns {object}
+ */
+function scanLibs({ path: optPath, current_tokens, cwd = process.cwd() } = {}) {
+  const out = { candidates: [], warnings: [], scanned: false, path: null };
+  const resolved = _resolveEdenLibsPath({ path: optPath }, cwd);
+  out.path = resolved;
+
+  if (!_runFs.existsSync(resolved)) {
+    out.warnings.push(`eden-libs not found at ${resolved}`);
+    return out;
+  }
+
+  out.scanned = true;
+
+  // Resolve entrypoints from package.json
+  const pkgPath = path.join(resolved, 'package.json');
+  let entrypoints = [];
+
+  if (_runFs.existsSync(pkgPath)) {
+    try {
+      const pkg = JSON.parse(_runFs.readFileSync(pkgPath, 'utf-8'));
+      entrypoints = _entrypointsFromPackageJson(resolved, pkg);
+    } catch (e) {
+      out.warnings.push(`malformed package.json: ${e.message}`);
+    }
+  }
+
+  // Fallback to index.* at root if no entrypoints from package.json
+  if (entrypoints.length === 0) {
+    for (const fname of ['index.cjs', 'index.js', 'index.mjs', 'index.ts']) {
+      const p = path.join(resolved, fname);
+      if (_runFs.existsSync(p)) entrypoints.push(p);
+    }
+  }
+
+  if (entrypoints.length === 0) {
+    out.warnings.push(`no package.json or index.* found at ${resolved}`);
+    return out;
+  }
+
+  // Parse exports from all entrypoints
+  const allExports = new Map(); // symbol → entrypoint path (first occurrence wins)
+  for (const ep of entrypoints) {
+    let src;
+    try {
+      src = _runFs.readFileSync(ep, 'utf-8');
+    } catch (e) {
+      out.warnings.push(`read ${ep} failed: ${e.message}`);
+      continue;
+    }
+    for (const sym of _parseExports(src)) {
+      if (!allExports.has(sym)) allExports.set(sym, ep);
+    }
+  }
+
+  if (allExports.size === 0) {
+    out.warnings.push('eden-libs has no exported surface');
+    return out;
+  }
+
+  // Score each symbol against current_tokens using camelSplit decomposition
+  const tokens = current_tokens instanceof Set ? current_tokens : new Set();
+  const scored = [];
+
+  for (const [sym, ep] of allExports.entries()) {
+    // Decompose symbol with camelSplit, then tokenize each part
+    const symTokens = new Set();
+    for (const part of _camelSplit(sym)) {
+      const lc = part.toLowerCase();
+      if (lc.length >= 3 && !STOP_WORDS.has(lc)) symTokens.add(lc);
+    }
+
+    let matchCount = 0;
+    for (const t of tokens) {
+      if (symTokens.has(t)) matchCount++;
+    }
+
+    scored.push({
+      symbol: sym,
+      entrypoint: ep,
+      tokens_matched: matchCount,
+      symbol_tokens: Array.from(symTokens),
+    });
+  }
+
+  // Sort by tokens_matched desc, tie-break alphabetically
+  scored.sort((a, b) => (b.tokens_matched - a.tokens_matched) || a.symbol.localeCompare(b.symbol));
+
+  out.candidates = scored.slice(0, TOP_N);
+  return out;
+}
+
+// ─── TRD 03-01 → TRD 03-02: Partial exports ──────────────────────────────────
 //
 // This export block is the AUTHORITATIVE surface FOR THIS WAVE only.
-// TRDs 03-02, 03-03, 03-04 each extend this block. TRD 03-07 finalizes it
+// TRDs 03-03, 03-04 each extend this block. TRD 03-07 finalizes it
 // (asserts the full export surface via Object.keys deepStrictEqual).
 
 module.exports = {
   scanSiblings,
+  scanLibs,               // TRD 03-02
   _setRunFs,
   _resetFsMock,
-  _tokenize,          // exported for tests; internal callers use directly
-  _score,             // exported for tests
+  _tokenize,              // exported for tests; internal callers use directly
+  _score,                 // exported for tests
+  _camelSplit,            // TRD 03-02
+  _parseExports,          // TRD 03-02
+  _resolveEdenLibsPath,   // TRD 03-02
   TOP_N,
   SUMMARY_RECENCY_DAYS,
   DEFAULT_SIBLING_GLOB,
