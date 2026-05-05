@@ -180,6 +180,7 @@ const { cmdDupDetectRoute } = require('./lib/dup-detect-cli.cjs');
 const { cmdInitiativesRoute } = require('./lib/initiatives-cli.cjs');
 const { cmdCheckTodosRoute } = require('./lib/check-todos-cli.cjs');
 const { cmdSyncRoadmapRoute } = require('./lib/roadmap-reconcile-cli.cjs');
+const { cmdTuiRoute } = require('./lib/tui-cli.cjs');
 const {
   cmdGenerateSlug, cmdCurrentTimestamp, cmdListTodos, cmdVerifyPathExists,
   cmdHistoryDigest, cmdObjectiveJobIndex, cmdSummaryExtract, cmdWebsearch,
@@ -784,6 +785,11 @@ async function main() {
 
     case 'check-todos': {
       cmdCheckTodosRoute(cwd, args.slice(1), raw);
+      break;
+    }
+
+    case 'tui': {
+      cmdTuiRoute(cwd, args.slice(1), raw);
       break;
     }
 

@@ -382,6 +382,73 @@ describe('Group G: snapshot tests', () => {
   });
 });
 
+// ─── Group H: CLI flag parsing (TRD 08-02) ────────────────────────────────────
+
+const tuiCli = require('./tui-cli.cjs');
+
+describe('Group H: CLI flag parsing', () => {
+  test('H1: empty args produces default flags', () => {
+    const fl = tuiCli._parseFlags([]);
+    assert.equal(fl.once, false);
+    assert.equal(fl.raw, false);
+  });
+
+  test('H2: --once sets once', () => {
+    const fl = tuiCli._parseFlags(['--once']);
+    assert.equal(fl.once, true);
+    assert.equal(fl.raw, false);
+  });
+
+  test('H3: --raw implies --once', () => {
+    const fl = tuiCli._parseFlags(['--raw']);
+    assert.equal(fl.once, true);
+    assert.equal(fl.raw, true);
+  });
+
+  test('H4: --no-color sets no_color', () => {
+    const fl = tuiCli._parseFlags(['--no-color']);
+    assert.equal(fl.no_color, true);
+  });
+
+  test('H5: --reset-only sets reset_only', () => {
+    const fl = tuiCli._parseFlags(['--reset-only']);
+    assert.equal(fl.reset_only, true);
+  });
+
+  test('H6: unknown flag becomes boolean true (forward-compat)', () => {
+    const fl = tuiCli._parseFlags(['--future-feature']);
+    assert.equal(fl['future-feature'], true);
+  });
+
+  test('H7: positional args silently ignored', () => {
+    const fl = tuiCli._parseFlags(['some-positional', '--once']);
+    assert.equal(fl.once, true);
+  });
+});
+
+// ─── Group I: _loadData composition contract (TRD 08-02) ─────────────────────
+
+describe('Group I: _loadData composition contract', () => {
+  test('I1: returns shape { awareness, initiatives, orgChain, todos, warnings }', () => {
+    const d = tuiCli._loadData(process.cwd());
+    assert.deepEqual(Object.keys(d).sort(), ['awareness', 'initiatives', 'orgChain', 'todos', 'warnings']);
+  });
+
+  test('I2: never throws on missing cache (degrades to scanPeer no-fetch fallback)', () => {
+    assert.doesNotThrow(() => tuiCli._loadData(process.cwd()));
+  });
+
+  test('I3: warnings is always an array', () => {
+    const d = tuiCli._loadData(process.cwd());
+    assert.ok(Array.isArray(d.warnings));
+  });
+
+  test('I4: todos is always null in v1.1 (reserved slot)', () => {
+    const d = tuiCli._loadData(process.cwd());
+    assert.strictEqual(d.todos, null);
+  });
+});
+
 // ─── Group X: fixture builder smoke tests ─────────────────────────────────────
 
 describe('Group X: fixture builder smoke tests', () => {
