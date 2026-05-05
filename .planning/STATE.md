@@ -16,9 +16,9 @@
 **Objective complete:** 3 — Planning-time org awareness (verified 2026-05-05, 842/842 tests, all 10 SC met, 7 TRDs done, SC-9 + SC-10 closed)
 **Objective complete:** 4 — Duplicate-work detection + 4-option resolution flow (verified 2026-05-05, 967/987 tests pass, all 10 SC met, 6 TRDs done)
 **Objective in flight:** 5 — Initiative context layer
-**Current TRD:** 05-04
+**Current TRD:** 05-05
 **Branch:** `feature/v1.1-obj-5-initiatives`
-**Status:** In progress — TRD 05-03 complete (1083/1103 tests pass, 28 new tests, stale-deletion + --force + readline + async syncInitiatives)
+**Status:** In progress — TRD 05-04 complete (1086/1106 tests pass, 3 new FP tests, /devflow:initiatives skill + format-for-planner + INITIATIVES planner block)
 
 ## Branch State (post-merge)
 
@@ -144,6 +144,9 @@
 - **TRD 05-03 complete (2026-05-05)** — Stale-deletion region in `lib/initiatives.cjs`: _detectStaleInitiatives (gh.readIssueState + fresh_items exclusion), _deleteStaleFile (unlinkSync + error shape), _confirmDeleteStale (_runReadline injection), _runStaleDeletionLoop (async, per-file readline or force bypass). syncInitiatives promoted to async. gh.readIssueState added to gh.cjs exports. buildMockRunGhForInitiatives extended with opts.issueStates for issue view mocking. All S/IM/CLI2 tests updated to async/await. 28 new tests (DS 9 + CF 6 + DD 3 + SF 7 + CLI3 3); 1083 total pass (0 fail). Commits: 574d35d (test:), 67b7425 (feat:). SC-7 closed. Wave 3 complete.
 - **_runReadline injection pattern locked (TRD 05-03)** — `let _runReadline = _defaultConfirmDeleteStale; function _setRunReadline(fn) { _runReadline = (fn != null) ? fn : _defaultConfirmDeleteStale; }` — symmetric with _setRunGh/_setRunGit/_setRunFs. _resetMocks() resets _runReadline. Non-TTY guard uses `_runReadline === _defaultConfirmDeleteStale` identity check to skip loop when real readline but non-TTY stdin.
 - **gh.readIssueState via gh.cjs (TRD 05-03)** — Thin wrapper `_runGh(['issue', 'view', issueRef, '--json', 'state,closed'])` added to gh.cjs exports. Keeps test injection unified at existing _setRunGh layer; no new injection hook in initiatives.cjs.
+- **TRD 05-04 complete (2026-05-05)** — `/devflow:initiatives` SKILL.md created (thin-orchestrator, $ARGUMENTS passthrough). `cmdInitiativesFormatForPlanner` added to initiatives-cli.cjs: loads initiatives, filters by repo, formats via formatInitiativeForPlanner, joins matches with `---` separator. `_parseFlags` bug fixed: `--repo` was parsed as boolean (added to key-value list). `plan-objective.md` Step 8 extended with INITIATIVES extraction block (reads PROJECT_GITHUB_REPO from PROJECT.md, calls format-for-planner, populates INITIATIVES var with placeholder fallback). Planner prompt `<additional_context>` extended with `{INITIATIVES}` block. `planner.md` `<user_preferences>` extended with Active Initiatives advisory bias (4th entry). research-objective.md skipped (researcher focuses on technical patterns; planner integration alone satisfies SC-5). 3 new tests (FP1/FP2/FP3); 1086 total pass (0 fail). Commits: 21ac35b (feat:), 4b99531 (feat:). SC-5 + SC-6 closed. Wave 4 complete.
+- **--repo flag parse bug fixed (TRD 05-04 deviation)** — `_parseFlags` in initiatives-cli.cjs didn't include `--repo` in key-value list; treated `--repo VALUE` as boolean `true`. Added `--repo` to condition. Auto-fix Rule 1. Caught by FP1 test failure (format-for-planner returned placeholder even when file matched).
+- **research-objective.md skipped (TRD 05-04 executor discretion)** — Researcher focuses on technical patterns (library choices, API surface, existing code); initiative context is strategic direction (Why, Open Questions). Injecting strategic context into research adds noise without proportional value. Documented in SUMMARY.
 
 ## Blockers / Concerns
 
@@ -151,7 +154,7 @@
 
 ## Session Continuity
 
-Last session: 2026-05-05 — TRD 05-03 (stale-deletion + --force + readline confirmation) complete. 1083/1103 tests pass (0 fail, 20 skip). Wave 3 of Objective 5 complete.
+Last session: 2026-05-05 — TRD 05-04 (skill + plan-time integration) complete. 1086/1106 tests pass (0 fail, 20 skip). Wave 4 of Objective 5 complete.
 Resume file: `.planning/SESSION_PICKUP.md`
-Stopped at: Completed 05-03-stale-deletion-TRD.md
-Next: TRD 05-04 (skill + plan-time integration — skill markdown + workflow edits only)
+Stopped at: Completed 05-04-skill-and-plan-integration-TRD.md
+Next: TRD 05-05 (module.exports finalization + integration tests + token-budget assertion)
