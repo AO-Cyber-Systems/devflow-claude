@@ -810,37 +810,48 @@ function _renderWarningsFooter(warnings) {
   return lines.join('\n');
 }
 
-// ─── TRD 06-01: module.exports ────────────────────────────────────────────────
+// ─── module.exports — LOCKED by TRD 06-04 (20-entry surface; SC-8) ──────────
+//
+// This block is the AUTHORITATIVE export surface for lib/check-todos.cjs.
+// Asserted by EX1 test: Object.keys(module.exports).sort() deepStrictEqual.
+// DO NOT add or remove entries without updating the EX1 test + 06-CONTEXT.md §"Module surface".
+//
+// Surface recount (TRD 06-04 deviation from CONTEXT.md "19-entry" claim):
+//   2 public (aggregate, formatCheckTodosMarkdown)
+//   5 fetchers (_fetchLocalTodos, _fetchGhIssues, _fetchPeerSessions, _fetchInitiativeQuestions, _fetchDupDetectLog)
+//   1 lane (_assignLane)
+//   3 cache (readCheckTodosCache, writeCheckTodosCache, isCheckTodosCacheStale)
+//   4 hooks (_setRunGh, _setRunFs, _setRunPeer, _resetMocks)
+//   5 constants (CHECK_TODOS_CACHE_REL, CHECK_TODOS_TTL_MINUTES, MAX_CHECK_TODOS_OUTPUT_CHARS, DEFAULT_LANE_TRUNCATE, LANE_NAMES)
+//   Total = 20
 
 module.exports = {
-  // Public API:
+  // Public API (TRD 06-01, 06-03):
   aggregate,
+  formatCheckTodosMarkdown,
 
-  // Source fetchers:
+  // Source fetchers (TRD 06-01):
   _fetchLocalTodos,
   _fetchGhIssues,
   _fetchPeerSessions,
   _fetchInitiativeQuestions,
   _fetchDupDetectLog,
 
-  // Lane assignment:
+  // Lane assignment (TRD 06-01):
   _assignLane,
 
-  // TRD 06-02: Cache layer:
+  // Cache helpers (TRD 06-02):
   readCheckTodosCache,
   writeCheckTodosCache,
   isCheckTodosCacheStale,
 
-  // TRD 06-03: Formatter:
-  formatCheckTodosMarkdown,
-
-  // Test hooks:
+  // Test hooks (TRD 06-01):
   _setRunGh,
   _setRunFs,
   _setRunPeer,
   _resetMocks,
 
-  // Constants:
+  // Constants (TRD 06-01):
   CHECK_TODOS_CACHE_REL,
   CHECK_TODOS_TTL_MINUTES,
   MAX_CHECK_TODOS_OUTPUT_CHARS,
