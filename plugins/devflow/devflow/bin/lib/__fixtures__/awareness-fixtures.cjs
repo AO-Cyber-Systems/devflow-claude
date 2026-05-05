@@ -955,6 +955,62 @@ function buildMockRunGhForInitiatives({
   };
 }
 
+// ─── TRD 05-05: Adversarial initiative fixture for token-budget tests ────────
+
+/**
+ * Build a parsed-initiative shape with extreme content for token-budget tests.
+ * Why = 10000 chars (default), sub_issues = 50 entries, open_questions = 20.
+ *
+ * Used by formatInitiativeForPlanner to verify hard caps hold under adversarial input.
+ *
+ * @param {object} opts
+ * @param {string} [opts.slug]
+ * @param {string} [opts.github_issue]
+ * @param {string} [opts.parent_project]
+ * @param {string[]} [opts.key_repos]
+ * @param {number} [opts.why_chars]
+ * @param {number} [opts.sub_issues_count]
+ * @param {number} [opts.questions_count]
+ * @param {string} [opts.updated_at]
+ * @returns {object} parsed initiative (matches loadInitiatives output shape)
+ */
+function buildAdversarialInitiative({
+  slug = 'adversarial',
+  github_issue = 'AO-Cyber-Systems/devflow#999',
+  parent_project = 'AO-Cyber-Systems/PVT_kwDODwqLrc4BRsOP',
+  key_repos = ['AO-Cyber-Systems/devflow-claude'],
+  why_chars = 10000,
+  sub_issues_count = 50,
+  questions_count = 20,
+  updated_at = '2026-05-05T18:30:00Z',
+} = {}) {
+  const why = 'a'.repeat(why_chars);
+  const sub_issues = [];
+  for (let i = 0; i < sub_issues_count; i++) {
+    sub_issues.push({
+      ref: `AO-Cyber-Systems/devflow-claude#${1000 + i}`,
+      title: `Sub-issue ${i} with a verbose title that takes up real estate`,
+      state: 'OPEN',
+    });
+  }
+  const open_questions = [];
+  for (let i = 0; i < questions_count; i++) {
+    open_questions.push(`Question ${i} that asks something fairly long and explanatory about this initiative?`);
+  }
+  return {
+    slug,
+    github_issue,
+    parent_project,
+    key_repos,
+    updated_at,
+    body: '',
+    why,
+    open_questions,
+    sub_issues,
+    status: '- **GitHub:** OPEN\n- **Project status:** In Progress',
+  };
+}
+
 // ─── exports ──────────────────────────────────────────────────────────────────
 
 module.exports = {
@@ -991,4 +1047,6 @@ module.exports = {
   buildInitiativesHomeTree,
   // TRD 05-02:
   buildMockRunGhForInitiatives,
+  // TRD 05-05:
+  buildAdversarialInitiative,
 };
