@@ -14,7 +14,7 @@
 **Objective complete:** 1 — GitHub coordination layer (verified 2026-05-04, 563/563 tests, all 6 TRDs done, SC-9 + SC-10 met)
 **Objective complete:** 2 — Cross-repo awareness layer (verified 2026-05-04, 731/731 tests with integration flags, all 10 SC met, 7 TRDs done)
 **Objective in flight:** 3 — Planning-time org awareness (in progress)
-**Current TRD:** 03-04 complete (formatConsiderations renderer + considerations CLI)
+**Current TRD:** 03-06 complete (plan-objective skill integration — Cross-Repo Considerations injection)
 **Status:** Executing objective 3
 
 ## Branch State (post-merge)
@@ -105,6 +105,8 @@
 - **TRD 03-04 complete (2026-05-05)** — `lib/org-awareness.cjs` extended with formatConsiderations + 3 sub-renderers (_renderSiblingsSection, _renderLibsSection, _renderOrgSection). Pure formatter — no fs/network. Output bounded: 3 subsections, TOP_N=3 each, one-line entries, total ≤ 2000 chars (F5 regression guard). CLI considerations command replaces stub; orchestrates all 3 scanners independently with try/catch, reads sibling PROJECT.md for chain-match boost, emits Markdown or --raw JSON. 26 new tests (Groups RS/RL/RO/F/CLI4); 839/854 tests pass. Commits: 352f507 (test:), 55c5b86 (feat:). SC-7 (rendering side) complete.
 - **formatConsiderations output is BODY only (TRD 03-04)** — No leading `## Cross-Repo Considerations` header; caller (skill or test) wraps it. Skipped org_overlap renders auth remediation placeholder and OMITS misfiling line. Misfiling line always present when scan ran (null → "no mismatch detected." affirmation).
 - **CLI considerations orchestration order locked (TRD 03-04)** — scanSiblings → scanLibs → scanOrgOverlap. Each independently try/caught. sibling_repos for chain-match boost derived from sibling matches' PROJECT.md github_repo fields (best-effort, silently skip on missing).
+- **TRD 03-06 complete (2026-05-05)** — plan-objective.md Step 8 now extracts `## Cross-Repo Considerations` section from CONTEXT.md via awk (printf '%s' for special-char safety); empty/missing → placeholder. Step 9 planner prompt includes `<additional_context>` block with `{CROSS_REPO}` verbatim. planner.md `<user_preferences>` extended with three advisory biases: reuse eden-libs candidates, cross-pollinate sibling patterns, surface misfiling warnings. 839/839 tests pass (no regressions). Commits: f3f0c5d (feat:), 1961a0c (docs:). SC-8 complete.
+- **CROSS_REPO extraction pattern locked (TRD 03-06)** — awk matches `/^## Cross-Repo Considerations/` as section start; stops on next `/^## /`. `printf '%s'` avoids echo escape interpretation of backticks/dollars in CONTEXT_CONTENT. Placeholder text `_(none — research-objective did not run, or scan returned empty)_` is treated as no-op by the planner (documented in user_preferences).
 
 ## Blockers / Concerns
 
@@ -112,7 +114,7 @@
 
 ## Session Continuity
 
-Last session: 2026-05-05 — TRD 03-04 (formatConsiderations renderer + considerations CLI) complete. 839 tests pass (0 fail, 15 skip).
+Last session: 2026-05-05 — TRD 03-06 (plan-objective skill integration) complete. 839 tests pass (0 fail, 15 skip).
 Resume file: `.planning/SESSION_PICKUP.md`
-Stopped at: Completed 03-04-format-considerations-TRD.md
-Next: TRD 03-05 + 03-06 (parallel Wave 5 — research-objective + plan-objective skill integrations)
+Stopped at: Completed 03-06-plan-skill-integration-TRD.md
+Next: TRD 03-07 (library export lock + dogfood test — depends on 03-05 + 03-06 both complete)
