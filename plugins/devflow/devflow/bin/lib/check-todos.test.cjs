@@ -15,6 +15,12 @@
 // Group C — readCheckTodosCache / writeCheckTodosCache: C1-C8
 // Group SC — isCheckTodosCacheStale: SC1-SC8
 // Group AC — aggregate cache integration: AC1-AC8
+//
+// ## Test list — TRD 06-03 formatter
+//
+// Group FF — formatCheckTodosMarkdown (top-level): FF1-FF13
+// Group FE — _renderEntry / _entryTitle / _attributionSuffix: FE1-FE9
+// Group FT — Truncation + token bounds: FT1-FT6
 
 const { describe, it, afterEach, before } = require('node:test');
 const assert = require('node:assert/strict');
@@ -1243,5 +1249,419 @@ describe('check-todos: Group AC — aggregate cache integration', () => {
     const nonGhWarns = result.warnings.filter(w => w.source !== 'gh');
     assert.strictEqual(nonGhWarns.length, 0, 'no warnings from non-gh sources expected');
     fixture.cleanup();
+  });
+});
+
+// ─── TRD 06-03: Formatter test helpers ───────────────────────────────────────
+
+/**
+ * Build a deterministic test entry for a given source and index i.
+ * Used for large-array FT tests.
+ */
+function buildTestEntry(source, i) {
+  switch (source) {
+    case 'gh':
+      return {
+        source: 'gh',
+        ref: `AO-Cyber-Systems/devflow-claude#${100 + i}`,
+        repo: 'AO-Cyber-Systems/devflow-claude',
+        number: 100 + i,
+        title: `GH issue title ${i}`,
+        labels: i % 2 === 0 ? ['priority:high'] : [],
+        assigned: true,
+        mentioned: false,
+        review_requested: false,
+      };
+    case 'peer':
+      return {
+        source: 'peer',
+        branch: `feature/peer-branch-${i}`,
+        objective: `0${i % 9 + 1}-some-objective`,
+        trd: `0${i % 9 + 1}-0${i % 4 + 1}`,
+        last_commit: { timestamp: '2026-05-04T10:00:00Z' },
+        state: 'active',
+        github_issue: null,
+      };
+    case 'initiative':
+      return {
+        source: 'initiative',
+        initiative_slug: `initiative-${i}`,
+        github_issue: `AO-Cyber-Systems/devflow#${200 + i}`,
+        question: `Open question ${i}?`,
+      };
+    case 'local':
+      return {
+        source: 'local',
+        file: `todo-${i}.md`,
+        created: '2026-05-04',
+        title: `Local todo item ${i}`,
+        area: 'dev',
+        path: `.planning/todos/pending/todo-${i}.md`,
+      };
+    default:
+      return { source, idx: i };
+  }
+}
+
+// ─── Group FF — formatCheckTodosMarkdown (top-level) ─────────────────────────
+
+describe('check-todos: Group FF — formatCheckTodosMarkdown (top-level)', () => {
+  it('FF1: formatCheckTodosMarkdown(null) returns no-result placeholder', () => {
+    const out = ct.formatCheckTodosMarkdown(null);
+    assert.strictEqual(out, '_(no aggregate result)_\n');
+  });
+
+  it('FF2: all-empty aggregate → 4 lanes each with _no entries_ + _freshly fetched_ footer', () => {
+    const agg = { blocked: [], now: [], soon: [], ideas: [], warnings: [], cached: false };
+    const out = ct.formatCheckTodosMarkdown(agg, { date: '2026-05-05' });
+    // All 4 lane headers present
+    assert.match(out, /## 🔥 Blocked-on-you \(0\)/);
+    assert.match(out, /## ⚡ Now \(0\)/);
+    assert.match(out, /## 📋 Soon \(0\)/);
+    assert.match(out, /## 💡 Ideas \(0\)/);
+    // All 4 empty lane placeholders present
+    const noEntriesCount = (out.match(/_no entries_/g) || []).length;
+    assert.strictEqual(noEntriesCount, 4);
+    // Cached/fresh footer present
+    assert.match(out, /_freshly fetched_/);
+  });
+
+  it('FF3: output starts with # 📋 DevFlow Standup heading', () => {
+    const agg = { blocked: [], now: [], soon: [], ideas: [], warnings: [], cached: false };
+    const out = ct.formatCheckTodosMarkdown(agg, { date: '2026-05-05' });
+    assert.ok(out.startsWith('# 📋 DevFlow Standup — '), `expected heading prefix, got: ${out.slice(0, 60)}`);
+  });
+
+  it('FF4: opts.date controls date in heading exactly', () => {
+    const agg = { blocked: [], now: [], soon: [], ideas: [], warnings: [], cached: false };
+    const out = ct.formatCheckTodosMarkdown(agg, { date: '2026-05-05' });
+    assert.match(out, /# 📋 DevFlow Standup — 2026-05-05/);
+  });
+
+  it('FF5: lane sections in fixed order: Blocked-on-you → Now → Soon → Ideas', () => {
+    const agg = { blocked: [], now: [], soon: [], ideas: [], warnings: [], cached: false };
+    const out = ct.formatCheckTodosMarkdown(agg, { date: '2026-05-05' });
+    const blockedPos = out.indexOf('Blocked-on-you');
+    const nowPos = out.indexOf('## ⚡ Now');
+    const soonPos = out.indexOf('## 📋 Soon');
+    const ideasPos = out.indexOf('## 💡 Ideas');
+    assert.ok(blockedPos !== -1, 'Blocked-on-you section missing');
+    assert.ok(nowPos !== -1, '⚡ Now section missing');
+    assert.ok(soonPos !== -1, '📋 Soon section missing');
+    assert.ok(ideasPos !== -1, '💡 Ideas section missing');
+    assert.ok(blockedPos < nowPos, 'Blocked-on-you must come before Now');
+    assert.ok(nowPos < soonPos, 'Now must come before Soon');
+    assert.ok(soonPos < ideasPos, 'Soon must come before Ideas');
+  });
+
+  it('FF6: opts.lane=now → only Now lane present (other lanes omitted entirely)', () => {
+    const agg = { blocked: [], now: [], soon: [], ideas: [], warnings: [], cached: false };
+    const out = ct.formatCheckTodosMarkdown(agg, { date: '2026-05-05', lane: 'now' });
+    assert.match(out, /## ⚡ Now/);
+    assert.ok(!out.includes('Blocked-on-you'), 'Blocked-on-you should be absent');
+    assert.ok(!out.includes('## 📋 Soon'), 'Soon should be absent');
+    assert.ok(!out.includes('## 💡 Ideas'), 'Ideas should be absent');
+  });
+
+  it('FF7: opts.lane=invalid-lane-name → ignored, all 4 lanes rendered', () => {
+    const agg = { blocked: [], now: [], soon: [], ideas: [], warnings: [], cached: false };
+    const out = ct.formatCheckTodosMarkdown(agg, { date: '2026-05-05', lane: 'invalid-lane-name' });
+    assert.match(out, /Blocked-on-you/);
+    assert.match(out, /## ⚡ Now/);
+    assert.match(out, /## 📋 Soon/);
+    assert.match(out, /## 💡 Ideas/);
+  });
+
+  it('FF8: warnings array renders ## ⚠ Warnings section with per-warning bullet', () => {
+    const agg = {
+      blocked: [], now: [], soon: [], ideas: [],
+      warnings: [
+        { kind: 'fetch_error', source: 'peer', message: 'scanPeer crashed' },
+      ],
+      cached: false,
+    };
+    const out = ct.formatCheckTodosMarkdown(agg, { date: '2026-05-05' });
+    assert.match(out, /## ⚠ Warnings/);
+    assert.match(out, /fetch_error/);
+    assert.match(out, /peer/);
+  });
+
+  it('FF9: gh_auth_failure warning surfaces with remediation command', () => {
+    const agg = {
+      blocked: [], now: [], soon: [], ideas: [],
+      warnings: [
+        { kind: 'gh_auth_failure', source: 'gh', remediation: 'gh auth refresh -h github.com -s repo' },
+      ],
+      cached: false,
+    };
+    const out = ct.formatCheckTodosMarkdown(agg, { date: '2026-05-05' });
+    assert.match(out, /gh auth required/);
+    assert.match(out, /gh auth refresh/);
+  });
+
+  it('FF10: cached:true → footer reads _served from cache_', () => {
+    const agg = { blocked: [], now: [], soon: [], ideas: [], warnings: [], cached: true };
+    const out = ct.formatCheckTodosMarkdown(agg, { date: '2026-05-05' });
+    assert.match(out, /_served from cache_/);
+    assert.ok(!out.includes('_freshly fetched_'), 'should not show freshly fetched when cached:true');
+  });
+
+  it('FF11: cached:false → footer reads _freshly fetched_', () => {
+    const agg = { blocked: [], now: [], soon: [], ideas: [], warnings: [], cached: false };
+    const out = ct.formatCheckTodosMarkdown(agg, { date: '2026-05-05' });
+    assert.match(out, /_freshly fetched_/);
+  });
+
+  it('FF12: empty warnings array → no ## ⚠ Warnings section emitted', () => {
+    const agg = { blocked: [], now: [], soon: [], ideas: [], warnings: [], cached: false };
+    const out = ct.formatCheckTodosMarkdown(agg, { date: '2026-05-05' });
+    assert.ok(!out.includes('## ⚠ Warnings'), 'no warnings section for empty warnings array');
+  });
+
+  it('FF13: order is lanes → warnings → cached/fresh footer (positional check)', () => {
+    const agg = {
+      blocked: [], now: [], soon: [], ideas: [],
+      warnings: [{ kind: 'fetch_error', source: 'peer', message: 'crashed' }],
+      cached: false,
+    };
+    const out = ct.formatCheckTodosMarkdown(agg, { date: '2026-05-05' });
+    const ideasPos = out.indexOf('## 💡 Ideas');
+    const warningsPos = out.indexOf('## ⚠ Warnings');
+    const freshPos = out.indexOf('_freshly fetched_');
+    assert.ok(ideasPos !== -1, 'Ideas section must be present');
+    assert.ok(warningsPos !== -1, 'Warnings section must be present');
+    assert.ok(freshPos !== -1, '_freshly fetched_ footer must be present');
+    assert.ok(ideasPos < warningsPos, 'Ideas section must come before Warnings');
+    assert.ok(warningsPos < freshPos, 'Warnings section must come before cached/fresh footer');
+  });
+});
+
+// ─── Group FE — _renderEntry / _entryTitle / _attributionSuffix ──────────────
+//
+// Since sub-renderers are private, FE tests verify via formatCheckTodosMarkdown output.
+
+describe('check-todos: Group FE — entry rendering + attribution (via formatCheckTodosMarkdown)', () => {
+  function makeAgg(lane, entry) {
+    const agg = { blocked: [], now: [], soon: [], ideas: [], warnings: [], cached: false };
+    agg[lane] = [entry];
+    return agg;
+  }
+
+  it('FE1: gh entry with ref, title, assigned + label → bullet with ref, title, assigned [bug] attribution', () => {
+    const entry = {
+      source: 'gh',
+      ref: 'AO/r#1',
+      repo: 'AO/r',
+      number: 1,
+      title: 'Bug',
+      labels: ['bug'],
+      assigned: true,
+      mentioned: false,
+      review_requested: false,
+    };
+    const out = ct.formatCheckTodosMarkdown(makeAgg('now', entry), { date: '2026-05-05' });
+    assert.match(out, /\*\*AO\/r#1\*\* — Bug/);
+    assert.match(out, /\*via gh: assigned \[bug\]\*/);
+  });
+
+  it('FE2: gh entry with assigned:true AND mentioned:true → attribution lists assigned/mentioned', () => {
+    const entry = {
+      source: 'gh',
+      ref: 'AO/r#2',
+      repo: 'AO/r',
+      number: 2,
+      title: 'Multi-flag',
+      labels: [],
+      assigned: true,
+      mentioned: true,
+      review_requested: false,
+    };
+    const out = ct.formatCheckTodosMarkdown(makeAgg('ideas', entry), { date: '2026-05-05' });
+    assert.match(out, /via gh: assigned\/mentioned/);
+  });
+
+  it('FE3: peer entry → title shows branch + objective + TRD; attribution shows state + timestamp', () => {
+    const entry = {
+      source: 'peer',
+      branch: 'feature/obj-4',
+      objective: '04-dup-detect',
+      trd: '04-01',
+      last_commit: { timestamp: '2026-05-04T10:00:00Z' },
+      state: 'active',
+      github_issue: null,
+    };
+    const out = ct.formatCheckTodosMarkdown(makeAgg('now', entry), { date: '2026-05-05' });
+    assert.match(out, /\*\*feature\/obj-4\*\* — 04-dup-detect/);
+    assert.match(out, /TRD 04-01/);
+    assert.match(out, /via peer/);
+    assert.match(out, /active/);
+    assert.match(out, /2026-05-04T10:00:00Z/);
+  });
+
+  it('FE4: initiative entry → title shows slug + question; attribution shows github_issue', () => {
+    const entry = {
+      source: 'initiative',
+      initiative_slug: 'v1-coordination',
+      github_issue: 'AO-Cyber-Systems/devflow#30',
+      question: 'Should we use GraphQL?',
+    };
+    const out = ct.formatCheckTodosMarkdown(makeAgg('soon', entry), { date: '2026-05-05' });
+    assert.match(out, /\*\*v1-coordination\*\* — Should we use GraphQL\?/);
+    assert.match(out, /via initiative AO-Cyber-Systems\/devflow#30/);
+  });
+
+  it('FE5: dup-detect entry → title shows objective_id + resolution; attribution shows mode + score', () => {
+    const entry = {
+      source: 'dup-detect',
+      objective_id: '04',
+      resolution: 'coordinate',
+      mode: 'plan',
+      top_match: { score: 0.95 },
+      timestamp: new Date().toISOString(),
+      blocking: true,
+    };
+    const out = ct.formatCheckTodosMarkdown(makeAgg('blocked', entry), { date: '2026-05-05' });
+    assert.match(out, /\*\*dup-detect\*\* — 04: coordinate/);
+    assert.match(out, /via dup-detect plan/);
+    assert.match(out, /0\.95/);
+  });
+
+  it('FE6: unknown-source entry → title falls back to (unknown source) + truncated JSON; attribution *via unknown*', () => {
+    const entry = { source: 'totally-unknown', foo: 'bar', baz: 123 };
+    const out = ct.formatCheckTodosMarkdown(makeAgg('ideas', entry), { date: '2026-05-05' });
+    assert.match(out, /\*\*\(unknown source\)\*\*/);
+    assert.match(out, /\*via unknown\*/);
+  });
+
+  it('FE7: gh entry with NO flags set → renders title, attribution shows unflagged', () => {
+    const entry = {
+      source: 'gh',
+      ref: 'AO/r#7',
+      repo: 'AO/r',
+      number: 7,
+      title: 'No-flag issue',
+      labels: [],
+      assigned: false,
+      mentioned: false,
+      review_requested: false,
+    };
+    // Force into a lane by directly calling (formatCheckTodosMarkdown trusts aggregate shape)
+    const out = ct.formatCheckTodosMarkdown(makeAgg('ideas', entry), { date: '2026-05-05' });
+    assert.match(out, /\*\*AO\/r#7\*\* — No-flag issue/);
+    assert.match(out, /via gh: unflagged/);
+  });
+
+  it('FE8: local entry → title shows area + title; attribution shows path', () => {
+    const entry = {
+      source: 'local',
+      file: 'todo-1.md',
+      created: '2026-05-04',
+      title: 'Fix the thing',
+      area: 'backend',
+      path: '.planning/todos/pending/todo-1.md',
+    };
+    const out = ct.formatCheckTodosMarkdown(makeAgg('ideas', entry), { date: '2026-05-05' });
+    assert.match(out, /\*\*backend\*\* — Fix the thing/);
+    assert.match(out, /via local todo: \.planning\/todos\/pending\/todo-1\.md/);
+  });
+
+  it('FE9: gh entry with missing optional fields renders without crash', () => {
+    const entry = { source: 'gh' };  // no ref, title, labels, flags
+    // Should not throw
+    assert.doesNotThrow(() => {
+      ct.formatCheckTodosMarkdown(makeAgg('ideas', entry), { date: '2026-05-05' });
+    });
+    const out = ct.formatCheckTodosMarkdown(makeAgg('ideas', entry), { date: '2026-05-05' });
+    assert.match(out, /via gh/);
+  });
+});
+
+// ─── Group FT — Truncation + token bounds ────────────────────────────────────
+
+describe('check-todos: Group FT — Truncation + token bounds', () => {
+  it('FT1: lane with 10 entries → renders 5 + truncation footer showing 5/10', () => {
+    const entries = Array(10).fill(null).map((_, i) => buildTestEntry('local', i));
+    const agg = { blocked: [], now: [], soon: [], ideas: entries, warnings: [], cached: false };
+    const out = ct.formatCheckTodosMarkdown(agg, { date: '2026-05-05' });
+    // Should show truncation annotation
+    assert.match(out, /\[showing 5; --all for full list \(10 total\)\]/);
+    // Should NOT render all 10 bullets (count bullet lines in ideas section)
+    // Ideas section shows exactly 5 entries (DEFAULT_LANE_TRUNCATE)
+    const bulletMatches = out.match(/^- \*\*general\*\*/gm) || [];
+    assert.strictEqual(bulletMatches.length, 5, `expected 5 bullets, got ${bulletMatches.length}`);
+  });
+
+  it('FT2: opts.all:true → lane with 10 entries renders all 10, no truncation footer', () => {
+    const entries = Array(10).fill(null).map((_, i) => buildTestEntry('local', i));
+    const agg = { blocked: [], now: [], soon: [], ideas: entries, warnings: [], cached: false };
+    const out = ct.formatCheckTodosMarkdown(agg, { date: '2026-05-05', all: true });
+    // No truncation footer
+    assert.ok(!out.includes('[showing'), 'should not have truncation footer with opts.all:true');
+    // Should render all 10 bullets
+    const bulletMatches = out.match(/^- \*\*general\*\*/gm) || [];
+    assert.strictEqual(bulletMatches.length, 10, `expected 10 bullets, got ${bulletMatches.length}`);
+  });
+
+  it('FT3: default flags with realistic input → output ≤ MAX_CHECK_TODOS_OUTPUT_CHARS (8000)', () => {
+    const agg = {
+      blocked: Array(6).fill(null).map((_, i) => buildTestEntry('peer', i)),
+      now: Array(8).fill(null).map((_, i) => buildTestEntry('gh', i)),
+      soon: Array(7).fill(null).map((_, i) => buildTestEntry('initiative', i)),
+      ideas: Array(10).fill(null).map((_, i) => buildTestEntry('local', i)),
+      warnings: [],
+      cached: false,
+    };
+    const out = ct.formatCheckTodosMarkdown(agg, { date: '2026-05-05' });
+    assert.ok(
+      out.length <= ct.MAX_CHECK_TODOS_OUTPUT_CHARS,
+      `Output ${out.length} chars exceeds limit ${ct.MAX_CHECK_TODOS_OUTPUT_CHARS}`,
+    );
+  });
+
+  it('FT4: opts.all:true with very large input → output exceeds 8000 chars; warning suffix appended', () => {
+    const agg = {
+      blocked: Array(50).fill(null).map((_, i) => buildTestEntry('peer', i)),
+      now: Array(100).fill(null).map((_, i) => buildTestEntry('gh', i)),
+      soon: Array(50).fill(null).map((_, i) => buildTestEntry('initiative', i)),
+      ideas: Array(100).fill(null).map((_, i) => buildTestEntry('local', i)),
+      warnings: [],
+      cached: false,
+    };
+    const out = ct.formatCheckTodosMarkdown(agg, { all: true, date: '2026-05-05' });
+    // 300 entries × ~100 chars >> 8000 → warning footer present
+    assert.ok(out.length > ct.MAX_CHECK_TODOS_OUTPUT_CHARS, `output (${out.length}) should exceed limit`);
+    assert.match(out, /output exceeds 8000 chars/);
+    // String must NOT be truncated mid-content — it's appended, not sliced
+    assert.match(out, /--lane <name> filter/);
+  });
+
+  it('FT5: opts.lane=ideas → now/blocked/soon omitted entirely (not even _no entries_)', () => {
+    const agg = { blocked: [], now: [], soon: [], ideas: [], warnings: [], cached: false };
+    const out = ct.formatCheckTodosMarkdown(agg, { date: '2026-05-05', lane: 'ideas' });
+    // Only ideas lane present
+    assert.match(out, /## 💡 Ideas/);
+    assert.ok(!out.includes('Blocked-on-you'), 'Blocked-on-you must be absent');
+    assert.ok(!out.includes('## ⚡ Now'), 'Now must be absent');
+    assert.ok(!out.includes('## 📋 Soon'), 'Soon must be absent');
+  });
+
+  it('FT6: opts.lane=now with entries → only Now lane shows; truncation applies within that lane', () => {
+    const nowEntries = Array(10).fill(null).map((_, i) => buildTestEntry('gh', i));
+    const agg = {
+      blocked: [buildTestEntry('peer', 0)],
+      now: nowEntries,
+      soon: [buildTestEntry('initiative', 0)],
+      ideas: [buildTestEntry('local', 0)],
+      warnings: [],
+      cached: false,
+    };
+    const out = ct.formatCheckTodosMarkdown(agg, { date: '2026-05-05', lane: 'now' });
+    // Only Now lane
+    assert.match(out, /## ⚡ Now \(10\)/);
+    assert.ok(!out.includes('Blocked-on-you'), 'Blocked-on-you absent');
+    assert.ok(!out.includes('## 📋 Soon'), 'Soon absent');
+    assert.ok(!out.includes('## 💡 Ideas'), 'Ideas absent');
+    // Truncation applies: 10 entries, shows 5
+    assert.match(out, /\[showing 5; --all for full list \(10 total\)\]/);
   });
 });
