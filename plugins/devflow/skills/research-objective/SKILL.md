@@ -99,23 +99,27 @@ ${CONSIDERATIONS}
 EOF
 elif grep -q "^${SECTION_HEADER}" "$CONTEXT_PATH"; then
   # Replace existing section body in-place
-  # Use awk to preserve everything before/after the section
-  awk -v section="${SECTION_HEADER}" -v body="${CONSIDERATIONS}" '
-    BEGIN { in_section = 0; printed_body = 0 }
+  # Write body to a temp file first (avoids macOS BSD awk -v newline limitation)
+  BODY_TMP=$(mktemp)
+  printf '%s\n' "${CONSIDERATIONS}" > "$BODY_TMP"
+  awk -v section="${SECTION_HEADER}" -v bodyfile="$BODY_TMP" '
+    BEGIN {
+      in_section = 0
+      body = ""
+      while ((getline line < bodyfile) > 0) { body = body line "\n" }
+      close(bodyfile)
+    }
     {
       if ($0 == section) {
-        print $0
-        print body
+        printf "%s\n%s", $0, body
         in_section = 1
-        printed_body = 1
         next
       }
-      if (in_section && /^## /) {
-        in_section = 0
-      }
+      if (in_section && /^## /) { in_section = 0 }
       if (!in_section) print $0
     }
   ' "$CONTEXT_PATH" > "$CONTEXT_PATH.tmp" && mv "$CONTEXT_PATH.tmp" "$CONTEXT_PATH"
+  rm -f "$BODY_TMP"
 else
   # Append section at end
   echo "" >> "$CONTEXT_PATH"
