@@ -1370,10 +1370,10 @@ test('MF5 — roadmap_issue is shorthand #9 (no owner/repo) → treat as same-re
 // ─── Group OO — scanOrgOverlap end-to-end ────────────────────────────────────
 
 test('OO1 — chain-match item ranked first despite weaker keyword overlap', () => {
-  // Item 0: chain match (sub-issue in aodex) + no matching keywords
-  // Item 1: 2 matching keywords, no chain match
-  // Item 2: 1 matching keyword, no chain match
-  // Expected: item 0 (score 10) > item 1 (score 2) > item 2 (score 1)
+  // Item 0: chain match (sub-issue in aodex) + no matching keywords (passes filter via chain_match)
+  // Item 1: 2 matching keywords, no chain match (passes filter via score >= 2)
+  // Item 2: 1 matching keyword, no chain match — FILTERED OUT per SC-5 (score=1 < 2 threshold)
+  // Expected: item 0 (score 10) > item 1 (score 2). Item 2 filtered out by SC-5 threshold.
   const fixture = fix.buildOrgOverlapFixture({
     items_count: 3,
     sibling_repos: ['AO-Cyber-Systems/aodex'],
@@ -1392,7 +1392,7 @@ test('OO1 — chain-match item ranked first despite weaker keyword overlap', () 
       projectCtx: { github_repo: 'AO-Cyber-Systems/devflow-claude' },
     });
     assert.strictEqual(r.skipped, false);
-    assert.strictEqual(r.items.length, 3);
+    assert.strictEqual(r.items.length, 2, 'item 2 (score=1) should be filtered out per SC-5');
     assert.strictEqual(r.items[0].issue_ref, fixture.items[0].issue_ref,
       `chain-match item should be first, got: ${r.items[0].issue_ref}`);
     assert.strictEqual(r.items[0].chain_match, true);
@@ -1485,18 +1485,20 @@ test('OO5 — chain-match boost: score-1 keyword item beats score-3 keyword item
   }
 });
 
-test('OO6 — top-N truncation: 7 scoring items → returns 3', () => {
+test('OO6 — top-N truncation: 7 qualifying items (all score >= 2) → returns 3', () => {
+  // All 7 items have 2+ keyword matches so they pass SC-5 threshold;
+  // verifies TOP_N=3 truncation when many items qualify.
   const fixture = fix.buildOrgOverlapFixture({
     items_count: 7,
     sibling_repos: [],
     matching_keywords_per_item: [
+      ['parse', 'state', 'auth'],
       ['parse', 'state'],
-      ['parse'],
-      ['state'],
+      ['state', 'flow'],
       ['auth', 'flow'],
-      ['token'],
-      ['auth'],
-      [],
+      ['token', 'parse'],
+      ['auth', 'token'],
+      ['flow', 'token'],
     ],
     chain_matches: [],
   });
@@ -1539,7 +1541,12 @@ test('OO7 — output has both items and misfiling keys (shape contract)', () => 
 test('OO8 — when resolveChain throws GhAuthError, items still returned, misfiling: null + warning added', () => {
   const origScanOrgLocal = aw.scanOrg;
   const origResolveChainLocal = gh.resolveChain;
-  aw.scanOrg = () => fix.buildOrgOverlapFixture({ items_count: 2 });
+  // Items must qualify under SC-5 threshold (chain_match OR score >= 2) to survive the filter;
+  // give both items 2 matching keywords each.
+  aw.scanOrg = () => fix.buildOrgOverlapFixture({
+    items_count: 2,
+    matching_keywords_per_item: [['parse', 'state'], ['auth', 'flow']],
+  });
   gh.resolveChain = () => {
     const e = new Error('gh auth expired');
     e.name = 'GhAuthError';
@@ -1549,6 +1556,7 @@ test('OO8 — when resolveChain throws GhAuthError, items still returned, misfil
   try {
     const r = oa.scanOrgOverlap({
       objective_id: '03',
+      current_tokens: new Set(['parse', 'state', 'auth', 'flow']),
       frontmatter: {},
       projectCtx: { github_repo: 'AO-Cyber-Systems/devflow-claude' },
     });

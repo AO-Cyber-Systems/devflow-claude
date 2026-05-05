@@ -886,8 +886,12 @@ function scanOrgOverlap({
   // Sort: score desc, tie-break alphabetically by title
   scored.sort((a, b) => (b.score - a.score) || (a.title || '').localeCompare(b.title || ''));
 
+  // Filter: per ROADMAP SC-5, surface items with EITHER chain_match OR ≥2 keyword overlap.
+  // Items with score=0 (no signal) are noise — the user should only see real overlap candidates.
+  const filtered = scored.filter(item => item.chain_match === true || (item.score || 0) >= 2);
+
   // Truncate to TOP_N
-  out.items = scored.slice(0, TOP_N);
+  out.items = filtered.slice(0, TOP_N);
 
   // 4. Misfiling check — with its own independent try/catch (resolveChain may also throw)
   try {

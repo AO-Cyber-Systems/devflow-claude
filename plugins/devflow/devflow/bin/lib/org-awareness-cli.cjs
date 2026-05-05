@@ -9,8 +9,22 @@
  * Stubs for scan-libs / scan-org-overlap / considerations (filled by 03-02/03-03/03-04).
  */
 
+const fsBase = require('fs');
+const pathBase = require('path');
 const oa = require('./org-awareness.cjs');
 const { output } = require('./helpers.cjs');
+
+// Read `.planning/config.json` awareness block. Returns {} on any read/parse error.
+function _loadAwarenessConfig(cwd) {
+  try {
+    const cfgPath = pathBase.join(cwd, '.planning', 'config.json');
+    const raw = fsBase.readFileSync(cfgPath, 'utf-8');
+    const cfg = JSON.parse(raw);
+    return cfg.awareness || {};
+  } catch {
+    return {};
+  }
+}
 
 // ─── cmdOrgAwarenessScanSiblings ──────────────────────────────────────────────
 
@@ -21,7 +35,8 @@ function cmdOrgAwarenessScanSiblings(cwd, args, raw) {
     process.exit(1);
     return;
   }
-  const result = oa.scanSiblings({ objective_id, cwd });
+  const cfg = _loadAwarenessConfig(cwd);
+  const result = oa.scanSiblings({ objective_id, cwd, config_paths: cfg.sibling_repos });
   output(result, raw);
 }
 
@@ -124,8 +139,11 @@ function cmdOrgAwarenessConsiderations(cwd, args, raw) {
   // Run all three scanners independently (failure in one does not block others)
   const scans = {};
 
+  // Load awareness config (sibling_repos override) once for considerations
+  const considCfg = _loadAwarenessConfig(cwd);
+
   try {
-    scans.siblings = oa.scanSiblings({ objective_id, cwd });
+    scans.siblings = oa.scanSiblings({ objective_id, cwd, config_paths: considCfg.sibling_repos });
   } catch (e) {
     scans.siblings = { matches: [], warnings: [`scanSiblings error: ${e.message}`], scanned_repos: 0 };
   }
