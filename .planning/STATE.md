@@ -14,7 +14,7 @@
 **Objective complete:** 1 — GitHub coordination layer (verified 2026-05-04, 563/563 tests, all 6 TRDs done, SC-9 + SC-10 met)
 **Objective complete:** 2 — Cross-repo awareness layer (verified 2026-05-04, 731/731 tests with integration flags, all 10 SC met, 7 TRDs done)
 **Objective in flight:** 3 — Planning-time org awareness (in progress)
-**Current TRD:** 03-03 complete (scanOrgOverlap + misfiling detection + graceful auth degradation)
+**Current TRD:** 03-04 complete (formatConsiderations renderer + considerations CLI)
 **Status:** Executing objective 3
 
 ## Branch State (post-merge)
@@ -102,6 +102,9 @@
 - **TRD 03-03 complete (2026-05-05)** — `lib/org-awareness.cjs` extended with TRD 03-03 region: scanOrgOverlap + _scoreOrgItem + _detectMisfiling + _extractRepoFromRef. CRITICAL auth inversion: GhAuthError caught at scanOrgOverlap level (returns skipped:true + remediation warning); non-auth errors re-thrown. resolveChain failure during misfiling check independently caught. CLI scan-org-overlap replaces stub; exits 0 regardless of auth state. buildOrgOverlapFixture added. 25 new tests (Groups SOI/MF/OO/AD/CLI3); 813 tests pass. Commits: cf65e28 (test:), 20e5786 (feat:). SC-5 + SC-6 complete.
 - **GhAuthError graceful degradation locked (TRD 03-03)** — scanOrgOverlap catches GhAuthError from aw.scanOrg(); returns { items:[], warnings:[...remediation...], skipped:true, misfiling:null }. Inverts obj 1/obj 2 hard-fail per CONTEXT.md locked decision #8. Non-auth errors re-thrown.
 - **Misfiling detection advisory-only locked (TRD 03-03)** — _detectMisfiling returns { current_repo, resolved_repo, message } or null. No AskUserQuestion, no hard fail, no checkpoint. Null when github_repo absent (no false positives on legacy projects).
+- **TRD 03-04 complete (2026-05-05)** — `lib/org-awareness.cjs` extended with formatConsiderations + 3 sub-renderers (_renderSiblingsSection, _renderLibsSection, _renderOrgSection). Pure formatter — no fs/network. Output bounded: 3 subsections, TOP_N=3 each, one-line entries, total ≤ 2000 chars (F5 regression guard). CLI considerations command replaces stub; orchestrates all 3 scanners independently with try/catch, reads sibling PROJECT.md for chain-match boost, emits Markdown or --raw JSON. 26 new tests (Groups RS/RL/RO/F/CLI4); 839/854 tests pass. Commits: 352f507 (test:), 55c5b86 (feat:). SC-7 (rendering side) complete.
+- **formatConsiderations output is BODY only (TRD 03-04)** — No leading `## Cross-Repo Considerations` header; caller (skill or test) wraps it. Skipped org_overlap renders auth remediation placeholder and OMITS misfiling line. Misfiling line always present when scan ran (null → "no mismatch detected." affirmation).
+- **CLI considerations orchestration order locked (TRD 03-04)** — scanSiblings → scanLibs → scanOrgOverlap. Each independently try/caught. sibling_repos for chain-match boost derived from sibling matches' PROJECT.md github_repo fields (best-effort, silently skip on missing).
 
 ## Blockers / Concerns
 
@@ -109,7 +112,7 @@
 
 ## Session Continuity
 
-Last session: 2026-05-05 — TRD 03-03 (scanOrgOverlap + misfiling detection + auth degradation) complete. 813 tests pass (0 fail, 15 skip).
+Last session: 2026-05-05 — TRD 03-04 (formatConsiderations renderer + considerations CLI) complete. 839 tests pass (0 fail, 15 skip).
 Resume file: `.planning/SESSION_PICKUP.md`
-Stopped at: Completed 03-03-org-overlap-and-misfiling-TRD.md
-Next: TRD 03-04 (formatConsiderations markdown renderer)
+Stopped at: Completed 03-04-format-considerations-TRD.md
+Next: TRD 03-05 + 03-06 (parallel Wave 5 — research-objective + plan-objective skill integrations)
