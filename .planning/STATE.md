@@ -14,7 +14,7 @@
 **Objective complete:** 1 — GitHub coordination layer (verified 2026-05-04, 563/563 tests, all 6 TRDs done, SC-9 + SC-10 met)
 **Objective complete:** 2 — Cross-repo awareness layer (verified 2026-05-04, 731/731 tests with integration flags, all 10 SC met, 7 TRDs done)
 **Objective in flight:** 3 — Planning-time org awareness (in progress)
-**Current TRD:** 03-01 complete (sibling scanner + fixtures + CLI scaffold)
+**Current TRD:** 03-02 complete (eden-libs reuse scanner + lexical match heuristic)
 **Status:** Executing objective 3
 
 ## Branch State (post-merge)
@@ -96,6 +96,9 @@
 - **H6 --no-fetch path locked (TRD 02-06)** — When only peer is stale, use `scan-peer --no-fetch` (skips git fetch). Rationale: git fetch is the slow part of peer scanning; local refs are still useful data. Full fetch only when both sections stale (uses show --refresh).
 - **awareness_refresh guidance-only flag (TRD 02-06)** — init.cjs sets `awareness_refresh` but does NOT spawn refresh itself. Plan-objective and execute-objective skills are responsible for consuming the flag. Wiring those skills is out of scope for TRD 02-06 (belongs to obj 4/5 work).
 - **subprocess test pattern for init commands (TRD 02-06)** — `output()` in helpers.cjs calls `process.exit(0)`, making in-process stdout capture impossible. Tests for init.cjs use `execSync('node df-tools.cjs init ...')` + JSON.parse(stdout). Pattern now established for future init tests.
+- **TRD 03-02 complete (2026-05-05)** — `lib/org-awareness.cjs` extended with TRD 03-02 region: scanLibs + _camelSplit + _parseExports + _resolveEdenLibsPath + _entrypointsFromPackageJson. CLI scan-libs replaces stub. buildEdenLibsTree fixture added. CLI5 test updated from stub-exit to real JSON assertion. 35 new tests (Groups CS/PE/RP/L/CLI2/F2); 805/805 tests pass (790 pass, 0 fail, 15 skip). Commits: c6dfdb9 (test:), 4303bec (feat:). SC-3 + SC-4 complete.
+- **_parseExports regex patterns locked (TRD 03-02)** — 5 patterns: `module.exports.foo=...`, `exports.foo=...`, `module.exports = {...}` object literal, ESM `export function/const/let/var/class foo`, ESM `export { foo, bar }`. Default exports skipped via negative lookahead `(?!default\s+)`. Best-effort: comments not stripped (PE10 accepted behavior).
+- **CLI5 stub test updated (TRD 03-02 deviation)** — TRD 03-01 wrote CLI5 asserting exit-1 stub; TRD 03-02 replaces stub with real implementation (exit 0 + JSON). CLI5 updated to assert real behavior. Rule 1 auto-fix; no scope creep.
 
 ## Blockers / Concerns
 
@@ -103,7 +106,7 @@
 
 ## Session Continuity
 
-Last session: 2026-05-04 — TRD 03-01 (sibling scanner + fixtures + CLI scaffold) complete. 770/770 tests pass with integration flags.
+Last session: 2026-05-05 — TRD 03-02 (eden-libs reuse scanner) complete. 805/790/0 tests pass.
 Resume file: `.planning/SESSION_PICKUP.md`
-Stopped at: Completed 02-07-library-export-and-integration-TRD.md
-Next: Objective 3 (TBD — next objective to plan)
+Stopped at: Completed 03-02-eden-libs-scanner-TRD.md
+Next: TRD 03-03 (org-overlap and misfiling detection)
