@@ -863,6 +863,86 @@ function buildInitiativesHomeTree({ tmpdir, files = [] } = {}) {
   return { home: tmpdir, slugs };
 }
 
+// ─── TRD 05-02: walkProject mock helper ──────────────────────────────────────
+
+/**
+ * Build a mock _runGh function that responds to:
+ *   - auth status (returns success with locked scopes)
+ *   - api graphql (returns walkProject-shaped JSON)
+ *
+ * @param {object} opts
+ * @param {object[]} opts.walkProjectItems - array of buildOrgItem results to return
+ * @param {boolean} opts.authOk - if false, mock auth status returns failure
+ * @param {string} opts.authScopes - scopes string for success response
+ * @returns {function} mock _runGh fn for _setRunGh injection
+ */
+function buildMockRunGhForInitiatives({
+  walkProjectItems = [],
+  authOk = true,
+  authScopes = "'project', 'read:project', 'repo'",
+} = {}) {
+  return function mockRunGh(args) {
+    if (args && args[0] === 'auth' && args[1] === 'status') {
+      if (!authOk) {
+        return { ok: false, status: 1, stdout: '', stderr: 'You are not logged into any GitHub hosts.' };
+      }
+      return {
+        ok: true,
+        status: 0,
+        stdout: `github.com\n  ✓ Logged in to github.com\n  - Token scopes: ${authScopes}\n`,
+        stderr: '',
+      };
+    }
+    if (args && args[0] === 'api' && args[1] === 'graphql') {
+      // Build walkProject-shaped GraphQL response
+      const nodes = (walkProjectItems || []).map(item => {
+        const isIssue = item.item_type !== 'draft';
+        const fieldValues = { nodes: [] };
+        if (item.product) fieldValues.nodes.push({ name: item.product, field: { name: 'Product' } });
+        if (item.quarter) fieldValues.nodes.push({ name: item.quarter, field: { name: 'Quarter' } });
+        if (item.status) fieldValues.nodes.push({ name: item.status, field: { name: 'Status' } });
+        const content = isIssue ? {
+          __typename: 'Issue',
+          number: item.issue_ref ? parseInt(item.issue_ref.split('#')[1], 10) : 0,
+          title: item.title,
+          body: item.body || '',
+          repository: { nameWithOwner: item.issue_ref ? item.issue_ref.split('#')[0] : null },
+          trackedIssues: {
+            totalCount: (item.sub_issues || []).length,
+            nodes: (item.sub_issues || []).map(si => ({
+              number: parseInt(si.ref.split('#')[1], 10),
+              title: si.title,
+              state: si.state,
+              repository: { nameWithOwner: si.ref.split('#')[0] },
+            })),
+          },
+        } : {
+          __typename: 'DraftIssue',
+          title: item.title,
+          body: item.body || '',
+        };
+        return { content, fieldValues };
+      });
+      return {
+        ok: true,
+        status: 0,
+        stdout: JSON.stringify({
+          data: {
+            node: {
+              items: {
+                pageInfo: { hasNextPage: false, endCursor: null },
+                nodes,
+              },
+            },
+          },
+        }),
+        stderr: '',
+      };
+    }
+    return { ok: false, status: 1, stdout: '', stderr: `unmocked gh call: ${(args || []).join(' ')}` };
+  };
+}
+
 // ─── exports ──────────────────────────────────────────────────────────────────
 
 module.exports = {
@@ -897,4 +977,6 @@ module.exports = {
   buildInitiativeFile,
   buildInitiativeYaml,
   buildInitiativesHomeTree,
+  // TRD 05-02:
+  buildMockRunGhForInitiatives,
 };
