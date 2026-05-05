@@ -657,3 +657,584 @@ test('Constants have correct values', () => {
   assert.strictEqual(dd.DUP_DETECT_LOG_REL, '.planning/.dup-detect-log.jsonl');
   assert.strictEqual(dd.DEFERRED_DIR_REL, '.planning/.deferred');
 });
+
+// ─── TRD 04-02: recordResolution + applyResolution + writers ─────────────────
+
+const fsTest = require('fs');
+const pathTest = require('path');
+const osTest = require('os');
+
+function _mkTmpRepo() {
+  const tmp = fsTest.mkdtempSync(pathTest.join(osTest.tmpdir(), 'dd-02-test-'));
+  fsTest.mkdirSync(pathTest.join(tmp, '.planning'), { recursive: true });
+  return tmp;
+}
+
+// ─── Group RR: recordResolution (JSONL append) ────────────────────────────────
+
+test('RR1 — first recordResolution creates JSONL with single line', () => {
+  const tmp = _mkTmpRepo();
+  try {
+    dd.recordResolution({
+      objective_id: '04', mode: 'plan', blocking: true,
+      top_match: { strength: 'hard', peer: 'feature/peer', score: 100 },
+      resolution: 'coordinate', cwd: tmp,
+    });
+    const logPath = pathTest.join(tmp, '.planning', '.dup-detect-log.jsonl');
+    const content = fsTest.readFileSync(logPath, 'utf-8');
+    const lines = content.trim().split('\n');
+    assert.strictEqual(lines.length, 1, 'should have 1 line');
+    const rec = JSON.parse(lines[0]);
+    assert.strictEqual(rec.objective_id, '04');
+    assert.strictEqual(rec.resolution, 'coordinate');
+  } finally {
+    fsTest.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('RR2 — second recordResolution appends second line', () => {
+  const tmp = _mkTmpRepo();
+  try {
+    dd.recordResolution({ objective_id: '04', mode: 'plan', blocking: true, top_match: null, resolution: 'merge', cwd: tmp });
+    dd.recordResolution({ objective_id: '04', mode: 'execute', blocking: false, top_match: null, resolution: 'none', cwd: tmp });
+    const logPath = pathTest.join(tmp, '.planning', '.dup-detect-log.jsonl');
+    const lines = fsTest.readFileSync(logPath, 'utf-8').trim().split('\n');
+    assert.strictEqual(lines.length, 2, 'should have 2 lines after two calls');
+  } finally {
+    fsTest.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('RR3 — schema fields exact (timestamp, objective_id, mode, blocking, top_match, resolution)', () => {
+  const tmp = _mkTmpRepo();
+  try {
+    dd.recordResolution({ objective_id: '04', mode: 'plan', blocking: false, top_match: null, resolution: 'none', cwd: tmp });
+    const logPath = pathTest.join(tmp, '.planning', '.dup-detect-log.jsonl');
+    const rec = JSON.parse(fsTest.readFileSync(logPath, 'utf-8').trim());
+    const keys = Object.keys(rec).sort();
+    assert.deepStrictEqual(keys, ['blocking', 'mode', 'objective_id', 'resolution', 'timestamp', 'top_match'],
+      `unexpected keys: ${JSON.stringify(keys)}`);
+  } finally {
+    fsTest.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('RR4 — top_match: null when caller passes null', () => {
+  const tmp = _mkTmpRepo();
+  try {
+    dd.recordResolution({ objective_id: '04', mode: 'execute', blocking: false, top_match: null, resolution: 'none', cwd: tmp });
+    const logPath = pathTest.join(tmp, '.planning', '.dup-detect-log.jsonl');
+    const rec = JSON.parse(fsTest.readFileSync(logPath, 'utf-8').trim());
+    assert.strictEqual(rec.top_match, null, 'top_match should be null');
+  } finally {
+    fsTest.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('RR5 — top_match shape: { strength, peer, score } when caller passes a match', () => {
+  const tmp = _mkTmpRepo();
+  try {
+    dd.recordResolution({
+      objective_id: '04', mode: 'plan', blocking: true,
+      top_match: { strength: 'strong', peer: 'feature/peer', score: 0.8 },
+      resolution: 'coordinate', cwd: tmp,
+    });
+    const logPath = pathTest.join(tmp, '.planning', '.dup-detect-log.jsonl');
+    const rec = JSON.parse(fsTest.readFileSync(logPath, 'utf-8').trim());
+    assert.ok(rec.top_match, 'top_match should be present');
+    assert.strictEqual(rec.top_match.strength, 'strong');
+    assert.strictEqual(rec.top_match.peer, 'feature/peer');
+    assert.strictEqual(rec.top_match.score, 0.8);
+  } finally {
+    fsTest.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('RR6 — timestamp is ISO 8601 UTC', () => {
+  const tmp = _mkTmpRepo();
+  try {
+    dd.recordResolution({ objective_id: '04', mode: 'plan', blocking: false, top_match: null, resolution: 'none', cwd: tmp });
+    const logPath = pathTest.join(tmp, '.planning', '.dup-detect-log.jsonl');
+    const rec = JSON.parse(fsTest.readFileSync(logPath, 'utf-8').trim());
+    assert.match(rec.timestamp, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/, 'timestamp should be ISO 8601');
+  } finally {
+    fsTest.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('RR7 — lazy-creates .planning/ directory if missing', () => {
+  const tmp = fsTest.mkdtempSync(pathTest.join(osTest.tmpdir(), 'dd-02-noplan-'));
+  // Deliberately do NOT create .planning/
+  try {
+    dd.recordResolution({ objective_id: '04', mode: 'plan', blocking: false, top_match: null, resolution: 'none', cwd: tmp });
+    const logPath = pathTest.join(tmp, '.planning', '.dup-detect-log.jsonl');
+    assert.ok(fsTest.existsSync(logPath), '.planning/.dup-detect-log.jsonl should be created lazily');
+  } finally {
+    fsTest.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('RR8 — write permission error is caught, warns to stderr, does not throw', () => {
+  // Inject a _runFs that throws on appendFileSync
+  const savedFs = dd._setRunFs;
+  let warnSeen = false;
+  const origStderr = process.stderr.write.bind(process.stderr);
+  process.stderr.write = (chunk) => { if (String(chunk).includes('recordResolution')) warnSeen = true; origStderr(chunk); return true; };
+  dd._setRunFs({
+    existsSync: () => true,
+    mkdirSync: () => {},
+    appendFileSync: () => { throw new Error('EACCES: permission denied'); },
+    readdirSync: (p, opts) => require('fs').readdirSync(p, opts),
+    writeFileSync: () => {},
+    statSync: (p) => require('fs').statSync(p),
+  });
+  try {
+    assert.doesNotThrow(() => {
+      dd.recordResolution({ objective_id: '04', mode: 'plan', blocking: false, top_match: null, resolution: 'none', cwd: process.cwd() });
+    }, 'recordResolution must not throw on write error');
+    assert.ok(warnSeen, 'should have written a warning to stderr');
+  } finally {
+    process.stderr.write = origStderr;
+    dd._resetMocks();
+  }
+});
+
+test('RR9 — no developer or PII fields included', () => {
+  const tmp = _mkTmpRepo();
+  try {
+    dd.recordResolution({ objective_id: '04', mode: 'plan', blocking: false, top_match: null, resolution: 'none', cwd: tmp });
+    const logPath = pathTest.join(tmp, '.planning', '.dup-detect-log.jsonl');
+    const rec = JSON.parse(fsTest.readFileSync(logPath, 'utf-8').trim());
+    assert.strictEqual(rec.developer, undefined, 'developer field must not appear');
+    assert.strictEqual(rec.email, undefined, 'email field must not appear');
+    assert.strictEqual(rec.machine, undefined, 'machine field must not appear');
+  } finally {
+    fsTest.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('RR10 — each line is valid JSON parseable (newline-delimited)', () => {
+  const tmp = _mkTmpRepo();
+  try {
+    for (let i = 0; i < 3; i++) {
+      dd.recordResolution({ objective_id: '04', mode: 'plan', blocking: false, top_match: null, resolution: 'none', cwd: tmp });
+    }
+    const logPath = pathTest.join(tmp, '.planning', '.dup-detect-log.jsonl');
+    const content = fsTest.readFileSync(logPath, 'utf-8');
+    const lines = content.trim().split('\n');
+    assert.strictEqual(lines.length, 3, 'should have 3 lines');
+    for (const line of lines) {
+      assert.doesNotThrow(() => JSON.parse(line), `each line must be valid JSON: ${line}`);
+    }
+  } finally {
+    fsTest.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+// ─── Group AR: applyResolution dispatcher ────────────────────────────────────
+
+test('AR1 — resolution=coordinate writes coordination note, returns { wrote_coordination_note: true }', () => {
+  const tmp = _mkTmpRepo();
+  const objDir = pathTest.join(tmp, '.planning', 'objectives', '04-test');
+  fsTest.mkdirSync(objDir, { recursive: true });
+  try {
+    const r = dd.applyResolution({
+      resolution: 'coordinate', objective_id: '04',
+      peer_branch: 'feature/peer', peer_objective: '03 — peer',
+      cwd: tmp,
+      detection: {
+        timestamp: new Date().toISOString(),
+        matches: [{ strength: 'strong', source: 'peer', signal: 'shared file', peer_branch: 'feature/peer', peer_objective: '03 — peer' }],
+      },
+      objective_dir: objDir, padded_objective: '04',
+    });
+    assert.strictEqual(r.wrote_coordination_note, true, 'should return wrote_coordination_note: true');
+    const ctxPath = pathTest.join(objDir, '04-CONTEXT.md');
+    assert.ok(fsTest.existsSync(ctxPath), 'CONTEXT.md should be created');
+    const ctx = fsTest.readFileSync(ctxPath, 'utf-8');
+    assert.match(ctx, /## Coordination Note/, 'should contain ## Coordination Note');
+    assert.match(ctx, /Coordinate/, 'should contain Coordinate label');
+  } finally {
+    fsTest.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('AR2 — resolution=proceed-anyway writes coordination note with warning, returns { wrote_coordination_note: true, warning_appended: true }', () => {
+  const tmp = _mkTmpRepo();
+  const objDir = pathTest.join(tmp, '.planning', 'objectives', '04-test');
+  fsTest.mkdirSync(objDir, { recursive: true });
+  try {
+    const r = dd.applyResolution({
+      resolution: 'proceed-anyway', objective_id: '04',
+      peer_branch: 'feature/peer', peer_objective: '03 — peer',
+      cwd: tmp,
+      detection: {
+        timestamp: new Date().toISOString(),
+        matches: [{ strength: 'hard', source: 'peer', signal: 'github_issue match', peer_branch: 'feature/peer', peer_objective: '03 — peer' }],
+      },
+      objective_dir: objDir, padded_objective: '04',
+    });
+    assert.strictEqual(r.wrote_coordination_note, true);
+    assert.strictEqual(r.warning_appended, true, 'should return warning_appended: true');
+    const ctx = fsTest.readFileSync(pathTest.join(objDir, '04-CONTEXT.md'), 'utf-8');
+    assert.match(ctx, /WARNING/, 'should contain WARNING line');
+    assert.match(ctx, /Proceed-anyway/, 'should contain Proceed-anyway label');
+  } finally {
+    fsTest.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('AR3 — resolution=defer calls _writeDeferredState, returns { wrote_deferred: true, defer_path }', () => {
+  const tmp = _mkTmpRepo();
+  const objDir = pathTest.join(tmp, '.planning', 'objectives', '04-test');
+  fsTest.mkdirSync(objDir, { recursive: true });
+  try {
+    const r = dd.applyResolution({
+      resolution: 'defer', objective_id: '04',
+      peer_branch: 'feature/peer', peer_objective: '03',
+      cwd: tmp,
+      detection: {
+        timestamp: new Date().toISOString(),
+        matches: [{ strength: 'hard', source: 'peer', signal: 'github_issue', peer_branch: 'feature/peer', peer_objective: '03' }],
+      },
+      objective_dir: objDir, padded_objective: '04',
+    });
+    assert.strictEqual(r.wrote_deferred, true, 'should return wrote_deferred: true');
+    assert.ok(r.defer_path, 'should return defer_path');
+    assert.ok(fsTest.existsSync(r.defer_path), 'defer_path should exist on disk');
+  } finally {
+    fsTest.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('AR4 — resolution=merge returns { aborted: true, suggestion: "git checkout <branch>" }, writes no file', () => {
+  const tmp = _mkTmpRepo();
+  const objDir = pathTest.join(tmp, '.planning', 'objectives', '04-test');
+  fsTest.mkdirSync(objDir, { recursive: true });
+
+  const stdoutChunks = [];
+  const origStdout = process.stdout.write.bind(process.stdout);
+  process.stdout.write = (chunk) => { stdoutChunks.push(String(chunk)); return true; };
+  try {
+    const r = dd.applyResolution({
+      resolution: 'merge', objective_id: '04',
+      peer_branch: 'feature/peer', peer_objective: '03',
+      cwd: tmp,
+      detection: { timestamp: new Date().toISOString(), matches: [] },
+      objective_dir: objDir, padded_objective: '04',
+    });
+    assert.strictEqual(r.aborted, true, 'should return aborted: true');
+    assert.ok(r.suggestion.includes('git checkout'), `suggestion should include git checkout: ${r.suggestion}`);
+    // No file should be written to objDir
+    const ctxPath = pathTest.join(objDir, '04-CONTEXT.md');
+    assert.ok(!fsTest.existsSync(ctxPath), 'CONTEXT.md should NOT be created for merge');
+    // No .deferred file
+    const deferPath = pathTest.join(tmp, '.planning', '.deferred', '04.json');
+    assert.ok(!fsTest.existsSync(deferPath), '.deferred file should NOT be created for merge');
+  } finally {
+    process.stdout.write = origStdout;
+    fsTest.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('AR5 — unknown resolution string throws Error', () => {
+  const tmp = _mkTmpRepo();
+  try {
+    assert.throws(() => {
+      dd.applyResolution({
+        resolution: 'invalid-option', objective_id: '04',
+        peer_branch: null, peer_objective: null,
+        cwd: tmp, detection: { timestamp: new Date().toISOString(), matches: [] },
+        objective_dir: pathTest.join(tmp, 'obj'), padded_objective: '04',
+      });
+    }, /unknown resolution/i, 'should throw on unknown resolution');
+  } finally {
+    fsTest.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('AR6 — coordinate path + recordResolution records coordinate in JSONL (integration check)', () => {
+  const tmp = _mkTmpRepo();
+  const objDir = pathTest.join(tmp, '.planning', 'objectives', '04-test');
+  fsTest.mkdirSync(objDir, { recursive: true });
+  try {
+    dd.applyResolution({
+      resolution: 'coordinate', objective_id: '04',
+      peer_branch: 'feature/peer', peer_objective: '03',
+      cwd: tmp,
+      detection: { timestamp: new Date().toISOString(), matches: [{ strength: 'strong', source: 'peer', signal: 'shared file', peer_branch: 'feature/peer', peer_objective: '03' }] },
+      objective_dir: objDir, padded_objective: '04',
+    });
+    // Also record resolution
+    dd.recordResolution({ objective_id: '04', mode: 'plan', blocking: true, top_match: null, resolution: 'coordinate', cwd: tmp });
+    const logPath = pathTest.join(tmp, '.planning', '.dup-detect-log.jsonl');
+    assert.ok(fsTest.existsSync(logPath), 'JSONL log should exist');
+    const rec = JSON.parse(fsTest.readFileSync(logPath, 'utf-8').trim());
+    assert.strictEqual(rec.resolution, 'coordinate');
+  } finally {
+    fsTest.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+// ─── Group CN: _writeCoordinationNote ────────────────────────────────────────
+
+test('CN1 — existing CONTEXT.md gets section appended; previous content preserved', () => {
+  const tmp = _mkTmpRepo();
+  const objDir = pathTest.join(tmp, '.planning', 'objectives', '04-test');
+  fsTest.mkdirSync(objDir, { recursive: true });
+  try {
+    const ctxPath = pathTest.join(objDir, '04-CONTEXT.md');
+    fsTest.writeFileSync(ctxPath, '# Existing content\n\nSome existing text.\n', 'utf-8');
+    const note = {
+      objective_id: '04', timestamp: new Date().toISOString(),
+      strength: 'strong', source: 'peer', peer_objective: '03',
+      peer_branch: 'feature/peer', signal: 'shared files',
+      resolution_label: 'Coordinate', suggested_handoff: 'split work',
+    };
+    dd._writeCoordinationNote(objDir, '04', note);
+    const ctx = fsTest.readFileSync(ctxPath, 'utf-8');
+    assert.ok(ctx.includes('# Existing content'), 'previous content should be preserved');
+    assert.ok(ctx.includes('## Coordination Note'), 'should append Coordination Note');
+  } finally {
+    fsTest.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('CN2 — missing CONTEXT.md is created with frontmatter scaffold + section', () => {
+  const tmp = _mkTmpRepo();
+  const objDir = pathTest.join(tmp, '.planning', 'objectives', '04-test');
+  fsTest.mkdirSync(objDir, { recursive: true });
+  try {
+    const ctxPath = pathTest.join(objDir, '04-CONTEXT.md');
+    assert.ok(!fsTest.existsSync(ctxPath), 'should not exist before');
+    const note = {
+      objective_id: '04', timestamp: new Date().toISOString(),
+      strength: 'hard', source: 'peer', peer_objective: '03',
+      peer_branch: 'feature/peer', signal: 'github_issue match',
+      resolution_label: 'Coordinate', suggested_handoff: 'split work',
+    };
+    dd._writeCoordinationNote(objDir, '04', note);
+    assert.ok(fsTest.existsSync(ctxPath), 'CONTEXT.md should be created');
+    const ctx = fsTest.readFileSync(ctxPath, 'utf-8');
+    assert.match(ctx, /^---/, 'should start with frontmatter');
+    assert.match(ctx, /## Coordination Note/, 'should contain Coordination Note section');
+  } finally {
+    fsTest.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('CN3 — second _writeCoordinationNote call appends another section (accumulates, not replaces)', () => {
+  const tmp = _mkTmpRepo();
+  const objDir = pathTest.join(tmp, '.planning', 'objectives', '04-test');
+  fsTest.mkdirSync(objDir, { recursive: true });
+  try {
+    const note = {
+      objective_id: '04', timestamp: new Date().toISOString(),
+      strength: 'strong', source: 'peer', peer_objective: '03',
+      peer_branch: 'feature/peer', signal: 'shared',
+      resolution_label: 'Coordinate', suggested_handoff: 'split work',
+    };
+    dd._writeCoordinationNote(objDir, '04', note);
+    dd._writeCoordinationNote(objDir, '04', note);
+    const ctx = fsTest.readFileSync(pathTest.join(objDir, '04-CONTEXT.md'), 'utf-8');
+    const matches = ctx.match(/## Coordination Note/g) || [];
+    assert.strictEqual(matches.length, 2, 'should have 2 Coordination Note sections (accumulates)');
+  } finally {
+    fsTest.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('CN4 — signal containing newlines is sanitized (no embedded newlines in markdown bullet)', () => {
+  const tmp = _mkTmpRepo();
+  const objDir = pathTest.join(tmp, '.planning', 'objectives', '04-test');
+  fsTest.mkdirSync(objDir, { recursive: true });
+  try {
+    const note = {
+      objective_id: '04', timestamp: new Date().toISOString(),
+      strength: 'strong', source: 'peer', peer_objective: '03',
+      peer_branch: 'feature/peer', signal: 'shared file\nwith newline\r\nand crlf',
+      resolution_label: 'Coordinate', suggested_handoff: 'split work',
+    };
+    dd._writeCoordinationNote(objDir, '04', note);
+    const ctx = fsTest.readFileSync(pathTest.join(objDir, '04-CONTEXT.md'), 'utf-8');
+    // The signal line in markdown should not have a bare newline within it
+    const signalLine = ctx.split('\n').find(l => l.includes('**Signal:**'));
+    assert.ok(signalLine, 'Signal line should be present');
+    assert.ok(!signalLine.includes('\r'), 'Signal line should not contain carriage return');
+    // The sanitized signal should have spaces instead of newlines
+    assert.ok(signalLine.includes('shared file'), 'Signal content should be preserved');
+  } finally {
+    fsTest.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('CN5 — peer_objective with special chars renders (no crash)', () => {
+  const tmp = _mkTmpRepo();
+  const objDir = pathTest.join(tmp, '.planning', 'objectives', '04-test');
+  fsTest.mkdirSync(objDir, { recursive: true });
+  try {
+    const note = {
+      objective_id: '04', timestamp: new Date().toISOString(),
+      strength: 'strong', source: 'peer', peer_objective: '`03 — duplicate-work`',
+      peer_branch: 'feature/peer', signal: 'shared file',
+      resolution_label: 'Coordinate', suggested_handoff: 'split work',
+    };
+    assert.doesNotThrow(() => dd._writeCoordinationNote(objDir, '04', note), 'should not throw on special chars');
+    const ctx = fsTest.readFileSync(pathTest.join(objDir, '04-CONTEXT.md'), 'utf-8');
+    assert.match(ctx, /## Coordination Note/, 'should write section successfully');
+  } finally {
+    fsTest.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('CN6 — warning field present renders **WARNING:** line (proceed-anyway path)', () => {
+  const tmp = _mkTmpRepo();
+  const objDir = pathTest.join(tmp, '.planning', 'objectives', '04-test');
+  fsTest.mkdirSync(objDir, { recursive: true });
+  try {
+    const note = {
+      objective_id: '04', timestamp: new Date().toISOString(),
+      strength: 'hard', source: 'peer', peer_objective: '03',
+      peer_branch: 'feature/peer', signal: 'github_issue match',
+      resolution_label: 'Proceed-anyway',
+      suggested_handoff: 'split work',
+      warning: 'User chose proceed anyway — merge conflicts likely',
+    };
+    dd._writeCoordinationNote(objDir, '04', note);
+    const ctx = fsTest.readFileSync(pathTest.join(objDir, '04-CONTEXT.md'), 'utf-8');
+    assert.match(ctx, /\*\*WARNING:\*\*/, 'should contain **WARNING:** line');
+    assert.ok(ctx.includes('merge conflicts'), 'should contain warning text');
+  } finally {
+    fsTest.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('CN7 — warning field absent means no **WARNING:** line (coordinate path)', () => {
+  const tmp = _mkTmpRepo();
+  const objDir = pathTest.join(tmp, '.planning', 'objectives', '04-test');
+  fsTest.mkdirSync(objDir, { recursive: true });
+  try {
+    const note = {
+      objective_id: '04', timestamp: new Date().toISOString(),
+      strength: 'strong', source: 'peer', peer_objective: '03',
+      peer_branch: 'feature/peer', signal: 'shared file',
+      resolution_label: 'Coordinate', suggested_handoff: 'split work',
+      // no warning field
+    };
+    dd._writeCoordinationNote(objDir, '04', note);
+    const ctx = fsTest.readFileSync(pathTest.join(objDir, '04-CONTEXT.md'), 'utf-8');
+    assert.ok(!ctx.includes('**WARNING:**'), 'WARNING line should not appear for coordinate');
+  } finally {
+    fsTest.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+// ─── Group DS: _writeDeferredState ────────────────────────────────────────────
+
+test('DS1 — file written to .planning/.deferred/<objective_id>.json', () => {
+  const tmp = _mkTmpRepo();
+  try {
+    dd._writeDeferredState('04', {
+      mode: 'plan', objective_dir: '.planning/objectives/04-test',
+      trd_count_at_defer: 0, last_commit_at_defer: null,
+      blocking_match: { strength: 'hard', source: 'peer', peer_branch: 'feature/x', peer_objective: '03', signal: 'gh', score: 1.0 },
+    }, tmp);
+    const filePath = pathTest.join(tmp, '.planning', '.deferred', '04.json');
+    assert.ok(fsTest.existsSync(filePath), '.planning/.deferred/04.json should exist');
+    const state = JSON.parse(fsTest.readFileSync(filePath, 'utf-8'));
+    assert.strictEqual(state.objective_id, '04');
+    assert.strictEqual(state.mode, 'plan');
+    assert.ok(state.deferred_at, 'deferred_at should be set');
+  } finally {
+    fsTest.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('DS2 — schema correct: objective_id, deferred_at, mode, objective_dir, trd_count_at_defer, last_commit_at_defer, blocking_match, resolution_timestamp', () => {
+  const tmp = _mkTmpRepo();
+  try {
+    dd._writeDeferredState('04', {
+      mode: 'plan',
+      objective_dir: '.planning/objectives/04-test',
+      trd_count_at_defer: 2,
+      last_commit_at_defer: 'abc1234',
+      blocking_match: { strength: 'strong', source: 'peer', peer_branch: 'feature/x', peer_objective: '03', signal: 'file overlap', score: 0.8 },
+    }, tmp);
+    const state = JSON.parse(fsTest.readFileSync(pathTest.join(tmp, '.planning', '.deferred', '04.json'), 'utf-8'));
+    assert.strictEqual(state.objective_id, '04');
+    assert.ok(state.deferred_at, 'deferred_at required');
+    assert.strictEqual(state.mode, 'plan');
+    assert.strictEqual(state.objective_dir, '.planning/objectives/04-test');
+    assert.strictEqual(state.trd_count_at_defer, 2);
+    assert.strictEqual(state.last_commit_at_defer, 'abc1234');
+    assert.ok(state.blocking_match, 'blocking_match required');
+    assert.ok(state.resolution_timestamp, 'resolution_timestamp required');
+  } finally {
+    fsTest.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('DS3 — lazy-creates .planning/.deferred/ directory if missing', () => {
+  const tmp = fsTest.mkdtempSync(pathTest.join(osTest.tmpdir(), 'dd-02-nodefer-'));
+  // No .planning/ created at all
+  try {
+    dd._writeDeferredState('04', {
+      mode: 'plan', objective_dir: 'obj',
+      trd_count_at_defer: 0, last_commit_at_defer: null,
+      blocking_match: null,
+    }, tmp);
+    const deferDir = pathTest.join(tmp, '.planning', '.deferred');
+    assert.ok(fsTest.existsSync(deferDir), '.planning/.deferred/ should be created lazily');
+    assert.ok(fsTest.existsSync(pathTest.join(deferDir, '04.json')), '04.json should exist');
+  } finally {
+    fsTest.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('DS4 — existing .deferred/<id>.json is overwritten on second call (not appended)', () => {
+  const tmp = _mkTmpRepo();
+  try {
+    dd._writeDeferredState('04', { mode: 'plan', objective_dir: 'obj', trd_count_at_defer: 0, last_commit_at_defer: null, blocking_match: null }, tmp);
+    dd._writeDeferredState('04', { mode: 'execute', objective_dir: 'obj2', trd_count_at_defer: 3, last_commit_at_defer: 'xyz9999', blocking_match: null }, tmp);
+    const state = JSON.parse(fsTest.readFileSync(pathTest.join(tmp, '.planning', '.deferred', '04.json'), 'utf-8'));
+    assert.strictEqual(state.mode, 'execute', 'second call should overwrite first');
+    assert.strictEqual(state.trd_count_at_defer, 3);
+  } finally {
+    fsTest.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('DS5 — deferred_at and resolution_timestamp are ISO 8601 UTC', () => {
+  const tmp = _mkTmpRepo();
+  try {
+    dd._writeDeferredState('04', { mode: 'plan', objective_dir: 'obj', trd_count_at_defer: 0, last_commit_at_defer: null, blocking_match: null }, tmp);
+    const state = JSON.parse(fsTest.readFileSync(pathTest.join(tmp, '.planning', '.deferred', '04.json'), 'utf-8'));
+    assert.match(state.deferred_at, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+    assert.match(state.resolution_timestamp, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+  } finally {
+    fsTest.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('DS6 — blocking_match is preserved verbatim from input', () => {
+  const tmp = _mkTmpRepo();
+  const blockingMatch = { strength: 'hard', source: 'org-overlap', peer_branch: null, peer_objective: '03', signal: 'chain_match: #13', score: 1.0 };
+  try {
+    dd._writeDeferredState('04', {
+      mode: 'plan', objective_dir: 'obj', trd_count_at_defer: 0, last_commit_at_defer: null,
+      blocking_match: blockingMatch,
+    }, tmp);
+    const state = JSON.parse(fsTest.readFileSync(pathTest.join(tmp, '.planning', '.deferred', '04.json'), 'utf-8'));
+    assert.deepStrictEqual(state.blocking_match, blockingMatch, 'blocking_match should be preserved verbatim');
+  } finally {
+    fsTest.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+// ─── Group Exports: new exports present ──────────────────────────────────────
+
+test('TRD 04-02 exports: recordResolution, applyResolution, _writeCoordinationNote, _writeDeferredState', () => {
+  for (const sym of ['recordResolution', 'applyResolution', '_writeCoordinationNote', '_writeDeferredState']) {
+    assert.strictEqual(typeof dd[sym], 'function', `${sym} should be exported as a function`);
+  }
+});
