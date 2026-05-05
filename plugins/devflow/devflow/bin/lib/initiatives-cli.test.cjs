@@ -516,6 +516,46 @@ test('CLI3-3: --force JSON output includes deleted: [...] array', async () => {
   assert.ok(Array.isArray(result.deleted), 'deleted is an array');
 });
 
+// ─── TRD 05-04: Group FP — format-for-planner subcommand ─────────────────────
+
+test('FP1: format-for-planner emits matching initiatives joined by ---', () => {
+  const home = mkTmp('df-fp1-');
+  fixtures.buildInitiativesHomeTree({
+    tmpdir: home,
+    files: [
+      { slug: 'devflow-coord', key_repos: ['AO-Cyber-Systems/devflow-claude'] },
+      { slug: 'eden-launch', key_repos: ['AO-Cyber-Systems/eden-biz'] },
+    ],
+  });
+  const r = spawnSync('node', [DF_TOOLS, 'initiatives', 'format-for-planner', '--repo', 'AO-Cyber-Systems/devflow-claude', '--home', home], { encoding: 'utf-8' });
+  assert.strictEqual(r.status, 0, `expected exit 0; stderr: ${r.stderr}`);
+  assert.ok(r.stdout.includes('devflow-coord'), 'output includes matching slug');
+  assert.ok(!r.stdout.includes('eden-launch'), 'output excludes non-matching slug');
+  fs.rmSync(home, { recursive: true, force: true });
+});
+
+test('FP2: format-for-planner emits placeholder when no matches', () => {
+  const home = mkTmp('df-fp2-');
+  // Empty home dir — no initiative files
+  fs.mkdirSync(home, { recursive: true });
+  const r = spawnSync('node', [DF_TOOLS, 'initiatives', 'format-for-planner', '--repo', 'AO-Cyber-Systems/devflow', '--home', home], { encoding: 'utf-8' });
+  assert.strictEqual(r.status, 0, `expected exit 0; stderr: ${r.stderr}`);
+  assert.ok(r.stdout.includes('_(no matching initiatives'), `placeholder not found; stdout: ${r.stdout}`);
+  fs.rmSync(home, { recursive: true, force: true });
+});
+
+test('FP3: format-for-planner without --repo exits 1 with error mentioning --repo', () => {
+  const r = spawnSync('node', [DF_TOOLS, 'initiatives', 'format-for-planner'], { encoding: 'utf-8' });
+  assert.strictEqual(r.status, 1, `expected exit 1; status was: ${r.status}`);
+  let errObj;
+  try {
+    errObj = JSON.parse(r.stderr.trim());
+  } catch (e) {
+    assert.fail(`stderr not valid JSON: ${r.stderr}`);
+  }
+  assert.ok(errObj.error && errObj.error.includes('--repo'), `error should mention --repo; got: ${errObj.error}`);
+});
+
 test('CLI2-5: --project-id <id> flag passes through to syncInitiatives', async () => {
   const home = mkTmp('df-cli2-');
   let usedProjectId = null;

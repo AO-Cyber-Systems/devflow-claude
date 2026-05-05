@@ -17,7 +17,7 @@ function _parseFlags(args) {
   let i = 0;
   while (i < args.length) {
     const a = args[i];
-    if (a === '--home' || a === '--initiative' || a === '--project-id') {
+    if (a === '--home' || a === '--initiative' || a === '--project-id' || a === '--repo') {
       flags[a.slice(2)] = args[i + 1];
       i += 2;
     } else if (a === '--raw' || a === '--force') {
@@ -124,11 +124,32 @@ async function cmdInitiativesSync(cwd, args) {
   }
 }
 
+function cmdInitiativesFormatForPlanner(cwd, args) {
+  const { flags } = _parseFlags(args);
+  const repo = flags.repo;
+  if (!repo) {
+    process.stderr.write(JSON.stringify({ error: 'Usage: initiatives format-for-planner --repo <github_repo>' }) + '\n');
+    process.exit(1);
+    return;
+  }
+  const home = flags.home || init.defaultInitiativesHome();
+  const initiatives = init.loadInitiatives({ home });
+  const matching = init.matchByRepo(initiatives, repo);
+  if (matching.length === 0) {
+    process.stdout.write('_(no matching initiatives for this repo)_\n');
+    process.exit(0);
+    return;
+  }
+  const blocks = matching.map(i => init.formatInitiativeForPlanner(i));
+  process.stdout.write(blocks.join('\n\n---\n\n') + '\n');
+  process.exit(0);
+}
+
 function cmdInitiativesRoute(cwd, args) {
   const sub = args[0];
   if (!sub) {
     process.stderr.write(JSON.stringify({
-      error: 'Usage: initiatives <sync|list|show>',
+      error: 'Usage: initiatives <sync|list|show|format-for-planner>',
     }, null, 2) + '\n');
     process.exit(1);
     return;
@@ -137,9 +158,10 @@ function cmdInitiativesRoute(cwd, args) {
     case 'list': return cmdInitiativesList(cwd, args.slice(1));
     case 'show': return cmdInitiativesShow(cwd, args.slice(1));
     case 'sync': return cmdInitiativesSync(cwd, args.slice(1));
+    case 'format-for-planner': return cmdInitiativesFormatForPlanner(cwd, args.slice(1));
     default:
       process.stderr.write(JSON.stringify({
-        error: `Unknown initiatives subcommand: ${sub}. Available: sync, list, show`,
+        error: `Unknown initiatives subcommand: ${sub}. Available: sync, list, show, format-for-planner`,
       }, null, 2) + '\n');
       process.exit(1);
   }
@@ -150,4 +172,5 @@ module.exports = {
   cmdInitiativesList,
   cmdInitiativesShow,
   cmdInitiativesSync,
+  cmdInitiativesFormatForPlanner,
 };
