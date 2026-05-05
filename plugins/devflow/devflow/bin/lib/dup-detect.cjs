@@ -732,7 +732,117 @@ function applyResolution({
   }
 }
 
-// ─── TRD 04-01 + 04-02: Partial module.exports ───────────────────────────────
+// ─── TRD 04-03: formatDetectionMarkdown — pure renderer ──────────────────────
+
+/**
+ * Sanitize text for safe inclusion in markdown bullets:
+ *   - replace backticks with single quotes (v1.1 cheap escape)
+ *   - replace newlines with spaces (one-line bullet contract)
+ *
+ * @param {*} s
+ * @returns {string}
+ */
+function _sanitize(s) {
+  if (s == null) return '';
+  return String(s).replace(/`/g, "'").replace(/[\r\n]+/g, ' ');
+}
+
+function _formatScore(score) {
+  if (typeof score !== 'number' || !Number.isFinite(score)) return 'N/A';
+  return String(Math.round(score));
+}
+
+function _renderMatchEntry(m) {
+  const peer = m.peer_branch || m.peer_objective || '(unknown peer)';
+  const lines = [];
+  lines.push(`- **${_sanitize(m.strength)}** match — source: \`${_sanitize(m.source)}\` — peer: \`${_sanitize(peer)}\` — score: ${_formatScore(m.score)}`);
+  lines.push(`  - signal: ${_sanitize(m.signal) || '(no signal description)'}`);
+  return lines.join('\n');
+}
+
+function _renderAdvisoryEntry(m) {
+  const peer = m.peer_branch || m.peer_objective || '(unknown peer)';
+  return `- _${_sanitize(m.strength)}_ — peer \`${_sanitize(peer)}\` — ${_sanitize(m.signal) || '(no signal)'}`;
+}
+
+function _renderWarnings(warnings) {
+  const arr = Array.isArray(warnings) ? warnings : [];
+  if (arr.length === 0) return '';
+  return arr.map(w => `> **Note:** ${_sanitize(w)}`).join('\n');
+}
+
+function _renderResolutionOptions() {
+  return [
+    '### Resolution options',
+    '',
+    '1. **Merge** — abort planning, switch to peer branch and continue there.',
+    '2. **Defer** — pause this objective; save state to `.planning/.deferred/<id>.json`.',
+    '3. **Coordinate** — continue planning; record a Coordination Note in CONTEXT.md.',
+    '4. **Proceed-anyway** — continue with full warning logged in CONTEXT.md.',
+  ].join('\n');
+}
+
+/**
+ * Render a detectDuplicates() result as Markdown for human display.
+ *
+ * @param {object|null} detection - the structured result from detectDuplicates()
+ * @param {object} [opts]
+ * @param {'askuser'|'context'} [opts.purpose='askuser']
+ * @returns {string}
+ */
+function formatDetectionMarkdown(detection, opts) {
+  if (detection == null) return '_(no detection result available)_';
+  const purpose = (opts && (opts.purpose === 'context' || opts.purpose === 'askuser')) ? opts.purpose : 'askuser';
+
+  const matches = Array.isArray(detection.matches) ? detection.matches : [];
+  const advisory = Array.isArray(detection.advisory) ? detection.advisory : [];
+  const warnings = Array.isArray(detection.warnings) ? detection.warnings : [];
+  const mode = detection.mode || 'plan';
+
+  // Empty case: no matches, no advisory, no warnings
+  if (matches.length === 0 && advisory.length === 0 && warnings.length === 0) {
+    return '_(no duplicate-work signals detected — proceeding without coordination note)_';
+  }
+
+  const sections = [];
+
+  // Title
+  const title = (mode === 'execute')
+    ? '## Duplicate-Work Recheck (execute-time)'
+    : '## Duplicate-Work Match Detected';
+  sections.push(title);
+
+  // Matches section (blocking)
+  if (matches.length > 0) {
+    const matchLines = ['### Matches (blocking)'];
+    for (const m of matches.slice(0, 5)) {
+      matchLines.push(_renderMatchEntry(m));
+    }
+    sections.push(matchLines.join('\n'));
+  }
+
+  // Advisory section (plan-mode only and when present)
+  if (mode === 'plan' && advisory.length > 0) {
+    const advLines = ['### Advisory (informational)'];
+    for (const m of advisory.slice(0, 5)) {
+      advLines.push(_renderAdvisoryEntry(m));
+    }
+    sections.push(advLines.join('\n'));
+  }
+
+  // Warnings blockquote
+  const warningsBlock = _renderWarnings(warnings);
+  if (warningsBlock) sections.push(warningsBlock);
+
+  // Resolution options (askuser variant only, and only when there's something to resolve)
+  if (purpose === 'askuser' && matches.length > 0) {
+    sections.push(_renderResolutionOptions());
+  }
+
+  return sections.join('\n\n');
+}
+
+// ─── TRD 04-01 + 04-02 + 04-03: Partial module.exports ──────────────────────
 
 module.exports = {
   // TRD 04-01: Public API
@@ -762,4 +872,7 @@ module.exports = {
   applyResolution,
   _writeCoordinationNote,
   _writeDeferredState,
+
+  // TRD 04-03: Pure markdown renderer
+  formatDetectionMarkdown,
 };
