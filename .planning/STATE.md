@@ -12,8 +12,9 @@
 **Branch:** `feature/v1.1`
 **Objective complete:** 0 — Refine (kind, work) defaults table from codebase evidence (verified 2026-05-04, 443/443 tests, all 10 SC met)
 **Objective complete:** 1 — GitHub coordination layer (verified 2026-05-04, 563/563 tests, all 6 TRDs done, SC-9 + SC-10 met)
-**Objective in flight:** 2 — Cross-worktree session telemetry (next)
-**Current TRD:** 02-01 (not yet started)
+**Objective complete:** 2 — Cross-repo awareness layer (verified 2026-05-04, 731/731 tests with integration flags, all 10 SC met, 7 TRDs done)
+**Objective in flight:** (next objective TBD)
+**Current TRD:** (Objective 2 complete — all 7 TRDs done)
 **Status:** Ready to plan
 
 ## Branch State (post-merge)
@@ -67,6 +68,31 @@
 - **PRODUCT_ROADMAP_FIELDS flat structure (TRD 01-06)** — Fields live directly on constant (PRODUCT_ROADMAP_FIELDS.Status = { field_id, options }) not under nested .fields sub-key. Loaded from cassette at module-init time.
 - **requireGhAuth SCOPE_SUPERSET (TRD 01-06)** — SCOPE_SUPERSET = { 'read:project': ['project'] }. GitHub's project scope implicitly grants read:project; literal check was a false positive.
 - **Cassette-based replay testing pattern (TRD 01-06)** — Committed JSON cassettes in __fixtures__/gh-cassettes/; tests load via fs.readFileSync; NOT regenerated on test runs. Live re-capture only with GH_INTEGRATION=1 in E4/L2 drift-detection tests.
+- **TRD 02-01 complete (2026-05-04)** — `lib/awareness.cjs` created with parseStateMd (fault-tolerant, returns null on unrecognized content) + aggregateOrgByProductQuarter (stable Product×Quarter grouping) + 4 constants. `lib/__fixtures__/awareness-fixtures.cjs` created with 5 locked-signature factory builders. 29 test cases (27 non-gated pass; G1+G2 skip on GIT_INTEGRATION unset). 592/592 tests (586 pass, 6 skipped). Commits: d8b3c75 (test:), cddcc7e (feat:). Wave 1 complete.
+- **parseStateMd null-on-no-match contract (TRD 02-01)** — Returns null when no field is extracted; callers (TRD 02-02 scanner) skip the branch and log a warning. Never throws (try/catch wrapping entire function body).
+- **aggregateOrgByProductQuarter shape locked (TRD 02-01)** — { [Product]: { [Quarter]: items[] } }. Items missing product→'Unknown'; items missing quarter→'Unknown'. Input order preserved within buckets. TRD 02-03 emits this shape.
+- **GIT_INTEGRATION=1 gating pattern (TRD 02-01)** — buildGitFixtureRepo tests (G1/G2) skip when GIT_INTEGRATION env unset. Mirrors GH_INTEGRATION=1 from obj 1. Tests throw on git-not-available; caller catches and t.skip().
+- **TRD 02-04 complete (2026-05-04)** — `readCache`, `writeCache`, `isStale` added to `lib/awareness.cjs` TRD 02-04 region. Merge semantics: writeCache(cwd, { peer: X }) preserves existing org section (Object.assign at namespace level). isStale handles null/undefined/invalid/zero-TTL/future-timestamp guard chain. .gitignore updated; templates/config.json documents awareness.* block. 23 new tests (Groups C/W/I/G/T). 610/616 tests (610 pass, 6 skipped). Commits: 2b6a999 (test:), bf9593f (feat:). SC-7 complete.
+- **writeCache merge semantics locked (TRD 02-04)** — Object.assign({}, existing || {}, sections) — writing one namespace preserves the other. Prerequisite for --refresh peer / --refresh org independence in TRD 02-05.
+- **isStale locked behaviors (TRD 02-04)** — zero-TTL returns true (always stale); future-timestamp returns false (clock skew tolerance — age_ms < 0 → fresh); null/undefined/invalid returns true (defensive default).
+- **readCache silent-null contract (TRD 02-04)** — missing file, empty string, malformed JSON all return null; regeneration on next scan is cheap. Never throws.
+- **TRD 02-02 complete (2026-05-04)** — `scanPeer` + `_setRunGit` + `_resetGitMock` + `_runGit` added to `lib/awareness.cjs` TRD 02-02 region. 8 new fixture helpers in awareness-fixtures.cjs (buildMockRunGit + 7 canned-response builders). 29 test cases (Groups S/SF/SS/SP/SI/SU/SR; 26 non-gated pass + 3 GIT_INTEGRATION-gated skip). 636/645 tests (636 pass, 9 skipped). Commits: 843aca8 (test:), d377444 (feat:). SC-1 + SC-2 complete.
+- **_setRunGit injection pattern locked (TRD 02-02)** — `let _runGit = runGit; function _setRunGit(fn) { _runGit = (fn != null) ? fn : runGit; }` — exact mirror of _setRunGh from lib/gh.cjs. stdout NOT trimmed in runGit (git show content preserves whitespace); only stderr trimmed. All git calls in scanPeer route through _runGit.
+- **scanPeer fault-tolerance contract locked (TRD 02-02)** — missing STATE.md (git show exit non-zero) = SILENT skip (no warning); malformed STATE.md (parseStateMd returns null) = warning + skip; fetch failure = warning + continue with local refs. Locked per SC-2.
+- **peer_stale_days=0 disables stale filter (TRD 02-02)** — threshold set to -Infinity so all branches pass. peer_stale_days>0 computes Date.now() - (days * 86400000). Locked behavior per SS3 test.
+- **TRD 02-03 complete (2026-05-04)** — `walkProject(projectId)` added to `lib/gh.cjs` (Project v2 GraphQL walker, 100-page guard, DraftIssue+Issue normalization). `scanOrg` + `parseTaskListFallback` added to `lib/awareness.cjs` (requireGhAuth-first, task-list fallback for trackedIssues=0 items, sub_issues_source annotation). 31 test cases (W/WF/GG/T/O/OA/OS/F). 667/667 tests pass. Commits: ffdbffc (test:), 91766ef (feat:), 0838037 (test:), db89e0a (feat:). Wave 4 complete. SC-3 + SC-4 + SC-5 complete.
+- **walkProject auth boundary locked (TRD 02-03)** — walkProject does NOT call requireGhAuth; auth is caller's responsibility. scanOrg calls requireGhAuth as first action. walkProject reusable by obj 5/6 with their own auth context.
+- **parseTaskListFallback regex locked (TRD 02-03)** — `\S*#\d+` (zero-or-more before `#`) handles both full refs (owner/repo#NN) and shorthand (#NN). Auth mocks for requireGhAuth tests must use 'Token scopes: ...' text format, not JSON, to match parseScopes() in gh.cjs.
+- **sub_issues_source annotation (TRD 02-03)** — scanOrg adds `sub_issues_source: 'tracked_issues'|'task_list'|'none'` per enriched item. Skill renderer can use this for provenance display.
+- **TRD 02-05 complete (2026-05-04)** — `/devflow:awareness` skill + `df-tools awareness` CLI subcommand routing shipped. `lib/awareness-cli.cjs`: parseShowFlags (pure flag parser, 15 tests), renderMarkdown (pure markdown renderer, 14 tests), cmdAwarenessShow/ScanPeer/ScanOrg/Route. `df-tools.cjs`: `case 'awareness':` router. `skills/awareness/SKILL.md`: invokes `df-tools awareness show $ARGUMENTS`. 29 new tests; 696/696 pass. Commits: d183052 (feat: lib+CLI+tests), 183339b (feat: SKILL.md). SC-6 complete.
+- **Standard TRD commit pattern for 02-05** — CONTEXT.md §"TRD types" locks standard TRDs to single feat commit for tests + impl. Two commits used: one for lib/CLI surface (d183052) + one for skill file (183339b) as different surfaces per TRD instructions.
+- **Quarter filter normalization (TRD 02-05)** — `--quarter Q2-2026` matches `quarter: "Q2 2026"` items (dash/space normalized, case-insensitive substring). Locked in renderMarkdown.
+- **Soft-fail org auth pattern (TRD 02-05)** — When default mode (both sections) and org GhAuthError: render peer-only + warning. Hard-fail only on --org-only or when peer also unavailable. Mirrors cmdGhResolve pattern for the hard-fail path.
+- **TRD 02-06 complete (2026-05-04)** — `hooks/awareness-cache-populate.js` SessionStart hook: lazy cache populate, fire-and-forget (detached:true, stdio:'ignore', unref()), <100ms parent exit. H6 --no-fetch path locked (peer-stale-only → scan-peer --no-fetch, avoids slow git fetch on session start). `hooks.json` updated with second SessionStart entry. `init.cjs` extended: `_awarenessLoadable()` + `awareness_refresh: true|false` in `cmdInitPlanObjective` + `cmdInitExecuteObjective`. 16 new tests; 710/719 pass. Commits: f35aaa3 (test:), 5ddb3b6 (feat:). SC-8 complete.
+- **TRD 02-07 complete (2026-05-04)** — Export surface locked at 14 entries (L1 deepStrictEqual test). product-roadmap-walk.json cassette captured live (48 items, PVT_kwDODwqLrc4BRsOP). Integration tests: IT1/IT2 (GIT_INTEGRATION=1 peer scan with self-remote trick), OT1/OT2 (GH_INTEGRATION=1 live walk + drift detection), CT1-CT3 (cache round-trip, default run), CR1-CR3 (cassette replay, default run). Bug fix: for-each-ref pattern refs/remotes/origin/* → refs/remotes/origin/ (glob * doesn't cross /; nested branches like feature/foo were silently invisible). 731/731 tests with integration flags. Commits: d0d2642 (test:), 5ae30b0 (feat:), 617d946 (feat: bug fix). SC-9 + SC-10 complete. Objective 2 DONE.
+- **H6 --no-fetch path locked (TRD 02-06)** — When only peer is stale, use `scan-peer --no-fetch` (skips git fetch). Rationale: git fetch is the slow part of peer scanning; local refs are still useful data. Full fetch only when both sections stale (uses show --refresh).
+- **awareness_refresh guidance-only flag (TRD 02-06)** — init.cjs sets `awareness_refresh` but does NOT spawn refresh itself. Plan-objective and execute-objective skills are responsible for consuming the flag. Wiring those skills is out of scope for TRD 02-06 (belongs to obj 4/5 work).
+- **subprocess test pattern for init commands (TRD 02-06)** — `output()` in helpers.cjs calls `process.exit(0)`, making in-process stdout capture impossible. Tests for init.cjs use `execSync('node df-tools.cjs init ...')` + JSON.parse(stdout). Pattern now established for future init tests.
 
 ## Blockers / Concerns
 
@@ -74,7 +100,7 @@
 
 ## Session Continuity
 
-Last session: 2026-05-04 — TRD 01-06 (dogfood + integration) complete. Wave 6 done. Objective 1 DONE.
+Last session: 2026-05-04 — TRD 02-07 (library export lock + integration) complete. Objective 2 all 7 TRDs done. 731/731 tests pass with integration flags.
 Resume file: `.planning/SESSION_PICKUP.md`
-Stopped at: Completed 01-06-dogfood-and-integration-TRD.md
-Next: Objective 2 — Cross-worktree session telemetry (TRD 02-01)
+Stopped at: Completed 02-07-library-export-and-integration-TRD.md
+Next: Objective 3 (TBD — next objective to plan)

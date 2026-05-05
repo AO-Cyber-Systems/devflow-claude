@@ -10,6 +10,27 @@ const { getMilestoneInfo, getRoadmapObjectiveInternal } = require('./roadmap.cjs
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
+/**
+ * Returns true when lib/awareness.cjs can be required successfully.
+ *
+ * Guidance-only flag — callers (plan-objective, execute-objective skills) read
+ * this field and decide whether to run `df-tools awareness show --refresh`.
+ * init.cjs does NOT spawn the refresh itself (locked per TRD 02-06 must_haves).
+ *
+ * Returns false on any require error (e.g., awareness.cjs has a syntax error or
+ * a transitive dependency is missing) to avoid breaking init for the caller.
+ *
+ * @returns {boolean}
+ */
+function _awarenessLoadable() {
+  try {
+    require('./awareness.cjs');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function resolveModelInternal(cwd, agentType) {
   const config = loadConfig(cwd);
 
@@ -128,6 +149,11 @@ function cmdInitExecuteObjective(cwd, objective, includes, raw) {
     result.roadmap_content = safeReadFile(path.join(cwd, '.planning', 'ROADMAP.md'));
   }
 
+  // Guidance flag for execute-objective skill: trigger df-tools awareness show --refresh
+  // before spawning the executor agent. The skill is responsible for consuming this flag;
+  // init.cjs only sets it. Falls back to false if awareness.cjs is unavailable/broken.
+  result.awareness_refresh = _awarenessLoadable();
+
   output(result, raw);
 }
 
@@ -223,6 +249,11 @@ function cmdInitPlanObjective(cwd, objective, includes, raw) {
       }
     } catch {}
   }
+
+  // Guidance flag for plan-objective skill: trigger df-tools awareness show --refresh
+  // before spawning the planner agent. The skill is responsible for consuming this flag;
+  // init.cjs only sets it. Falls back to false if awareness.cjs is unavailable/broken.
+  result.awareness_refresh = _awarenessLoadable();
 
   output(result, raw);
 }

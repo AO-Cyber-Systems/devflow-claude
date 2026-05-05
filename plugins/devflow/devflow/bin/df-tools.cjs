@@ -174,6 +174,7 @@ const {
 const {
   cmdChangelogUpdate, cmdChangelogCheck,
 } = require('./lib/changelog.cjs');
+const { cmdAwarenessRoute } = require('./lib/awareness-cli.cjs');
 const {
   cmdGenerateSlug, cmdCurrentTimestamp, cmdListTodos, cmdVerifyPathExists,
   cmdHistoryDigest, cmdObjectiveJobIndex, cmdSummaryExtract, cmdWebsearch,
@@ -195,7 +196,7 @@ async function main() {
   const cwd = process.cwd();
 
   if (!command) {
-    error('Usage: df-tools <command> [args] [--raw]\nCommands: state, resolve-model, find-objective, commit, verify-summary, verify, frontmatter, template, generate-slug, current-timestamp, list-todos, verify-path-exists, config-ensure-section, init');
+    error('Usage: df-tools <command> [args] [--raw]\nCommands: state, resolve-model, find-objective, commit, verify-summary, verify, frontmatter, template, generate-slug, current-timestamp, list-todos, verify-path-exists, config-ensure-section, awareness, init');
   }
 
   switch (command) {
@@ -753,6 +754,11 @@ async function main() {
       } else {
         error('Unknown gh subcommand. Available: status, sync, sync-objectives, resolve, comment, close-issue, sync-release');
       }
+      break;
+    }
+
+    case 'awareness': {
+      cmdAwarenessRoute(cwd, args.slice(1), raw);
       break;
     }
 
