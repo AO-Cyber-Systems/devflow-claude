@@ -495,7 +495,7 @@ Dependency order:
 
 **TRDs:** 4 plans across 4 waves
 - [x] 06-01-aggregator-and-fixtures-TRD.md — aggregate() + 5 _fetch* helpers + lane assignment + buildCheckTodosFixtures + injection hooks (Wave 1, tdd) — SC-1, SC-2, SC-3
-- [ ] 06-02-cache-layer-TRD.md — readCheckTodosCache + writeCheckTodosCache + isCheckTodosCacheStale + aggregate cache wiring + .gitignore (Wave 2, tdd) — SC-4
+- [x] 06-02-cache-layer-TRD.md — readCheckTodosCache + writeCheckTodosCache + isCheckTodosCacheStale + aggregate cache wiring + .gitignore (Wave 2, tdd) — SC-4 — DONE 2026-05-04, 1254/1254 tests pass, commits f2ad36f + 6c14638
 - [ ] 06-03-formatter-TRD.md — formatCheckTodosMarkdown pure renderer + 4 lane sub-renderers + token bounding + --lane filter (Wave 3, tdd) — SC-5
 - [ ] 06-04-cli-skill-and-integration-TRD.md — df-tools check-todos full flag wiring + /devflow:check-todos skill REWRITE + module.exports lock + e2e self-test + GH_INTEGRATION round-trip (Wave 4, mixed) — SC-6, SC-7, SC-8, SC-9, SC-10
 
