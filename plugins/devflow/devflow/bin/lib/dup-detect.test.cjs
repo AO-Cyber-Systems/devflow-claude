@@ -1394,3 +1394,308 @@ test('FD14 — deterministic output', () => {
   const md2 = dd.formatDetectionMarkdown(det, { purpose: 'askuser' });
   assert.strictEqual(md1, md2);
 });
+
+// ─── TRD 04-06: export lock + e2e integration ─────────────────────────────────
+
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+
+// ─── Group EX: export surface lock ────────────────────────────────────────────
+
+test('EX1 — export surface locked at 19 entries', () => {
+  const expected = [
+    'detectDuplicates', 'formatDetectionMarkdown', 'recordResolution', 'applyResolution',
+    '_setRunPeer', '_setRunOrgOverlap', '_setRunFs', '_resetMocks',
+    '_detectHardMatch', '_detectStrongMatch', '_detectWeakMatch',
+    '_readPeerFilesModified', '_writeCoordinationNote', '_writeDeferredState',
+    'HARD_MATCH_THRESHOLD', 'STRONG_FILE_OVERLAP_THRESHOLD', 'STRONG_KEYWORD_OVERLAP_THRESHOLD',
+    'DUP_DETECT_LOG_REL', 'DEFERRED_DIR_REL',
+  ].sort();
+  const actual = Object.keys(dd).sort();
+  assert.deepStrictEqual(actual, expected);
+  assert.strictEqual(actual.length, 19);
+});
+
+test('EX2 — every export is non-undefined', () => {
+  for (const k of Object.keys(dd)) {
+    assert.notStrictEqual(typeof dd[k], 'undefined', `${k} is undefined`);
+  }
+});
+
+test('EX3 — banner comment present (LOCKED by TRD 04-06)', () => {
+  const src = fs.readFileSync(require.resolve('./dup-detect.cjs'), 'utf-8');
+  assert.match(src, /LOCKED by TRD 04-06/);
+});
+
+// ─── Group E2E: end-to-end resolution paths ───────────────────────────────────
+
+function _e2eSetup() {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dd-e2e-'));
+  fs.mkdirSync(path.join(tmp, '.planning'), { recursive: true });
+  const objDir = path.join(tmp, '.planning', 'objectives', '04-test');
+  fs.mkdirSync(objDir, { recursive: true });
+  return { tmp, objDir, padded: '04' };
+}
+
+test('E2E1 — coordinate path: detect → resolve → CONTEXT note + JSONL', () => {
+  const { tmp, objDir, padded } = _e2eSetup();
+  const fixtures = fix.buildDupDetectFixtures();
+  dd._setRunPeer(() => fixtures.hardPeerScan);
+  dd._setRunOrgOverlap(() => ({ items: [], warnings: [], skipped: false, misfiling: null }));
+  try {
+    const detection = dd.detectDuplicates({
+      objective_id: '04', mode: 'plan', cwd: tmp,
+      current_github_issue: fixtures.current.issue,
+      current_files_modified: fixtures.current.files,
+      current_keywords: new Set(fixtures.current.keywords),
+    });
+    assert.strictEqual(detection.blocking, true);
+    assert.ok(detection.matches.length > 0);
+
+    const result = dd.applyResolution({
+      resolution: 'coordinate',
+      objective_id: '04',
+      peer_branch: detection.matches[0].peer_branch,
+      peer_objective: detection.matches[0].peer_objective,
+      cwd: tmp,
+      detection,
+      objective_dir: objDir,
+      padded_objective: padded,
+    });
+    assert.strictEqual(result.wrote_coordination_note, true);
+
+    dd.recordResolution({
+      objective_id: '04', mode: 'plan', blocking: true,
+      top_match: { strength: detection.matches[0].strength, peer: detection.matches[0].peer_branch, score: 100 },
+      resolution: 'coordinate', cwd: tmp,
+    });
+
+    const ctx = fs.readFileSync(path.join(objDir, '04-CONTEXT.md'), 'utf-8');
+    assert.match(ctx, /## Coordination Note/);
+    assert.match(ctx, /Coordinate/);
+    assert.doesNotMatch(ctx, /\*\*WARNING:\*\*/);
+
+    const log = fs.readFileSync(path.join(tmp, '.planning', '.dup-detect-log.jsonl'), 'utf-8').trim();
+    const rec = JSON.parse(log);
+    assert.strictEqual(rec.resolution, 'coordinate');
+    assert.strictEqual(rec.blocking, true);
+  } finally {
+    dd._resetMocks();
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('E2E2 — proceed-anyway path: CONTEXT note WITH **WARNING** + JSONL', () => {
+  const { tmp, objDir, padded } = _e2eSetup();
+  const fixtures = fix.buildDupDetectFixtures();
+  dd._setRunPeer(() => fixtures.hardPeerScan);
+  dd._setRunOrgOverlap(() => ({ items: [], warnings: [], skipped: false, misfiling: null }));
+  try {
+    const detection = dd.detectDuplicates({
+      objective_id: '04', mode: 'plan', cwd: tmp,
+      current_github_issue: fixtures.current.issue,
+      current_files_modified: fixtures.current.files,
+      current_keywords: new Set(fixtures.current.keywords),
+    });
+    assert.strictEqual(detection.blocking, true);
+
+    const result = dd.applyResolution({
+      resolution: 'proceed-anyway',
+      objective_id: '04',
+      peer_branch: detection.matches[0].peer_branch,
+      peer_objective: detection.matches[0].peer_objective,
+      cwd: tmp,
+      detection,
+      objective_dir: objDir,
+      padded_objective: padded,
+    });
+    assert.strictEqual(result.warning_appended, true);
+
+    dd.recordResolution({
+      objective_id: '04', mode: 'plan', blocking: true,
+      top_match: { strength: detection.matches[0].strength, peer: detection.matches[0].peer_branch, score: 100 },
+      resolution: 'proceed-anyway', cwd: tmp,
+    });
+
+    const ctx = fs.readFileSync(path.join(objDir, '04-CONTEXT.md'), 'utf-8');
+    assert.match(ctx, /\*\*WARNING:\*\*/);
+    assert.match(ctx, /Proceed-anyway/);
+
+    const log = fs.readFileSync(path.join(tmp, '.planning', '.dup-detect-log.jsonl'), 'utf-8').trim();
+    const rec = JSON.parse(log);
+    assert.strictEqual(rec.resolution, 'proceed-anyway');
+  } finally {
+    dd._resetMocks();
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('E2E3 — defer path: .planning/.deferred/04.json written with schema + JSONL', () => {
+  const { tmp, objDir, padded } = _e2eSetup();
+  // Use hardPeerScan for a blocking match
+  const fixtures = fix.buildDupDetectFixtures();
+  dd._setRunPeer(() => fixtures.hardPeerScan);
+  dd._setRunOrgOverlap(() => ({ items: [], warnings: [], skipped: false, misfiling: null }));
+  try {
+    const detection = dd.detectDuplicates({
+      objective_id: '04', mode: 'plan', cwd: tmp,
+      current_github_issue: fixtures.current.issue,
+      current_files_modified: fixtures.current.files,
+      current_keywords: new Set(fixtures.current.keywords),
+    });
+    assert.strictEqual(detection.blocking, true);
+
+    const result = dd.applyResolution({
+      resolution: 'defer',
+      objective_id: '04',
+      peer_branch: detection.matches[0].peer_branch,
+      peer_objective: detection.matches[0].peer_objective,
+      cwd: tmp,
+      detection,
+      objective_dir: objDir,
+      padded_objective: padded,
+    });
+    assert.strictEqual(result.wrote_deferred, true);
+    assert.ok(result.defer_path && result.defer_path.endsWith('04.json'));
+
+    dd.recordResolution({
+      objective_id: '04', mode: 'plan', blocking: true,
+      top_match: { strength: detection.matches[0].strength, peer: detection.matches[0].peer_branch, score: 100 },
+      resolution: 'defer', cwd: tmp,
+    });
+
+    const deferPath = path.join(tmp, '.planning', '.deferred', '04.json');
+    assert.ok(fs.existsSync(deferPath));
+    const state = JSON.parse(fs.readFileSync(deferPath, 'utf-8'));
+    assert.strictEqual(state.objective_id, '04');
+    assert.strictEqual(state.mode, 'plan');
+    assert.ok(state.deferred_at);
+    assert.ok(state.blocking_match);
+    assert.strictEqual(state.blocking_match.strength, 'hard');
+
+    const log = fs.readFileSync(path.join(tmp, '.planning', '.dup-detect-log.jsonl'), 'utf-8').trim();
+    const rec = JSON.parse(log);
+    assert.strictEqual(rec.resolution, 'defer');
+  } finally {
+    dd._resetMocks();
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('E2E4 — merge path: aborted + suggestion, NO CONTEXT note, NO defer file, JSONL recorded', () => {
+  const { tmp, objDir, padded } = _e2eSetup();
+  const fixtures = fix.buildDupDetectFixtures();
+  dd._setRunPeer(() => fixtures.hardPeerScan);
+  dd._setRunOrgOverlap(() => ({ items: [], warnings: [], skipped: false, misfiling: null }));
+  try {
+    const detection = dd.detectDuplicates({
+      objective_id: '04', mode: 'plan', cwd: tmp,
+      current_github_issue: fixtures.current.issue,
+      current_files_modified: fixtures.current.files,
+      current_keywords: new Set(fixtures.current.keywords),
+    });
+    assert.strictEqual(detection.blocking, true);
+
+    const result = dd.applyResolution({
+      resolution: 'merge',
+      objective_id: '04',
+      peer_branch: detection.matches[0].peer_branch,
+      peer_objective: detection.matches[0].peer_objective,
+      cwd: tmp,
+      detection,
+      objective_dir: objDir,
+      padded_objective: padded,
+    });
+    assert.strictEqual(result.aborted, true);
+    assert.match(result.suggestion, /git checkout/);
+
+    dd.recordResolution({
+      objective_id: '04', mode: 'plan', blocking: true,
+      top_match: { strength: detection.matches[0].strength, peer: detection.matches[0].peer_branch, score: 100 },
+      resolution: 'merge', cwd: tmp,
+    });
+
+    // NO CONTEXT.md note
+    const ctxPath = path.join(objDir, '04-CONTEXT.md');
+    if (fs.existsSync(ctxPath)) {
+      const ctx = fs.readFileSync(ctxPath, 'utf-8');
+      assert.doesNotMatch(ctx, /## Coordination Note/);
+    }
+
+    // NO defer file
+    const deferPath = path.join(tmp, '.planning', '.deferred', '04.json');
+    assert.strictEqual(fs.existsSync(deferPath), false);
+
+    // JSONL recorded
+    const log = fs.readFileSync(path.join(tmp, '.planning', '.dup-detect-log.jsonl'), 'utf-8').trim();
+    const rec = JSON.parse(log);
+    assert.strictEqual(rec.resolution, 'merge');
+  } finally {
+    dd._resetMocks();
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('E2E5 — no-match execute mode: blocking false, JSONL resolution=none', () => {
+  const { tmp } = _e2eSetup();
+  const fixtures = fix.buildDupDetectFixtures();
+  dd._setRunPeer(() => fixtures.emptyScan);
+  dd._setRunOrgOverlap(() => ({ items: [], warnings: [], skipped: false, misfiling: null }));
+  try {
+    const detection = dd.detectDuplicates({
+      objective_id: '04', mode: 'execute', cwd: tmp,
+      current_github_issue: null,
+      current_files_modified: [],
+      current_keywords: new Set(['unique', 'unrelated', 'objective']),
+    });
+    assert.strictEqual(detection.blocking, false);
+    assert.deepStrictEqual(detection.advisory, []);
+
+    dd.recordResolution({
+      objective_id: '04', mode: 'execute', blocking: false,
+      top_match: null, resolution: 'none', cwd: tmp,
+    });
+
+    const log = fs.readFileSync(path.join(tmp, '.planning', '.dup-detect-log.jsonl'), 'utf-8').trim();
+    const rec = JSON.parse(log);
+    assert.strictEqual(rec.resolution, 'none');
+    assert.strictEqual(rec.blocking, false);
+    assert.strictEqual(rec.mode, 'execute');
+  } finally {
+    dd._resetMocks();
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('E2E6 — no-match plan mode with weak advisory: blocking false, advisory has entries, JSONL resolution=none', () => {
+  const { tmp } = _e2eSetup();
+  const fixtures = fix.buildDupDetectFixtures();
+  // weakScan returns a peer with 1 keyword overlap (weak — advisory only)
+  dd._setRunPeer(() => fixtures.weakScan);
+  dd._setRunOrgOverlap(() => ({ items: [], warnings: [], skipped: false, misfiling: null }));
+  try {
+    const detection = dd.detectDuplicates({
+      objective_id: '04', mode: 'plan', cwd: tmp,
+      current_github_issue: null,
+      current_files_modified: [],
+      // 'duplicate' is shared with weakScan peer objective 'duplicate checker tool'
+      current_keywords: new Set(['duplicate', 'scanner']),
+    });
+    assert.strictEqual(detection.blocking, false);
+    assert.ok(detection.advisory.length > 0, `expected advisory entries, got ${detection.advisory.length}`);
+
+    dd.recordResolution({
+      objective_id: '04', mode: 'plan', blocking: false,
+      top_match: null, resolution: 'none', cwd: tmp,
+    });
+
+    const log = fs.readFileSync(path.join(tmp, '.planning', '.dup-detect-log.jsonl'), 'utf-8').trim();
+    const rec = JSON.parse(log);
+    assert.strictEqual(rec.resolution, 'none');
+    assert.strictEqual(rec.blocking, false);
+  } finally {
+    dd._resetMocks();
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
