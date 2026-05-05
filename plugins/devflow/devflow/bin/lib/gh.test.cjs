@@ -937,7 +937,7 @@ describe('requireGhAuth — fail modes', () => {
     } catch (e) {
       threw = true;
       assert.strictEqual(e.name, 'GhAuthError', `Expected GhAuthError, got ${e.name}: ${e.message}`);
-      assert.ok(e.remediation.includes('https://cli.github.com'), `Expected install URL in remediation, got: ${e.remediation}`);
+      assert.strictEqual(e.remediation, 'Install gh from https://cli.github.com', `Expected exact install URL in remediation, got: ${e.remediation}`);
     }
     assert.ok(threw, 'requireGhAuth must throw on missing binary');
   });
