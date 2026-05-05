@@ -15,7 +15,7 @@
 **Objective complete:** 2 — Cross-repo awareness layer (verified 2026-05-04, 731/731 tests with integration flags, all 10 SC met, 7 TRDs done)
 **Objective complete:** 3 — Planning-time org awareness (verified 2026-05-05, 842/842 tests, all 10 SC met, 7 TRDs done, SC-9 + SC-10 closed)
 **Objective complete:** 4 — Duplicate-work detection + 4-option resolution flow (verified 2026-05-05, 967/987 tests pass, all 10 SC met, 6 TRDs done)
-**Status:** Objective 4 DONE — Wave 5 (TRD 04-06) complete; proceeding to Objective 5
+**Status:** Ready to plan
 
 ## Branch State (post-merge)
 
