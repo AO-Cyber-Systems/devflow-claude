@@ -747,6 +747,270 @@ function buildDupDetectFixtures({
   };
 }
 
+// ─── TRD 05-01: Initiative file fixture builders ──────────────────────────────
+
+/**
+ * Build a complete initiative file content string (frontmatter + body sections).
+ * Locked schema per CONTEXT.md decision #2.
+ *
+ * @param {object} opts
+ * @param {string}   [opts.slug]              - lowercased-hyphenated slug
+ * @param {string}   [opts.github_issue]      - issue ref (owner/repo#NN)
+ * @param {string}   [opts.parent_project]    - org Project node id (or null)
+ * @param {string[]} [opts.key_repos]         - array of github_repo strings
+ * @param {string}   [opts.title]             - human title (rendered as # Heading)
+ * @param {string}   [opts.why]               - Why section body (markdown)
+ * @param {string[]} [opts.open_questions]    - bullet items (without leading "- ")
+ * @param {Array<{ref,title,state}>} [opts.sub_issues] - sub-issue entries
+ * @param {string}   [opts.status]            - GitHub state label (OPEN/CLOSED)
+ * @param {string}   [opts.project_status]    - Project Status field (e.g., "In Progress")
+ * @param {string}   [opts.quarter]           - Project Quarter field
+ * @param {string}   [opts.updated_at]        - ISO-8601 timestamp
+ * @returns {string} - full markdown file content
+ */
+function buildInitiativeFile({
+  slug = 'test-initiative',
+  github_issue = 'AO-Cyber-Systems/devflow#30',
+  parent_project = 'AO-Cyber-Systems/PVT_kwDODwqLrc4BRsOP',
+  key_repos = ['AO-Cyber-Systems/devflow', 'AO-Cyber-Systems/devflow-claude'],
+  title = 'Test Initiative',
+  why = 'This initiative exists to test the initiative reader.',
+  open_questions = ['Question 1?', 'Question 2?'],
+  sub_issues = [
+    { ref: 'AO-Cyber-Systems/devflow-claude#9', title: 'DevFlow Coordination Layer', state: 'OPEN' },
+  ],
+  status = 'OPEN',
+  project_status = 'In Progress',
+  quarter = 'Q2 2026',
+  updated_at = '2026-05-05T18:30:00Z',
+} = {}) {
+  const lines = [];
+  lines.push('---');
+  lines.push(`slug: ${slug}`);
+  lines.push(`github_issue: ${github_issue}`);
+  lines.push(`parent_project: ${parent_project}`);
+  lines.push('key_repos:');
+  for (const r of key_repos) lines.push(`  - ${r}`);
+  lines.push(`updated_at: ${updated_at}`);
+  lines.push('---');
+  lines.push('');
+  lines.push(`# ${title}`);
+  lines.push('');
+  lines.push('## Why');
+  lines.push('');
+  lines.push(why);
+  lines.push('');
+  lines.push('## Open Questions');
+  lines.push('');
+  for (const q of open_questions) lines.push(`- ${q}`);
+  lines.push('');
+  lines.push('## Linked Sub-issues');
+  lines.push('');
+  for (const si of sub_issues) lines.push(`- ${si.ref} — ${si.title} (${si.state})`);
+  lines.push('');
+  lines.push('## Status');
+  lines.push('');
+  lines.push(`- **GitHub:** ${status}`);
+  lines.push(`- **Project status:** ${project_status}`);
+  lines.push(`- **Quarter:** ${quarter}`);
+  lines.push(`- **Updated:** ${updated_at}`);
+  lines.push('');
+  return lines.join('\n');
+}
+
+/**
+ * Build just the frontmatter portion (for round-trip parse tests).
+ * @param {object} opts - subset of buildInitiativeFile opts
+ * @returns {string} - YAML frontmatter (with --- markers)
+ */
+function buildInitiativeYaml({
+  slug = 'test-initiative',
+  github_issue = 'AO-Cyber-Systems/devflow#30',
+  parent_project = 'AO-Cyber-Systems/PVT_kwDODwqLrc4BRsOP',
+  key_repos = ['AO-Cyber-Systems/devflow'],
+  updated_at = '2026-05-05T18:30:00Z',
+} = {}) {
+  const lines = ['---'];
+  lines.push(`slug: ${slug}`);
+  lines.push(`github_issue: ${github_issue}`);
+  lines.push(`parent_project: ${parent_project}`);
+  lines.push('key_repos:');
+  for (const r of key_repos) lines.push(`  - ${r}`);
+  lines.push(`updated_at: ${updated_at}`);
+  lines.push('---');
+  return lines.join('\n');
+}
+
+/**
+ * Write a fixture initiative-projection home dir with multiple <slug>.md files.
+ * Mirror of buildSiblingRepoTree pattern but for initiative files.
+ *
+ * @param {object}   opts
+ * @param {string}   opts.tmpdir   - REQUIRED — base dir to write files under
+ * @param {Array<object>} [opts.files] - array of buildInitiativeFile opts (each one becomes one file)
+ * @returns {{ home: string, slugs: string[] }}
+ */
+function buildInitiativesHomeTree({ tmpdir, files = [] } = {}) {
+  if (!tmpdir) throw new Error('buildInitiativesHomeTree: tmpdir is required');
+  if (!fs.existsSync(tmpdir)) fs.mkdirSync(tmpdir, { recursive: true });
+  const slugs = [];
+  for (const fileOpts of files) {
+    const content = buildInitiativeFile(fileOpts);
+    const slug = fileOpts.slug || 'test-initiative';
+    fs.writeFileSync(path.join(tmpdir, `${slug}.md`), content, 'utf-8');
+    slugs.push(slug);
+  }
+  return { home: tmpdir, slugs };
+}
+
+// ─── TRD 05-02: walkProject mock helper ──────────────────────────────────────
+
+/**
+ * Build a mock _runGh function that responds to:
+ *   - auth status (returns success with locked scopes)
+ *   - api graphql (returns walkProject-shaped JSON)
+ *
+ * @param {object} opts
+ * @param {object[]} opts.walkProjectItems - array of buildOrgItem results to return
+ * @param {boolean} opts.authOk - if false, mock auth status returns failure
+ * @param {string} opts.authScopes - scopes string for success response
+ * @returns {function} mock _runGh fn for _setRunGh injection
+ */
+function buildMockRunGhForInitiatives({
+  walkProjectItems = [],
+  authOk = true,
+  authScopes = "'project', 'read:project', 'repo'",
+} = {}) {
+  return function mockRunGh(args) {
+    if (args && args[0] === 'auth' && args[1] === 'status') {
+      if (!authOk) {
+        return { ok: false, status: 1, stdout: '', stderr: 'You are not logged into any GitHub hosts.' };
+      }
+      return {
+        ok: true,
+        status: 0,
+        stdout: `github.com\n  ✓ Logged in to github.com\n  - Token scopes: ${authScopes}\n`,
+        stderr: '',
+      };
+    }
+    if (args && args[0] === 'api' && args[1] === 'graphql') {
+      // Build walkProject-shaped GraphQL response
+      const nodes = (walkProjectItems || []).map(item => {
+        const isIssue = item.item_type !== 'draft';
+        const fieldValues = { nodes: [] };
+        if (item.product) fieldValues.nodes.push({ name: item.product, field: { name: 'Product' } });
+        if (item.quarter) fieldValues.nodes.push({ name: item.quarter, field: { name: 'Quarter' } });
+        if (item.status) fieldValues.nodes.push({ name: item.status, field: { name: 'Status' } });
+        const content = isIssue ? {
+          __typename: 'Issue',
+          number: item.issue_ref ? parseInt(item.issue_ref.split('#')[1], 10) : 0,
+          title: item.title,
+          body: item.body || '',
+          repository: { nameWithOwner: item.issue_ref ? item.issue_ref.split('#')[0] : null },
+          trackedIssues: {
+            totalCount: (item.sub_issues || []).length,
+            nodes: (item.sub_issues || []).map(si => ({
+              number: parseInt(si.ref.split('#')[1], 10),
+              title: si.title,
+              state: si.state,
+              repository: { nameWithOwner: si.ref.split('#')[0] },
+            })),
+          },
+        } : {
+          __typename: 'DraftIssue',
+          title: item.title,
+          body: item.body || '',
+        };
+        return { content, fieldValues };
+      });
+      return {
+        ok: true,
+        status: 0,
+        stdout: JSON.stringify({
+          data: {
+            node: {
+              items: {
+                pageInfo: { hasNextPage: false, endCursor: null },
+                nodes,
+              },
+            },
+          },
+        }),
+        stderr: '',
+      };
+    }
+    // TRD 05-03: handle 'issue view' calls for stale-detection
+    if (args && args[0] === 'issue' && args[1] === 'view') {
+      const ref = args[2] || '';
+      const issueStates = opts.issueStates || {};
+      const issueState = issueStates[ref] || 'OPEN';
+      return {
+        ok: true,
+        status: 0,
+        stdout: JSON.stringify({ state: issueState, closed: issueState === 'CLOSED' }),
+        stderr: '',
+      };
+    }
+    return { ok: false, status: 1, stdout: '', stderr: `unmocked gh call: ${(args || []).join(' ')}` };
+  };
+}
+
+// ─── TRD 05-05: Adversarial initiative fixture for token-budget tests ────────
+
+/**
+ * Build a parsed-initiative shape with extreme content for token-budget tests.
+ * Why = 10000 chars (default), sub_issues = 50 entries, open_questions = 20.
+ *
+ * Used by formatInitiativeForPlanner to verify hard caps hold under adversarial input.
+ *
+ * @param {object} opts
+ * @param {string} [opts.slug]
+ * @param {string} [opts.github_issue]
+ * @param {string} [opts.parent_project]
+ * @param {string[]} [opts.key_repos]
+ * @param {number} [opts.why_chars]
+ * @param {number} [opts.sub_issues_count]
+ * @param {number} [opts.questions_count]
+ * @param {string} [opts.updated_at]
+ * @returns {object} parsed initiative (matches loadInitiatives output shape)
+ */
+function buildAdversarialInitiative({
+  slug = 'adversarial',
+  github_issue = 'AO-Cyber-Systems/devflow#999',
+  parent_project = 'AO-Cyber-Systems/PVT_kwDODwqLrc4BRsOP',
+  key_repos = ['AO-Cyber-Systems/devflow-claude'],
+  why_chars = 10000,
+  sub_issues_count = 50,
+  questions_count = 20,
+  updated_at = '2026-05-05T18:30:00Z',
+} = {}) {
+  const why = 'a'.repeat(why_chars);
+  const sub_issues = [];
+  for (let i = 0; i < sub_issues_count; i++) {
+    sub_issues.push({
+      ref: `AO-Cyber-Systems/devflow-claude#${1000 + i}`,
+      title: `Sub-issue ${i} with a verbose title that takes up real estate`,
+      state: 'OPEN',
+    });
+  }
+  const open_questions = [];
+  for (let i = 0; i < questions_count; i++) {
+    open_questions.push(`Question ${i} that asks something fairly long and explanatory about this initiative?`);
+  }
+  return {
+    slug,
+    github_issue,
+    parent_project,
+    key_repos,
+    updated_at,
+    body: '',
+    why,
+    open_questions,
+    sub_issues,
+    status: '- **GitHub:** OPEN\n- **Project status:** In Progress',
+  };
+}
+
 // ─── exports ──────────────────────────────────────────────────────────────────
 
 module.exports = {
@@ -777,4 +1041,12 @@ module.exports = {
   buildPeerScanResult,
   buildOrgOverlapMatch,
   buildDupDetectFixtures,
+  // TRD 05-01:
+  buildInitiativeFile,
+  buildInitiativeYaml,
+  buildInitiativesHomeTree,
+  // TRD 05-02:
+  buildMockRunGhForInitiatives,
+  // TRD 05-05:
+  buildAdversarialInitiative,
 };

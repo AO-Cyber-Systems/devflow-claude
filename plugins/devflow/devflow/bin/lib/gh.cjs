@@ -1614,6 +1614,20 @@ function walkProject(projectId) {
   return { items, warnings };
 }
 
+// ─── TRD 05-03: readIssueState ────────────────────────────────────────────────
+
+/**
+ * Read the state of a GitHub issue via gh CLI.
+ * Routes through _runGh injection hook so tests can mock it transitively.
+ *
+ * @param {string} issueRef - full issue ref, e.g. "owner/repo#NN"
+ * @returns {{ ok: bool, status: number, stdout: string, stderr: string }}
+ *   stdout is JSON: { state: 'OPEN' | 'CLOSED', closed: bool }
+ */
+function readIssueState(issueRef) {
+  return _runGh(['issue', 'view', issueRef, '--json', 'state,closed']);
+}
+
 module.exports = {
   // EXISTING (preserved unchanged — graceful-skip behavior):
   ghStatus,
@@ -1649,6 +1663,9 @@ module.exports = {
 
   // NEW in TRD 02-03 — org Project walker:
   walkProject,
+
+  // NEW in TRD 05-03 — issue state reader for stale detection:
+  readIssueState,
 
   // Test hooks (TRD 01-02):
   _resetCache,

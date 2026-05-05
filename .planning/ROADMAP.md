@@ -327,6 +327,61 @@ Dependency order:
 - [ ] 04-05-execute-skill-integration-TRD.md — /df:execute-objective workflow runs dup-detect at entry, friction-minimal (Wave 4, standard, parallel with 04-04) — SC-7, SC-8
 - [ ] 04-06-library-export-and-integration-TRD.md — surface lock + e2e integration tests covering all 4 resolution paths (Wave 5, tdd) — SC-10
 
+### Objective 5: Initiative context layer
+
+**Goal:** Project GitHub Epics (parent issues + linked org Project items) onto disk at `~/.claude/devflow/initiatives/<slug>.md` so the planner can read **strategic context** at plan time without live gh queries. Each initiative file carries Why / Open questions / Key repos / Linked sub-issues. The planner consults matching initiatives by `key_repos` membership when generating TRDs. `df:initiatives sync` command refreshes the on-disk projection from live GitHub state.
+
+**Tracks:** devflow-claude#14 (sub-issue of #9 [Roadmap]). Independent of obj 2-4; consumes obj 1 ✓ + obj 2 ✓ for primitives.
+
+**Inputs (research complete):**
+- `.planning/research/cross-session-coordination.md` — §"Initiative context layer"
+- `.planning/research/github-coordination-layer.md` — three-tier hierarchy + Epic primitive
+
+**Locked decisions:**
+1. **Disk projection at `~/.claude/devflow/initiatives/<slug>.md`** — global, not per-repo. Single source readable by every devflow session across worktrees.
+2. **Schema:** YAML frontmatter (slug, github_issue, parent_project, key_repos[], updated_at) + body sections (## Why / ## Open Questions / ## Linked Sub-issues / ## Status).
+3. **Read-only consumer at plan time** — planner reads matching initiatives (filtered by key_repos containing current PROJECT.md github_repo). No mutation during planning.
+4. **`df:initiatives sync` is the only writer.** Walks org Product Roadmap project + each item's tracked sub-issues + parent Epic chains. One file per initiative. Idempotent — re-sync produces same content modulo `updated_at`.
+5. **Reuse obj 1 + obj 2 primitives.** `gh.cjs::resolveChain` walks the chain; `awareness.cjs::scanOrg` walks the project. No new GraphQL queries beyond what obj 1/2 already issue.
+6. **Hard-fail on missing gh auth (sync command only).** Plan-time read is always file-only; never blocks on gh.
+7. **Idempotent + safe.** Sync writes via tmp + rename; never partial write. Files removed when their source GitHub issue is closed (with confirmation prompt unless `--force`).
+8. **Token-bounded body.** Each initiative file capped at ~4KB (Why + Open Questions truncated if longer); avoids exploding planner context.
+
+**Success Criteria:**
+
+*Initiative writer*
+1. `df-tools initiatives sync [--initiative <slug>]` walks org Product Roadmap project, identifies items that qualify as "Initiatives" (have ≥1 sub-issue OR are tagged with `type:epic` label OR are draft Project items in `Status: In Progress`), and writes one file per initiative to `~/.claude/devflow/initiatives/<slug>.md`. Optional `--initiative <slug>` syncs single initiative.
+2. Initiative files have locked YAML frontmatter (slug, github_issue, parent_project, key_repos[], updated_at) + body (## Why / ## Open Questions / ## Linked Sub-issues / ## Status).
+3. Sync is idempotent: running twice produces no diff in second run except `updated_at`. Atomic write via tmp + rename.
+
+*Initiative reader (planner integration)*
+4. `lib/initiatives.cjs` exports `loadInitiatives({ home })`, `matchByRepo(initiatives, github_repo)`, `formatInitiativeForPlanner(initiative)`. Pure logic; no fs writes from reader.
+5. `/df:plan-objective` workflow loads initiatives at entry, filters to those whose `key_repos` includes current `PROJECT.md::github_repo`, includes formatted body in planner agent's `<additional_context>` block. Advisory — planner can override.
+
+*CLI surface*
+6. `/devflow:initiatives` skill + `df-tools initiatives <subcommand>` CLI. Subcommands: `sync` (writer), `list` (read-only enumeration), `show <slug>` (read-only detail). Hard-fails sync on missing gh auth via `requireGhAuth`; never fails list/show.
+7. Sync deletes initiative files when source GitHub issue is closed; with `--force` flag. Without `--force`, prompts for confirmation per stale file (or skips with warning if non-interactive).
+
+*Library + tests*
+8. `lib/initiatives.cjs` exports stable surface: `syncInitiatives`, `loadInitiatives`, `matchByRepo`, `formatInitiativeForPlanner`, `_writeInitiativeFile`, `_setRunGh`. Hand-built fixtures; injection mirrors obj 1+2+3+4 patterns.
+9. Round-trip test gated on `GH_INTEGRATION=1`: sync against live org Product Roadmap → assert ≥1 initiative file written → load + match → format. Skipped cleanly when env unset.
+10. Token-budget test: `formatInitiativeForPlanner(initiative)` output ≤ 1500 chars per initiative. Multi-initiative composition stays under 6 KB.
+
+**Out of scope (v1.1 — explicit):**
+- Bidirectional sync (initiative file edits flow back to GitHub) — v1.2+
+- Initiative templates / scaffolding for new Epics — separate work
+- Initiative dependency graph rendering — obj 8 (TUI) territory
+- Auto-creation of initiatives from local objectives — manual-only in v1.1
+
+**Gates** (downstream consumers): obj 6 (check-todos shows initiative open questions in urgency lane), obj 8 (TUI renders initiative tree).
+
+**TRDs:** 5 plans across 5 waves
+- [ ] 05-01-reader-and-fixtures-TRD.md — loadInitiatives + matchByRepo + formatInitiativeForPlanner + token-budget primitives + CLI list/show + fixtures (Wave 1, tdd) — SC-4, SC-6 list/show side
+- [ ] 05-02-writer-sync-TRD.md — syncInitiatives + _writeInitiativeFile (atomic tmp + rename) + qualification + slug + render (Wave 2, tdd) — SC-1, SC-2, SC-3
+- [ ] 05-03-stale-deletion-TRD.md — _detectStaleInitiatives + _deleteStaleFile + --force + TTY readline confirmation + non-TTY skip (Wave 3, tdd) — SC-7
+- [ ] 05-04-skill-and-plan-integration-TRD.md — /devflow:initiatives skill + format-for-planner CLI + plan-objective workflow + planner agent INITIATIVES block (Wave 4, standard) — SC-5, SC-6 sync side
+- [ ] 05-05-library-export-and-integration-TRD.md — module.exports surface lock + EX1 deepStrictEqual + GH_INTEGRATION=1 round-trip + token-budget assertion (Wave 5, tdd) — SC-8, SC-9, SC-10
+
 ---
 
 ## Milestone v1.2 — Handoff Watcher PTY + Coordination-Layer Polish (next)
