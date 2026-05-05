@@ -14,8 +14,8 @@
 **Objective complete:** 1 — GitHub coordination layer (verified 2026-05-04, 563/563 tests, all 6 TRDs done, SC-9 + SC-10 met)
 **Objective complete:** 2 — Cross-repo awareness layer (verified 2026-05-04, 731/731 tests with integration flags, all 10 SC met, 7 TRDs done)
 **Objective complete:** 3 — Planning-time org awareness (verified 2026-05-05, 842/842 tests, all 10 SC met, 7 TRDs done, SC-9 + SC-10 closed)
-**Current TRD:** 04-05 complete (Wave 4 — execute-objective workflow integration: <step name="dup_detect_check">, dup-detect --mode execute, 4-option AskUserQuestion Merge/Defer/Coordinate/Proceed, silent no-match log, early-exit on Merge/Defer)
-**Status:** Objective 4 in flight — 5/6 TRDs done
+**Objective complete:** 4 — Duplicate-work detection + 4-option resolution flow (verified 2026-05-05, 967/987 tests pass, all 10 SC met, 6 TRDs done)
+**Status:** Objective 4 DONE — Wave 5 (TRD 04-06) complete; proceeding to Objective 5
 
 ## Branch State (post-merge)
 
@@ -129,6 +129,8 @@
 - **TRD 04-05 complete (2026-05-05)** — `plugins/devflow/devflow/workflows/execute-objective.md` updated: new `<step name="dup_detect_check">` inserted between validate_objective and discover_and_group_plans. Runs df-tools dup-detect --mode execute; friction-minimal (silent JSONL log on no-match); blocking match → AskUserQuestion 4-option (Merge/Defer/Coordinate/Proceed); dispatches via df-tools dup-detect resolve; Merge/Defer exit cleanly before executor agents spawn; Coordinate/Proceed-anyway continue to discover_and_group_plans; --gaps-only flag skips dup-detect. 958/958 tests pass (no regressions). Commit: ecfdf48 (feat:). SC-7 + SC-8 workflow side complete. Wave 4 TRD 04-05 complete.
 - **execute-time dup-detect friction-minimal (TRD 04-05)** — Per CONTEXT.md decision #5: no advisory display, no inline notes on no-match; only blocking matches trigger AskUserQuestion. Advisory filtered upstream by detectDuplicates(mode='execute').
 - **--gaps-only skips dup-detect at execute-time (TRD 04-05)** — Gap closure plans are reactive to verification failures; they don't introduce new coordination concerns. Dup-detect step short-circuits when --gaps-only is set.
+- **TRD 04-06 complete (2026-05-05)** — `lib/dup-detect.cjs` module.exports finalized: banner comment 'LOCKED by TRD 04-06' + 19-entry locked surface (4 public + 4 hooks + 6 helpers + 5 constants). EX1 deepStrictEqual export-lock test + EX2/EX3 + E2E1-E2E6 covering all 4 resolution paths (Coordinate/Proceed-anyway/Defer/Merge) + no-match cases. 967/987 tests pass (9 new, 0 fail). Commits: 9957c2d (test:), 12a55ca (feat:). SC-10 closed. Objective 4 DONE.
+- **Export surface locked design (TRD 04-06)** — EX1 passes at RED because 04-01/02/03 already emitted the correct 19-entry surface; EX3 (banner absent) is the true RED gate. E2E fixture adaptation: buildDupDetectFixtures() takes options object not string arg; returns {current, hardPeerScan, ...}. No fixture code change needed.
 
 ## Blockers / Concerns
 
@@ -136,7 +138,7 @@
 
 ## Session Continuity
 
-Last session: 2026-05-05 — TRD 04-05 (execute-objective workflow integration) complete. 958 tests pass (0 fail, 20 skip). Wave 4 complete (both 04-04 + 04-05 done).
+Last session: 2026-05-05 — TRD 04-06 (library export lock + e2e integration) complete. 967/987 tests pass (0 fail, 20 skip). Wave 5 complete. Objective 4 DONE.
 Resume file: `.planning/SESSION_PICKUP.md`
-Stopped at: Completed 04-05-execute-skill-integration-TRD.md
-Next: TRD 04-06 (library export lock + e2e integration, Wave 5)
+Stopped at: Completed 04-06-library-export-and-integration-TRD.md
+Next: Objective 5 (TBD — v1.1 roadmap)
