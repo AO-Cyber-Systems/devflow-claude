@@ -1282,3 +1282,481 @@ test('IM2: second sync overwrites manual edit (one-way sync contract)', () => {
 
   fs.rmSync(home, { recursive: true, force: true });
 });
+
+// ─── TRD 05-03: Group DS — _detectStaleInitiatives (pure logic, mocked gh) ───
+
+test('DS1: empty home dir returns empty stale array', () => {
+  const home = mkTmp('df-init-ds-');
+  fs.rmSync(home, { recursive: true, force: true }); // remove so it doesn't exist
+  const result = init._detectStaleInitiatives({ home, fresh_items: [] });
+  assert.deepStrictEqual(result.stale, []);
+  assert.ok(Array.isArray(result.warnings), 'warnings is array');
+});
+
+test('DS2: home with files ALL in fresh_items returns empty stale array', () => {
+  const home = mkTmp('df-init-ds-');
+  fixtures.buildInitiativesHomeTree({
+    tmpdir: home,
+    files: [{ slug: 'active-epic', github_issue: 'AO-Cyber-Systems/devflow#10' }],
+  });
+  const fresh_items = [fixtures.buildOrgItem({ issue_ref: 'AO-Cyber-Systems/devflow#10' })];
+  const result = init._detectStaleInitiatives({ home, fresh_items });
+  assert.deepStrictEqual(result.stale, []);
+  fs.rmSync(home, { recursive: true, force: true });
+});
+
+test('DS3: home with file referencing OPEN issue NOT in fresh_items is NOT stale', () => {
+  const home = mkTmp('df-init-ds-');
+  fixtures.buildInitiativesHomeTree({
+    tmpdir: home,
+    files: [{ slug: 'open-not-in-project', github_issue: 'AO-Cyber-Systems/devflow#20' }],
+  });
+  init._setRunGh((args) => {
+    if (args[0] === 'issue' && args[1] === 'view') {
+      return { ok: true, status: 0, stdout: JSON.stringify({ state: 'OPEN', closed: false }), stderr: '' };
+    }
+    return { ok: false, stdout: '', stderr: 'unmocked' };
+  });
+  const result = init._detectStaleInitiatives({ home, fresh_items: [] });
+  assert.deepStrictEqual(result.stale, []);
+  init._resetMocks();
+  fs.rmSync(home, { recursive: true, force: true });
+});
+
+test('DS4: home with file referencing CLOSED issue NOT in fresh_items returns stale entry', () => {
+  const home = mkTmp('df-init-ds-');
+  fixtures.buildInitiativesHomeTree({
+    tmpdir: home,
+    files: [{ slug: 'old-epic', github_issue: 'AO-Cyber-Systems/devflow#999' }],
+  });
+  init._setRunGh((args) => {
+    if (args[0] === 'issue' && args[1] === 'view' && args[2] === 'AO-Cyber-Systems/devflow#999') {
+      return { ok: true, status: 0, stdout: JSON.stringify({ state: 'CLOSED', closed: true }), stderr: '' };
+    }
+    return { ok: false, stdout: '', stderr: 'unmocked' };
+  });
+  const result = init._detectStaleInitiatives({ home, fresh_items: [] });
+  assert.strictEqual(result.stale.length, 1);
+  assert.strictEqual(result.stale[0].slug, 'old-epic');
+  assert.strictEqual(result.stale[0].reason, 'closed_and_removed');
+  init._resetMocks();
+  fs.rmSync(home, { recursive: true, force: true });
+});
+
+test('DS5: CLOSED issue still in fresh_items is NOT stale (project still claims it)', () => {
+  const home = mkTmp('df-init-ds-');
+  fixtures.buildInitiativesHomeTree({
+    tmpdir: home,
+    files: [{ slug: 'recurring', github_issue: 'AO-Cyber-Systems/devflow#100' }],
+  });
+  init._setRunGh((args) => {
+    if (args[0] === 'issue' && args[1] === 'view') {
+      return { ok: true, status: 0, stdout: JSON.stringify({ state: 'CLOSED', closed: true }), stderr: '' };
+    }
+    return { ok: false, stdout: '', stderr: 'unmocked' };
+  });
+  const fresh_items = [fixtures.buildOrgItem({ issue_ref: 'AO-Cyber-Systems/devflow#100' })];
+  const result = init._detectStaleInitiatives({ home, fresh_items });
+  assert.deepStrictEqual(result.stale, []);
+  init._resetMocks();
+  fs.rmSync(home, { recursive: true, force: true });
+});
+
+test('DS6: file with malformed frontmatter is skipped silently', () => {
+  const home = mkTmp('df-init-ds-');
+  // Write a file with no frontmatter (malformed)
+  fs.writeFileSync(path.join(home, 'malformed.md'), '# Just a heading\nNo frontmatter here.\n', 'utf-8');
+  const result = init._detectStaleInitiatives({ home, fresh_items: [] });
+  assert.deepStrictEqual(result.stale, []);
+  fs.rmSync(home, { recursive: true, force: true });
+});
+
+test('DS7: file with no github_issue field adds warning and is skipped', () => {
+  const home = mkTmp('df-init-ds-');
+  // Write a file with frontmatter but no github_issue
+  const content = [
+    '---',
+    'slug: no-issue-ref',
+    'parent_project: AO-Cyber-Systems/PVT_test',
+    'key_repos:',
+    '  - AO-Cyber-Systems/devflow',
+    'updated_at: 2026-01-01T00:00:00Z',
+    '---',
+    '',
+    '# No Issue Ref',
+    '',
+    '## Why',
+    '',
+    'Some why.',
+    '',
+  ].join('\n');
+  fs.writeFileSync(path.join(home, 'no-issue-ref.md'), content, 'utf-8');
+  const result = init._detectStaleInitiatives({ home, fresh_items: [] });
+  assert.deepStrictEqual(result.stale, []);
+  assert.ok(result.warnings.length > 0, 'should have a warning for missing github_issue');
+  assert.ok(result.warnings.some(w => w.includes('no-issue-ref') || w.includes('no github_issue')),
+    `warning should mention the slug or missing field; warnings: ${JSON.stringify(result.warnings)}`);
+  fs.rmSync(home, { recursive: true, force: true });
+});
+
+test('DS8: gh issue view failure treats file as not-stale with warning', () => {
+  const home = mkTmp('df-init-ds-');
+  fixtures.buildInitiativesHomeTree({
+    tmpdir: home,
+    files: [{ slug: 'gh-fail-epic', github_issue: 'AO-Cyber-Systems/devflow#77' }],
+  });
+  init._setRunGh((args) => {
+    if (args[0] === 'issue' && args[1] === 'view') {
+      return { ok: false, status: 1, stdout: '', stderr: 'could not resolve to an issue' };
+    }
+    return { ok: false, stdout: '', stderr: 'unmocked' };
+  });
+  const result = init._detectStaleInitiatives({ home, fresh_items: [] });
+  assert.deepStrictEqual(result.stale, [], 'gh failure should NOT mark file as stale');
+  assert.ok(result.warnings.length > 0, 'should have a warning for gh failure');
+  init._resetMocks();
+  fs.rmSync(home, { recursive: true, force: true });
+});
+
+test('DS9: returns array of { slug, github_issue, reason } for each stale entry', () => {
+  const home = mkTmp('df-init-ds-');
+  fixtures.buildInitiativesHomeTree({
+    tmpdir: home,
+    files: [
+      { slug: 'stale-a', github_issue: 'AO-Cyber-Systems/devflow#11' },
+      { slug: 'stale-b', github_issue: 'AO-Cyber-Systems/devflow#12' },
+    ],
+  });
+  init._setRunGh((args) => {
+    if (args[0] === 'issue' && args[1] === 'view') {
+      return { ok: true, status: 0, stdout: JSON.stringify({ state: 'CLOSED', closed: true }), stderr: '' };
+    }
+    return { ok: false, stdout: '', stderr: 'unmocked' };
+  });
+  const result = init._detectStaleInitiatives({ home, fresh_items: [] });
+  assert.strictEqual(result.stale.length, 2);
+  for (const entry of result.stale) {
+    assert.ok(entry.slug, 'stale entry has slug');
+    assert.ok(entry.github_issue, 'stale entry has github_issue');
+    assert.strictEqual(entry.reason, 'closed_and_removed');
+  }
+  init._resetMocks();
+  fs.rmSync(home, { recursive: true, force: true });
+});
+
+// ─── TRD 05-03: Group CF — _confirmDeleteStale (TTY readline, mocked) ─────────
+
+test('CF1: injected readline returning true → _confirmDeleteStale returns true', async () => {
+  init._setRunReadline(async (_slug) => true);
+  const r = await init._confirmDeleteStale('foo');
+  assert.strictEqual(r, true);
+  init._resetMocks();
+});
+
+test('CF2: injected readline returning true → yes response works', async () => {
+  init._setRunReadline((_slug) => Promise.resolve(true));
+  const r = await init._confirmDeleteStale('yes-test');
+  assert.strictEqual(r, true);
+  init._resetMocks();
+});
+
+test('CF3: injected readline returning false → _confirmDeleteStale returns false', async () => {
+  init._setRunReadline(async (_slug) => false);
+  const r = await init._confirmDeleteStale('bar');
+  assert.strictEqual(r, false);
+  init._resetMocks();
+});
+
+test('CF4: injected readline returning false (default no) → _confirmDeleteStale returns false', async () => {
+  init._setRunReadline(() => false);
+  const r = await init._confirmDeleteStale('default-no');
+  assert.strictEqual(r, false);
+  init._resetMocks();
+});
+
+test('CF5: non-TTY stdin → default _confirmDeleteStale returns false without prompting', async () => {
+  init._resetMocks(); // use real default
+  const origTTY = process.stdin.isTTY;
+  Object.defineProperty(process.stdin, 'isTTY', { value: false, configurable: true, writable: true });
+  try {
+    const r = await init._confirmDeleteStale('cf5-test');
+    assert.strictEqual(r, false, 'non-TTY should return false');
+  } finally {
+    if (origTTY !== undefined) {
+      Object.defineProperty(process.stdin, 'isTTY', { value: origTTY, configurable: true, writable: true });
+    } else {
+      Object.defineProperty(process.stdin, 'isTTY', { value: undefined, configurable: true, writable: true });
+    }
+  }
+});
+
+test('CF6: case-insensitive y/Y/yes/YES all return true via injection', async () => {
+  const answers = ['y', 'Y', 'yes', 'YES'];
+  for (const answer of answers) {
+    // Simulate the real readline logic: /^y(es)?$/i.test(answer.trim())
+    const expected = /^y(es)?$/i.test(answer.trim());
+    init._setRunReadline((_slug) => expected);
+    const r = await init._confirmDeleteStale('test-slug');
+    assert.strictEqual(r, true, `answer "${answer}" should return true`);
+    init._resetMocks();
+  }
+});
+
+// ─── TRD 05-03: Group DD — _deleteStaleFile (filesystem) ──────────────────────
+
+test('DD1: calls unlinkSync on <home>/<slug>.md', () => {
+  const home = mkTmp('df-init-dd-');
+  const slug = 'dd1-test';
+  // Create the file to delete
+  fs.writeFileSync(path.join(home, `${slug}.md`), 'content', 'utf-8');
+  let unlinkedPath = null;
+  const mockFsDD = {
+    existsSync: (p) => fs.existsSync(p),
+    readdirSync: (p, opts) => fs.readdirSync(p, opts),
+    readFileSync: (p, enc) => fs.readFileSync(p, enc),
+    statSync: (p) => fs.statSync(p),
+    writeFileSync: (p, d, o) => fs.writeFileSync(p, d, o),
+    mkdirSync: (p, o) => fs.mkdirSync(p, o),
+    renameSync: (o, n) => fs.renameSync(o, n),
+    unlinkSync: (p) => { unlinkedPath = p; fs.unlinkSync(p); },
+  };
+  init._setRunFs(mockFsDD);
+  const result = init._deleteStaleFile(home, slug);
+  assert.ok(unlinkedPath && unlinkedPath.endsWith(`${slug}.md`),
+    `unlinkSync called on slug path; got: ${unlinkedPath}`);
+  init._resetMocks();
+  fs.rmSync(home, { recursive: true, force: true });
+});
+
+test('DD2: returns { deleted: true, slug, reason: "closed_and_removed" } on success', () => {
+  const home = mkTmp('df-init-dd-');
+  const slug = 'dd2-test';
+  fs.writeFileSync(path.join(home, `${slug}.md`), 'content', 'utf-8');
+  const result = init._deleteStaleFile(home, slug);
+  assert.strictEqual(result.deleted, true);
+  assert.strictEqual(result.slug, slug);
+  assert.strictEqual(result.reason, 'closed_and_removed');
+  fs.rmSync(home, { recursive: true, force: true });
+});
+
+test('DD3: unlinkSync failure returns { deleted: false, slug, reason: <error msg> }', () => {
+  const home = mkTmp('df-init-dd-');
+  const slug = 'dd3-test';
+  const mockFsDD3 = {
+    existsSync: (p) => fs.existsSync(p),
+    readdirSync: (p, opts) => fs.readdirSync(p, opts),
+    readFileSync: (p, enc) => fs.readFileSync(p, enc),
+    statSync: (p) => fs.statSync(p),
+    writeFileSync: (p, d, o) => fs.writeFileSync(p, d, o),
+    mkdirSync: (p, o) => fs.mkdirSync(p, o),
+    renameSync: (o, n) => fs.renameSync(o, n),
+    unlinkSync: (_p) => { throw new Error('ENOENT: no such file or directory'); },
+  };
+  init._setRunFs(mockFsDD3);
+  const result = init._deleteStaleFile(home, slug);
+  assert.strictEqual(result.deleted, false);
+  assert.strictEqual(result.slug, slug);
+  assert.ok(result.reason && result.reason.length > 0, 'reason should be non-empty');
+  init._resetMocks();
+  fs.rmSync(home, { recursive: true, force: true });
+});
+
+// ─── TRD 05-03: Group SF — syncInitiatives stale-deletion integration ──────────
+
+test('SF1: --force flag deletes stale files unconditionally; result.deleted populated', async () => {
+  const home = mkTmp('df-init-sf-');
+  fixtures.buildInitiativesHomeTree({
+    tmpdir: home,
+    files: [{ slug: 'old-epic', github_issue: 'AO-Cyber-Systems/devflow#999' }],
+  });
+  init._setRunGh((args) => {
+    if (args[0] === 'auth') return { ok: true, status: 0, stdout: "Token scopes: 'project', 'read:project', 'repo'", stderr: '' };
+    if (args[0] === 'api' && args[1] === 'graphql') return { ok: true, status: 0, stdout: JSON.stringify({ data: { node: { items: { pageInfo: { hasNextPage: false }, nodes: [] } } } }), stderr: '' };
+    if (args[0] === 'issue' && args[1] === 'view') return { ok: true, status: 0, stdout: JSON.stringify({ state: 'CLOSED', closed: true }), stderr: '' };
+    return { ok: false, stdout: '', stderr: 'unmocked' };
+  });
+  const result = await init.syncInitiatives({ home, project_id: 'PVT_test', force: true });
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(result.deleted.length, 1, `expected 1 deleted; got: ${JSON.stringify(result.deleted)}`);
+  assert.strictEqual(result.deleted[0].slug, 'old-epic');
+  assert.strictEqual(fs.existsSync(path.join(home, 'old-epic.md')), false, 'file should be removed');
+  init._resetMocks();
+  fs.rmSync(home, { recursive: true, force: true });
+});
+
+test('SF2: without --force, TTY-mock confirms y → stale files deleted', async () => {
+  const home = mkTmp('df-init-sf-');
+  fixtures.buildInitiativesHomeTree({
+    tmpdir: home,
+    files: [{ slug: 'old-epic-sf2', github_issue: 'AO-Cyber-Systems/devflow#888' }],
+  });
+  init._setRunGh((args) => {
+    if (args[0] === 'auth') return { ok: true, status: 0, stdout: "Token scopes: 'project', 'read:project', 'repo'", stderr: '' };
+    if (args[0] === 'api' && args[1] === 'graphql') return { ok: true, status: 0, stdout: JSON.stringify({ data: { node: { items: { pageInfo: { hasNextPage: false }, nodes: [] } } } }), stderr: '' };
+    if (args[0] === 'issue' && args[1] === 'view') return { ok: true, status: 0, stdout: JSON.stringify({ state: 'CLOSED', closed: true }), stderr: '' };
+    return { ok: false, stdout: '', stderr: 'unmocked' };
+  });
+  init._setRunReadline(async (_slug) => true); // user confirms y
+  const result = await init.syncInitiatives({ home, project_id: 'PVT_test', force: false });
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(result.deleted.length, 1, `expected 1 deleted; got: ${JSON.stringify(result.deleted)}`);
+  init._resetMocks();
+  fs.rmSync(home, { recursive: true, force: true });
+});
+
+test('SF3: without --force, TTY-mock confirms n → stale files NOT deleted; result.deleted empty', async () => {
+  const home = mkTmp('df-init-sf-');
+  fixtures.buildInitiativesHomeTree({
+    tmpdir: home,
+    files: [{ slug: 'old-epic-sf3', github_issue: 'AO-Cyber-Systems/devflow#777' }],
+  });
+  init._setRunGh((args) => {
+    if (args[0] === 'auth') return { ok: true, status: 0, stdout: "Token scopes: 'project', 'read:project', 'repo'", stderr: '' };
+    if (args[0] === 'api' && args[1] === 'graphql') return { ok: true, status: 0, stdout: JSON.stringify({ data: { node: { items: { pageInfo: { hasNextPage: false }, nodes: [] } } } }), stderr: '' };
+    if (args[0] === 'issue' && args[1] === 'view') return { ok: true, status: 0, stdout: JSON.stringify({ state: 'CLOSED', closed: true }), stderr: '' };
+    return { ok: false, stdout: '', stderr: 'unmocked' };
+  });
+  init._setRunReadline(async (_slug) => false); // user confirms n
+  const result = await init.syncInitiatives({ home, project_id: 'PVT_test', force: false });
+  assert.strictEqual(result.ok, true);
+  assert.deepStrictEqual(result.deleted, [], 'no files deleted when user says n');
+  assert.ok(fs.existsSync(path.join(home, 'old-epic-sf3.md')), 'file should still exist after n');
+  init._resetMocks();
+  fs.rmSync(home, { recursive: true, force: true });
+});
+
+test('SF4: non-TTY (no _runReadline injection + isTTY false) → stale-deletion skipped with warning', async () => {
+  const home = mkTmp('df-init-sf-');
+  fixtures.buildInitiativesHomeTree({
+    tmpdir: home,
+    files: [{ slug: 'old-epic-sf4', github_issue: 'AO-Cyber-Systems/devflow#666' }],
+  });
+  init._setRunGh((args) => {
+    if (args[0] === 'auth') return { ok: true, status: 0, stdout: "Token scopes: 'project', 'read:project', 'repo'", stderr: '' };
+    if (args[0] === 'api' && args[1] === 'graphql') return { ok: true, status: 0, stdout: JSON.stringify({ data: { node: { items: { pageInfo: { hasNextPage: false }, nodes: [] } } } }), stderr: '' };
+    if (args[0] === 'issue' && args[1] === 'view') return { ok: true, status: 0, stdout: JSON.stringify({ state: 'CLOSED', closed: true }), stderr: '' };
+    return { ok: false, stdout: '', stderr: 'unmocked' };
+  });
+  // Do NOT inject _setRunReadline — use default, which checks isTTY
+  const origTTY = process.stdin.isTTY;
+  Object.defineProperty(process.stdin, 'isTTY', { value: false, configurable: true, writable: true });
+  try {
+    const result = await init.syncInitiatives({ home, project_id: 'PVT_test', force: false });
+    assert.strictEqual(result.ok, true);
+    assert.deepStrictEqual(result.deleted, [], 'stale deletion skipped on non-TTY');
+    assert.ok(result.warnings.some(w => w.includes('non-interactive') || w.includes('stale') || w.includes('--force')),
+      `should have warning about non-TTY skip; warnings: ${JSON.stringify(result.warnings)}`);
+    assert.ok(fs.existsSync(path.join(home, 'old-epic-sf4.md')), 'file should still exist');
+  } finally {
+    if (origTTY !== undefined) {
+      Object.defineProperty(process.stdin, 'isTTY', { value: origTTY, configurable: true, writable: true });
+    } else {
+      Object.defineProperty(process.stdin, 'isTTY', { value: undefined, configurable: true, writable: true });
+    }
+    init._resetMocks();
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test('SF5: --initiative <slug> mode skips stale-deletion entirely; result.deleted always empty', async () => {
+  const home = mkTmp('df-init-sf-');
+  fixtures.buildInitiativesHomeTree({
+    tmpdir: home,
+    files: [{ slug: 'old-epic-sf5', github_issue: 'AO-Cyber-Systems/devflow#555' }],
+  });
+  init._setRunGh((args) => {
+    if (args[0] === 'auth') return { ok: true, status: 0, stdout: "Token scopes: 'project', 'read:project', 'repo'", stderr: '' };
+    if (args[0] === 'api' && args[1] === 'graphql') return { ok: true, status: 0, stdout: JSON.stringify({ data: { node: { items: { pageInfo: { hasNextPage: false }, nodes: [] } } } }), stderr: '' };
+    return { ok: false, stdout: '', stderr: 'unmocked' };
+  });
+  const result = await init.syncInitiatives({
+    home, project_id: 'PVT_test', initiative: 'some-other-slug', force: true,
+  });
+  assert.deepStrictEqual(result.deleted, [], 'deleted empty in single-initiative mode');
+  assert.ok(fs.existsSync(path.join(home, 'old-epic-sf5.md')), 'file should still exist');
+  init._resetMocks();
+  fs.rmSync(home, { recursive: true, force: true });
+});
+
+test('SF6: 2 stale files; user confirms y for one, n for other → result.deleted has 1 entry', async () => {
+  const home = mkTmp('df-init-sf-');
+  fixtures.buildInitiativesHomeTree({
+    tmpdir: home,
+    files: [
+      { slug: 'old-epic-a', github_issue: 'AO-Cyber-Systems/devflow#501' },
+      { slug: 'old-epic-b', github_issue: 'AO-Cyber-Systems/devflow#502' },
+    ],
+  });
+  init._setRunGh((args) => {
+    if (args[0] === 'auth') return { ok: true, status: 0, stdout: "Token scopes: 'project', 'read:project', 'repo'", stderr: '' };
+    if (args[0] === 'api' && args[1] === 'graphql') return { ok: true, status: 0, stdout: JSON.stringify({ data: { node: { items: { pageInfo: { hasNextPage: false }, nodes: [] } } } }), stderr: '' };
+    if (args[0] === 'issue' && args[1] === 'view') return { ok: true, status: 0, stdout: JSON.stringify({ state: 'CLOSED', closed: true }), stderr: '' };
+    return { ok: false, stdout: '', stderr: 'unmocked' };
+  });
+  let callCount = 0;
+  init._setRunReadline(async (_slug) => {
+    callCount++;
+    return callCount === 1; // yes for first, no for second
+  });
+  const result = await init.syncInitiatives({ home, project_id: 'PVT_test', force: false });
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(result.deleted.length, 1, `expected exactly 1 deleted; got: ${JSON.stringify(result.deleted)}`);
+  init._resetMocks();
+  fs.rmSync(home, { recursive: true, force: true });
+});
+
+test('SF7: stale-detection runs AFTER writer loop; freshly-written file never in result.deleted', async () => {
+  const home = mkTmp('df-init-sf-');
+  // Pre-existing stale file in home
+  fixtures.buildInitiativesHomeTree({
+    tmpdir: home,
+    files: [{ slug: 'old-epic-sf7', github_issue: 'AO-Cyber-Systems/devflow#400' }],
+  });
+  // walkProject returns a qualifying item that will be written
+  const freshItem = fixtures.buildOrgItem({
+    title: '[Epic] Fresh Initiative',
+    issue_ref: 'AO-Cyber-Systems/devflow#200',
+  });
+  init._setRunGh((args) => {
+    if (args[0] === 'auth') return { ok: true, status: 0, stdout: "Token scopes: 'project', 'read:project', 'repo'", stderr: '' };
+    if (args[0] === 'api' && args[1] === 'graphql') {
+      // Build response with freshItem
+      return { ok: true, status: 0, stdout: JSON.stringify({
+        data: {
+          node: {
+            items: {
+              pageInfo: { hasNextPage: false, endCursor: null },
+              nodes: [{
+                content: {
+                  __typename: 'Issue',
+                  number: 200,
+                  title: freshItem.title,
+                  body: freshItem.body || '',
+                  repository: { nameWithOwner: 'AO-Cyber-Systems/devflow' },
+                  trackedIssues: { totalCount: 0, nodes: [] },
+                },
+                fieldValues: { nodes: [] },
+              }],
+            },
+          },
+        },
+      }), stderr: '' };
+    }
+    if (args[0] === 'issue' && args[1] === 'view' && args[2] === 'AO-Cyber-Systems/devflow#400') {
+      return { ok: true, status: 0, stdout: JSON.stringify({ state: 'CLOSED', closed: true }), stderr: '' };
+    }
+    return { ok: false, stdout: '', stderr: 'unmocked' };
+  });
+  init._setRunReadline(async (_slug) => true); // confirm y for any stale files
+  const result = await init.syncInitiatives({ home, project_id: 'PVT_test', force: false });
+  assert.strictEqual(result.ok, true);
+  // Fresh initiative should be written
+  assert.ok(result.written.some(w => w.slug === 'fresh-initiative'), `fresh-initiative should be written; written: ${JSON.stringify(result.written)}`);
+  // Fresh initiative should NOT be in deleted
+  const deletedSlugs = result.deleted.map(d => d.slug);
+  assert.ok(!deletedSlugs.includes('fresh-initiative'), 'freshly-written file must not be in deleted');
+  // Old epic should be deleted
+  assert.ok(deletedSlugs.includes('old-epic-sf7'), `old-epic-sf7 should be deleted; deleted: ${JSON.stringify(result.deleted)}`);
+  init._resetMocks();
+  fs.rmSync(home, { recursive: true, force: true });
+});

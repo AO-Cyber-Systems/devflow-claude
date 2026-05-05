@@ -382,6 +382,140 @@ test('CLI2-4: --initiative <slug> flag passes through to syncInitiatives', () =>
   assert.strictEqual(result.written[0].slug, 'target-initiative');
 });
 
+// ─── TRD 05-03: Group CLI3 — cmdInitiativesSync --force flag ─────────────────
+
+test('CLI3-1: --force flag passes force: true through to syncInitiatives', async () => {
+  const home = mkTmp('df-cli3-');
+  fixtures.buildInitiativesHomeTree({
+    tmpdir: home,
+    files: [{ slug: 'old-epic-cli3', github_issue: 'AO-Cyber-Systems/devflow#300' }],
+  });
+  init._setRunGh((args) => {
+    if (args[0] === 'auth') return { ok: true, status: 0, stdout: "Token scopes: 'project', 'read:project', 'repo'", stderr: '' };
+    if (args[0] === 'api' && args[1] === 'graphql') return { ok: true, status: 0, stdout: JSON.stringify({ data: { node: { items: { pageInfo: { hasNextPage: false }, nodes: [] } } } }), stderr: '' };
+    if (args[0] === 'issue' && args[1] === 'view') return { ok: true, status: 0, stdout: JSON.stringify({ state: 'CLOSED', closed: true }), stderr: '' };
+    return { ok: false, stdout: '', stderr: 'unmocked' };
+  });
+
+  const stdoutChunks = [];
+  const origStdout = process.stdout.write.bind(process.stdout);
+  process.stdout.write = (chunk, ...rest) => { stdoutChunks.push(String(chunk)); return true; };
+
+  let firstExitCode = null;
+  const origExit = process.exit;
+  process.exit = (code) => {
+    if (firstExitCode === null) firstExitCode = code;
+    throw new Error(`process.exit(${code})`);
+  };
+
+  try {
+    await cmdInitiativesSync(process.cwd(), ['--home', home, '--project-id', 'PVT_test', '--force']);
+  } catch (e) {
+    // expected — process.exit throws
+  } finally {
+    process.exit = origExit;
+    process.stdout.write = origStdout;
+    init._resetMocks();
+  }
+
+  assert.strictEqual(firstExitCode, 0, `expected exit 0; got: ${firstExitCode}`);
+  const outputStr = stdoutChunks.join('');
+  let result;
+  try {
+    result = JSON.parse(outputStr.trim());
+  } catch {
+    const match = outputStr.match(/\{[\s\S]+\}/);
+    if (match) result = JSON.parse(match[0]);
+    else assert.fail(`stdout not valid JSON: ${outputStr.slice(0, 200)}`);
+  }
+  assert.ok(result.ok, 'result.ok should be true');
+  // With --force and a closed+removed issue, result.deleted should have 1 entry
+  assert.ok(Array.isArray(result.deleted), 'result.deleted is array');
+  assert.strictEqual(result.deleted.length, 1, `expected 1 deleted with --force; deleted: ${JSON.stringify(result.deleted)}`);
+  fs.rmSync(home, { recursive: true, force: true });
+});
+
+test('CLI3-2: without --force, force: false is the default', async () => {
+  const home = mkTmp('df-cli3-');
+  init._setRunGh((args) => {
+    if (args[0] === 'auth') return { ok: true, status: 0, stdout: "Token scopes: 'project', 'read:project', 'repo'", stderr: '' };
+    if (args[0] === 'api' && args[1] === 'graphql') return { ok: true, status: 0, stdout: JSON.stringify({ data: { node: { items: { pageInfo: { hasNextPage: false }, nodes: [] } } } }), stderr: '' };
+    return { ok: false, stdout: '', stderr: 'unmocked' };
+  });
+
+  const stdoutChunks = [];
+  const origStdout = process.stdout.write.bind(process.stdout);
+  process.stdout.write = (chunk, ...rest) => { stdoutChunks.push(String(chunk)); return true; };
+
+  let firstExitCode = null;
+  const origExit = process.exit;
+  process.exit = (code) => {
+    if (firstExitCode === null) firstExitCode = code;
+    throw new Error(`process.exit(${code})`);
+  };
+
+  try {
+    await cmdInitiativesSync(process.cwd(), ['--home', home, '--project-id', 'PVT_test']);
+  } catch (e) {
+    // expected — process.exit throws
+  } finally {
+    process.exit = origExit;
+    process.stdout.write = origStdout;
+    init._resetMocks();
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+
+  assert.strictEqual(firstExitCode, 0, `expected exit 0; got: ${firstExitCode}`);
+  const result = JSON.parse(stdoutChunks.join('').trim());
+  // No stale files in empty home, so deleted should be empty regardless
+  assert.ok(Array.isArray(result.deleted), 'result.deleted is array even without --force');
+});
+
+test('CLI3-3: --force JSON output includes deleted: [...] array', async () => {
+  const home = mkTmp('df-cli3-3-');
+  init._setRunGh((args) => {
+    if (args[0] === 'auth') return { ok: true, status: 0, stdout: "Token scopes: 'project', 'read:project', 'repo'", stderr: '' };
+    if (args[0] === 'api' && args[1] === 'graphql') return { ok: true, status: 0, stdout: JSON.stringify({ data: { node: { items: { pageInfo: { hasNextPage: false }, nodes: [] } } } }), stderr: '' };
+    return { ok: false, stdout: '', stderr: 'unmocked' };
+  });
+
+  const stdoutChunks = [];
+  const origStdout = process.stdout.write.bind(process.stdout);
+  process.stdout.write = (chunk, ...rest) => { stdoutChunks.push(String(chunk)); return true; };
+
+  let firstExitCode = null;
+  const origExit = process.exit;
+  process.exit = (code) => {
+    if (firstExitCode === null) firstExitCode = code;
+    throw new Error(`process.exit(${code})`);
+  };
+
+  try {
+    await cmdInitiativesSync(process.cwd(), ['--home', home, '--project-id', 'PVT_test', '--force']);
+  } catch (e) {
+    // expected — process.exit throws
+  } finally {
+    process.exit = origExit;
+    process.stdout.write = origStdout;
+    init._resetMocks();
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+
+  assert.strictEqual(firstExitCode, 0, `expected exit 0; got: ${firstExitCode}`);
+  const outputStr = stdoutChunks.join('');
+  let result;
+  try {
+    result = JSON.parse(outputStr.trim());
+  } catch {
+    const match = outputStr.match(/\{[\s\S]+\}/);
+    if (match) result = JSON.parse(match[0]);
+    else assert.fail(`stdout not valid JSON: ${outputStr.slice(0, 200)}`);
+  }
+  assert.ok(Object.prototype.hasOwnProperty.call(result, 'deleted'),
+    `result should have deleted property; got: ${JSON.stringify(Object.keys(result))}`);
+  assert.ok(Array.isArray(result.deleted), 'deleted is an array');
+});
+
 test('CLI2-5: --project-id <id> flag passes through to syncInitiatives', () => {
   const home = mkTmp('df-cli2-');
   let usedProjectId = null;
