@@ -18,7 +18,7 @@
 **Objective complete:** 5 — Initiative context layer (verified 2026-05-05, 1097/1097 tests pass, all 10 SC met, 5 TRDs done)
 **Objective complete:** 6 — Unified check-todos morning-standup view (verified 2026-05-05, 1290/1291 tests pass, all 10 SC met, 4 TRDs done, SC-6 through SC-10 closed)
 **Branch:** `feature/v1.1-obj-6-check-todos`
-**Status:** Ready to plan
+**Status:** Objective complete — ready for verification
 
 ## Branch State (post-merge)
 
