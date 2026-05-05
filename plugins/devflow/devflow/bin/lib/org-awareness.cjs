@@ -724,15 +724,197 @@ function scanLibs({ path: optPath, current_tokens, cwd = process.cwd() } = {}) {
   return out;
 }
 
-// ─── TRD 03-01 → TRD 03-02: Partial exports ──────────────────────────────────
+// ─── TRD 03-03: scanOrgOverlap + misfiling detection ─────────────────────────
+
+const aw = require('./awareness.cjs');
+const gh = require('./gh.cjs');
+
+/**
+ * Extract the owner/repo portion from a GitHub issue ref.
+ *
+ * Examples:
+ *   'AO-Cyber-Systems/devflow-claude#9'     → 'AO-Cyber-Systems/devflow-claude'
+ *   'https://github.com/Owner/repo#12'      → 'Owner/repo'
+ *   '#9'  (shorthand — no repo portion)     → null
+ *   null / non-string                        → null
+ *
+ * @param {string|null} ref
+ * @returns {string|null}
+ */
+function _extractRepoFromRef(ref) {
+  if (!ref || typeof ref !== 'string') return null;
+  // Strip leading https://github.com/ prefix if present
+  const cleaned = ref.replace(/^https?:\/\/github\.com\//, '');
+  const idx = cleaned.indexOf('#');
+  // idx <= 0 means no # found (idx === -1) or # is the first char (shorthand like '#9')
+  if (idx <= 0) return null;
+  return cleaned.slice(0, idx);
+}
+
+/**
+ * Detect whether the current objective may be misfiled.
+ *
+ * Advisory only — returns null on any condition that cannot be compared cleanly.
+ * Per CONTEXT.md locked decision #7: no AskUserQuestion, no hard fail, no checkpoint.
+ *
+ * @param {object} chain     - resolveChain output (may be partial/empty)
+ * @param {object} projectCtx - current PROJECT.md parsed frontmatter
+ * @returns {{ current_repo: string, resolved_repo: string, message: string } | null}
+ */
+function _detectMisfiling(chain, projectCtx) {
+  if (!projectCtx || !projectCtx.github_repo) return null;
+  if (!chain || !chain.roadmap_issue) return null;
+  const resolvedRepo = _extractRepoFromRef(chain.roadmap_issue);
+  if (!resolvedRepo) return null;
+  if (resolvedRepo === projectCtx.github_repo) return null;
+  return {
+    current_repo: projectCtx.github_repo,
+    resolved_repo: resolvedRepo,
+    message: `this objective's resolved [Roadmap] is in '${resolvedRepo}' but current repo is '${projectCtx.github_repo}'. Possible misfile — consider whether this objective belongs in '${resolvedRepo}' instead.`,
+  };
+}
+
+/**
+ * Score a single org item against the current objective.
+ *
+ * Algorithm (per CONTEXT.md §"Org-overlap scanner"):
+ *   +10 if any sub-issue ref's repo matches a sibling repo (chain-match boost)
+ *   +1 per shared keyword between (item title + body) tokens and currentTokens
+ *
+ * @param {object}      item           - org scan item (title, body, sub_issues)
+ * @param {Set<string>} currentTokens  - tokenized current objective
+ * @param {string[]}    siblingRepos   - sibling repo refs (owner/repo form)
+ * @returns {{ total: number, chain_match: boolean, matched_keywords: string[] }}
+ */
+function _scoreOrgItem(item, currentTokens, siblingRepos) {
+  const out = { total: 0, chain_match: false, matched_keywords: [] };
+  const subs = Array.isArray(item.sub_issues) ? item.sub_issues : [];
+
+  // Chain-match boost: +10 if any sub-issue's repo is in siblingRepos
+  for (const s of subs) {
+    const repo = _extractRepoFromRef(s.ref);
+    if (repo && Array.isArray(siblingRepos) && siblingRepos.includes(repo)) {
+      out.chain_match = true;
+      out.total += 10;
+      break; // one chain-match per item is enough for the +10
+    }
+  }
+
+  // Keyword overlap: +1 per shared token between currentTokens and item title+body tokens
+  if (currentTokens && currentTokens.size > 0) {
+    const itemText = [item.title || '', item.body || ''].join(' ');
+    const itemTokens = _tokenize(itemText);
+    for (const t of currentTokens) {
+      if (itemTokens.has(t)) {
+        out.total += 1;
+        out.matched_keywords.push(t);
+      }
+    }
+  }
+
+  return out;
+}
+
+/**
+ * Scan the org's Product Roadmap for items overlapping with the current objective.
+ *
+ * Composes obj 2's `scanOrg` and obj 1's `resolveChain` for misfiling detection.
+ *
+ * CRITICAL: this function MUST NOT propagate GhAuthError — it catches it and
+ * returns `{ items: [], warnings: [...], skipped: true, misfiling: null }`.
+ * Plan-time consultation is advisory; missing auth means one signal source is
+ * absent, not a planning failure (CONTEXT.md locked decision #8).
+ *
+ * Non-auth errors ARE propagated so true bugs surface.
+ *
+ * @param {object}      [opts]
+ * @param {string}      [opts.objective_id]    - current objective ID (for logging)
+ * @param {Set<string>} [opts.current_tokens]  - tokenized current objective tokens
+ * @param {string[]}    [opts.sibling_repos]   - sibling repo refs for chain-match scoring
+ * @param {object}      [opts.frontmatter]     - current objective frontmatter (for resolveChain)
+ * @param {object}      [opts.projectCtx]      - current PROJECT.md context (for misfiling check)
+ * @returns {{ items: object[], warnings: string[], skipped: boolean, misfiling: object|null }}
+ */
+function scanOrgOverlap({
+  objective_id,
+  current_tokens = new Set(),
+  sibling_repos = [],
+  frontmatter = {},
+  projectCtx = {},
+} = {}) {
+  const out = {
+    items: [],
+    warnings: [],
+    skipped: false,
+    misfiling: null,
+  };
+
+  // 1. Run org scan — with GhAuthError graceful degradation guard
+  let scanResult = null;
+  try {
+    scanResult = aw.scanOrg();
+  } catch (e) {
+    if (e && e.name === 'GhAuthError') {
+      // GRACEFUL DEGRADATION: return skipped shape per locked decision #8
+      out.skipped = true;
+      out.warnings.push(
+        `org-overlap unavailable: ${e.message}. Run: ${e.remediation || 'gh auth refresh -h github.com -s project,read:project,repo'}`,
+      );
+      return out; // misfiling stays null
+    }
+    // Non-auth errors re-thrown so true bugs surface
+    throw e;
+  }
+
+  // 2. Propagate any warnings from scanOrg
+  if (Array.isArray(scanResult.warnings)) {
+    out.warnings.push(...scanResult.warnings);
+  }
+
+  // 3. Score each item
+  const scored = (scanResult.items || []).map(item => {
+    const s = _scoreOrgItem(item, current_tokens, sibling_repos);
+    return {
+      issue_ref: item.issue_ref || null,
+      title: item.title || '',
+      score: s.total,
+      matched_keywords: s.matched_keywords,
+      chain_match: s.chain_match,
+    };
+  });
+
+  // Sort: score desc, tie-break alphabetically by title
+  scored.sort((a, b) => (b.score - a.score) || (a.title || '').localeCompare(b.title || ''));
+
+  // Truncate to TOP_N
+  out.items = scored.slice(0, TOP_N);
+
+  // 4. Misfiling check — with its own independent try/catch (resolveChain may also throw)
+  try {
+    const chain = gh.resolveChain(frontmatter, projectCtx);
+    out.misfiling = _detectMisfiling(chain, projectCtx);
+    // Surface any warnings from resolveChain
+    if (Array.isArray(chain && chain.warnings)) {
+      out.warnings.push(...chain.warnings);
+    }
+  } catch (e) {
+    out.warnings.push(`misfiling check skipped: ${e.message}`);
+    out.misfiling = null;
+  }
+
+  return out;
+}
+
+// ─── TRD 03-01 → TRD 03-03: Partial exports ──────────────────────────────────
 //
 // This export block is the AUTHORITATIVE surface FOR THIS WAVE only.
-// TRDs 03-03, 03-04 each extend this block. TRD 03-07 finalizes it
+// TRD 03-04 extends this block. TRD 03-07 finalizes it
 // (asserts the full export surface via Object.keys deepStrictEqual).
 
 module.exports = {
   scanSiblings,
   scanLibs,               // TRD 03-02
+  scanOrgOverlap,         // TRD 03-03
   _setRunFs,
   _resetFsMock,
   _tokenize,              // exported for tests; internal callers use directly
@@ -740,6 +922,9 @@ module.exports = {
   _camelSplit,            // TRD 03-02
   _parseExports,          // TRD 03-02
   _resolveEdenLibsPath,   // TRD 03-02
+  _detectMisfiling,       // TRD 03-03
+  _scoreOrgItem,          // TRD 03-03
+  _extractRepoFromRef,    // TRD 03-03
   TOP_N,
   SUMMARY_RECENCY_DAYS,
   DEFAULT_SIBLING_GLOB,

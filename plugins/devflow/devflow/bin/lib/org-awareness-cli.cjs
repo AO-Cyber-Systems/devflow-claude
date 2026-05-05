@@ -42,9 +42,42 @@ function cmdOrgAwarenessScanLibs(cwd, args, raw) {
 }
 
 function cmdOrgAwarenessScanOrgOverlap(cwd, args, raw) {
-  // TRD 03-03 fills this in
-  process.stderr.write('scan-org-overlap not yet implemented (TRD 03-03)\n');
-  process.exit(1);
+  const objective_id = args[0];
+  if (!objective_id) {
+    process.stderr.write('Usage: df-tools org-awareness scan-org-overlap <objective_id> [--raw]\n');
+    process.exit(1);
+    return;
+  }
+
+  // Read PROJECT.md frontmatter to populate projectCtx (best-effort — misfiling check advisory only)
+  const fs = require('fs');
+  const path = require('path');
+  let projectCtx = {};
+  let frontmatter = {};
+
+  try {
+    const { extractFrontmatter } = require('./frontmatter.cjs');
+    const projectMd = fs.readFileSync(path.join(cwd, '.planning', 'PROJECT.md'), 'utf-8');
+    const fm = extractFrontmatter(projectMd) || {};
+    projectCtx = {
+      github_repo: fm.github_repo || null,
+      org_project: fm.org_project || null,
+    };
+  } catch { /* PROJECT.md absent or unreadable — misfiling check returns null silently */ }
+
+  // Tokenize objective_id as best-effort current_tokens
+  const current_tokens = oa._tokenize ? oa._tokenize(objective_id) : new Set();
+
+  const result = oa.scanOrgOverlap({
+    objective_id,
+    current_tokens,
+    sibling_repos: [],  // CLI invocation: empty sibling_repos; compose with scanSiblings at considerations level (TRD 03-04)
+    frontmatter,
+    projectCtx,
+  });
+
+  // Graceful degradation: exit 0 whether scan ran or skipped — result.skipped indicates auth state
+  output(result, raw);
 }
 
 function cmdOrgAwarenessConsiderations(cwd, args, raw) {
