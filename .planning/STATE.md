@@ -14,8 +14,8 @@
 **Objective complete:** 1 — GitHub coordination layer (verified 2026-05-04, 563/563 tests, all 6 TRDs done, SC-9 + SC-10 met)
 **Objective complete:** 2 — Cross-repo awareness layer (verified 2026-05-04, 731/731 tests with integration flags, all 10 SC met, 7 TRDs done)
 **Objective complete:** 3 — Planning-time org awareness (verified 2026-05-05, 842/842 tests, all 10 SC met, 7 TRDs done, SC-9 + SC-10 closed)
-**Current TRD:** 04-01 complete (Wave 1 — detection engine + signal helpers + injection hooks + fixtures + CLI router)
-**Status:** Objective 4 in flight — 1/6 TRDs done
+**Current TRD:** 04-02 complete (Wave 2 — resolution recorder + applyResolution dispatcher + JSONL log + CONTEXT.md writer + .deferred state + CLI wiring)
+**Status:** Objective 4 in flight — 2/6 TRDs done
 
 ## Branch State (post-merge)
 
@@ -116,6 +116,9 @@
 - **TRD 04-01 complete (2026-05-04)** — `lib/dup-detect.cjs` created: detectDuplicates + _detectHardMatch/Strong/Weak + _readPeerFilesModified + _setRunPeer/_setRunOrgOverlap/_setRunFs/_resetMocks + 5 constants. `lib/dup-detect-cli.cjs`: cmdDupDetectRoute + detect wired; resolve/log stubs for 04-02. `awareness-fixtures.cjs` extended: buildPeerBranch + buildPeerScanResult + buildOrgOverlapMatch + buildDupDetectFixtures. `df-tools.cjs`: case 'dup-detect' arm added. 47 new tests; 903 total pass (0 fail). Commits: 51e5d18 (test:), a86cb27 (feat:). SC-1/SC-2/SC-3/SC-4 complete. Wave 1 complete.
 - **files_modified short-circuit pattern (TRD 04-01)** — If peer branch entry has files_modified pre-populated (from fixture/cache), detectDuplicates uses it directly instead of calling _readPeerFilesModified. Live detection still falls through to git show when absent. Correct behavior per CONTEXT.md awareness cache pre-read design.
 - **Hard match dual-path coverage (TRD 04-01)** — Org-overlap hard match (chain_match: true + issue_ref equality) is checked before the peer-branch loop, emitting { source: 'org-overlap' } match. Peer github_issue equality (source: 'peer') checked in loop. Both paths independently covered by tests D1 and D2.
+- **TRD 04-02 complete (2026-05-05)** — `lib/dup-detect.cjs` extended: recordResolution (JSONL append), applyResolution (switch dispatcher), _writeCoordinationNote (append-only CONTEXT.md), _writeDeferredState (.planning/.deferred/<id>.json). `lib/dup-detect-cli.cjs`: cmdDupDetectResolve + cmdDupDetectLog replace 04-01 stubs. `.gitignore`: adds `.planning/.dup-detect-log.jsonl` (NOT .deferred/). 41 new tests; 944 total pass (0 fail). Commits: a4ccb04 (test:), e51094c (feat:). SC-6/SC-8/SC-9 complete. Wave 2 complete.
+- **merge abort message to stderr (TRD 04-02 deviation)** — `applyResolution` merge case writes abort message to stderr (not stdout) so CLI `output()` JSON is clean on stdout for `JSON.parse()`. CONTEXT.md discretion: "PRINT only, do not execute" — stderr is the correct channel for operator messages.
+- **realFs extended for write ops (TRD 04-02)** — TRD 04-01's realFs only had read methods. Extended with appendFileSync/writeFileSync/mkdirSync for 04-02 write operations; enables RR8 test to mock appendFileSync.
 
 ## Blockers / Concerns
 
@@ -123,7 +126,7 @@
 
 ## Session Continuity
 
-Last session: 2026-05-04 — TRD 04-01 (detection engine + fixtures + CLI router) complete. 903 tests pass (0 fail, 20 skip).
+Last session: 2026-05-05 — TRD 04-02 (resolution recorder + applyResolution dispatcher + JSONL + CONTEXT.md + .deferred + CLI wiring) complete. 944 tests pass (0 fail, 20 skip).
 Resume file: `.planning/SESSION_PICKUP.md`
-Stopped at: Completed 04-01-detection-engine-and-fixtures-TRD.md
-Next: TRD 04-02 (resolution recorder — recordResolution + applyResolution + _writeCoordinationNote + _writeDeferredState)
+Stopped at: Completed 04-02-resolution-recorder-TRD.md
+Next: TRD 04-03 (formatDetectionMarkdown — markdown renderer for AskUserQuestion display + CONTEXT.md note)
