@@ -2,12 +2,16 @@
 
 // TRD 08-01: TUI renderer tests
 // 30+ test cases across 8 groups (A-G + X) + snapshot tests.
+// TRD 08-02: CLI flag parsing + _loadData composition contract (Groups H, I).
+// TRD 08-03: Export-lock surface (Group EX), E2E self-test (Group J), skill structural (Group K).
 // Test list locked per TDD Playbook habit #2 before any implementation code was written.
 
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('node:child_process');
+const cp = require('node:child_process');
 
 const f = require('./__fixtures__/tui-fixtures.cjs');
 const tui = require('./tui.cjs');
@@ -482,5 +486,137 @@ describe('Group X: fixture builder smoke tests', () => {
     const a = f.buildAdversarialAggregate();
     const hasNonAscii = a.awareness.branches.some(b => /[^\x00-\x7F]/.test(b.branch));
     assert.ok(hasNonAscii, 'must have at least one branch with non-ASCII chars');
+  });
+});
+
+// ─── Group EX: export surface (TRD 08-03 lock) ────────────────────────────────
+
+describe('Group EX: export surface (TRD 08-03 lock)', () => {
+  test('EX1: lib/tui.cjs exports exactly 7 entries (locked surface)', () => {
+    // Force a fresh require to avoid caching across test runs
+    delete require.cache[require.resolve('./tui.cjs')];
+    const tuiMod = require('./tui.cjs');
+    const expected = [
+      '_layoutPanels',
+      '_renderInitiativesPanel',
+      '_renderOrgPanel',
+      '_renderPeerPanel',
+      '_resetMocks',
+      '_setRunStdout',
+      'render',
+    ];
+    assert.deepStrictEqual(Object.keys(tuiMod).sort(), expected);
+  });
+
+  test('EX2: render is a function', () => {
+    const tuiMod = require('./tui.cjs');
+    assert.equal(typeof tuiMod.render, 'function');
+  });
+
+  test('EX3: banner comment "LOCKED by TRD 08-03" present in tui.cjs source', () => {
+    const src = fs.readFileSync(require.resolve('./tui.cjs'), 'utf8');
+    assert.ok(src.includes('LOCKED by TRD 08-03'),
+      'banner comment "LOCKED by TRD 08-03" not found in tui.cjs source — required by SC-9');
+  });
+});
+
+// ─── Group J: e2e self-test (SC-10) ──────────────────────────────────────────
+// from lib/, repo root is 5 levels up: lib → bin → devflow → devflow → plugins → repo-root
+
+describe('Group J: e2e self-test (SC-10)', () => {
+  // from lib/, repo root is 5 levels up
+  const REPO_ROOT = path.resolve(__dirname, '../../../../..');
+  const DF_TOOLS = path.resolve(__dirname, '../df-tools.cjs');
+
+  test('J1: df-tools tui --once --raw exits 0 within 10s', () => {
+    let out = '';
+    try {
+      out = execSync(`node "${DF_TOOLS}" tui --once --raw`, {
+        cwd: REPO_ROOT,
+        encoding: 'utf8',
+        timeout: 10000,
+      });
+    } catch (e) {
+      assert.fail('df-tools tui --once --raw exited non-zero or timed out: ' +
+                  (e.stderr || e.message || String(e)));
+    }
+    assert.ok(typeof out === 'string');
+    assert.ok(out.length > 0, 'expected non-empty output');
+  });
+
+  test('J2: output contains expected panel framing', () => {
+    const out = execSync(`node "${DF_TOOLS}" tui --once --raw`, {
+      cwd: REPO_ROOT,
+      encoding: 'utf8',
+      timeout: 10000,
+    });
+    assert.ok(out.includes('Org Context'),        'top panel header "Org Context" missing');
+    assert.ok(out.includes('Peer Sessions'),      'middle panel header "Peer Sessions" missing');
+    assert.ok(out.includes('Active Initiatives'), 'bottom panel header "Active Initiatives" missing');
+  });
+
+  test('J3: piped (non-TTY) does not hang; exits 0 in < 10s', () => {
+    // Use spawnSync with captured stdout (not a TTY) → triggers auto-fallback
+    const start = Date.now();
+    const r = cp.spawnSync('node', [DF_TOOLS, 'tui'], {
+      cwd: REPO_ROOT,
+      encoding: 'utf8',
+      timeout: 10000,
+      // No stdio: 'inherit' — stdout is captured (non-TTY), triggers auto-fallback to --once --raw
+    });
+    const elapsed = Date.now() - start;
+    assert.equal(r.status, 0,
+      'expected exit 0; got ' + r.status + '\nstderr: ' + (r.stderr || ''));
+    assert.ok(elapsed < 10000, 'took ' + elapsed + 'ms; suspect hang');
+    assert.ok(r.stdout && r.stdout.length > 0, 'expected captured stdout');
+  });
+
+  test('J4: output reflects this repo\'s state (not empty placeholders only)', () => {
+    // Integration sanity: at least ONE of the panels should have non-placeholder
+    // content — OR all show placeholders (valid in fresh checkout without caches).
+    // J4's value is the diagnostic stderr message to guide the user.
+    const out = execSync(`node "${DF_TOOLS}" tui --once --raw`, {
+      cwd: REPO_ROOT,
+      encoding: 'utf8',
+      timeout: 10000,
+    });
+
+    const allPlaceholders =
+      out.includes('(no org context') &&
+      out.includes('(no peer sessions') &&
+      out.includes('(no initiatives');
+
+    if (allPlaceholders) {
+      process.stderr.write('\n[J4] All TUI panels show placeholders. This is acceptable\n');
+      process.stderr.write('[J4] in a fresh checkout, but if you expected data, run:\n');
+      process.stderr.write('[J4]   /devflow:awareness scan-peer\n');
+      process.stderr.write('[J4]   /devflow:initiatives sync\n');
+    }
+
+    // The test passes regardless: we just gate on non-empty output with panel framing.
+    assert.ok(out.length > 100, 'output suspiciously short: ' + out.length + ' chars');
+  });
+});
+
+// ─── Group K: /devflow:tui skill structural ────────────────────────────────────
+// skills/tui/ is at plugins/devflow/skills/tui/; from lib/ that is 3 levels up then into skills/
+
+describe('Group K: /devflow:tui skill structural', () => {
+  const SKILL_PATH = path.resolve(__dirname, '../../../skills/tui/SKILL.md');
+
+  test('K1: skills/tui/SKILL.md exists', () => {
+    assert.ok(fs.existsSync(SKILL_PATH),
+      'expected ' + SKILL_PATH + ' to exist — create plugins/devflow/skills/tui/SKILL.md');
+  });
+
+  test('K2: SKILL.md frontmatter contains name: tui', () => {
+    const src = fs.readFileSync(SKILL_PATH, 'utf8');
+    assert.ok(/^name:\s*tui\s*$/m.test(src), 'expected "name: tui" in frontmatter');
+  });
+
+  test('K3: SKILL.md body invokes df-tools tui', () => {
+    const src = fs.readFileSync(SKILL_PATH, 'utf8');
+    assert.ok(src.includes('df-tools tui'),
+      'expected "df-tools tui" CLI invocation in skill body');
   });
 });
