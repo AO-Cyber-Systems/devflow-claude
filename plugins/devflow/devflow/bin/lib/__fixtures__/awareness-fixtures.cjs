@@ -302,6 +302,142 @@ function buildGitConfigUserName({ name = 'mark' } = {}) {
   return { ok: true, status: 0, stdout: name, stderr: '' };
 }
 
+// ─── TRD 03-01: filesystem fixture builders ───────────────────────────────────
+
+/**
+ * Create a tmp filesystem fixture representing a sibling repo.
+ * Mirrors buildGitFixtureRepo pattern but filesystem-only (no git).
+ *
+ * Directory structure created:
+ *   ${tmpdir}/${name}/
+ *     .git/               (empty marker — enough for existsSync('.git') check)
+ *     .planning/
+ *       STATE.md          (stub state)
+ *       objectives/
+ *         ${obj.id}/
+ *           ${obj.id}-SUMMARY.md   (with obj.summary_content)
+ *     PROJECT.md          (omitted if omit_project_md: true)
+ *
+ * IMPORTANT: caller is responsible for cleanup via fs.rmSync(root, { recursive: true, force: true }).
+ * Use a mkdtemp'd parent tmpdir and pass it as `tmpdir`.
+ *
+ * @param {object}   opts
+ * @param {string}   opts.tmpdir                      - parent tmp dir (required)
+ * @param {string}   [opts.name]                      - repo dir name (default: 'sibling-repo')
+ * @param {string}   [opts.org]                       - org field in PROJECT.md (default: 'AO-Cyber-Systems')
+ * @param {boolean}  [opts.omit_project_md]           - if true, skip PROJECT.md (for D5 test)
+ * @param {object[]} [opts.objectives]                - array of { id, summary_content }
+ * @param {number}   [opts.summary_mtime_days_ago]    - backdate SUMMARY.md mtime (0 = now)
+ * @returns {{ root: string, project_md_path: string|null, objective_paths: string[] }}
+ */
+function buildSiblingRepoTree({
+  tmpdir,
+  name = 'sibling-repo',
+  org = 'AO-Cyber-Systems',
+  omit_project_md = false,
+  objectives = [{ id: '01-foo', summary_content: 'sibling work on auth keys controller' }],
+  summary_mtime_days_ago = 0,
+} = {}) {
+  if (!tmpdir) throw new Error('buildSiblingRepoTree: tmpdir is required');
+
+  const root = path.join(tmpdir, name);
+  fs.mkdirSync(root, { recursive: true });
+
+  // .git marker (empty dir — enough for existsSync check)
+  fs.mkdirSync(path.join(root, '.git'), { recursive: true });
+
+  // .planning/
+  const planningDir = path.join(root, '.planning');
+  fs.mkdirSync(planningDir, { recursive: true });
+
+  // .planning/STATE.md (stub)
+  fs.writeFileSync(
+    path.join(planningDir, 'STATE.md'),
+    `# DevFlow State\n\n## Current Position\n\n**Branch:** \`feature/main\`\n`,
+    'utf-8',
+  );
+
+  // PROJECT.md
+  let project_md_path = null;
+  if (!omit_project_md) {
+    project_md_path = path.join(root, 'PROJECT.md');
+    fs.writeFileSync(
+      project_md_path,
+      `---\norg: ${org}\nkind: api\n---\n# ${name}\n\nSibling repo fixture.\n`,
+      'utf-8',
+    );
+  }
+
+  // .planning/objectives/ tree
+  const objectivePaths = [];
+  const objsDir = path.join(planningDir, 'objectives');
+  fs.mkdirSync(objsDir, { recursive: true });
+
+  const nowMs = Date.now();
+  for (const obj of objectives) {
+    const objDir = path.join(objsDir, obj.id);
+    fs.mkdirSync(objDir, { recursive: true });
+    const summaryPath = path.join(objDir, `${obj.id}-SUMMARY.md`);
+    fs.writeFileSync(summaryPath, obj.summary_content || '', 'utf-8');
+    if (summary_mtime_days_ago > 0) {
+      const backdatedMs = nowMs - summary_mtime_days_ago * 86400000;
+      const backdatedSec = backdatedMs / 1000;
+      fs.utimesSync(summaryPath, backdatedSec, backdatedSec);
+    }
+    objectivePaths.push(summaryPath);
+  }
+
+  return { root, project_md_path, objective_paths: objectivePaths };
+}
+
+/**
+ * Build a canned-response filesystem mock object.
+ * Mirrors buildMockRunGit pattern but for filesystem operations.
+ *
+ * - files:   map of absolute path → file content string
+ * - dirs:    map of absolute path → array of entry names (strings or Dirent-like objects)
+ * - missing: array of paths that existsSync returns false and readFileSync throws ENOENT
+ * - mtimes:  map of absolute path → msSinceEpoch (overrides the default Date.now())
+ *
+ * readFileSync for unconfigured (non-missing) paths throws an informative error
+ * so tests catch missing fixture setup early.
+ *
+ * @param {object}   opts
+ * @param {object}   [opts.files]    - { [path]: content }
+ * @param {object}   [opts.dirs]     - { [path]: string[] }
+ * @param {string[]} [opts.missing]  - paths that don't exist
+ * @param {object}   [opts.mtimes]   - { [path]: msSinceEpoch }
+ * @returns {object} mock _runFs-compatible object
+ */
+function buildMockRunFs({ files = {}, dirs = {}, missing = [], mtimes = {} } = {}) {
+  return {
+    readFileSync(p, enc) {
+      if (missing.includes(p)) {
+        throw Object.assign(new Error(`ENOENT: no such file or directory, open '${p}'`), { code: 'ENOENT' });
+      }
+      if (files[p] != null) return files[p];
+      throw new Error(`buildMockRunFs: no fixture for readFileSync path: ${p}`);
+    },
+    readdirSync(p, opts) {
+      if (dirs[p] != null) return dirs[p];
+      throw new Error(`buildMockRunFs: no fixture for readdirSync path: ${p}`);
+    },
+    existsSync(p) {
+      if (missing.includes(p)) return false;
+      return files[p] != null || dirs[p] != null;
+    },
+    statSync(p) {
+      if (missing.includes(p)) {
+        throw Object.assign(new Error(`ENOENT: no such file or directory, stat '${p}'`), { code: 'ENOENT' });
+      }
+      const mtime = mtimes[p] != null ? mtimes[p] : Date.now();
+      if (files[p] != null) return { isDirectory: () => false, isFile: () => true, mtimeMs: mtime };
+      if (dirs[p] != null) return { isDirectory: () => true, isFile: () => false, mtimeMs: mtime };
+      throw new Error(`buildMockRunFs: no fixture for statSync path: ${p}`);
+    },
+  };
+}
+
 // ─── exports ──────────────────────────────────────────────────────────────────
 
 module.exports = {
@@ -320,4 +456,7 @@ module.exports = {
   buildGitFetchSuccess,
   buildGitFetchFailure,
   buildGitConfigUserName,
+  // TRD 03-01:
+  buildSiblingRepoTree,
+  buildMockRunFs,
 };

@@ -54,6 +54,8 @@
     "cache_ttl_minutes": 10,
     "peer_stale_days": 30,
     "branch_patterns": ["feature/*", "df/*", "fix/*", "proposal/*"],
-    "org_project_id": "PVT_kwDODwqLrc4BRsOP"
+    "org_project_id": "PVT_kwDODwqLrc4BRsOP",
+    "sibling_repos": [],
+    "eden_libs_path": null
   }
 }
