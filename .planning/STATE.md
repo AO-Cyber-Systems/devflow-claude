@@ -14,7 +14,7 @@
 **Objective complete:** 1 — GitHub coordination layer (verified 2026-05-04, 563/563 tests, all 6 TRDs done, SC-9 + SC-10 met)
 **Objective complete:** 2 — Cross-repo awareness layer (verified 2026-05-04, 731/731 tests with integration flags, all 10 SC met, 7 TRDs done)
 **Objective complete:** 3 — Planning-time org awareness (verified 2026-05-05, 842/842 tests, all 10 SC met, 7 TRDs done, SC-9 + SC-10 closed)
-**Current TRD:** 03-07 complete (Wave 6 — export lock + dogfood capture; SC-9 + SC-10 done) — Objective 3 DONE
+**Objective complete:** 4 — Duplicate-work detection + 4-option resolution flow (verified 2026-05-05, 967/987 tests pass, all 10 SC met, 6 TRDs done)
 **Status:** Ready to plan
 
 ## Branch State (post-merge)
@@ -113,6 +113,24 @@
 - **Export-lock banner comment pattern (TRD 03-07)** — `// ─── module.exports — LOCKED by TRD XX-YY (N-entry surface; SC-N)` with DO-NOT-MODIFY guidance. Mirror of TRD 02-07 pattern for awareness.cjs. Asserted by EX1 deepStrictEqual test. Future TRDs adding exports must update both module AND test atomically.
 - **Dogfood fixture pattern (TRD 03-07)** — structural-only assertion (3 headers present), not verbatim content. Prevents fixture rot. `dogfood-04.md` is the v1.1 baseline; re-capture when obj 4 planning artifacts exist.
 - **Stale "11 entry" references in CONTEXT.md** — line 311 + 03-01 inline comment say "11 entries". Actual live surface confirmed 21 entries. Documentation artifact only; EX1 test is the authoritative source of truth going forward.
+- **TRD 04-01 complete (2026-05-04)** — `lib/dup-detect.cjs` created: detectDuplicates + _detectHardMatch/Strong/Weak + _readPeerFilesModified + _setRunPeer/_setRunOrgOverlap/_setRunFs/_resetMocks + 5 constants. `lib/dup-detect-cli.cjs`: cmdDupDetectRoute + detect wired; resolve/log stubs for 04-02. `awareness-fixtures.cjs` extended: buildPeerBranch + buildPeerScanResult + buildOrgOverlapMatch + buildDupDetectFixtures. `df-tools.cjs`: case 'dup-detect' arm added. 47 new tests; 903 total pass (0 fail). Commits: 51e5d18 (test:), a86cb27 (feat:). SC-1/SC-2/SC-3/SC-4 complete. Wave 1 complete.
+- **files_modified short-circuit pattern (TRD 04-01)** — If peer branch entry has files_modified pre-populated (from fixture/cache), detectDuplicates uses it directly instead of calling _readPeerFilesModified. Live detection still falls through to git show when absent. Correct behavior per CONTEXT.md awareness cache pre-read design.
+- **Hard match dual-path coverage (TRD 04-01)** — Org-overlap hard match (chain_match: true + issue_ref equality) is checked before the peer-branch loop, emitting { source: 'org-overlap' } match. Peer github_issue equality (source: 'peer') checked in loop. Both paths independently covered by tests D1 and D2.
+- **TRD 04-02 complete (2026-05-05)** — `lib/dup-detect.cjs` extended: recordResolution (JSONL append), applyResolution (switch dispatcher), _writeCoordinationNote (append-only CONTEXT.md), _writeDeferredState (.planning/.deferred/<id>.json). `lib/dup-detect-cli.cjs`: cmdDupDetectResolve + cmdDupDetectLog replace 04-01 stubs. `.gitignore`: adds `.planning/.dup-detect-log.jsonl` (NOT .deferred/). 41 new tests; 944 total pass (0 fail). Commits: a4ccb04 (test:), e51094c (feat:). SC-6/SC-8/SC-9 complete. Wave 2 complete.
+- **merge abort message to stderr (TRD 04-02 deviation)** — `applyResolution` merge case writes abort message to stderr (not stdout) so CLI `output()` JSON is clean on stdout for `JSON.parse()`. CONTEXT.md discretion: "PRINT only, do not execute" — stderr is the correct channel for operator messages.
+- **realFs extended for write ops (TRD 04-02)** — TRD 04-01's realFs only had read methods. Extended with appendFileSync/writeFileSync/mkdirSync for 04-02 write operations; enables RR8 test to mock appendFileSync.
+- **TRD 04-03 complete (2026-05-04)** — `lib/dup-detect.cjs` extended with TRD 04-03 region: formatDetectionMarkdown pure renderer + 4 sub-renderers (_renderMatchEntry, _renderAdvisoryEntry, _renderWarnings, _renderResolutionOptions) + 2 helpers (_sanitize, _formatScore). 14 new tests (Group FD, FD1-FD14); 958 total pass (0 fail, 20 skip). Commits: ad7ec68 (test:), 07b3a09 (feat:). SC-5 + SC-6 rendering side complete. Wave 3 complete.
+- **formatDetectionMarkdown opts fallback design (TRD 04-03)** — Unknown opts.purpose falls back to 'askuser' (more verbose; safer default). Empty detection (no matches/advisory/warnings) short-circuits to placeholder before any section rendering. Pure: no fs/network/process.exit side effects; deterministic for fixed input.
+- **purpose='context' omits resolution options (TRD 04-03)** — Coordination Note body (CONTEXT.md) doesn't repeat the 4 options the user already chose. purpose='askuser' includes them for human readability before AskUserQuestion display. Both variants share same title/matches/advisory/warnings sections.
+- **TRD 04-04 complete (2026-05-05)** — `plugins/devflow/devflow/workflows/plan-objective.md` updated: new `## 6.5 Run Duplicate-Work Detection (plan-time)` step inserted between Step 6 (Handle Research) and Step 7 (Check Existing TRDs). Runs df-tools dup-detect --mode plan; blocking match → AskUserQuestion 4-option (Merge/Defer/Coordinate/Proceed); dispatches via df-tools dup-detect resolve; Merge/Defer exit cleanly (planner NOT spawned); Coordinate/Proceed-anyway re-read CONTEXT.md and continue. Advisory JSONL-logged only (no CONTEXT.md write). 958/958 tests pass (no regressions). Commit: dd20bd2 (feat:). SC-5 + SC-6 workflow side complete. Wave 4 TRD 04-04 complete.
+- **'Proceed' label for AskUserQuestion (TRD 04-04)** — AskUserQuestion option labels have ≤12-char constraint. "Proceed-anyway" (14 chars) → "Proceed" label; dispatch case maps Proceed → proceed-anyway resolution string. Documented in mapping table in the workflow step.
+- **Advisory entries JSONL-only in v1.1 (TRD 04-04)** — Tightening from CONTEXT.md decision #6: only blocking matches write Coordination Notes to CONTEXT.md; advisory-only runs log to JSONL and display inline without persistence. Reduces CONTEXT.md noise.
+- **--gaps flag skips dup-detect (TRD 04-04)** — Gap-closure mode operates on already-shipped plans; dup-detect irrelevant. Skip step 6.5 entirely when --gaps is set.
+- **TRD 04-05 complete (2026-05-05)** — `plugins/devflow/devflow/workflows/execute-objective.md` updated: new `<step name="dup_detect_check">` inserted between validate_objective and discover_and_group_plans. Runs df-tools dup-detect --mode execute; friction-minimal (silent JSONL log on no-match); blocking match → AskUserQuestion 4-option (Merge/Defer/Coordinate/Proceed); dispatches via df-tools dup-detect resolve; Merge/Defer exit cleanly before executor agents spawn; Coordinate/Proceed-anyway continue to discover_and_group_plans; --gaps-only flag skips dup-detect. 958/958 tests pass (no regressions). Commit: ecfdf48 (feat:). SC-7 + SC-8 workflow side complete. Wave 4 TRD 04-05 complete.
+- **execute-time dup-detect friction-minimal (TRD 04-05)** — Per CONTEXT.md decision #5: no advisory display, no inline notes on no-match; only blocking matches trigger AskUserQuestion. Advisory filtered upstream by detectDuplicates(mode='execute').
+- **--gaps-only skips dup-detect at execute-time (TRD 04-05)** — Gap closure plans are reactive to verification failures; they don't introduce new coordination concerns. Dup-detect step short-circuits when --gaps-only is set.
+- **TRD 04-06 complete (2026-05-05)** — `lib/dup-detect.cjs` module.exports finalized: banner comment 'LOCKED by TRD 04-06' + 19-entry locked surface (4 public + 4 hooks + 6 helpers + 5 constants). EX1 deepStrictEqual export-lock test + EX2/EX3 + E2E1-E2E6 covering all 4 resolution paths (Coordinate/Proceed-anyway/Defer/Merge) + no-match cases. 967/987 tests pass (9 new, 0 fail). Commits: 9957c2d (test:), 12a55ca (feat:). SC-10 closed. Objective 4 DONE.
+- **Export surface locked design (TRD 04-06)** — EX1 passes at RED because 04-01/02/03 already emitted the correct 19-entry surface; EX3 (banner absent) is the true RED gate. E2E fixture adaptation: buildDupDetectFixtures() takes options object not string arg; returns {current, hardPeerScan, ...}. No fixture code change needed.
 
 ## Blockers / Concerns
 
@@ -120,7 +138,7 @@
 
 ## Session Continuity
 
-Last session: 2026-05-05 — TRD 03-07 (library export lock + dogfood) complete. 842 tests pass (0 fail, 19 skip). Objective 3 DONE.
+Last session: 2026-05-05 — TRD 04-06 (library export lock + e2e integration) complete. 967/987 tests pass (0 fail, 20 skip). Wave 5 complete. Objective 4 DONE.
 Resume file: `.planning/SESSION_PICKUP.md`
-Stopped at: Completed 03-07-library-export-and-dogfood-TRD.md
-Next: Objective 4 (heartbeat / duplicate-work detection — consumes scanSiblings + scanOrgOverlap)
+Stopped at: Completed 04-06-library-export-and-integration-TRD.md
+Next: Objective 5 (TBD — v1.1 roadmap)

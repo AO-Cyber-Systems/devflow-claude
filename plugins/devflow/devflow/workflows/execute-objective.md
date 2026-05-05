@@ -50,6 +50,145 @@ From init JSON: `objective_dir`, `job_count`, `incomplete_count`.
 Report: "Found {job_count} plans in {objective_dir} ({incomplete_count} incomplete)"
 </step>
 
+<step name="dup_detect_check">
+**Skip if:** `--gaps-only` flag (gap closure plans are reactive to verification failures, not new overlap).
+
+```bash
+GAPS_ONLY=false
+if [[ " $* " == *" --gaps-only "* ]]; then
+  GAPS_ONLY=true
+fi
+```
+
+If `GAPS_ONLY` is true, skip this step entirely and proceed to `discover_and_group_plans`.
+
+Otherwise, run execute-time duplicate-work detection. Per CONTEXT.md locked decision #5 (friction-minimal at execute-time): only blocking matches trigger a prompt. Advisory matches are filtered upstream by `detectDuplicates(mode='execute')` and are never surfaced here. No-match path is a silent JSONL log entry.
+
+```bash
+DETECT_RAW=$(node ~/.claude/devflow/bin/df-tools.cjs dup-detect --mode execute "${OBJECTIVE_ARG}" --raw 2>/dev/null)
+DETECT_OK=$?
+if [[ $DETECT_OK -ne 0 ]]; then
+  # Per CONTEXT.md locked decision #8: infrastructure failures are non-blocking.
+  echo "Note: dup-detect skipped (df-tools dup-detect --mode execute failed); continuing without coordination signals."
+  DETECT_RAW='{"blocking":false,"matches":[],"advisory":[],"warnings":["dup-detect CLI failed"],"mode":"execute","timestamp":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}'
+fi
+DETECT_BLOCKING=$(echo "$DETECT_RAW" | jq -r '.blocking // false')
+DETECT_MATCHES_LEN=$(echo "$DETECT_RAW" | jq -r '.matches | length')
+DETECT_WARNINGS_LEN=$(echo "$DETECT_RAW" | jq -r '.warnings | length')
+```
+
+**If `DETECT_WARNINGS_LEN > 0`**, display warnings as informational blockquote (do NOT block execution):
+
+```
+> **Note:** Duplicate-work recheck ran with degraded signals:
+> - {warning 1}
+```
+
+**If `DETECT_BLOCKING == "false"`** (no blocking match — the friction-minimal path):
+
+```bash
+node ~/.claude/devflow/bin/df-tools.cjs dup-detect log "${OBJECTIVE_ARG}" \
+  --mode execute --blocking false --resolution none 2>/dev/null || true
+```
+
+Continue silently to `discover_and_group_plans`. **Do not display anything to the user.** This is the common case.
+
+**If `DETECT_BLOCKING == "true"`**: display detection summary + ask user.
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ DF ► DUPLICATE-WORK RECHECK — BLOCKING MATCH
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+A peer session has started overlapping work since planning completed.
+```
+
+For each match in `DETECT_RAW.matches[]`:
+
+```
+**Match {N}** — {strength} via {source}
+- Peer: `{peer_branch}` — `{peer_objective}`
+- Signal: {signal}
+- Score: {score}
+```
+
+Then surface AskUserQuestion (same 4-option list as plan-time, per CONTEXT.md locked decision #3):
+
+```
+AskUserQuestion(
+  questions=[{
+    header: "Resolution",
+    question: "Detected duplicate-work overlap before execution begins. How do you want to resolve?",
+    options: [
+      { label: "Merge",      description: "Abort execution. Switch to peer branch and continue there." },
+      { label: "Defer",      description: "Save objective state to .planning/.deferred/. Resume later." },
+      { label: "Coordinate", description: "Continue execution. Add Coordination Note to CONTEXT.md naming the peer." },
+      { label: "Proceed",    description: "Continue with full warning. Likely merge conflicts at commit time." }
+    ],
+    multiSelect: false
+  }]
+)
+```
+
+Map the user's label to a resolution string:
+
+```bash
+USER_LABEL="<from AskUserQuestion>"
+case "$USER_LABEL" in
+  Merge)      RESOLUTION="merge" ;;
+  Defer)      RESOLUTION="defer" ;;
+  Coordinate) RESOLUTION="coordinate" ;;
+  Proceed)    RESOLUTION="proceed-anyway" ;;
+  *)          RESOLUTION="proceed-anyway" ;;  # safest fallback per error-recovery
+esac
+
+PEER_BRANCH=$(echo "$DETECT_RAW" | jq -r '.matches[0].peer_branch // ""')
+PEER_OBJECTIVE=$(echo "$DETECT_RAW" | jq -r '.matches[0].peer_objective // ""')
+
+RESOLVE_RESULT=$(node ~/.claude/devflow/bin/df-tools.cjs dup-detect resolve "${OBJECTIVE_ARG}" \
+  --resolution "$RESOLUTION" \
+  --peer-branch "$PEER_BRANCH" \
+  --peer-objective "$PEER_OBJECTIVE" \
+  --raw 2>&1)
+```
+
+Note: `df-tools dup-detect resolve` calls `recordResolution` internally. No separate logging step needed.
+
+**Workflow routing:**
+
+- **merge** → Display abort message + git checkout suggestion. EXIT the workflow before `discover_and_group_plans`. Executor agents are NOT spawned. Display:
+
+  ```
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   DF ► EXECUTION ABORTED — MERGE WITH PEER
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Overlapping work found on peer branch. Switch to the peer session and continue there:
+    git checkout {PEER_BRANCH}
+
+  Current objective directory left intact for manual cleanup.
+  ```
+
+  Run no further steps.
+
+- **defer** → Display deferred state file path. EXIT the workflow before `discover_and_group_plans`. Executor agents are NOT spawned. Display:
+
+  ```
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   DF ► EXECUTION DEFERRED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Objective state persisted to: {RESOLVE_RESULT.defer_path}
+  Resume when peer session completes.
+  ```
+
+  Run no further steps.
+
+- **coordinate** OR **proceed-anyway** → Coordination Note has been appended to CONTEXT.md by `df-tools dup-detect resolve`. Continue to `discover_and_group_plans`. Executor agents will read CONTEXT.md transitively via their job context.
+
+**Error recovery:** If `df-tools dup-detect resolve` exits non-zero, display the error and ask: "Continue without recording (Y) or retry (R)?" Recommended fallback: log via `dup-detect log` directly + continue to `discover_and_group_plans`.
+</step>
+
 <step name="discover_and_group_plans">
 Load plan inventory with wave grouping in one call:
 

@@ -263,6 +263,70 @@ Dependency order:
 - [ ] 03-06-plan-skill-integration-TRD.md — /df:plan-objective workflow + planner agent read Cross-Repo Considerations (Wave 5, standard, parallel with 03-05)
 - [ ] 03-07-library-export-and-dogfood-TRD.md — module.exports lock (21-entry surface) + integration tests + dogfood capture (Wave 6, tdd)
 
+### Objective 4: Duplicate-work detection + resolution flow
+
+**Goal:** Detect when a planned or about-to-execute objective overlaps with another session's in-flight or recently-shipped work; surface the overlap to the user with a 4-option resolution flow (Merge / Defer / Coordinate / Proceed-anyway). Consumes obj 2's peer scanner + obj 3's org-overlap output. Plan-time + execute-time checks; no new storage backend.
+
+**Tracks:** devflow-claude#13 (sub-issue of #9 [Roadmap]). Depends on obj 0 ✓ + obj 2 ✓ + obj 3 ✓.
+
+**Inputs (research complete):**
+- `.planning/research/cross-session-coordination.md` — §"Duplicate detection" — plan-time + execute-time checkpoints, signal weights, 4-option resolution
+- `.planning/research/github-coordination-layer.md` — chain primitives reused
+
+**Locked decisions:**
+1. **Two checkpoints:** plan-time (`/df:plan-objective` entry, after researcher runs) + execute-time (`/df:execute-objective` entry, before first wave). Match strength differs by checkpoint — execute-time is stricter.
+2. **Three signal classes (lexical, no LLM scoring):**
+   - **Hard match (block):** same `github_issue` ref between current objective and a peer session OR an obj 3 org-overlap top match
+   - **Strong match (block):** ≥2 file path overlap with a peer's `files_modified` (from peer STATE.md), OR ≥3 keyword overlap with a peer's objective title
+   - **Weak match (advise):** 1-2 keyword overlap, or single shared file in different concerns — log a one-line warning, do not block
+3. **4-option resolution flow** (presented via AskUserQuestion when blocking match found):
+   - **Merge:** abort current planning, point at the existing objective on the matched branch
+   - **Defer:** save current planning state to .planning/.deferred/<objective_id>.json, exit
+   - **Coordinate:** continue planning but emit a `## Coordination Note` section in CONTEXT.md naming the matched session + suggesting handoff points
+   - **Proceed-anyway:** continue with full warning logged in CONTEXT.md (escape hatch)
+4. **No new storage backend.** Reads from obj 2's peer scanner cache + obj 3's org-overlap output. No daemon, no separate registry.
+5. **Read-only at execute-time when no blocking match.** If recheck at execute-time finds NO blocking match, no prompt — just a one-line log entry. Friction-minimal.
+6. **Plan-time match → CONTEXT.md note (always).** Whether resolved as Coordinate or Proceed-anyway, the matched-session metadata gets recorded in CONTEXT.md so downstream agents see the coordination context.
+7. **Resolution choices are loggable.** A `.planning/.dup-detect-log.jsonl` (gitignored) captures every detection + the user's choice for retrospective analysis (no PII; just objective_id, match strength, resolution).
+8. **Hard fails on infrastructure errors are silent.** If obj 2's awareness cache is corrupt or obj 3's resolver fails, dup-detect logs a warning + continues without blocking. Plan-time consultation never blocks on infrastructure.
+
+**Success Criteria:**
+
+*Detection logic*
+1. `lib/dup-detect.cjs` exports `detectDuplicates({ objective, projectCtx, mode: 'plan' | 'execute' })` returning `{ blocking: bool, matches: [{strength, source, peer_objective, peer_branch, signal, score}], advisory: [...] }`. Hand-built fixtures; `_setRunPeer` + `_setRunOrgOverlap` injection mirrors obj 1+2+3 patterns.
+2. Hard match (same `github_issue` ref) is detected from peer scanner output AND from obj 3's `scan-org-overlap` output; both paths covered.
+3. Strong file-overlap matching: lexical comparison of current objective's `files_modified` (from OBJECTIVE.md or TRD frontmatter) against each peer's `files_modified` (from peer STATE.md); ≥2 path overlap = strong; tested with realistic paths.
+4. Weak match logging — 1-keyword overlaps surface in `result.advisory` but not `result.blocking`.
+
+*Plan-time integration*
+5. `/df:plan-objective` workflow runs `df-tools dup-detect --mode plan <objective_id>` after researcher completes. If `blocking: true`, surface AskUserQuestion with 4 options (Merge / Defer / Coordinate / Proceed-anyway). User's choice routes the workflow accordingly.
+6. CONTEXT.md gets a `## Coordination Note` section when match resolved as Coordinate or Proceed-anyway, naming the peer objective + branch + suggested handoff.
+
+*Execute-time integration*
+7. `/df:execute-objective` workflow runs `df-tools dup-detect --mode execute <objective_id>` before first wave. Stricter (no advisory-only — only blocking signals trigger prompt). Same 4-option resolution.
+8. Defer mode persists state to `.planning/.deferred/<objective_id>.json` with: objective metadata, current TRD count, last commit, resolution timestamp. Resumable via separate command (deferred state out of obj 4 scope; just persist).
+
+*Resolution log + library surface*
+9. `.planning/.dup-detect-log.jsonl` (gitignored) records each detection with `{ timestamp, objective_id, mode, blocking, top_match: {strength, peer, score}, resolution }`. Append-only; no rotation.
+10. `lib/dup-detect.cjs` surface lock: `detectDuplicates`, `formatDetectionMarkdown`, `recordResolution`, `applyResolution`, `_setRunPeer`, `_setRunOrgOverlap`. Module exports stable surface; integration test covers all 4 resolution paths.
+
+**Out of scope (v1.1 — explicit):**
+- Resumable defer (state persisted but resume command is separate work)
+- Cross-org dup detection — only walks current org's awareness data
+- LLM-based semantic similarity — locked deterministic per obj 3 precedent
+- Auto-merge of objective directories when user picks Merge — just abort + redirect; manual merge is user's job
+- Real-time notifications when a sibling starts overlapping work mid-execute — scoped to entry-point checks
+
+**Gates** (downstream consumers): obj 6 (check-todos shows dup-detect log entries in urgency lane).
+
+**TRDs:** 6 plans across 5 waves
+- [x] 04-01-detection-engine-and-fixtures-TRD.md — detectDuplicates + signal scoring + injection helpers + buildDupDetectFixtures (Wave 1, tdd) — SC-1, SC-2, SC-3, SC-4 ✓ (2026-05-04, 903 tests, 47 new)
+- [ ] 04-02-resolution-recorder-TRD.md — recordResolution (jsonl append) + applyResolution dispatcher + _writeCoordinationNote + _writeDeferredState + .gitignore for log (Wave 2, tdd) — SC-6, SC-8, SC-9
+- [ ] 04-03-format-detection-markdown-TRD.md — pure formatter for AskUserQuestion display + CONTEXT.md note body (Wave 3, tdd) — SC-5, SC-6 (rendering side)
+- [ ] 04-04-plan-skill-integration-TRD.md — /df:plan-objective workflow runs dup-detect, surfaces 4-option AskUserQuestion, writes Coordination Note (Wave 4, standard) — SC-5, SC-6
+- [ ] 04-05-execute-skill-integration-TRD.md — /df:execute-objective workflow runs dup-detect at entry, friction-minimal (Wave 4, standard, parallel with 04-04) — SC-7, SC-8
+- [ ] 04-06-library-export-and-integration-TRD.md — surface lock + e2e integration tests covering all 4 resolution paths (Wave 5, tdd) — SC-10
+
 ---
 
 ## Milestone v1.2 — Handoff Watcher PTY + Coordination-Layer Polish (next)
