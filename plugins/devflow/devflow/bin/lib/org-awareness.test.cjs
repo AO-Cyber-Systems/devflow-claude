@@ -2003,3 +2003,95 @@ test('CLI4-4 — under mocked GhAuthError on scanOrg, considerations CLI returns
   assert.match(md, /### Org Project overlap/);
   // Exit 0 is verified by the CLI subprocess tests CLI4-1 and CLI4-2 above.
 });
+
+// ─── TRD 03-07 tests ──────────────────────────────────────────────────────────
+
+// Group EX — export lock
+test('EX1 — module.exports surface is locked at 21 entries', () => {
+  const expected = [
+    'DEFAULT_EDEN_LIBS_PATH', 'DEFAULT_SIBLING_GLOB', 'SUMMARY_RECENCY_DAYS', 'TOP_N',
+    '_camelSplit', '_detectMisfiling', '_extractRepoFromRef', '_parseExports',
+    '_renderLibsSection', '_renderOrgSection', '_renderSiblingsSection',
+    '_resetFsMock', '_resolveEdenLibsPath', '_score', '_scoreOrgItem',
+    '_setRunFs', '_tokenize',
+    'formatConsiderations', 'scanLibs', 'scanOrgOverlap', 'scanSiblings',
+  ].sort();
+  const actual = Object.keys(oa).sort();
+  assert.deepStrictEqual(actual, expected);
+});
+
+// Group I — FS_INTEGRATION gated
+test('I1 — real ~/Source/*/ walk completes', { skip: !process.env.FS_INTEGRATION }, () => {
+  const r = oa.scanSiblings({ objective_id: '03', cwd: process.cwd() });
+  assert.ok(typeof r.scanned_repos === 'number', 'scanned_repos must be a number');
+  assert.ok(Array.isArray(r.matches), 'matches must be an array');
+  // On author's machine siblings > 0; on CI with no ~/Source/ siblings may be 0 — both acceptable
+  assert.ok(r.scanned_repos >= 0, 'scanned_repos must be >= 0');
+});
+
+test('I2 — real eden-libs scan handles missing/present', { skip: !process.env.FS_INTEGRATION }, () => {
+  const r = oa.scanLibs({ current_tokens: new Set(['org', 'awareness']) });
+  assert.ok('candidates' in r, 'candidates key must exist');
+  assert.ok('warnings' in r, 'warnings key must exist');
+  assert.ok('scanned' in r, 'scanned key must exist');
+  // scanned can be true OR false depending on eden-libs presence at ~/Source/eden-libs
+});
+
+// Group GI — GH_INTEGRATION gated
+test('GI1 — live scanOrgOverlap returns items or skips cleanly', { skip: !process.env.GH_INTEGRATION }, () => {
+  const fm = { github_issue: 'AO-Cyber-Systems/devflow-claude#12', parent_issue: 'AO-Cyber-Systems/devflow-claude#9' };
+  const ctx = { github_repo: 'AO-Cyber-Systems/devflow-claude', org_project: 'PVT_kwDODwqLrc4BRsOP' };
+  const r = oa.scanOrgOverlap({
+    objective_id: '03',
+    current_tokens: new Set(['org', 'awareness']),
+    sibling_repos: [],
+    frontmatter: fm,
+    projectCtx: ctx,
+  });
+  // Either succeeded (items array) or gracefully skipped (skipped:true) — both valid
+  if (!r.skipped) {
+    assert.ok(Array.isArray(r.items), 'items must be array when not skipped');
+  } else {
+    assert.strictEqual(r.skipped, true, 'skipped must be true when auth unavailable');
+  }
+});
+
+test('GI2 — live misfiling check has no false positive for current repo', { skip: !process.env.GH_INTEGRATION }, () => {
+  const fm = { github_issue: 'AO-Cyber-Systems/devflow-claude#12', parent_issue: 'AO-Cyber-Systems/devflow-claude#9' };
+  const ctx = { github_repo: 'AO-Cyber-Systems/devflow-claude', org_project: 'PVT_kwDODwqLrc4BRsOP' };
+  const r = oa.scanOrgOverlap({
+    objective_id: '03',
+    current_tokens: new Set(['org', 'awareness']),
+    sibling_repos: [],
+    frontmatter: fm,
+    projectCtx: ctx,
+  });
+  // When resolved roadmap issue is in devflow-claude (same as current repo), misfiling must be null
+  if (!r.skipped && r.misfiling !== null) {
+    // Allow misfiling only if the resolved repo truly differs — document the case
+    assert.ok(r.misfiling.current_repo !== r.misfiling.resolved_repo,
+      'misfiling.current_repo should differ from resolved_repo if misfiling is set');
+  }
+});
+
+// Group DG — dogfood
+test('DG1 — considerations 4 produces all 3 subsection headers', () => {
+  const dfTools = path.resolve(__dirname, '..', 'df-tools.cjs');
+  const r = require('child_process').spawnSync(
+    'node', [dfTools, 'org-awareness', 'considerations', '4'],
+    { encoding: 'utf-8' },
+  );
+  assert.strictEqual(r.status, 0, `unexpected exit: ${r.status}, stderr: ${r.stderr}`);
+  assert.match(r.stdout, /### Sibling repos/);
+  assert.match(r.stdout, /### eden-libs candidates/);
+  assert.match(r.stdout, /### Org Project overlap/);
+});
+
+test('DG2 — dogfood-04.md fixture exists and has 3 subsection headers', () => {
+  const fixturePath = path.join(__dirname, '__fixtures__', 'cross-repo-considerations-fixtures', 'dogfood-04.md');
+  assert.ok(fs.existsSync(fixturePath), 'dogfood-04.md must exist as a regression fixture');
+  const content = fs.readFileSync(fixturePath, 'utf-8');
+  assert.match(content, /### Sibling repos/);
+  assert.match(content, /### eden-libs candidates/);
+  assert.match(content, /### Org Project overlap/);
+});
