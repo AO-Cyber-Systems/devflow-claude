@@ -178,6 +178,7 @@ const { cmdAwarenessRoute } = require('./lib/awareness-cli.cjs');
 const { cmdOrgAwarenessRoute } = require('./lib/org-awareness-cli.cjs');
 const { cmdDupDetectRoute } = require('./lib/dup-detect-cli.cjs');
 const { cmdInitiativesRoute } = require('./lib/initiatives-cli.cjs');
+const { cmdCheckTodosRoute } = require('./lib/check-todos-cli.cjs');
 const { cmdSyncRoadmapRoute } = require('./lib/roadmap-reconcile-cli.cjs');
 const {
   cmdGenerateSlug, cmdCurrentTimestamp, cmdListTodos, cmdVerifyPathExists,
@@ -778,6 +779,11 @@ async function main() {
 
     case 'initiatives': {
       cmdInitiativesRoute(cwd, args.slice(1));
+      break;
+    }
+
+    case 'check-todos': {
+      cmdCheckTodosRoute(cwd, args.slice(1), raw);
       break;
     }
 

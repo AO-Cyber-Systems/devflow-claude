@@ -1670,4 +1670,9 @@ module.exports = {
   // Test hooks (TRD 01-02):
   _resetCache,
   _setRunGh,
+
+  // TRD 06-01: expose _runGh as a callable so external modules can invoke
+  // the injected mock without capturing the value at require-time.
+  // CRITICAL: This is a getter wrapper — always delegates to current _runGh value.
+  _runGh: (...args) => _runGh(...args),
 };
