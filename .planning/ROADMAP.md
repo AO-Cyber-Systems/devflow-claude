@@ -254,6 +254,15 @@ Dependency order:
 
 **Gates** (downstream consumers): obj 4 (dup-detect uses scanSiblings + scanOrgOverlap), obj 5 (initiatives consumes scanOrgOverlap), obj 6 (check-todos uses sibling scan for cross-repo todos).
 
+**TRDs:** 7 plans across 6 waves
+- [ ] 03-01-sibling-scanner-and-fixtures-TRD.md — scanSiblings + tokenize/score + fs fixtures + CLI scaffold (Wave 1, tdd)
+- [ ] 03-02-eden-libs-scanner-TRD.md — scanLibs + camelSplit + parseExports + lexical match heuristic (Wave 2, tdd)
+- [ ] 03-03-org-overlap-and-misfiling-TRD.md — scanOrgOverlap (graceful auth degrade) + misfiling detection (Wave 3, tdd)
+- [ ] 03-04-format-considerations-TRD.md — formatConsiderations Markdown renderer + considerations CLI orchestrator (Wave 4, tdd)
+- [ ] 03-05-research-skill-integration-TRD.md — /df:research-objective writes Cross-Repo Considerations section to CONTEXT.md (Wave 5, standard)
+- [ ] 03-06-plan-skill-integration-TRD.md — /df:plan-objective workflow + planner agent read Cross-Repo Considerations (Wave 5, standard, parallel with 03-05)
+- [ ] 03-07-library-export-and-dogfood-TRD.md — module.exports lock (21-entry surface) + integration tests + dogfood capture (Wave 6, tdd)
+
 ---
 
 ## Milestone v1.2 — Handoff Watcher PTY + Coordination-Layer Polish (next)
