@@ -195,7 +195,8 @@ function _discoverSiblings({ cwd = process.cwd(), config_paths = null } = {}) {
  * @returns {object|null}
  */
 function _readProjectMd(repoPath) {
-  const p = path.join(repoPath, 'PROJECT.md');
+  // PROJECT.md lives at <repo>/.planning/PROJECT.md, not at the repo root.
+  const p = path.join(repoPath, '.planning', 'PROJECT.md');
   if (!_runFs.existsSync(p)) return null;
   try {
     const content = _runFs.readFileSync(p, 'utf-8');

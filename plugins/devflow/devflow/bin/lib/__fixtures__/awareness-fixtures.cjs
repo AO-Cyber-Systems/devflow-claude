@@ -357,10 +357,10 @@ function buildSiblingRepoTree({
     'utf-8',
   );
 
-  // PROJECT.md
+  // PROJECT.md (lives at .planning/PROJECT.md, not the repo root)
   let project_md_path = null;
   if (!omit_project_md) {
-    project_md_path = path.join(root, 'PROJECT.md');
+    project_md_path = path.join(planningDir, 'PROJECT.md');
     fs.writeFileSync(
       project_md_path,
       `---\norg: ${org}\nkind: api\n---\n# ${name}\n\nSibling repo fixture.\n`,
