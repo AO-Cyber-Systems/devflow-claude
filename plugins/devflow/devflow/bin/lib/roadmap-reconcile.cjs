@@ -241,6 +241,179 @@ function _checkTrdFileExists(objectiveDir, trdId) {
   return entries.some((e) => e.startsWith(`${trdId}-`) && e.endsWith('-TRD.md'));
 }
 
+// ─── TRD 09-02: _findObjectiveSections ───────────────────────────────────────
+
+/**
+ * Walk lines and return metadata for each '### Objective N:' block.
+ *
+ * @param {string[]} lines - ROADMAP.md content split by '\n'
+ * @returns {Array<{num, startLine, endLine, statusLineIdx, trdCheckboxLines: Array<{idx, checked}>}>}
+ */
+function _findObjectiveSections(lines) {
+  const sections = [];
+  let current = null;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const objHeader = line.match(/^### Objective (\d+):/);
+    if (objHeader) {
+      if (current) {
+        current.endLine = i - 1;
+        sections.push(current);
+      }
+      current = {
+        num: objHeader[1],
+        startLine: i,
+        endLine: -1,
+        statusLineIdx: -1,
+        trdCheckboxLines: [],
+      };
+      continue;
+    }
+    if (current) {
+      // Status line — only the FIRST status line in the section counts
+      if (current.statusLineIdx === -1 && /^\*\*Status:\*\*/.test(line)) {
+        current.statusLineIdx = i;
+      }
+      // TRD checkbox line: '- [x] NN-NN-slug-TRD.md' or '- [ ] NN-NN-slug-TRD.md'
+      const trdMatch = line.match(/^\s*- \[([x ])\] (\d+-\d+)-[^.\s]+-TRD\.md/);
+      if (trdMatch) {
+        current.trdCheckboxLines.push({ idx: i, checked: trdMatch[1] === 'x' });
+      }
+    }
+  }
+  if (current) {
+    current.endLine = lines.length - 1;
+    sections.push(current);
+  }
+  return sections;
+}
+
+// ─── TRD 09-02: _updateProgressTable ─────────────────────────────────────────
+
+/**
+ * Find '## Progress' section and update the row matching `objectiveNum`.
+ * Best-effort: returns null if section absent or row not found or already 'complete'.
+ *
+ * Mutates `lines` in place.
+ *
+ * @param {string[]} lines - ROADMAP.md lines array (mutated in place)
+ * @param {string} objectiveNum - objective number string (e.g., '1', '05')
+ * @param {string} today - 'YYYY-MM-DD'
+ * @returns {{ kind, objective_num, before, after }|null}
+ */
+function _updateProgressTable(lines, objectiveNum, today) {
+  // Find '## Progress' header
+  const headerIdx = lines.findIndex(l => /^## Progress\b/.test(l));
+  if (headerIdx < 0) return null;
+
+  // Walk forward from header until next ## section or end of file
+  for (let i = headerIdx + 1; i < lines.length; i++) {
+    const line = lines[i];
+    // Stop at next ## heading (but not the header line itself)
+    if (/^## /.test(line)) break;
+
+    // Match table row: starts with '|', contains objectiveNum as first cell
+    // Accepts both bare number and zero-padded number
+    const paddedNum = String(objectiveNum).padStart(2, '0');
+    const objMatch = line.match(
+      new RegExp(`^\\s*\\|\\s*(Objective\\s+${objectiveNum}|Objective\\s+${paddedNum}|${objectiveNum}|${paddedNum})\\s*\\|`, 'i'),
+    );
+    if (!objMatch) continue;
+
+    // Need at least 4 pipe-separated cells to be a real table row
+    const cells = line.split('|');
+    if (cells.length < 4) continue;
+
+    // Check if already 'complete' — skip to preserve idempotency
+    // Check last non-empty cell before trailing '|'
+    let alreadyComplete = false;
+    for (let c = cells.length - 2; c > 0; c--) {
+      const cellText = cells[c].trim();
+      if (cellText.length === 0) continue;
+      if (/^complete\b/i.test(cellText)) alreadyComplete = true;
+      break;
+    }
+    if (alreadyComplete) return null;
+
+    const before = line;
+    // Update last non-empty cell with 'complete YYYY-MM-DD'
+    let updated = false;
+    for (let c = cells.length - 2; c > 0; c--) {
+      const cellText = cells[c].trim();
+      if (cellText.length === 0) continue;
+      cells[c] = ` complete ${today} `;
+      updated = true;
+      break;
+    }
+    if (!updated) continue;
+    const after = cells.join('|');
+    lines[i] = after;
+    return {
+      kind: 'objective_rollup_progress',
+      objective_num: objectiveNum,
+      before,
+      after,
+    };
+  }
+  return null;
+}
+
+// ─── TRD 09-02: _rollupObjectiveStatus ───────────────────────────────────────
+
+/**
+ * Objective-level rollup: when ALL TRDs in an objective section are [x], update
+ * the '**Status:**' line to 'complete YYYY-MM-DD' and (if present) update the
+ * Progress table row.
+ *
+ * Contract: mutates `lines` array IN PLACE for efficiency. Callers must construct
+ * `lines` as a fresh array per test case to avoid cross-test contamination.
+ *
+ * Rollup is FORWARD-ONLY (in-flight → complete). Reverting requires manual
+ * user intervention — no auto-revert when a previously-complete objective
+ * has a TRD that becomes [ ] again.
+ *
+ * @param {string[]} lines - ROADMAP.md lines array (mutated in place)
+ * @param {string} today - 'YYYY-MM-DD' injected for testability; production passes new Date()
+ * @returns {{ lines: string[], changes: Array }}
+ */
+function _rollupObjectiveStatus(lines, today) {
+  const result = { lines, changes: [] };
+
+  const objSections = _findObjectiveSections(lines);
+
+  for (const section of objSections) {
+    // Skip objectives with no TRD checkboxes
+    if (section.trdCheckboxLines.length === 0) continue;
+    // Skip objectives where not ALL TRDs are checked
+    const allChecked = section.trdCheckboxLines.every(t => t.checked);
+    if (!allChecked) continue;
+
+    // Status line update
+    if (section.statusLineIdx >= 0) {
+      const cur = lines[section.statusLineIdx];
+      // Skip if already 'complete' (idempotent)
+      if (/^\*\*Status:\*\*\s+complete\b/i.test(cur)) {
+        // Already complete — skip status, but still check progress table
+      } else {
+        const before = cur;
+        const after = `**Status:** complete ${today}`;
+        lines[section.statusLineIdx] = after;
+        result.changes.push({
+          kind: 'objective_rollup_status',
+          objective_num: section.num,
+          before,
+          after,
+        });
+      }
+    }
+    // Progress table update (best-effort, returns null if absent/already-complete)
+    const progressUpdate = _updateProgressTable(lines, section.num, today);
+    if (progressUpdate) result.changes.push(progressUpdate);
+  }
+
+  return result;
+}
+
 // ─── TRD 09-01: reconcile ─────────────────────────────────────────────────────
 
 /**
@@ -251,12 +424,15 @@ function _checkTrdFileExists(objectiveDir, trdId) {
  *   trd_summary_failed  — SUMMARY.md present + FAILED → mark [ ] (failed)
  *   trd_orphan_warning  — TRD listed but no TRD file on disk → warning only
  *
+ * TRD 09-02: calls _rollupObjectiveStatus after the rule loop (before write).
+ *
  * @param {object} opts
  * @param {string} opts.projectRoot - absolute project root path
  * @param {'write'|'dry-run'} [opts.mode='write'] - write mode rewrites ROADMAP.md; dry-run returns changes only
+ * @param {string} [opts.today] - 'YYYY-MM-DD' injected for testability; defaults to UTC today
  * @returns {{ changes: Array, warnings: Array }}
  */
-function reconcile({ projectRoot, mode = 'write' } = {}) {
+function reconcile({ projectRoot, mode = 'write', today } = {}) {
   const result = { changes: [], warnings: [] };
   const roadmapPath = path.join(projectRoot, ROADMAP_REL);
 
@@ -352,6 +528,14 @@ function reconcile({ projectRoot, mode = 'write' } = {}) {
     }
   }
 
+  // TRD 09-02: objective-level rollup — runs after rule loop, before write
+  const todayStr = today || new Date().toISOString().slice(0, 10);
+  const rollup = _rollupObjectiveStatus(lines, todayStr);
+  for (const change of rollup.changes) {
+    change.path = roadmapPath;
+    result.changes.push(change);
+  }
+
   // Write ROADMAP.md if in write mode and there are changes
   if (mode === 'write' && result.changes.length > 0) {
     _writeReconciledRoadmap(projectRoot, lines.join('\n'));
@@ -360,7 +544,7 @@ function reconcile({ projectRoot, mode = 'write' } = {}) {
   return result;
 }
 
-// ─── TRD 09-01: minimal exports (final lock comes in TRD 09-03) ───────────────
+// ─── TRD 09-01/09-02: minimal exports (final lock comes in TRD 09-03) ─────────
 // NOTE: TRD 09-03 will lock the export surface with a banner comment.
 // For now, export everything needed by tests.
 
@@ -372,4 +556,8 @@ module.exports = {
   _writeReconciledRoadmap,
   _setRunFs,
   _resetMocks,
+  // TRD 09-02:
+  _findObjectiveSections,
+  _updateProgressTable,
+  _rollupObjectiveStatus,
 };

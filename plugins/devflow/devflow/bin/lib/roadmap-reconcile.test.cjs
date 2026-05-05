@@ -466,9 +466,11 @@ test('R2: unchecked TRD + SUMMARY exists → flips to [x] (kind: trd_summary_exi
     }],
   });
   const result = reconcile.reconcile({ projectRoot, mode: 'dry-run' });
-  assert.strictEqual(result.changes.length, 1);
-  assert.strictEqual(result.changes[0].kind, 'trd_summary_exists');
-  assert.ok(result.changes[0].after.includes('[x]'), 'flipped to checked');
+  // After TRD 09-02: reconcile also emits objective_rollup_status when all TRDs become [x].
+  // Filter for the rule change (may have additional rollup change alongside it).
+  const ruleChange = result.changes.find(c => c.kind === 'trd_summary_exists');
+  assert.ok(ruleChange, 'trd_summary_exists change present');
+  assert.ok(ruleChange.after.includes('[x]'), 'flipped to checked');
   cleanup();
 });
 
@@ -480,7 +482,12 @@ test('R3: checked TRD + SUMMARY missing → leaves [x] alone (no auto-uncheck)',
     }],
   });
   const result = reconcile.reconcile({ projectRoot, mode: 'dry-run' });
-  assert.deepStrictEqual(result.changes, []);
+  // After TRD 09-02: rollup fires when all TRDs are already [x] (even with no SUMMARY on disk).
+  // The rule loop emits no changes (no-auto-uncheck is intact). Filter to rule changes only.
+  const ruleChanges = result.changes.filter(c =>
+    c.kind === 'trd_summary_exists' || c.kind === 'trd_summary_failed' || c.kind === 'trd_orphan_warning',
+  );
+  assert.deepStrictEqual(ruleChanges, [], 'no rule changes — [x] left alone when SUMMARY missing');
   cleanup();
 });
 
@@ -527,10 +534,12 @@ test('R6: TRD in (failed) state + SUMMARY now PASSED → flip to [x] dropping (f
     }],
   });
   const result = reconcile.reconcile({ projectRoot, mode: 'dry-run' });
-  assert.strictEqual(result.changes.length, 1);
-  assert.strictEqual(result.changes[0].kind, 'trd_summary_exists');
-  assert.ok(result.changes[0].after.includes('[x]'), 'flipped to checked');
-  assert.ok(!result.changes[0].after.includes('(failed)'), 'no (failed) annotation');
+  // After TRD 09-02: also emits objective_rollup_status when all TRDs become [x].
+  // Filter for the rule change specifically.
+  const ruleChange = result.changes.find(c => c.kind === 'trd_summary_exists');
+  assert.ok(ruleChange, 'trd_summary_exists change present');
+  assert.ok(ruleChange.after.includes('[x]'), 'flipped to checked');
+  assert.ok(!ruleChange.after.includes('(failed)'), 'no (failed) annotation');
   cleanup();
 });
 
@@ -674,7 +683,8 @@ test('RU1: ALL [x] + status=in flight → flips to complete 2026-05-04, emits ob
   assert.strictEqual(result.changes.length, 1);
   const ch = result.changes[0];
   assert.strictEqual(ch.kind, 'objective_rollup_status');
-  assert.strictEqual(ch.objective_num, '1');
+  // objective_num is captured verbatim from the '### Objective NN:' header
+  assert.strictEqual(ch.objective_num, '01');
   assert.strictEqual(ch.after, '**Status:** complete 2026-05-04');
   assert.ok(ch.before.includes('in flight'));
   // lines mutated in place
@@ -732,7 +742,8 @@ test('RU4: MIXED [x]/[ ] → only all-[x] objective is rolled up, other left alo
   const result = reconcile._rollupObjectiveStatus(lines, '2026-05-04');
   assert.strictEqual(result.changes.length, 1);
   assert.strictEqual(result.changes[0].kind, 'objective_rollup_status');
-  assert.strictEqual(result.changes[0].objective_num, '5');
+  // objective_num is captured verbatim from the '### Objective NN:' header
+  assert.strictEqual(result.changes[0].objective_num, '05');
   // Obj 05 Status line flipped
   assert.strictEqual(lines[2], '**Status:** complete 2026-05-04');
   // Obj 06 Status line unchanged
@@ -759,7 +770,8 @@ test('RU5: ALL [x] + Progress table row exists → row status cell updated, emit
   assert.ok(result.changes.length >= 1, 'at least one change');
   const progressChange = result.changes.find(c => c.kind === 'objective_rollup_progress');
   assert.ok(progressChange, 'objective_rollup_progress change emitted');
-  assert.strictEqual(progressChange.objective_num, '1');
+  // objective_num is captured verbatim from the '### Objective NN:' header
+  assert.strictEqual(progressChange.objective_num, '01');
   assert.ok(progressChange.after.includes('complete 2026-05-04'), 'progress row updated');
   // Table row line must be mutated
   assert.ok(lines[10].includes('complete 2026-05-04'), 'line mutated in place');
