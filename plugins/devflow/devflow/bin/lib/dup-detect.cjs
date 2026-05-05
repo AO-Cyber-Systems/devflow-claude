@@ -53,6 +53,10 @@ const realFs = {
   readdirSync: (p, opts) => fs.readdirSync(p, opts),
   existsSync: (p) => fs.existsSync(p),
   statSync: (p) => fs.statSync(p),
+  // TRD 04-02: write operations for recordResolution + _writeDeferredState + _writeCoordinationNote
+  appendFileSync: (p, data, opts) => fs.appendFileSync(p, data, opts),
+  writeFileSync: (p, data, opts) => fs.writeFileSync(p, data, opts),
+  mkdirSync: (p, opts) => fs.mkdirSync(p, opts),
 };
 let _runFs = realFs;
 
@@ -524,28 +528,238 @@ function detectDuplicates({
   return result;
 }
 
-// ─── TRD 04-01: Partial module.exports (this TRD's symbols only) ─────────────
+// ─── TRD 04-02: recordResolution + applyResolution + writers ─────────────────
+
+/**
+ * Append a single record to .planning/.dup-detect-log.jsonl.
+ *
+ * Schema (locked per CONTEXT.md decision #7):
+ *   { timestamp, objective_id, mode, blocking, top_match: {strength, peer, score}|null, resolution }
+ *
+ * Lazy-creates .planning/ if missing. Atomic per-call (POSIX appendFileSync).
+ * Never throws; on write error, warns to stderr.
+ *
+ * @param {object} opts
+ * @param {string}      opts.objective_id
+ * @param {'plan'|'execute'} opts.mode
+ * @param {boolean}     opts.blocking
+ * @param {{ strength: string, peer: string|null, score: number|null } | null} opts.top_match
+ * @param {'merge'|'defer'|'coordinate'|'proceed-anyway'|'none'} opts.resolution
+ * @param {string}      [opts.cwd]
+ */
+function recordResolution({ objective_id, mode, blocking, top_match, resolution, cwd = process.cwd() } = {}) {
+  const record = {
+    timestamp: new Date().toISOString(),
+    objective_id,
+    mode,
+    blocking: !!blocking,
+    top_match: top_match || null,
+    resolution: resolution || 'none',
+  };
+  const planningDir = path.join(cwd, '.planning');
+  const logPath = path.join(cwd, DUP_DETECT_LOG_REL);
+  try {
+    if (!_runFs.existsSync(planningDir)) _runFs.mkdirSync(planningDir, { recursive: true });
+    _runFs.appendFileSync(logPath, JSON.stringify(record) + '\n');
+  } catch (e) {
+    process.stderr.write(`Warning: recordResolution failed: ${e && e.message ? e.message : String(e)}\n`);
+  }
+}
+
+/**
+ * Append a `## Coordination Note` section to <objective_dir>/<padded>-CONTEXT.md.
+ * Always appends; never replaces (multiple plan-time runs accumulate).
+ * Lazy-creates CONTEXT.md with frontmatter scaffold if missing.
+ *
+ * @param {string} objective_dir  - absolute path to objective dir
+ * @param {string} padded         - padded objective number (e.g. '04')
+ * @param {object} note_data
+ *   { objective_id, timestamp, strength, source, peer_objective, peer_branch,
+ *     signal, resolution_label, suggested_handoff, warning? }
+ */
+function _writeCoordinationNote(objective_dir, padded, note_data) {
+  const contextPath = path.join(objective_dir, `${padded}-CONTEXT.md`);
+  const sanitize = (s) => (s == null ? '' : String(s).replace(/[\r\n]+/g, ' '));
+
+  const noteLines = [
+    '## Coordination Note',
+    '',
+    `Detected duplicate-work signals at plan-time on \`${note_data.timestamp}\`:`,
+    '',
+    `- **Strength:** ${sanitize(note_data.strength)}`,
+    `- **Source:** ${sanitize(note_data.source)}`,
+    `- **Peer objective:** \`${sanitize(note_data.peer_objective) || '(unknown)'}\``,
+    `- **Peer branch:** \`${sanitize(note_data.peer_branch) || '(n/a)'}\``,
+    `- **Signal:** ${sanitize(note_data.signal) || '(none)'}`,
+    `- **User resolution:** ${sanitize(note_data.resolution_label)}`,
+    '',
+  ];
+  if (note_data.warning) {
+    noteLines.push(`**WARNING:** ${sanitize(note_data.warning)}`, '');
+  }
+  noteLines.push('**Suggested handoff points:**');
+  noteLines.push(`- ${sanitize(note_data.suggested_handoff) || '(see signal description)'}`);
+  noteLines.push('');
+
+  let prefix = '';
+  if (!_runFs.existsSync(contextPath)) {
+    // Lazy-create parent directory if needed
+    try {
+      if (!_runFs.existsSync(objective_dir)) _runFs.mkdirSync(objective_dir, { recursive: true });
+    } catch { /* swallow */ }
+    // Create CONTEXT.md with frontmatter scaffold (mirrors obj 3 pattern)
+    prefix = `---\nobjective: ${note_data.objective_id || ''}\ncreated: ${note_data.timestamp}\n---\n\n# Objective ${note_data.objective_id || ''} — Context\n\n`;
+  } else {
+    prefix = '\n';
+  }
+  _runFs.appendFileSync(contextPath, prefix + noteLines.join('\n') + '\n');
+}
+
+/**
+ * Write .planning/.deferred/<objective_id>.json with locked schema.
+ * Lazy-creates .planning/.deferred/ if missing.
+ *
+ * @param {string} objective_id
+ * @param {object} state - partial state object (objective_id + timestamps merged in)
+ * @param {string} [cwd]
+ * @returns {string} the absolute path written
+ */
+function _writeDeferredState(objective_id, state, cwd = process.cwd()) {
+  const deferDir = path.join(cwd, DEFERRED_DIR_REL);
+  if (!_runFs.existsSync(deferDir)) _runFs.mkdirSync(deferDir, { recursive: true });
+  const filePath = path.join(deferDir, `${objective_id}.json`);
+  const now = new Date().toISOString();
+  const payload = Object.assign({
+    objective_id,
+    deferred_at: now,
+    resolution_timestamp: now,
+  }, state);
+  _runFs.writeFileSync(filePath, JSON.stringify(payload, null, 2) + '\n');
+  return filePath;
+}
+
+/**
+ * Dispatch a resolution choice to the appropriate writer helper.
+ *
+ * @param {object} opts
+ * @param {'merge'|'defer'|'coordinate'|'proceed-anyway'} opts.resolution
+ * @param {string} opts.objective_id
+ * @param {string|null} opts.peer_branch
+ * @param {string|null} opts.peer_objective
+ * @param {string} [opts.cwd]
+ * @param {object} opts.detection - the detectDuplicates result that triggered the resolution
+ * @param {string} opts.objective_dir - absolute path to objective directory
+ * @param {string} opts.padded_objective - padded objective number (e.g. '04')
+ * @returns {object} dispatch result (varies by resolution)
+ */
+function applyResolution({
+  resolution,
+  objective_id,
+  peer_branch = null,
+  peer_objective = null,
+  cwd = process.cwd(),
+  detection = {},
+  objective_dir,
+  padded_objective,
+} = {}) {
+  // Build note_data from top match in detection result
+  const topMatch = (Array.isArray(detection.matches) && detection.matches.length > 0)
+    ? detection.matches[0]
+    : null;
+
+  const note_data = {
+    objective_id,
+    timestamp: detection.timestamp || new Date().toISOString(),
+    strength: topMatch ? topMatch.strength : 'unknown',
+    source: topMatch ? topMatch.source : 'unknown',
+    peer_objective: peer_objective || (topMatch ? topMatch.peer_objective : null),
+    peer_branch: peer_branch || (topMatch ? topMatch.peer_branch : null),
+    signal: topMatch ? topMatch.signal : '',
+    suggested_handoff: topMatch && topMatch.signal && String(topMatch.signal).includes('file')
+      ? `shared files; consider splitting ${objective_dir} into a sub-task that depends on ${peer_objective || (topMatch ? topMatch.peer_objective : '') || '(peer)'}`
+      : 'sync with peer before continuing',
+  };
+
+  switch (resolution) {
+    case 'merge': {
+      const cmd = peer_branch ? `git checkout ${peer_branch}` : 'git checkout <peer_branch>';
+      const msg = [
+        `This objective overlaps with \`${peer_objective || '(peer)'}\` on \`${peer_branch || '(unknown)'}\`.`,
+        `Switch to that branch and continue there:\n  ${cmd}`,
+        'Current objective directory left intact for manual cleanup.',
+      ].join('\n');
+      // Write abort message to stderr so callers (CLI output() / skill workflow) receive
+      // clean JSON on stdout. Per CONTEXT.md: PRINT only, do not execute.
+      process.stderr.write(msg + '\n');
+      return { aborted: true, suggestion: cmd, message: msg };
+    }
+
+    case 'defer': {
+      const filePath = _writeDeferredState(objective_id, {
+        mode: detection.mode || 'plan',
+        objective_dir,
+        trd_count_at_defer: 0,
+        last_commit_at_defer: null,
+        blocking_match: topMatch ? {
+          strength: topMatch.strength,
+          source: topMatch.source,
+          peer_objective: topMatch.peer_objective,
+          peer_branch: topMatch.peer_branch,
+          signal: topMatch.signal,
+          score: topMatch.score,
+        } : null,
+      }, cwd);
+      return { wrote_deferred: true, defer_path: filePath };
+    }
+
+    case 'coordinate': {
+      _writeCoordinationNote(objective_dir, padded_objective, Object.assign({}, note_data, {
+        resolution_label: 'Coordinate',
+      }));
+      return { wrote_coordination_note: true };
+    }
+
+    case 'proceed-anyway': {
+      _writeCoordinationNote(objective_dir, padded_objective, Object.assign({}, note_data, {
+        resolution_label: 'Proceed-anyway',
+        warning: 'User chose "Proceed anyway" despite blocking match — likely merge conflicts at commit time.',
+      }));
+      return { wrote_coordination_note: true, warning_appended: true };
+    }
+
+    default:
+      throw new Error(`applyResolution: unknown resolution '${resolution}' (expected: merge | defer | coordinate | proceed-anyway)`);
+  }
+}
+
+// ─── TRD 04-01 + 04-02: Partial module.exports ───────────────────────────────
 
 module.exports = {
-  // Public API
+  // TRD 04-01: Public API
   detectDuplicates,
 
-  // Signal helpers (exposed for tests)
+  // TRD 04-01: Signal helpers (exposed for tests)
   _detectHardMatch,
   _detectStrongMatch,
   _detectWeakMatch,
   _readPeerFilesModified,
 
-  // Injection hooks
+  // TRD 04-01: Injection hooks
   _setRunPeer,
   _setRunOrgOverlap,
   _setRunFs,
   _resetMocks,
 
-  // Constants
+  // TRD 04-01: Constants
   HARD_MATCH_THRESHOLD,
   STRONG_FILE_OVERLAP_THRESHOLD,
   STRONG_KEYWORD_OVERLAP_THRESHOLD,
   DUP_DETECT_LOG_REL,
   DEFERRED_DIR_REL,
+
+  // TRD 04-02: Resolution recorder + dispatcher + writers
+  recordResolution,
+  applyResolution,
+  _writeCoordinationNote,
+  _writeDeferredState,
 };

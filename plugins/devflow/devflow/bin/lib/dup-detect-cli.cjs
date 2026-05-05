@@ -15,8 +15,11 @@
  *   df-tools dup-detect log <objective_id> --mode <plan|execute> [--blocking <bool>] ...
  */
 
-const { detectDuplicates } = require('./dup-detect.cjs');
+const dd = require('./dup-detect.cjs');
+const { detectDuplicates } = dd;
 const { output } = require('./helpers.cjs');
+const path = require('path');
+const fs = require('fs');
 
 // ─── Arg parsing helpers ──────────────────────────────────────────────────────
 
@@ -89,22 +92,146 @@ function cmdDupDetectDetect(cwd, args, raw) {
   output(result, raw);
 }
 
-// ─── Stub: cmdDupDetectResolve (TRD 04-02) ───────────────────────────────────
+// ─── cmdDupDetectResolve (TRD 04-02) ─────────────────────────────────────────
 
-function cmdDupDetectResolve(cwd, args, raw) {
-  process.stderr.write(
-    '[dup-detect] resolve subcommand not yet implemented (TRD 04-02).\n'
-  );
-  process.exit(1);
+function _parseResolveArgs(args) {
+  const out = {
+    objective_id: null, resolution: null, peer_branch: null,
+    peer_objective: null, cwd: null, errors: [],
+  };
+  const a = args.slice();
+  while (a.length > 0) {
+    const t = a.shift();
+    if (t === '--resolution') out.resolution = a.shift() || null;
+    else if (t === '--peer-branch') out.peer_branch = a.shift() || null;
+    else if (t === '--peer-objective') out.peer_objective = a.shift() || null;
+    else if (t === '--cwd') out.cwd = a.shift() || null;
+    else if (t.startsWith('--')) out.errors.push(`Unknown flag: ${t}`);
+    else if (out.objective_id === null) out.objective_id = t;
+  }
+  if (!out.objective_id) out.errors.push('objective_id is required');
+  const valid = ['merge', 'defer', 'coordinate', 'proceed-anyway'];
+  if (!out.resolution || !valid.includes(out.resolution)) {
+    out.errors.push(`--resolution must be one of: ${valid.join(', ')} (got: ${String(out.resolution)})`);
+  }
+  return out;
 }
 
-// ─── Stub: cmdDupDetectLog (TRD 04-02) ───────────────────────────────────────
+function cmdDupDetectResolve(cwd_outer, args, raw) {
+  const parsed = _parseResolveArgs(args);
+  if (parsed.errors.length > 0) {
+    process.stderr.write(parsed.errors.map(e => 'Error: ' + e).join('\n') + '\n');
+    process.exit(1);
+    return;
+  }
+  const cwd = parsed.cwd || cwd_outer;
 
-function cmdDupDetectLog(cwd, args, raw) {
-  process.stderr.write(
-    '[dup-detect] log subcommand not yet implemented (TRD 04-02).\n'
-  );
-  process.exit(1);
+  // Resolve objective_dir + padded_objective from objective_id
+  const objsDir = path.join(cwd, '.planning', 'objectives');
+  let objective_dir = path.join(objsDir, parsed.objective_id); // fallback
+  let padded_objective = parsed.objective_id;
+  if (fs.existsSync(objsDir)) {
+    try {
+      const objs = fs.readdirSync(objsDir);
+      const matchingDir = objs.find(n => n.startsWith(`${parsed.objective_id}-`) || n === parsed.objective_id);
+      if (matchingDir) {
+        objective_dir = path.join(objsDir, matchingDir);
+        const m = matchingDir.match(/^(\d+)-/);
+        if (m) padded_objective = m[1];
+      }
+    } catch { /* swallow — fallback path used */ }
+  }
+
+  // Build minimal detection object for the dispatcher
+  const detection = {
+    mode: 'plan',
+    timestamp: new Date().toISOString(),
+    matches: [{
+      strength: 'unknown',
+      source: 'peer',
+      peer_branch: parsed.peer_branch,
+      peer_objective: parsed.peer_objective,
+      signal: '(provided via CLI; signal omitted)',
+      score: null,
+    }],
+  };
+
+  const result = dd.applyResolution({
+    resolution: parsed.resolution,
+    objective_id: parsed.objective_id,
+    peer_branch: parsed.peer_branch,
+    peer_objective: parsed.peer_objective,
+    cwd,
+    detection,
+    objective_dir,
+    padded_objective,
+  });
+
+  // Always record to JSONL log
+  dd.recordResolution({
+    objective_id: parsed.objective_id,
+    mode: 'plan',
+    blocking: true,
+    top_match: { strength: 'unknown', peer: parsed.peer_branch, score: null },
+    resolution: parsed.resolution,
+    cwd,
+  });
+
+  output({ ok: true, resolution: parsed.resolution, ...result }, raw);
+}
+
+// ─── cmdDupDetectLog (TRD 04-02) ─────────────────────────────────────────────
+
+function _parseLogArgs(args) {
+  const out = {
+    objective_id: null, mode: null, blocking: null,
+    top_match: null, resolution: 'none', cwd: null, errors: [],
+  };
+  const a = args.slice();
+  while (a.length > 0) {
+    const t = a.shift();
+    if (t === '--mode') out.mode = a.shift() || null;
+    else if (t === '--blocking') {
+      const v = a.shift();
+      if (v === 'true') out.blocking = true;
+      else if (v === 'false') out.blocking = false;
+      else out.errors.push(`--blocking must be 'true' or 'false' (got: ${v})`);
+    } else if (t === '--top-match-json') {
+      const v = a.shift();
+      try { out.top_match = JSON.parse(v); } catch (e) { out.errors.push(`--top-match-json parse error: ${e.message}`); }
+    } else if (t === '--resolution') out.resolution = a.shift() || 'none';
+    else if (t === '--cwd') out.cwd = a.shift() || null;
+    else if (t.startsWith('--')) out.errors.push(`Unknown flag: ${t}`);
+    else if (out.objective_id === null) out.objective_id = t;
+  }
+  if (!out.objective_id) out.errors.push('objective_id is required');
+  if (out.mode !== 'plan' && out.mode !== 'execute') {
+    out.errors.push(`--mode must be 'plan' or 'execute' (got: ${String(out.mode)})`);
+  }
+  const validRes = ['merge', 'defer', 'coordinate', 'proceed-anyway', 'none'];
+  if (!validRes.includes(out.resolution)) {
+    out.errors.push(`--resolution must be one of: ${validRes.join(', ')} (got: ${out.resolution})`);
+  }
+  return out;
+}
+
+function cmdDupDetectLog(cwd_outer, args, raw) {
+  const parsed = _parseLogArgs(args);
+  if (parsed.errors.length > 0) {
+    process.stderr.write(parsed.errors.map(e => 'Error: ' + e).join('\n') + '\n');
+    process.exit(1);
+    return;
+  }
+  const cwd = parsed.cwd || cwd_outer;
+  dd.recordResolution({
+    objective_id: parsed.objective_id,
+    mode: parsed.mode,
+    blocking: parsed.blocking !== null ? parsed.blocking : false,
+    top_match: parsed.top_match,
+    resolution: parsed.resolution,
+    cwd,
+  });
+  output({ ok: true, logged: true }, raw);
 }
 
 // ─── cmdDupDetectRoute ────────────────────────────────────────────────────────
