@@ -1238,3 +1238,159 @@ test('TRD 04-02 exports: recordResolution, applyResolution, _writeCoordinationNo
     assert.strictEqual(typeof dd[sym], 'function', `${sym} should be exported as a function`);
   }
 });
+
+// ─── TRD 04-03: formatDetectionMarkdown ───────────────────────────────────────
+
+test('FD1 — empty detection renders placeholder', () => {
+  const md = dd.formatDetectionMarkdown(
+    { blocking: false, matches: [], advisory: [], warnings: [], mode: 'plan', timestamp: '2026-05-04T08:00:00Z' },
+    { purpose: 'askuser' }
+  );
+  assert.match(md, /no duplicate-work signals detected/);
+});
+
+test('FD2 — 1 hard match plan mode purpose=askuser', () => {
+  const det = {
+    blocking: true,
+    matches: [{ strength: 'hard', source: 'peer', peer_branch: 'feature/peer', peer_objective: '04 — peer', signal: 'github_issue match: #13', score: 100 }],
+    advisory: [],
+    warnings: [],
+    mode: 'plan',
+    timestamp: '2026-05-04T08:00:00Z',
+  };
+  const md = dd.formatDetectionMarkdown(det, { purpose: 'askuser' });
+  assert.match(md, /Duplicate-Work Match Detected/i);
+  assert.match(md, /hard/);
+  assert.match(md, /github_issue/);
+  assert.match(md, /feature\/peer/);
+  assert.match(md, /Resolution options/i);
+  assert.match(md, /Merge/);
+  assert.match(md, /Defer/);
+  assert.match(md, /Coordinate/);
+  assert.match(md, /Proceed/);
+});
+
+test('FD3 — purpose=context omits resolution options', () => {
+  const det = {
+    blocking: true,
+    matches: [{ strength: 'hard', source: 'peer', peer_branch: 'feature/peer', peer_objective: '04 — peer', signal: 'github_issue match', score: 100 }],
+    advisory: [], warnings: [], mode: 'plan', timestamp: '2026-05-04T08:00:00Z',
+  };
+  const md = dd.formatDetectionMarkdown(det, { purpose: 'context' });
+  assert.doesNotMatch(md, /Resolution options/i);
+  assert.match(md, /hard/);
+});
+
+test('FD4 — 1 strong match + 2 weak advisory in plan mode', () => {
+  const det = {
+    blocking: true,
+    matches: [{ strength: 'strong', source: 'peer', peer_branch: 'feature/x', peer_objective: 'x', signal: '≥2 file overlap: a, b', score: 50 }],
+    advisory: [
+      { strength: 'weak', source: 'peer', peer_branch: 'feature/y', peer_objective: 'y', signal: '1 keyword overlap: foo', score: 10 },
+      { strength: 'weak', source: 'peer', peer_branch: 'feature/z', peer_objective: 'z', signal: 'single shared file: bar', score: 10 },
+    ],
+    warnings: [], mode: 'plan', timestamp: '2026-05-04T08:00:00Z',
+  };
+  const md = dd.formatDetectionMarkdown(det, { purpose: 'askuser' });
+  assert.match(md, /strong/);
+  assert.match(md, /Advisory \(informational\)/i);
+  assert.match(md, /feature\/y/);
+  assert.match(md, /feature\/z/);
+});
+
+test('FD5 — execute mode does NOT render advisory section', () => {
+  const det = {
+    blocking: true,
+    matches: [{ strength: 'strong', source: 'peer', peer_branch: 'feature/x', peer_objective: 'x', signal: 'shared', score: 50 }],
+    advisory: [], // detectDuplicates already filtered
+    warnings: [], mode: 'execute', timestamp: '2026-05-04T08:00:00Z',
+  };
+  const md = dd.formatDetectionMarkdown(det, { purpose: 'askuser' });
+  assert.doesNotMatch(md, /Advisory \(informational\)/i);
+  assert.match(md, /Recheck/i); // execute-mode title differs
+});
+
+test('FD6 — warnings rendered as blockquote', () => {
+  const det = {
+    blocking: false, matches: [], advisory: [],
+    warnings: ['peer scan failed: git not found', 'org-overlap unavailable: gh auth missing'],
+    mode: 'plan', timestamp: '2026-05-04T08:00:00Z',
+  };
+  const md = dd.formatDetectionMarkdown(det, { purpose: 'askuser' });
+  assert.match(md, /> \*\*Note:\*\* peer scan failed/);
+  assert.match(md, /> \*\*Note:\*\* org-overlap unavailable/);
+});
+
+test('FD7 — backticks in signal text escaped', () => {
+  const det = {
+    blocking: true,
+    matches: [{ strength: 'hard', source: 'peer', peer_branch: 'feature/x', peer_objective: 'x', signal: 'github_issue match: `#13`', score: 100 }],
+    advisory: [], warnings: [], mode: 'plan', timestamp: '2026-05-04T08:00:00Z',
+  };
+  const md = dd.formatDetectionMarkdown(det, { purpose: 'askuser' });
+  assert.doesNotMatch(md, /`#13`/);  // backticks removed
+  assert.match(md, /'#13'/);          // replaced with single quotes
+});
+
+test('FD8 — NaN score renders as N/A', () => {
+  const det = {
+    blocking: true,
+    matches: [{ strength: 'hard', source: 'peer', peer_branch: 'feature/x', peer_objective: 'x', signal: 's', score: NaN }],
+    advisory: [], warnings: [], mode: 'plan', timestamp: '2026-05-04T08:00:00Z',
+  };
+  const md = dd.formatDetectionMarkdown(det, { purpose: 'askuser' });
+  assert.match(md, /N\/A/);
+});
+
+test('FD9 — null detection', () => {
+  const md = dd.formatDetectionMarkdown(null);
+  assert.match(md, /no detection result available/);
+});
+
+test('FD10 — undefined matches', () => {
+  const md = dd.formatDetectionMarkdown({ blocking: false, mode: 'plan', timestamp: '2026-05-04T08:00:00Z' });
+  assert.match(md, /no duplicate-work signals detected/);
+});
+
+test('FD11 — unknown purpose falls back to askuser', () => {
+  const det = {
+    blocking: true,
+    matches: [{ strength: 'hard', source: 'peer', peer_branch: 'feature/x', peer_objective: 'x', signal: 's', score: 100 }],
+    advisory: [], warnings: [], mode: 'plan', timestamp: '2026-05-04T08:00:00Z',
+  };
+  const md = dd.formatDetectionMarkdown(det, { purpose: 'foo' });
+  assert.match(md, /Resolution options/i);
+});
+
+test('FD12 — opts not passed defaults to askuser', () => {
+  const det = {
+    blocking: true,
+    matches: [{ strength: 'hard', source: 'peer', peer_branch: 'feature/x', peer_objective: 'x', signal: 's', score: 100 }],
+    advisory: [], warnings: [], mode: 'plan', timestamp: '2026-05-04T08:00:00Z',
+  };
+  const md = dd.formatDetectionMarkdown(det);
+  assert.match(md, /Resolution options/i);
+});
+
+test('FD13 — output bounded ≤ 1500 chars typical', () => {
+  const det = {
+    blocking: true,
+    matches: [{ strength: 'strong', source: 'peer', peer_branch: 'feature/x', peer_objective: 'x', signal: '≥2 file overlap: a.ts, b.ts', score: 50 }],
+    advisory: [{ strength: 'weak', source: 'peer', peer_branch: 'feature/y', peer_objective: 'y', signal: '1 keyword overlap: foo', score: 10 }],
+    warnings: ['scanPeer warning: git fetch slow'],
+    mode: 'plan', timestamp: '2026-05-04T08:00:00Z',
+  };
+  const md = dd.formatDetectionMarkdown(det, { purpose: 'askuser' });
+  assert.ok(md.length <= 1500, `expected <= 1500, got ${md.length}`);
+});
+
+test('FD14 — deterministic output', () => {
+  const det = {
+    blocking: true,
+    matches: [{ strength: 'hard', source: 'peer', peer_branch: 'feature/x', peer_objective: 'x', signal: 's', score: 100 }],
+    advisory: [], warnings: [], mode: 'plan', timestamp: '2026-05-04T08:00:00Z',
+  };
+  const md1 = dd.formatDetectionMarkdown(det, { purpose: 'askuser' });
+  const md2 = dd.formatDetectionMarkdown(det, { purpose: 'askuser' });
+  assert.strictEqual(md1, md2);
+});
