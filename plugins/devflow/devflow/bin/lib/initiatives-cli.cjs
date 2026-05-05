@@ -95,11 +95,32 @@ function cmdInitiativesShow(cwd, args) {
 }
 
 function cmdInitiativesSync(cwd, args) {
-  // TRD 05-01 stub — replaced by TRD 05-02
-  process.stderr.write(JSON.stringify({
-    error: 'not yet implemented (TRD 05-02)',
-  }, null, 2) + '\n');
-  process.exit(1);
+  const { flags } = _parseFlags(args);
+  try {
+    const result = init.syncInitiatives({
+      home: flags.home,
+      project_id: flags['project-id'],
+      initiative: flags.initiative,
+    });
+    if (!result.ok) {
+      process.stderr.write(JSON.stringify(result, null, 2) + '\n');
+      process.exit(1);
+      return;
+    }
+    output(result, flags.raw, JSON.stringify(result, null, 2));
+  } catch (e) {
+    if (e.name === 'GhAuthError') {
+      process.stderr.write(JSON.stringify({
+        error: e.message,
+        remediation: e.remediation,
+        scopes_missing: e.scopes_missing,
+      }, null, 2) + '\n');
+      process.exit(1);
+      return;
+    }
+    process.stderr.write(JSON.stringify({ error: e.message, stack: e.stack }, null, 2) + '\n');
+    process.exit(1);
+  }
 }
 
 function cmdInitiativesRoute(cwd, args) {

@@ -228,6 +228,233 @@ function formatInitiativeForPlanner(initiative) {
   return result;
 }
 
+// ─── TRD 05-02: Extended realFs (write methods) ──────────────────────────────
+// Augment realFs in-place. unlinkSync is needed here for tmp-cleanup-on-rename-fail.
+// TRD 05-03 will reuse the unlinkSync entry.
+realFs.writeFileSync = (p, data, opts) => fs.writeFileSync(p, data, opts);
+realFs.mkdirSync = (p, opts) => fs.mkdirSync(p, opts);
+realFs.renameSync = (oldP, newP) => fs.renameSync(oldP, newP);
+realFs.unlinkSync = (p) => fs.unlinkSync(p);
+
+// ─── TRD 05-02: _slugifyInitiativeTitle ──────────────────────────────────────
+
+function _slugifyInitiativeTitle(title) {
+  if (typeof title !== 'string') return null;
+  // Strip [Epic] / [Roadmap] / similar bracketed prefix
+  let t = title.replace(/^\[[^\]]+\]\s*/, '');
+  // NFKD normalize + strip diacritics (Unicode combining chars U+0300–U+036F)
+  t = t.normalize('NFKD').replace(/[̀-ͯ]/g, '');
+  // Lowercase + replace non-alphanumeric with hyphen
+  t = t.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  // Collapse multiple hyphens, strip leading/trailing
+  t = t.replace(/-+/g, '-').replace(/^-|-$/g, '');
+  return t.length > 0 ? t : null;
+}
+
+// ─── TRD 05-02: _qualifiesAsInitiative ───────────────────────────────────────
+
+function _qualifiesAsInitiative(item) {
+  if (!item || typeof item !== 'object') return false;
+  // Path 1: has tracked sub-issues (short-circuit)
+  if (Array.isArray(item.sub_issues) && item.sub_issues.length > 0) return true;
+  // Path 2: title-prefix [Epic] (case-sensitive per CONTEXT.md decision #5b)
+  if (typeof item.title === 'string' && /^\[Epic\]/.test(item.title)) return true;
+  // Path 3: body marker **Type:** epic
+  if (typeof item.body === 'string' && /\*\*Type:\*\*\s+epic/i.test(item.body)) return true;
+  // Path 4: draft + In Progress
+  if (item.item_type === 'draft' && item.status === 'In Progress') return true;
+  return false;
+}
+
+// ─── TRD 05-02: _renderInitiativeMarkdown ────────────────────────────────────
+
+function _renderInitiativeMarkdown(data) {
+  // data: { slug, github_issue, parent_project, key_repos, updated_at,
+  //         title, why, open_questions, sub_issues, status, project_status, quarter }
+  const lines = [];
+  // Frontmatter — locked field order: slug, github_issue, parent_project, key_repos, updated_at
+  lines.push('---');
+  lines.push(`slug: ${data.slug}`);
+  lines.push(`github_issue: ${data.github_issue || ''}`);
+  lines.push(`parent_project: ${data.parent_project || ''}`);
+  lines.push('key_repos:');
+  for (const r of (data.key_repos || [])) lines.push(`  - ${r}`);
+  lines.push(`updated_at: ${data.updated_at}`);
+  lines.push('---');
+  lines.push('');
+  // Body — locked section order: # Title, ## Why, ## Open Questions, ## Linked Sub-issues, ## Status
+  lines.push(`# ${data.title || data.slug}`);
+  lines.push('');
+  lines.push('## Why');
+  lines.push('');
+  lines.push(_truncateWhy(data.why || '', MAX_WHY_CHARS));
+  lines.push('');
+  lines.push('## Open Questions');
+  lines.push('');
+  const questions = (data.open_questions || []).slice(0, MAX_QUESTIONS_BULLETS);
+  for (const q of questions) lines.push(`- ${q}`);
+  if (questions.length === 0) lines.push('');
+  lines.push('');
+  lines.push('## Linked Sub-issues');
+  lines.push('');
+  const subs = (data.sub_issues || []).slice(0, MAX_SUBISSUES_LINES);
+  for (const si of subs) lines.push(`- ${si.ref} — ${si.title} (${si.state})`);
+  if (subs.length === 0) lines.push('');
+  lines.push('');
+  lines.push('## Status');
+  lines.push('');
+  lines.push(`- **GitHub:** ${data.status || 'OPEN'}`);
+  if (data.project_status) lines.push(`- **Project status:** ${data.project_status}`);
+  if (data.quarter) lines.push(`- **Quarter:** ${data.quarter}`);
+  lines.push(`- **Updated:** ${data.updated_at}`);
+  lines.push('');
+  return lines.join('\n');
+}
+
+// ─── TRD 05-02: _writeInitiativeFile ─────────────────────────────────────────
+
+function _writeInitiativeFile(home, data, opts) {
+  if (opts === undefined) opts = {};
+  if (!_runFs.existsSync(home)) {
+    _runFs.mkdirSync(home, { recursive: true });
+  }
+  const slug = data.slug;
+  const dest = path.join(home, `${slug}.md`);
+  const tmpSuffix = opts._tmpSuffix || `tmp.${process.pid}`;
+  const tmpPath = path.join(home, `.${slug}.md.${tmpSuffix}`);
+  const content = _renderInitiativeMarkdown(data);
+  _runFs.writeFileSync(tmpPath, content, 'utf-8');
+  try {
+    _runFs.renameSync(tmpPath, dest);
+  } catch (e) {
+    // Cleanup tmp on rename failure (best-effort; ignore unlink errors)
+    try { _runFs.unlinkSync(tmpPath); } catch {}
+    throw e;
+  }
+  return { slug, path: dest };
+}
+
+// ─── TRD 05-02: private body-extraction helpers ──────────────────────────────
+
+function _deriveKeyRepos(item) {
+  // Primary: repo of the issue itself
+  const repos = new Set();
+  if (item.issue_ref) {
+    const repo = item.issue_ref.split('#')[0];
+    if (repo) repos.add(repo);
+  }
+  // Plus: every distinct repo referenced in sub_issues
+  for (const si of (item.sub_issues || [])) {
+    if (si.ref) {
+      const repo = si.ref.split('#')[0];
+      if (repo) repos.add(repo);
+    }
+  }
+  return Array.from(repos);
+}
+
+function _extractWhyFromBody(body) {
+  if (!body || typeof body !== 'string') return '';
+  // First, try explicit ## Why section
+  const why = _extractSection(body, 'Why');
+  if (why) return why;
+  // Else: first paragraph of body (everything before first ## heading)
+  const firstHeader = body.search(/^##\s/m);
+  const before = (firstHeader >= 0 ? body.slice(0, firstHeader) : body).trim();
+  return before;
+}
+
+function _extractQuestionsFromBody(body) {
+  if (!body || typeof body !== 'string') return [];
+  const section = _extractSection(body, 'Open Questions') || _extractSection(body, 'Questions') || '';
+  return _parseQuestionsSection(section);
+}
+
+// ─── TRD 05-02: syncInitiatives ──────────────────────────────────────────────
+
+/**
+ * Sync initiatives from org Product Roadmap to disk.
+ *
+ * @param {object} opts
+ * @param {string} opts.home          - target dir; defaults to defaultInitiativesHome()
+ * @param {string} opts.project_id    - project node id; defaults to PRODUCT_ROADMAP_FIELDS._project_id
+ * @param {string} opts.initiative    - sync ONLY this slug (skips all others; skips stale-deletion)
+ * @returns {{ ok: bool, written: [], deleted: [], skipped: [], warnings: [] }}
+ */
+function syncInitiatives(opts) {
+  if (opts === undefined) opts = {};
+  // 1. Hard-fail auth (throws GhAuthError if missing/insufficient)
+  gh.requireGhAuth(['project', 'read:project', 'repo']);
+
+  const home = opts.home || defaultInitiativesHome();
+  const projectId = opts.project_id || (gh.PRODUCT_ROADMAP_FIELDS && gh.PRODUCT_ROADMAP_FIELDS._project_id) || null;
+  const written = [];
+  const deleted = [];
+  const skipped = [];
+  const warnings = [];
+
+  if (!projectId) {
+    return {
+      ok: false,
+      written, deleted, skipped,
+      warnings: ['no project_id available; obj 1 cassette missing or PRODUCT_ROADMAP_FIELDS not initialized'],
+    };
+  }
+
+  // 2. Walk project (catch non-auth errors)
+  let walk;
+  try {
+    walk = gh.walkProject(projectId);
+  } catch (e) {
+    return { ok: false, written, deleted, skipped, warnings: [`walkProject failed: ${e.message}`] };
+  }
+  if (walk && Array.isArray(walk.warnings)) {
+    warnings.push(...walk.warnings);
+  }
+
+  // 3. Filter + write
+  const updatedAt = new Date().toISOString();
+  const items = (walk && walk.items) || [];
+  for (const item of items) {
+    if (!_qualifiesAsInitiative(item)) {
+      skipped.push({ title: item.title || '(untitled)', reason: 'does_not_qualify' });
+      continue;
+    }
+    const slug = _slugifyInitiativeTitle(item.title);
+    if (!slug) {
+      skipped.push({ title: item.title || '(untitled)', reason: 'no_slug' });
+      continue;
+    }
+    if (opts.initiative && opts.initiative !== slug) {
+      // Single-initiative mode: skip non-matching items silently
+      continue;
+    }
+    // Build initiative data shape
+    const data = {
+      slug,
+      github_issue: item.issue_ref || '',
+      parent_project: projectId,
+      key_repos: _deriveKeyRepos(item),
+      updated_at: updatedAt,
+      title: (item.title || slug).replace(/^\[[^\]]+\]\s*/, ''),
+      why: _extractWhyFromBody(item.body),
+      open_questions: _extractQuestionsFromBody(item.body),
+      sub_issues: item.sub_issues || [],
+      status: item.item_type === 'draft' ? 'DRAFT' : 'OPEN',
+      project_status: item.status,
+      quarter: item.quarter,
+    };
+    try {
+      const result = _writeInitiativeFile(home, data);
+      written.push(result);
+    } catch (e) {
+      skipped.push({ title: item.title || slug, reason: `write_failed: ${e.message}` });
+    }
+  }
+
+  return { ok: true, written, deleted, skipped, warnings };
+}
+
 // ─── Partial exports — finalized in TRD 05-05 ─────────────────────────────────
 
 module.exports = {
@@ -237,6 +464,13 @@ module.exports = {
   formatInitiativeForPlanner,
   _parseInitiativeFile,
   _truncateWhy,
+
+  // Writer (TRD 05-02):
+  syncInitiatives,
+  _writeInitiativeFile,
+  _qualifiesAsInitiative,
+  _slugifyInitiativeTitle,
+  _renderInitiativeMarkdown,
 
   // Test hooks:
   _setRunFs,
