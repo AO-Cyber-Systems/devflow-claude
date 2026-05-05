@@ -1105,6 +1105,187 @@ function buildReconcileFixtures({ objectives = [], milestone_status = 'in flight
   };
 }
 
+// ─── TRD 06-01: check-todos fixture builders ─────────────────────────────────
+
+/**
+ * Normalize a fixture-shape issue to gh JSON output shape.
+ * @param {object} issue - fixture issue shape
+ * @returns {object} gh JSON-formatted issue
+ */
+function _normalizeForGhJson(issue) {
+  return {
+    number: issue.number || (issue.ref ? parseInt(issue.ref.split('#').pop(), 10) : 0),
+    title: issue.title,
+    labels: (issue.labels || []).map(l => ({ name: l })),
+    assignees: issue.assigned ? [{ login: 'mark' }] : [],
+    repository: {
+      nameWithOwner: issue.ref ? issue.ref.split('#')[0] : 'AO-Cyber-Systems/devflow-claude',
+    },
+  };
+}
+
+/**
+ * Build a mock gh function for check-todos tests.
+ * Handles auth status + issue list + search queries.
+ * @param {object[]} issues - fixture issues
+ * @returns {function} mock suitable for gh._setRunGh()
+ */
+function _buildCheckTodosMockGh(issues = []) {
+  return function mockGh(args) {
+    if (!Array.isArray(args)) return { ok: false, stdout: '', stderr: 'unknown call', status: 1 };
+    // Handle `gh auth status` for requireGhAuth
+    // NOTE: parseScopes reads from stdout (not stderr) for the "Token scopes:" line
+    if (args[0] === 'auth' && args[1] === 'status') {
+      return {
+        ok: true,
+        status: 0,
+        stdout: "github.com\n  ✓ Logged in to github.com account mark\n  - Token scopes: 'repo', 'project', 'read:project'\n",
+        stderr: '',
+      };
+    }
+    // Issue list with --assignee @me
+    if (args[0] === 'issue' && args[1] === 'list' && args.includes('--assignee')) {
+      const assigned = issues.filter(i => i.assigned).map(_normalizeForGhJson);
+      return { ok: true, status: 0, stdout: JSON.stringify(assigned), stderr: '' };
+    }
+    // search issues for mentions / review-requested
+    if (args[0] === 'search' && args[1] === 'issues') {
+      if (args.includes('mentions:@me')) {
+        const mentioned = issues.filter(i => i.mentioned).map(_normalizeForGhJson);
+        return { ok: true, status: 0, stdout: JSON.stringify(mentioned), stderr: '' };
+      }
+      if (args.includes('review-requested:@me')) {
+        const reviews = issues.filter(i => i.review_requested).map(_normalizeForGhJson);
+        return { ok: true, status: 0, stdout: JSON.stringify(reviews), stderr: '' };
+      }
+    }
+    return { ok: false, status: 1, stdout: '', stderr: `unhandled gh call: ${args.join(' ')}` };
+  };
+}
+
+/**
+ * Compose a tmpdir-backed fixture for unified check-todos testing.
+ *
+ * Returns:
+ *   {
+ *     projectRoot,        // tmp .planning/-rooted dir with todos/, dup-detect-log.jsonl, STATE.md
+ *     initiativesHome,    // tmp dir with N initiative .md files
+ *     currentUser,        // string
+ *     currentRepo,        // string
+ *     mockGh,             // gh mock function (returns canned issue list responses)
+ *     mockPeer,           // scanPeer mock function
+ *     cleanup,            // () => removes both tmpdirs
+ *   }
+ *
+ * @param {object} opts
+ * @param {Array}  [opts.localTodos]            - [{ title, area, created, body }, ...]
+ * @param {Array}  [opts.ghIssues]              - [{ ref, title, labels, assigned, mentioned, review_requested }, ...]
+ * @param {Array}  [opts.peerBranches]          - same shape as buildPeerBranch results
+ * @param {Array}  [opts.initiatives]           - [{ slug, github_issue, key_repos, open_questions }, ...]
+ * @param {Array}  [opts.dupLogEntries]         - jsonl-format entries
+ * @param {string} [opts.currentUser]           - default 'mark'
+ * @param {string} [opts.currentRepo]           - default 'AO-Cyber-Systems/devflow-claude'
+ * @returns {object} bundle described above
+ */
+function buildCheckTodosFixtures({
+  localTodos = [],
+  ghIssues = [],
+  peerBranches = [],
+  initiatives: initiativeDefs = [],
+  dupLogEntries = [],
+  currentUser = 'mark',
+  currentRepo = 'AO-Cyber-Systems/devflow-claude',
+} = {}) {
+  // 1. tmp project root
+  const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'check-todos-'));
+  const planningDir = path.join(projectRoot, '.planning');
+  fs.mkdirSync(planningDir, { recursive: true });
+
+  // 1a. local todos
+  if (localTodos.length > 0) {
+    const todosDir = path.join(planningDir, 'todos', 'pending');
+    fs.mkdirSync(todosDir, { recursive: true });
+    for (const t of localTodos) {
+      const safeName = t.title.replace(/[^a-z0-9]/gi, '-').toLowerCase();
+      const safeDate = (t.created || '2026-05-04').replace(/[^0-9-]/g, '-');
+      const filename = `${safeDate}-${safeName}.md`;
+      fs.writeFileSync(
+        path.join(todosDir, filename),
+        `---\ntitle: ${t.title}\ncreated: ${t.created || '2026-05-04'}\narea: ${t.area || 'general'}\n---\n\n${t.body || ''}\n`,
+        'utf-8',
+      );
+    }
+  }
+
+  // 1b. dup-detect log
+  if (dupLogEntries.length > 0) {
+    const logPath = path.join(planningDir, '.dup-detect-log.jsonl');
+    const lines = dupLogEntries.map(e => JSON.stringify(e)).join('\n') + '\n';
+    fs.writeFileSync(logPath, lines, 'utf-8');
+  }
+
+  // 1c. STATE.md (minimal — needed by _detectCurrentRepo)
+  fs.writeFileSync(
+    path.join(planningDir, 'STATE.md'),
+    `**Branch:** test-branch\n**Objective in flight:** test-objective\n`,
+    'utf-8',
+  );
+
+  // 1d. PROJECT.md (frontmatter for currentRepo detection)
+  fs.writeFileSync(
+    path.join(planningDir, 'PROJECT.md'),
+    `---\ngithub_repo: ${currentRepo}\n---\n\n# Test Project\n`,
+    'utf-8',
+  );
+
+  // 2. initiatives home
+  const initiativesHome = fs.mkdtempSync(path.join(os.tmpdir(), 'check-todos-init-'));
+  for (const init of initiativeDefs) {
+    const yaml = [
+      '---',
+      `slug: ${init.slug}`,
+      `github_issue: ${init.github_issue || ''}`,
+      'key_repos:',
+      ...(init.key_repos || []).map(r => `  - ${r}`),
+      '---',
+      '',
+      '## Why',
+      '',
+      init.why || '',
+      '',
+      '## Open Questions',
+      '',
+      ...(init.open_questions || []).map(q => `- ${q}`),
+      '',
+      '## Linked Sub-issues',
+      '',
+      '## Status',
+      '',
+    ].join('\n');
+    fs.writeFileSync(path.join(initiativesHome, `${init.slug}.md`), yaml, 'utf-8');
+  }
+
+  // 3. mock builders
+  const mockGh = _buildCheckTodosMockGh(ghIssues);
+  const mockPeer = () => ({
+    branches: peerBranches,
+    fetched_at: new Date().toISOString(),
+  });
+
+  return {
+    projectRoot,
+    initiativesHome,
+    currentUser,
+    currentRepo,
+    mockGh,
+    mockPeer,
+    cleanup: () => {
+      try { fs.rmSync(projectRoot, { recursive: true, force: true }); } catch {}
+      try { fs.rmSync(initiativesHome, { recursive: true, force: true }); } catch {}
+    },
+  };
+}
+
 // ─── exports ──────────────────────────────────────────────────────────────────
 
 module.exports = {
@@ -1145,4 +1326,6 @@ module.exports = {
   buildAdversarialInitiative,
   // TRD 09-01:
   buildReconcileFixtures,
+  // TRD 06-01:
+  buildCheckTodosFixtures,
 };
