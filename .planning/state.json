@@ -2,9 +2,9 @@
   "current_objective": null,
   "current_job": 0,
   "total_jobs": 0,
-  "progress_pct": 67,
-  "status": null,
-  "last_activity": null,
+  "progress_pct": 98,
+  "status": "ready_for_verification",
+  "last_activity": "2026-05-05",
   "metrics": {
     "jobs_completed": 0,
     "jobs_failed": 0,
@@ -14,6 +14,26 @@
     {
       "objective": "00-refine-defaults-table",
       "summary": "TRD 0.3 complete: Planner agent extended with 5-field consumption + testing-strategy.md routing + constraint enforcement. All 6 greps pass. Closes SC-3, SC-6.",
+      "rationale": null
+    },
+    {
+      "objective": "09-roadmap-disk-reconciliation",
+      "summary": "ROADMAP.md mutation is regex-only: never YAML-parse, line-level match-and-replace preserves non-TRD content",
+      "rationale": null
+    },
+    {
+      "objective": "09-roadmap-disk-reconciliation",
+      "summary": "Idempotency via correct-state guards: emit change only when current state differs from target",
+      "rationale": null
+    },
+    {
+      "objective": "09-roadmap-disk-reconciliation",
+      "summary": "No auto-uncheck on missing SUMMARY: [x] without SUMMARY left alone; orphan_warning only when TRD file also missing",
+      "rationale": null
+    },
+    {
+      "objective": "?",
+      "summary": "09-02: objective_num preserved verbatim from ROADMAP header regex capture; rollup co-emits with rule changes in same reconcile call",
       "rationale": null
     }
   ],

@@ -1,6 +1,19 @@
 'use strict';
 
 /*
+TEST LIST — TRD 09-03 export-lock + integration
+================================================
+
+Group EX (export-surface lock):
+- EX1: module.exports surface is locked (deepStrictEqual on Object.keys vs expected 8-entry list)
+- EX2: module.exports block has banner comment '─── module.exports — LOCKED by TRD 09-03'
+
+Group E2E (round-trip integration):
+- E2E1: SELF-TEST — reconcile in dry-run mode against process.cwd() (this repo's ROADMAP) returns changes=[]
+- E2E2: fake-breakage workflow — fixture with SUMMARY but [ ] → dry-run shows drift → write fixes → re-run is clean
+- E2E3: idempotency — run reconcile in write mode twice on same fixture; second call returns changes=[]
+- E2E4: drift across multiple objectives — fixture with 2 objectives × 2 TRDs each, mixed [ ]/[x] vs SUMMARYs → reconcile produces correct per-TRD changes
+
 TEST LIST — TRD 09-01 reconciler engine + fixtures
 ==================================================
 
@@ -936,4 +949,158 @@ test('RUI5: today parameter forwarded from reconcile to _rollupObjectiveStatus',
   assert.ok(rollupChange, 'rollup change emitted');
   assert.ok(rollupChange.after.includes('2099-01-15'), 'injected today date used in rollup');
   cleanup();
+});
+
+// ─── Group EX — export-surface lock ──────────────────────────────────────────
+
+test('EX1: module.exports surface is locked (deepStrictEqual on Object.keys)', () => {
+  // TRD 09-03 locks the surface to exactly 8 entries.
+  // If this test fails: either a new export was added (update EX1 + CONTEXT.md §Module surface)
+  // or a helper was accidentally removed (check roadmap-reconcile.cjs module.exports).
+  const expected = [
+    '_checkSummaryExists',
+    '_checkSummaryFailed',
+    '_resetMocks',
+    '_rollupObjectiveStatus',
+    '_setRunFs',
+    '_walkTrdLines',
+    '_writeReconciledRoadmap',
+    'reconcile',
+  ].sort();
+  const actual = Object.keys(reconcile).sort();
+  assert.deepStrictEqual(actual, expected,
+    `Module.exports surface changed. Expected: ${JSON.stringify(expected)}, Got: ${JSON.stringify(actual)}`);
+});
+
+test('EX2: module.exports block has banner comment "LOCKED by TRD 09-03"', () => {
+  const srcPath = require.resolve('./roadmap-reconcile.cjs');
+  const src = fs.readFileSync(srcPath, 'utf-8');
+  assert.match(src, /─── module\.exports — LOCKED by TRD 09-03/,
+    'Banner comment not found in roadmap-reconcile.cjs. Add the LOCKED banner per TRD 09-03 spec.');
+});
+
+// ─── Group E2E — round-trip integration ───────────────────────────────────────
+
+test('E2E1: SELF-TEST — reconcile dry-run against this repo ROADMAP shows zero drift', () => {
+  // SC-9 acceptance gate. This test must run on every npm test (no env gate).
+  // If it fails: EITHER the manual ROADMAP maintenance broke (fix .planning/ROADMAP.md)
+  //              OR the reconciler logic regressed (bisect the test file).
+  const repoRoot = process.cwd();
+  const result = reconcile.reconcile({ projectRoot: repoRoot, mode: 'dry-run' });
+  assert.strictEqual(result.changes.length, 0,
+    `Expected zero drift in this repo's ROADMAP.md but got: ${JSON.stringify(result.changes, null, 2)}`);
+});
+
+test('E2E2: fake-breakage workflow — fixture [ ] + SUMMARY → drift → write → re-run clean', { timeout: 30000 }, () => {
+  const { projectRoot, cleanup } = fixtures.buildReconcileFixtures({
+    objectives: [{
+      num: '01',
+      slug: 'foo',
+      title: 'Foo',
+      status: 'in flight',
+      trds: [
+        { id: '01-01', slug: 'a', desc: 'task one', initial_checkbox: ' ', summary: 'present' },
+      ],
+    }],
+  });
+
+  try {
+    // Step 1: dry-run shows drift ([ ] but SUMMARY present)
+    const r1 = reconcile.reconcile({ projectRoot, mode: 'dry-run' });
+    const trdChange = r1.changes.find(c => c.kind === 'trd_summary_exists');
+    assert.ok(trdChange, 'trd_summary_exists change detected in dry-run');
+
+    // Step 2: write mode applies the fix
+    const r2 = reconcile.reconcile({ projectRoot, mode: 'write', today: '2026-05-04' });
+    const writeChange = r2.changes.find(c => c.kind === 'trd_summary_exists');
+    assert.ok(writeChange, 'trd_summary_exists change applied in write mode');
+
+    const roadmapContent = fs.readFileSync(path.join(projectRoot, '.planning', 'ROADMAP.md'), 'utf-8');
+    assert.match(roadmapContent, /\[x\] 01-01-a-TRD\.md/, 'ROADMAP now shows [x]');
+
+    // Step 3: re-run dry-run is clean (idempotency)
+    const r3 = reconcile.reconcile({ projectRoot, mode: 'dry-run', today: '2026-05-04' });
+    assert.strictEqual(r3.changes.length, 0,
+      `Expected zero drift after fix but got: ${JSON.stringify(r3.changes)}`);
+  } finally {
+    cleanup();
+  }
+});
+
+test('E2E3: idempotency — run write mode twice, second run returns changes=[]', () => {
+  // SC-10 acceptance gate.
+  const { projectRoot, cleanup } = fixtures.buildReconcileFixtures({
+    objectives: [{
+      num: '01',
+      slug: 'foo',
+      title: 'Foo',
+      status: 'in flight',
+      trds: [
+        { id: '01-01', slug: 'a', desc: 'task one', initial_checkbox: ' ', summary: 'present' },
+        { id: '01-02', slug: 'b', desc: 'task two', initial_checkbox: 'x', summary: 'present' },
+      ],
+    }],
+  });
+
+  try {
+    // First run: applies drift
+    const first = reconcile.reconcile({ projectRoot, mode: 'write', today: '2026-05-04' });
+    assert.ok(first.changes.length > 0, 'first run has changes');
+
+    // Second run: everything already correct — zero changes
+    const second = reconcile.reconcile({ projectRoot, mode: 'write', today: '2026-05-04' });
+    assert.strictEqual(second.changes.length, 0,
+      `Second run must return zero changes but got: ${JSON.stringify(second.changes)}`);
+  } finally {
+    cleanup();
+  }
+});
+
+test('E2E4: drift across multiple objectives — mixed state → correct per-TRD changes', () => {
+  // SC-8 acceptance gate: round-trip integration with multiple objectives.
+  const { projectRoot, cleanup } = fixtures.buildReconcileFixtures({
+    objectives: [
+      {
+        num: '01',
+        slug: 'alpha',
+        title: 'Alpha',
+        status: 'in flight',
+        trds: [
+          { id: '01-01', slug: 'a', desc: 'done', initial_checkbox: ' ', summary: 'present' },
+          { id: '01-02', slug: 'b', desc: 'in flight', initial_checkbox: ' ' },   // no SUMMARY
+        ],
+      },
+      {
+        num: '02',
+        slug: 'beta',
+        title: 'Beta',
+        status: 'in flight',
+        trds: [
+          { id: '02-01', slug: 'c', desc: 'done', initial_checkbox: ' ', summary: 'present' },
+          { id: '02-02', slug: 'd', desc: 'done', initial_checkbox: ' ', summary: 'present' },
+        ],
+      },
+    ],
+  });
+
+  try {
+    const result = reconcile.reconcile({ projectRoot, mode: 'dry-run', today: '2026-05-04' });
+
+    // Should have: 01-01 → [x], 01-02 no change (no SUMMARY), 02-01 → [x], 02-02 → [x]
+    const trd01Changes = result.changes.filter(c => c.kind === 'trd_summary_exists' && c.objective_num === '01');
+    const trd02Changes = result.changes.filter(c => c.kind === 'trd_summary_exists' && c.objective_num === '02');
+    assert.strictEqual(trd01Changes.length, 1, 'obj 01: exactly 1 TRD change (01-01)');
+    assert.strictEqual(trd01Changes[0].trd_id, '01-01', '01-01 flipped');
+    assert.strictEqual(trd02Changes.length, 2, 'obj 02: both TRDs flipped');
+
+    // Rollup: obj 02 (all [x] after reconcile) should get status rollup
+    const rollupChanges = result.changes.filter(c => c.kind === 'objective_rollup_status');
+    const obj02Rollup = rollupChanges.find(c => c.objective_num === '02');
+    assert.ok(obj02Rollup, 'obj 02 gets rollup (all TRDs complete)');
+    // Obj 01 still has one incomplete TRD → no rollup
+    const obj01Rollup = rollupChanges.find(c => c.objective_num === '01');
+    assert.ok(!obj01Rollup, 'obj 01 no rollup (01-02 still incomplete)');
+  } finally {
+    cleanup();
+  }
 });

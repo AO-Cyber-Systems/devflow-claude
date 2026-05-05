@@ -545,9 +545,9 @@ function reconcile({ projectRoot, mode = 'write', today } = {}) {
   return result;
 }
 
-// ─── TRD 09-01/09-02: minimal exports (final lock comes in TRD 09-03) ─────────
-// NOTE: TRD 09-03 will lock the export surface with a banner comment.
-// For now, export everything needed by tests.
+// ─── module.exports — LOCKED by TRD 09-03 (8-entry surface; SC-7) ────────────
+// _findObjectiveSections + _updateProgressTable are intentionally NOT exported —
+// they're internal helpers consumed only by _rollupObjectiveStatus.
 
 module.exports = {
   reconcile,
@@ -557,8 +557,5 @@ module.exports = {
   _writeReconciledRoadmap,
   _setRunFs,
   _resetMocks,
-  // TRD 09-02:
-  _findObjectiveSections,
-  _updateProgressTable,
   _rollupObjectiveStatus,
 };
