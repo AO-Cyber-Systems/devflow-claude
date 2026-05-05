@@ -1585,9 +1585,11 @@ describe('check-todos: Group FT — Truncation + token bounds', () => {
     const out = ct.formatCheckTodosMarkdown(agg, { date: '2026-05-05' });
     // Should show truncation annotation
     assert.match(out, /\[showing 5; --all for full list \(10 total\)\]/);
-    // Should NOT render all 10 bullets (count bullet lines in ideas section)
-    // Ideas section shows exactly 5 entries (DEFAULT_LANE_TRUNCATE)
-    const bulletMatches = out.match(/^- \*\*general\*\*/gm) || [];
+    // Ideas header shows (10) total
+    assert.match(out, /## 💡 Ideas \(10\)/);
+    // Should NOT render all 10 bullets — verify truncation footer is present (means entries were cut)
+    // Count "- **dev**" bullet lines (each local entry uses area: 'dev')
+    const bulletMatches = out.match(/^- \*\*dev\*\*/gm) || [];
     assert.strictEqual(bulletMatches.length, 5, `expected 5 bullets, got ${bulletMatches.length}`);
   });
 
@@ -1597,8 +1599,8 @@ describe('check-todos: Group FT — Truncation + token bounds', () => {
     const out = ct.formatCheckTodosMarkdown(agg, { date: '2026-05-05', all: true });
     // No truncation footer
     assert.ok(!out.includes('[showing'), 'should not have truncation footer with opts.all:true');
-    // Should render all 10 bullets
-    const bulletMatches = out.match(/^- \*\*general\*\*/gm) || [];
+    // Should render all 10 bullets (each local entry uses area: 'dev')
+    const bulletMatches = out.match(/^- \*\*dev\*\*/gm) || [];
     assert.strictEqual(bulletMatches.length, 10, `expected 10 bullets, got ${bulletMatches.length}`);
   });
 

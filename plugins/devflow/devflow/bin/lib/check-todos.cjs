@@ -623,6 +623,193 @@ function aggregate({ projectRoot, refresh } = {}) {
   return result;
 }
 
+// ─── TRD 06-03: formatter ────────────────────────────────────────────────────
+
+const _LANE_META = {
+  blocked: { emoji: '🔥', title: 'Blocked-on-you' },
+  now:     { emoji: '⚡', title: 'Now' },
+  soon:    { emoji: '📋', title: 'Soon' },
+  ideas:   { emoji: '💡', title: 'Ideas' },
+};
+
+/**
+ * Return today's ISO date string (YYYY-MM-DD).
+ * @returns {string}
+ */
+function _todayDateString() {
+  return new Date().toISOString().split('T')[0];
+}
+
+/**
+ * Render the full check-todos markdown.
+ * Pure — no I/O, no process.exit. Deterministic for fixed input (use opts.date).
+ *
+ * @param {object|null} aggregate - result from aggregate()
+ * @param {{ all?: boolean, lane?: string, date?: string }} [opts]
+ * @returns {string}
+ */
+function formatCheckTodosMarkdown(aggregate, opts = {}) {
+  if (!aggregate) return '_(no aggregate result)_\n';
+
+  const showAll = !!opts.all;
+  const filterLane = (opts.lane && LANE_NAMES.includes(opts.lane)) ? opts.lane : null;
+  const dateStr = opts.date || _todayDateString();
+
+  const lines = [`# 📋 DevFlow Standup — ${dateStr}`, ''];
+
+  // Render lanes in fixed order: blocked → now → soon → ideas
+  for (const lane of LANE_NAMES) {
+    if (filterLane && filterLane !== lane) continue;  // --lane filter: omit other lanes
+    lines.push(_renderLane(lane, aggregate[lane] || [], showAll));
+  }
+
+  // Render warnings footer if any
+  if (aggregate.warnings && aggregate.warnings.length > 0) {
+    lines.push(_renderWarningsFooter(aggregate.warnings));
+  }
+
+  // Render cached/fresh footer — always last
+  lines.push(`_${aggregate.cached ? 'served from cache' : 'freshly fetched'}_`);
+
+  const output = lines.join('\n');
+
+  // Token bound: warn (not truncate) when over MAX_CHECK_TODOS_OUTPUT_CHARS
+  if (output.length > MAX_CHECK_TODOS_OUTPUT_CHARS) {
+    return output + `\n\n_⚠ output exceeds ${MAX_CHECK_TODOS_OUTPUT_CHARS} chars (${output.length}); consider --lane <name> filter_\n`;
+  }
+
+  return output + '\n';
+}
+
+/**
+ * Render a single lane section.
+ * @param {string} lane
+ * @param {object[]} entries
+ * @param {boolean} showAll
+ * @returns {string}
+ */
+function _renderLane(lane, entries, showAll) {
+  const meta = _LANE_META[lane];
+  if (!meta) return '';
+
+  const total = entries.length;
+  const limit = showAll ? total : Math.min(total, DEFAULT_LANE_TRUNCATE);
+  const shown = entries.slice(0, limit);
+
+  const lines = [`## ${meta.emoji} ${meta.title} (${total})`, ''];
+
+  if (total === 0) {
+    lines.push('_no entries_');
+    lines.push('');
+    return lines.join('\n');
+  }
+
+  for (const entry of shown) {
+    lines.push(_renderEntry(entry));
+  }
+
+  if (limit < total) {
+    lines.push('');
+    lines.push(`_[showing ${limit}; --all for full list (${total} total)]_`);
+  }
+
+  lines.push('');  // trailing blank line
+  return lines.join('\n');
+}
+
+/**
+ * Render a single entry as a bullet + attribution suffix.
+ * @param {object} entry
+ * @returns {string}
+ */
+function _renderEntry(entry) {
+  const title = _entryTitle(entry);
+  const attr = _attributionSuffix(entry);
+  return `- ${title}\n  ${attr}`;
+}
+
+/**
+ * Derive the display title for an entry, switching on source.
+ * @param {object} entry
+ * @returns {string}
+ */
+function _entryTitle(entry) {
+  if (!entry || !entry.source) {
+    return `**(unknown source)** — ${JSON.stringify(entry || {}).slice(0, 80)}`;
+  }
+  switch (entry.source) {
+    case 'gh':
+      return `**${entry.ref || ((entry.repo || '') + '#' + (entry.number || '?'))}** — ${entry.title || '(no title)'}`;
+    case 'peer':
+      return `**${entry.branch || '(unknown branch)'}** — ${entry.objective || '(no objective)'}${entry.trd ? ' · TRD ' + entry.trd : ''}`;
+    case 'initiative':
+      return `**${entry.initiative_slug || '(unknown)'}** — ${entry.question || '(no question)'}`;
+    case 'dup-detect':
+      return `**dup-detect** — ${entry.objective_id || '(unknown)'}: ${entry.resolution || 'unresolved'}`;
+    case 'local':
+      return `**${entry.area || 'general'}** — ${entry.title || '(no title)'}`;
+    default:
+      return `**(unknown source)** — ${JSON.stringify(entry).slice(0, 80)}`;
+  }
+}
+
+/**
+ * Derive the italic attribution suffix for an entry, switching on source.
+ * @param {object} entry
+ * @returns {string}
+ */
+function _attributionSuffix(entry) {
+  if (!entry || !entry.source) return '*via unknown*';
+  switch (entry.source) {
+    case 'gh': {
+      const flags = [];
+      if (entry.assigned) flags.push('assigned');
+      if (entry.mentioned) flags.push('mentioned');
+      if (entry.review_requested) flags.push('review-requested');
+      const labels = (entry.labels && entry.labels.length > 0)
+        ? ` [${entry.labels.join(', ')}]`
+        : '';
+      return `*via gh: ${flags.join('/') || 'unflagged'}${labels}*`;
+    }
+    case 'peer': {
+      const lastTs = (entry.last_commit && entry.last_commit.timestamp)
+        ? entry.last_commit.timestamp
+        : 'no recent commit';
+      return `*via peer (${entry.state || 'unknown state'}, ${lastTs})*`;
+    }
+    case 'initiative':
+      return `*via initiative ${entry.github_issue || ''}*`;
+    case 'dup-detect': {
+      const score = (entry.top_match && typeof entry.top_match.score === 'number')
+        ? ` (score ${entry.top_match.score.toFixed(2)})`
+        : '';
+      return `*via dup-detect ${entry.mode || ''}${score}*`;
+    }
+    case 'local':
+      return `*via local todo: ${entry.path || ''}*`;
+    default:
+      return '*via unknown*';
+  }
+}
+
+/**
+ * Render the warnings footer section.
+ * @param {object[]} warnings
+ * @returns {string}
+ */
+function _renderWarningsFooter(warnings) {
+  const lines = ['## ⚠ Warnings', ''];
+  for (const w of warnings) {
+    if (w.kind === 'gh_auth_failure') {
+      lines.push(`- **gh auth required:** ${w.remediation || 'gh auth refresh'}`);
+    } else {
+      lines.push(`- **${w.kind || 'unknown'}** [${w.source || 'system'}]: ${w.message || ''}`);
+    }
+  }
+  lines.push('');
+  return lines.join('\n');
+}
+
 // ─── TRD 06-01: module.exports ────────────────────────────────────────────────
 
 module.exports = {
@@ -643,6 +830,9 @@ module.exports = {
   readCheckTodosCache,
   writeCheckTodosCache,
   isCheckTodosCacheStale,
+
+  // TRD 06-03: Formatter:
+  formatCheckTodosMarkdown,
 
   // Test hooks:
   _setRunGh,
