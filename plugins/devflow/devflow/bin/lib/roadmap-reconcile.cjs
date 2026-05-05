@@ -522,6 +522,7 @@ function reconcile({ projectRoot, mode = 'write', today } = {}) {
         path: roadmapPath,
         objective_num: entry.objective_num,
         trd_id: entry.trd_id,
+        line_index: entry.line_index,  // TRD 09-03: needed for interactive apply
         before: entry.line,
         after: newLine,
       });
