@@ -433,6 +433,11 @@ Dependency order:
 
 **Gates:** none — pure utility. Available immediately for use across v1.1+.
 
+**TRDs:** 3 plans across 3 waves
+- [ ] 09-01-reconciler-engine-and-fixtures-TRD.md — reconcile() + 3 rule helpers + atomic write + buildReconcileFixtures (Wave 1, tdd) — SC-1, SC-2, SC-3
+- [ ] 09-02-objective-rollup-TRD.md — _rollupObjectiveStatus + Status line + Progress table updater + reconcile integration (Wave 2, tdd) — SC-4
+- [ ] 09-03-cli-skill-and-integration-TRD.md — df-tools sync-roadmap CLI + /devflow:sync-roadmap skill + module.exports lock + e2e self-test/idempotency (Wave 3, tdd+standard) — SC-5, SC-6, SC-7, SC-8, SC-9, SC-10
+
 ---
 
 ## Milestone v1.2 — Handoff Watcher PTY + Coordination-Layer Polish (next)
