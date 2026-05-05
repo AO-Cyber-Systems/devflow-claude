@@ -65,6 +65,68 @@ ls .planning/objectives/${OBJECTIVE}-*/RESEARCH.md 2>/dev/null
 
 **If doesn't exist:** Continue.
 
+## 2.5 Run Cross-Repo Considerations Scan
+
+Run the org-awareness scan to surface sibling-repo / eden-libs / org-Project signals BEFORE the researcher reads CONTEXT.md. This populates a durable `## Cross-Repo Considerations` section in CONTEXT.md that the researcher reads as upstream input.
+
+```bash
+CONSIDERATIONS=$(node ~/.claude/devflow/bin/df-tools.cjs org-awareness considerations "${objective_number}" 2>/dev/null || echo "")
+```
+
+If CONSIDERATIONS is empty (df-tools failed or scanners returned nothing), proceed to step 3 without writing.
+
+If CONSIDERATIONS is non-empty:
+
+```bash
+CONTEXT_PATH="${objective_dir}/${padded_objective}-CONTEXT.md"
+SECTION_HEADER="## Cross-Repo Considerations"
+
+if [[ ! -f "$CONTEXT_PATH" ]]; then
+  # Create CONTEXT.md with just this section as a starting scaffold
+  cat > "$CONTEXT_PATH" <<EOF
+---
+objective: ${objective_number}-${objective_slug}
+title: ${objective_name}
+created: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+status: in_progress
+---
+
+# Objective ${objective_number} — Context
+
+${SECTION_HEADER}
+
+${CONSIDERATIONS}
+EOF
+elif grep -q "^${SECTION_HEADER}" "$CONTEXT_PATH"; then
+  # Replace existing section body in-place
+  # Use awk to preserve everything before/after the section
+  awk -v section="${SECTION_HEADER}" -v body="${CONSIDERATIONS}" '
+    BEGIN { in_section = 0; printed_body = 0 }
+    {
+      if ($0 == section) {
+        print $0
+        print body
+        in_section = 1
+        printed_body = 1
+        next
+      }
+      if (in_section && /^## /) {
+        in_section = 0
+      }
+      if (!in_section) print $0
+    }
+  ' "$CONTEXT_PATH" > "$CONTEXT_PATH.tmp" && mv "$CONTEXT_PATH.tmp" "$CONTEXT_PATH"
+else
+  # Append section at end
+  echo "" >> "$CONTEXT_PATH"
+  echo "${SECTION_HEADER}" >> "$CONTEXT_PATH"
+  echo "" >> "$CONTEXT_PATH"
+  echo "${CONSIDERATIONS}" >> "$CONTEXT_PATH"
+fi
+```
+
+Display: "Cross-Repo Considerations refreshed in ${CONTEXT_PATH}"
+
 ## 3. Gather Objective Context
 
 ```bash
