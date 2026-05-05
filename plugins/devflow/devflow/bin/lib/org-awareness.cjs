@@ -905,16 +905,141 @@ function scanOrgOverlap({
   return out;
 }
 
-// ─── TRD 03-01 → TRD 03-03: Partial exports ──────────────────────────────────
+// ─── TRD 03-04: formatConsiderations Markdown renderer ────────────────────────
+//
+// Pure formatter — no fs/network side effects.
+// Input: { siblings, libs, org_overlap } (pre-computed scan results)
+// Output: Markdown string — 3 fixed subsections in fixed order, no leading ## header.
+//
+// Section length bounded: TOP_N=3 entries per subsection, one-line entries,
+// total output comfortably under 2000 chars (F5 regression guard).
+
+/**
+ * Render the `### Sibling repos` subsection.
+ *
+ * @param {object} scans - { siblings: { matches: [...] } }
+ * @returns {string}
+ */
+function _renderSiblingsSection(scans) {
+  const lines = ['### Sibling repos'];
+  const matches = ((scans && scans.siblings && scans.siblings.matches) || []).slice(0, TOP_N);
+  if (matches.length === 0) {
+    lines.push('_(no matches)_');
+    return lines.join('\n');
+  }
+  for (const m of matches) {
+    const objPart = m.best_objective ? `(objective ${m.best_objective})` : '';
+    const scoreStr = (typeof m.score === 'number') ? m.score.toFixed(2) : 'N/A';
+    const summaryPart = (typeof m.summary_count === 'number') ? `(${m.summary_count} recent summaries)` : '';
+    const parts = [
+      `\`${m.repo}\``,
+      objPart,
+      `— score ${scoreStr}`,
+      summaryPart,
+    ].filter(Boolean);
+    lines.push(`- ${parts.join(' ')}`);
+  }
+  return lines.join('\n');
+}
+
+/**
+ * Render the `### eden-libs candidates` subsection.
+ *
+ * @param {object} scans - { libs: { candidates: [...], scanned: boolean } }
+ * @returns {string}
+ */
+function _renderLibsSection(scans) {
+  const lines = ['### eden-libs candidates'];
+  const candidates = ((scans && scans.libs && scans.libs.candidates) || []).slice(0, TOP_N);
+  if (candidates.length === 0) {
+    lines.push('_(no matches)_');
+    return lines.join('\n');
+  }
+  for (const c of candidates) {
+    const tokensPart = (typeof c.tokens_matched === 'number' && c.tokens_matched > 0)
+      ? ` (${c.tokens_matched} token match${c.tokens_matched > 1 ? 'es' : ''})`
+      : '';
+    const entrypoint = c.entrypoint ? path.basename(c.entrypoint) : 'unknown';
+    lines.push(`- \`${c.symbol}\`${tokensPart} — exported from \`${entrypoint}\``);
+  }
+  return lines.join('\n');
+}
+
+/**
+ * Render the `### Org Project overlap` subsection.
+ *
+ * When skipped (auth unavailable): renders placeholder and OMITS misfiling line.
+ * When not skipped: renders items (capped at TOP_N) + misfiling line (always).
+ *
+ * @param {object} scans - { org_overlap: { items, warnings, skipped, misfiling } }
+ * @returns {string}
+ */
+function _renderOrgSection(scans) {
+  const lines = ['### Org Project overlap'];
+  const oo = (scans && scans.org_overlap) || {};
+
+  if (oo.skipped) {
+    lines.push('_(skipped: gh auth not available — run `gh auth refresh -h github.com -s project,read:project,repo` to enable)_');
+    return lines.join('\n');
+  }
+
+  const items = (oo.items || []).slice(0, TOP_N);
+  if (items.length === 0) {
+    lines.push('_(no matches)_');
+  } else {
+    for (const it of items) {
+      const chainTag = it.chain_match ? ' **[chain match]**' : '';
+      const kwPart = (Array.isArray(it.matched_keywords) && it.matched_keywords.length > 0)
+        ? ` (matched: ${it.matched_keywords.join(', ')})`
+        : '';
+      const issueRef = it.issue_ref || '(no ref)';
+      lines.push(`- \`${issueRef}\` — ${it.title}${chainTag} — score ${it.score}${kwPart}`);
+    }
+  }
+
+  // Misfiling line — always rendered when not skipped (blank line separator before)
+  lines.push('');
+  if (oo.misfiling) {
+    lines.push(`_Misfiling check: ${oo.misfiling.message || `resolved ${oo.misfiling.resolved_repo} differs from current ${oo.misfiling.current_repo}`}_`);
+  } else {
+    lines.push('_Misfiling check: no mismatch detected._');
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * Format all three scan results into the `## Cross-Repo Considerations` section body.
+ *
+ * IMPORTANT: output does NOT include the `## Cross-Repo Considerations` header —
+ * the caller (skill or test) adds it. This function outputs the section BODY only
+ * (the three subsections with blank line separators).
+ *
+ * @param {object} scans - { siblings, libs, org_overlap }
+ * @returns {string}
+ */
+function formatConsiderations(scans) {
+  const sections = [
+    _renderSiblingsSection(scans),
+    _renderLibsSection(scans),
+    _renderOrgSection(scans),
+  ];
+  return sections.join('\n\n');
+}
+
+// ─── TRD 03-01 → TRD 03-04: Partial exports ──────────────────────────────────
 //
 // This export block is the AUTHORITATIVE surface FOR THIS WAVE only.
-// TRD 03-04 extends this block. TRD 03-07 finalizes it
-// (asserts the full export surface via Object.keys deepStrictEqual).
+// TRD 03-07 finalizes it (asserts the full export surface via Object.keys deepStrictEqual).
 
 module.exports = {
   scanSiblings,
   scanLibs,               // TRD 03-02
   scanOrgOverlap,         // TRD 03-03
+  formatConsiderations,   // TRD 03-04
+  _renderSiblingsSection, // TRD 03-04
+  _renderLibsSection,     // TRD 03-04
+  _renderOrgSection,      // TRD 03-04
   _setRunFs,
   _resetFsMock,
   _tokenize,              // exported for tests; internal callers use directly

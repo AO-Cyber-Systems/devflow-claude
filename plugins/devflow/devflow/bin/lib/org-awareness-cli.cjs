@@ -81,9 +81,93 @@ function cmdOrgAwarenessScanOrgOverlap(cwd, args, raw) {
 }
 
 function cmdOrgAwarenessConsiderations(cwd, args, raw) {
-  // TRD 03-04/03-05 fills this in
-  process.stderr.write('considerations not yet implemented (TRD 03-04)\n');
-  process.exit(1);
+  const objective_id = args[0];
+  if (!objective_id) {
+    process.stderr.write('Usage: df-tools org-awareness considerations <objective_id> [--raw]\n');
+    process.exit(1);
+    return;
+  }
+
+  const fs = require('fs');
+  const path = require('path');
+  const { extractFrontmatter } = require('./frontmatter.cjs');
+
+  // Read PROJECT.md frontmatter for projectCtx (best-effort)
+  let projectCtx = {};
+  try {
+    const content = fs.readFileSync(path.join(cwd, '.planning', 'PROJECT.md'), 'utf-8');
+    const fm = extractFrontmatter(content) || {};
+    projectCtx = { github_repo: fm.github_repo || null, org_project: fm.org_project || null };
+  } catch { /* PROJECT.md missing — projectCtx stays empty */ }
+
+  // Read OBJECTIVE.md frontmatter for chain-walk (best-effort)
+  let frontmatter = {};
+  try {
+    const objDir = path.join(cwd, '.planning', 'objectives');
+    if (fs.existsSync(objDir)) {
+      const entries = fs.readdirSync(objDir);
+      const sub = entries.find(n => n.startsWith(`${objective_id}-`) || n === objective_id);
+      if (sub) {
+        const objMd = path.join(objDir, sub, 'OBJECTIVE.md');
+        if (fs.existsSync(objMd)) {
+          const content = fs.readFileSync(objMd, 'utf-8');
+          const fm = extractFrontmatter(content) || {};
+          if (fm.github_issue) frontmatter.github_issue = fm.github_issue;
+          if (fm.parent_issue) frontmatter.parent_issue = fm.parent_issue;
+          if (fm.org_initiative) frontmatter.org_initiative = fm.org_initiative;
+          if (fm.org_project) frontmatter.org_project = fm.org_project;
+        }
+      }
+    }
+  } catch { /* OBJECTIVE.md absent — frontmatter stays empty */ }
+
+  // Run all three scanners independently (failure in one does not block others)
+  const scans = {};
+
+  try {
+    scans.siblings = oa.scanSiblings({ objective_id, cwd });
+  } catch (e) {
+    scans.siblings = { matches: [], warnings: [`scanSiblings error: ${e.message}`], scanned_repos: 0 };
+  }
+
+  // Compute current_tokens from objective_id for scanLibs and scanOrgOverlap
+  const current_tokens = oa._tokenize ? oa._tokenize(objective_id) : new Set();
+
+  try {
+    scans.libs = oa.scanLibs({ current_tokens, cwd });
+  } catch (e) {
+    scans.libs = { candidates: [], warnings: [`scanLibs error: ${e.message}`], scanned: false, path: null };
+  }
+
+  // Derive sibling_repos for chain-match boost from sibling matches (best-effort)
+  const sibling_repos = [];
+  for (const m of (scans.siblings.matches || [])) {
+    try {
+      const sibProjContent = fs.readFileSync(path.join(m.path, 'PROJECT.md'), 'utf-8');
+      const sibFm = extractFrontmatter(sibProjContent) || {};
+      if (sibFm.github_repo) sibling_repos.push(sibFm.github_repo);
+    } catch { /* silently skip */ }
+  }
+
+  // scanOrgOverlap last (may fail on auth — graceful degradation handled inside)
+  try {
+    scans.org_overlap = oa.scanOrgOverlap({
+      objective_id,
+      current_tokens,
+      sibling_repos,
+      frontmatter,
+      projectCtx,
+    });
+  } catch (e) {
+    scans.org_overlap = { items: [], warnings: [`scanOrgOverlap error: ${e.message}`], skipped: true, misfiling: null };
+  }
+
+  if (raw) {
+    output(scans, true);
+    return;
+  }
+
+  process.stdout.write(oa.formatConsiderations(scans) + '\n');
 }
 
 // ─── cmdOrgAwarenessRoute ─────────────────────────────────────────────────────
