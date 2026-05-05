@@ -156,7 +156,7 @@ describe('df-tools intent resolve (CLI)', () => {
     assert.strictEqual(out.kind, 'api');
     assert.strictEqual(out.work, 'port');
     assert.strictEqual(out.workSource, 'OBJECTIVE.md');
-    assert.match(out.config.tdd, /spec-match/);
+    assert.match(out.config.tdd, /build first.*verify API contract parity/);
     assert.strictEqual(out.config.depth, 'comprehensive');
   });
 
@@ -424,5 +424,533 @@ describe('TRD frontmatter — type:standard and confidence', () => {
 
     // tdd should still come from defaults table (or CLAUDE.md if matched)
     assert.match(result.sources.tdd, /defaults table/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Group G — fixture builder for the 6×7 matrix
+// ---------------------------------------------------------------------------
+
+describe('intent-fixtures — buildMatrixProject', () => {
+  test('G1: buildMatrixProject() creates a project with 7 objectives for all work types', () => {
+    const matrix = fixtures.buildMatrixProject({ kind: 'api' });
+    try {
+      assert.ok(matrix.root, 'root must be set');
+      assert.ok(typeof matrix.cleanup === 'function', 'cleanup must be function');
+      assert.ok(Array.isArray(matrix.objectiveIds), 'objectiveIds must be array');
+      assert.strictEqual(matrix.objectiveIds.length, 7, 'must have 7 objectives (one per work type)');
+
+      // Verify all 7 work types are represented
+      const works = ['feature', 'port', 'refactor', 'foundation', 'bugfix', 'prototype', 'spike'];
+      for (const work of works) {
+        const found = matrix.objectiveIds.some((id) => id.includes(work));
+        assert.ok(found, `objectiveIds must include work: ${work}`);
+      }
+    } finally {
+      matrix.cleanup();
+    }
+  });
+
+  test('G2: each objective dir has valid OBJECTIVE.md with correct work frontmatter and a stub TRD', () => {
+    const matrix = fixtures.buildMatrixProject({ kind: 'api' });
+    try {
+      for (const objectiveId of matrix.objectiveIds) {
+        const objDir = path.join(matrix.root, '.planning', 'objectives', objectiveId);
+        assert.ok(fs.existsSync(objDir), `objective dir missing: ${objectiveId}`);
+
+        const objPath = path.join(objDir, 'OBJECTIVE.md');
+        assert.ok(fs.existsSync(objPath), `OBJECTIVE.md missing for: ${objectiveId}`);
+        const objContent = fs.readFileSync(objPath, 'utf-8');
+        assert.ok(objContent.includes('work:'), `OBJECTIVE.md missing work field for: ${objectiveId}`);
+
+        const trdPath = path.join(objDir, '01-01-TRD.md');
+        assert.ok(fs.existsSync(trdPath), `stub TRD missing for: ${objectiveId}`);
+        const trdContent = fs.readFileSync(trdPath, 'utf-8');
+        assert.ok(trdContent.includes('---'), `stub TRD missing frontmatter for: ${objectiveId}`);
+      }
+    } finally {
+      matrix.cleanup();
+    }
+  });
+
+  test('G3: buildMatrixProject with kind:plugin resolves all 7 cells cleanly and intent.resolve round-trips', () => {
+    const matrix = fixtures.buildMatrixProject({ kind: 'plugin' });
+    intent._resetCache();
+    try {
+      for (const objectiveId of matrix.objectiveIds) {
+        intent._resetCache();
+        let result;
+        assert.doesNotThrow(() => {
+          result = intent.resolve({
+            projectRoot: matrix.root,
+            objectiveId,
+            userHome: '/nonexistent',
+          });
+        }, `resolve threw for ${objectiveId}`);
+        assert.strictEqual(result.kind, 'plugin');
+        // All 5 new fields must be present
+        for (const f of ['security_isolation', 'back_compat', 'tdd_default', 'test_list_first', 'fixture_strategy']) {
+          assert.ok(result.config[f] !== undefined,
+            `(plugin, ${result.work}) missing config.${f} for ${objectiveId}`);
+        }
+        // constraints must be top-level array
+        assert.ok(Array.isArray(result.constraints),
+          `constraints must be array for ${objectiveId}`);
+      }
+    } finally {
+      matrix.cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Group A — provenance enum normalization
+// ---------------------------------------------------------------------------
+
+describe('provenance — enum normalization', () => {
+  let project;
+  afterEach(() => {
+    if (project) project.cleanup();
+    project = null;
+    intent._resetCache();
+  });
+
+  test('A1: (api, feature) no-override → tdd/security_isolation provenance === "table"', () => {
+    project = fixtures.buildProject({
+      projectFrontmatter: { kind: 'api' },
+      objectives: [{ id: '01-foo', work: 'feature' }],
+    });
+
+    const result = intent.resolve({
+      projectRoot: project.root,
+      objectiveId: '01-foo',
+      userHome: '/nonexistent',
+    });
+
+    assert.ok(result.provenance, 'result.provenance must exist');
+    assert.strictEqual(result.provenance.tdd, 'table',
+      `expected provenance.tdd === 'table', got: ${result.provenance && result.provenance.tdd}`);
+    assert.strictEqual(result.provenance.security_isolation, 'table',
+      `expected provenance.security_isolation === 'table', got: ${result.provenance && result.provenance.security_isolation}`);
+  });
+
+  test('A2: CLAUDE.md TDD Playbook absorption on skip cell → tdd_default provenance === "user_playbook", legacy sources preserved', () => {
+    // Use (api, prototype) which has tdd_default: skip in the table.
+    // Playbook absorption promotes skip → auto, updating sources to 'CLAUDE.md user playbook'.
+    project = fixtures.buildProject({
+      projectFrontmatter: { kind: 'api' },
+      objectives: [{ id: '01-foo', work: 'prototype' }],
+      claudeMdUser: fixtures.claudeMd({
+        tddSection: {
+          heading: 'TDD Playbook',
+          body: 'Force TDD TRDs at planning time. All features default to TDD strict. Test list first before any test code is written.',
+        },
+      }),
+    });
+
+    const result = intent.resolve({
+      projectRoot: project.root,
+      objectiveId: '01-foo',
+      userHome: project.userHome,
+    });
+
+    assert.ok(result.provenance, 'result.provenance must exist');
+    // Table has tdd_default: skip for (api, prototype); playbook promotes skip→auto
+    assert.strictEqual(result.provenance.tdd_default, 'user_playbook',
+      `expected provenance.tdd_default === 'user_playbook' (playbook promoted skip→auto), got: ${result.provenance && result.provenance.tdd_default}`);
+    // Legacy sources.tdd_default must preserve the human-readable string
+    assert.ok(result.sources && result.sources.tdd_default,
+      'result.sources.tdd_default must still exist');
+    assert.match(result.sources.tdd_default, /CLAUDE\.md user playbook/,
+      'legacy sources.tdd_default must match /CLAUDE.md user playbook/');
+  });
+
+  test('A3: OBJECTIVE.md overrides.security_isolation:single_tenant → provenance === "objective_override", wrong-tenant drops', () => {
+    project = fixtures.buildProject({
+      projectFrontmatter: { kind: 'api' },
+      objectives: [{
+        id: '01-foo',
+        work: 'feature',
+        overrides: { security_isolation: 'single_tenant' },
+      }],
+    });
+
+    const result = intent.resolve({
+      projectRoot: project.root,
+      objectiveId: '01-foo',
+      userHome: '/nonexistent',
+    });
+
+    assert.ok(result.provenance, 'result.provenance must exist');
+    assert.strictEqual(result.provenance.security_isolation, 'objective_override',
+      `expected provenance.security_isolation === 'objective_override', got: ${result.provenance && result.provenance.security_isolation}`);
+    // Wrong-tenant entry must NOT appear since security_isolation is no longer multi_tenant_required
+    const wrongTenant = (result.config.verification_commands || [])
+      .find((vc) => vc.id === 'wrong_tenant_assertion');
+    assert.strictEqual(wrongTenant, undefined,
+      'wrong_tenant_assertion must not be in verification_commands for single_tenant');
+  });
+
+  test('A4: TRD frontmatter type:tdd → provenance.tdd === "trd_override"', () => {
+    project = fixtures.buildProject({
+      projectFrontmatter: { kind: 'api' },
+      objectives: [{ id: '01-foo', work: 'feature' }],
+    });
+
+    const trdPath = path.join(project.root, '.planning', 'objectives', '01-foo', '01-01-TRD.md');
+    fs.writeFileSync(trdPath, fixtures.trdMd({ type: 'tdd' }), 'utf-8');
+
+    const result = intent.resolve({
+      projectRoot: project.root,
+      objectiveId: '01-foo',
+      trdPath,
+      userHome: '/nonexistent',
+    });
+
+    assert.ok(result.provenance, 'result.provenance must exist');
+    assert.strictEqual(result.provenance.tdd, 'trd_override',
+      `expected provenance.tdd === 'trd_override', got: ${result.provenance && result.provenance.tdd}`);
+  });
+
+  test('A5: all 9 scalar fields populated on result.provenance for any (kind, work) cell', () => {
+    // Use (plugin, feature) — no overrides, clean table-sourced resolution
+    project = fixtures.buildProject({
+      projectFrontmatter: { kind: 'plugin' },
+      objectives: [{ id: '01-foo', work: 'feature' }],
+    });
+
+    const result = intent.resolve({
+      projectRoot: project.root,
+      objectiveId: '01-foo',
+      userHome: '/nonexistent',
+    });
+
+    assert.ok(result.provenance, 'result.provenance must exist');
+    const SCALAR_FIELDS = ['tdd', 'depth', 'model_profile', 'verification',
+      'security_isolation', 'back_compat', 'tdd_default', 'test_list_first', 'fixture_strategy'];
+    for (const f of SCALAR_FIELDS) {
+      assert.ok(result.provenance[f] !== undefined,
+        `result.provenance.${f} must be populated (got undefined)`);
+      assert.notStrictEqual(result.provenance[f], null,
+        `result.provenance.${f} must not be null`);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Group B — full-matrix 6 kinds × 7 works round-trip
+// ---------------------------------------------------------------------------
+
+describe('matrix — 6 kinds × 7 works round-trip', () => {
+  test('B1: all 42 cells have result.config (9 fields) + result.provenance (9 fields) + correct kind/work', () => {
+    const SCALAR_FIELDS = ['tdd', 'depth', 'model_profile', 'verification',
+      'security_isolation', 'back_compat', 'tdd_default', 'test_list_first', 'fixture_strategy'];
+
+    for (const kind of intent.VALID_KINDS) {
+      intent._resetCache();
+      const matrix = fixtures.buildMatrixProject({ kind });
+      try {
+        for (const objectiveId of matrix.objectiveIds) {
+          intent._resetCache();
+          const result = intent.resolve({
+            projectRoot: matrix.root,
+            objectiveId,
+            userHome: '/nonexistent',
+          });
+          assert.strictEqual(result.kind, kind,
+            `kind mismatch for ${objectiveId}: expected ${kind}, got ${result.kind}`);
+          assert.ok(result.work,
+            `work missing for ${objectiveId}`);
+          // All 9 scalar config fields present
+          for (const f of SCALAR_FIELDS) {
+            assert.ok(result.config[f] !== undefined,
+              `(${kind}, ${result.work}) config.${f} missing for ${objectiveId}`);
+          }
+          // All 9 scalar provenance fields present
+          assert.ok(result.provenance,
+            `result.provenance missing for ${objectiveId}`);
+          for (const f of SCALAR_FIELDS) {
+            assert.ok(result.provenance[f] !== undefined,
+              `(${kind}, ${result.work}) provenance.${f} missing for ${objectiveId}`);
+          }
+        }
+      } finally {
+        matrix.cleanup();
+      }
+    }
+  });
+
+  test('B2: (api, *) — cells with multi_tenant_required get wrong-tenant entry, others do not', () => {
+    // Table truth (from defaults-table.md):
+    //   multi_tenant_required → feature, port, refactor, bugfix (4 cells)
+    //   single_tenant → foundation (1 cell)
+    //   n/a → prototype, spike (2 cells)
+    // Only multi_tenant_required cells get the wrong_tenant_assertion injected.
+    intent._resetCache();
+    const matrix = fixtures.buildMatrixProject({ kind: 'api' });
+    try {
+      const WITH_WRONG_TENANT = new Set(['feature', 'port', 'refactor', 'bugfix']);
+      const WITHOUT_WRONG_TENANT = new Set(['foundation', 'prototype', 'spike']);
+
+      for (const objectiveId of matrix.objectiveIds) {
+        intent._resetCache();
+        const result = intent.resolve({
+          projectRoot: matrix.root,
+          objectiveId,
+          userHome: '/nonexistent',
+        });
+
+        const hasWrongTenant = (result.config.verification_commands || [])
+          .some((vc) => vc.id === 'wrong_tenant_assertion');
+
+        if (WITH_WRONG_TENANT.has(result.work)) {
+          assert.ok(hasWrongTenant,
+            `(api, ${result.work}) should have wrong_tenant_assertion but doesn't`);
+        } else if (WITHOUT_WRONG_TENANT.has(result.work)) {
+          assert.strictEqual(hasWrongTenant, false,
+            `(api, ${result.work}) should NOT have wrong_tenant_assertion but does`);
+        }
+      }
+    } finally {
+      matrix.cleanup();
+    }
+  });
+
+  test('B3: (plugin, feature) → fixture_strategy === "generators" with provenance "table"', () => {
+    intent._resetCache();
+    const matrix = fixtures.buildMatrixProject({ kind: 'plugin' });
+    try {
+      const featureId = matrix.objectiveIds.find((id) => id.includes('feature'));
+      assert.ok(featureId, 'could not find feature objective in plugin matrix');
+
+      intent._resetCache();
+      const result = intent.resolve({
+        projectRoot: matrix.root,
+        objectiveId: featureId,
+        userHome: '/nonexistent',
+      });
+
+      assert.strictEqual(result.config.fixture_strategy, 'generators',
+        `(plugin, feature) fixture_strategy should be 'generators', got: ${result.config.fixture_strategy}`);
+      assert.ok(result.provenance,
+        'result.provenance must exist');
+      assert.strictEqual(result.provenance.fixture_strategy, 'table',
+        `(plugin, feature) provenance.fixture_strategy should be 'table', got: ${result.provenance && result.provenance.fixture_strategy}`);
+    } finally {
+      matrix.cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Group D — explicit overrides cascade (multi-level)
+// ---------------------------------------------------------------------------
+
+describe('overrides — multi-level cascade', () => {
+  let project;
+  afterEach(() => {
+    if (project) project.cleanup();
+    project = null;
+    intent._resetCache();
+  });
+
+  test('D1: OBJECTIVE.md overrides.security_isolation:single_tenant → drops wrong-tenant, provenance objective_override', () => {
+    // Same as A3 but verifies via direct library call with explicit cascade check
+    project = fixtures.buildProject({
+      projectFrontmatter: { kind: 'api' },
+      objectives: [{
+        id: '01-foo',
+        work: 'feature',
+        overrides: { security_isolation: 'single_tenant' },
+      }],
+    });
+
+    const result = intent.resolve({
+      projectRoot: project.root,
+      objectiveId: '01-foo',
+      userHome: '/nonexistent',
+    });
+
+    assert.strictEqual(result.config.security_isolation, 'single_tenant',
+      'security_isolation must be single_tenant from OBJECTIVE.md override');
+    assert.ok(result.provenance,
+      'result.provenance must exist');
+    assert.strictEqual(result.provenance.security_isolation, 'objective_override',
+      `expected provenance.security_isolation === 'objective_override', got: ${result.provenance && result.provenance.security_isolation}`);
+    const wrongTenant = (result.config.verification_commands || [])
+      .find((vc) => vc.id === 'wrong_tenant_assertion');
+    assert.strictEqual(wrongTenant, undefined, 'wrong_tenant_assertion must drop for single_tenant');
+  });
+
+  test('D2: OBJECTIVE.md overrides.fixture_strategy:cassettes → config.fixture_strategy === "cassettes", provenance objective_override', () => {
+    project = fixtures.buildProject({
+      projectFrontmatter: { kind: 'api' },
+      objectives: [{
+        id: '01-foo',
+        work: 'feature',
+        overrides: { fixture_strategy: 'cassettes' },
+      }],
+    });
+
+    const result = intent.resolve({
+      projectRoot: project.root,
+      objectiveId: '01-foo',
+      userHome: '/nonexistent',
+    });
+
+    assert.strictEqual(result.config.fixture_strategy, 'cassettes',
+      `fixture_strategy should be 'cassettes', got: ${result.config.fixture_strategy}`);
+    assert.ok(result.provenance,
+      'result.provenance must exist');
+    assert.strictEqual(result.provenance.fixture_strategy, 'objective_override',
+      `expected provenance.fixture_strategy === 'objective_override', got: ${result.provenance && result.provenance.fixture_strategy}`);
+  });
+
+  test('D3: TRD frontmatter outside_in:false overrides OBJECTIVE.md outside_in:true, provenance trd_override', () => {
+    project = fixtures.buildProject({
+      projectFrontmatter: { kind: 'api' },
+      objectives: [{
+        id: '01-foo',
+        work: 'feature',
+        overrides: { outside_in: 'true' },
+      }],
+    });
+
+    // TRD frontmatter sets outside_in: false — should win over OBJECTIVE override
+    const trdPath = path.join(project.root, '.planning', 'objectives', '01-foo', '01-01-TRD.md');
+    // Write TRD with outside_in: false (boolean false in frontmatter)
+    const trdContent = '---\nobjective: 01-test\ntrd: 01\ntype: tdd\noutside_in: false\n---\n\nTest TRD.\n';
+    fs.writeFileSync(trdPath, trdContent, 'utf-8');
+
+    const result = intent.resolve({
+      projectRoot: project.root,
+      objectiveId: '01-foo',
+      trdPath,
+      userHome: '/nonexistent',
+    });
+
+    // TRD frontmatter outside_in:false must win
+    assert.strictEqual(result.config.outside_in, false,
+      `outside_in should be false from TRD override, got: ${result.config.outside_in}`);
+    assert.ok(result.provenance,
+      'result.provenance must exist');
+    assert.strictEqual(result.provenance.outside_in, 'trd_override',
+      `expected provenance.outside_in === 'trd_override', got: ${result.provenance && result.provenance.outside_in}`);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Group E — CLI surface integration (full schema in JSON output)
+// ---------------------------------------------------------------------------
+
+describe('CLI — full schema in JSON output', () => {
+  let project;
+  afterEach(() => {
+    if (project) project.cleanup();
+    project = null;
+    intent._resetCache();
+  });
+
+  test('E1: df-tools intent resolve returns JSON with result.provenance as top-level field (sources also present)', () => {
+    project = fixtures.buildProject({
+      projectFrontmatter: { kind: 'api' },
+      objectives: [{ id: '01-foo', work: 'feature' }],
+    });
+
+    const r = runTool(['intent', 'resolve', '--objective', '01-foo'], project.root);
+    assert.ok(r.ok, `CLI failed: ${r.stderr}`);
+    const out = JSON.parse(r.stdout);
+
+    assert.ok(out.provenance, 'CLI output must include result.provenance');
+    assert.ok(out.sources, 'CLI output must still include result.sources (back-compat)');
+    // provenance must have at least one known scalar field
+    assert.ok(out.provenance.tdd, 'provenance.tdd must be present in CLI output');
+    // sources must preserve its legacy format
+    assert.match(out.sources.tdd, /defaults table/, 'sources.tdd must still use human-readable string');
+  });
+
+  test('E2: --raw flag produces compact JSON with both provenance and sources fields', () => {
+    project = fixtures.buildProject({
+      projectFrontmatter: { kind: 'plugin' },
+      objectives: [{ id: '01-foo', work: 'feature' }],
+    });
+
+    const r = runTool(['--raw', 'intent', 'resolve', '--objective', '01-foo'], project.root);
+    assert.ok(r.ok, `CLI --raw failed: ${r.stderr}`);
+    const out = JSON.parse(r.stdout);
+
+    assert.ok(out.provenance, 'raw CLI output must include result.provenance');
+    assert.ok(out.sources, 'raw CLI output must still include result.sources');
+    // Compact: no pretty-print
+    assert.ok(!r.stdout.includes('\n  '), 'raw output should not be pretty-printed');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Group F — back-compat and regressions
+// ---------------------------------------------------------------------------
+
+describe('back-compat — existing functionality', () => {
+  let project;
+  afterEach(() => {
+    if (project) project.cleanup();
+    project = null;
+    intent._resetCache();
+  });
+
+  test('F1: existing suite still passes — result.sources.tdd matches /defaults table/ for unmodified resolution', () => {
+    // F1 is meta-implicit (the suite runs), but F2 explicitly checks sources back-compat
+    project = fixtures.buildProject({
+      projectFrontmatter: { kind: 'api' },
+      objectives: [{ id: '01-foo', work: 'feature' }],
+    });
+
+    const result = intent.resolve({
+      projectRoot: project.root,
+      objectiveId: '01-foo',
+      userHome: '/nonexistent',
+    });
+
+    // Legacy contract: sources.tdd still uses freeform string
+    assert.match(result.sources.tdd, /defaults table/,
+      'sources.tdd must still match /defaults table/ (legacy back-compat)');
+    // New contract: provenance also exists
+    assert.ok(result.provenance, 'result.provenance must be added without removing sources');
+  });
+
+  test('F2: result.sources keeps freeform strings alongside provenance enum values — no unknown provenance for clean matrix', () => {
+    // Verify no 'unknown' provenance appears for any (kind, work) cell with no overrides
+    const SCALAR_FIELDS = ['tdd', 'depth', 'model_profile', 'verification',
+      'security_isolation', 'back_compat', 'tdd_default', 'test_list_first', 'fixture_strategy'];
+
+    for (const kind of intent.VALID_KINDS) {
+      const matrix = fixtures.buildMatrixProject({ kind });
+      intent._resetCache();
+      try {
+        for (const objectiveId of matrix.objectiveIds) {
+          intent._resetCache();
+          const result = intent.resolve({
+            projectRoot: matrix.root,
+            objectiveId,
+            userHome: '/nonexistent',
+          });
+          assert.ok(result.provenance,
+            `result.provenance missing for ${objectiveId}`);
+          for (const f of SCALAR_FIELDS) {
+            assert.notStrictEqual(result.provenance[f], 'unknown',
+              `(${kind}, ${result.work}) provenance.${f} === 'unknown' — sources string not recognized: ${result.sources && result.sources[f]}`);
+          }
+          // Legacy sources must still be freeform strings
+          for (const f of SCALAR_FIELDS) {
+            if (result.sources[f]) {
+              assert.strictEqual(typeof result.sources[f], 'string',
+                `sources.${f} must remain a string for back-compat`);
+            }
+          }
+        }
+      } finally {
+        matrix.cleanup();
+      }
+    }
   });
 });
