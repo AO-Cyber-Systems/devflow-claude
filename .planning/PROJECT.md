@@ -1,6 +1,8 @@
 ---
 kind: plugin
 default_work: feature
+org: AO-Cyber-Systems
+github_repo: AO-Cyber-Systems/devflow-claude
 ---
 
 # DevFlow Claude

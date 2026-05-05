@@ -237,6 +237,20 @@ RESEARCH_CONTENT=$(echo "$INIT" | jq -r '.research_content // empty')
 VERIFICATION_CONTENT=$(echo "$INIT" | jq -r '.verification_content // empty')
 UAT_CONTENT=$(echo "$INIT" | jq -r '.uat_content // empty')
 CONTEXT_CONTENT=$(echo "$INIT" | jq -r '.context_content // empty')
+
+# Extract Cross-Repo Considerations section from CONTEXT.md (TRD 03-06)
+# Section was written by /devflow:research-objective per TRD 03-05.
+# Optional: missing section/CONTEXT.md → empty placeholder.
+if [[ -n "$CONTEXT_CONTENT" ]]; then
+  CROSS_REPO=$(printf '%s' "$CONTEXT_CONTENT" | awk '
+    /^## Cross-Repo Considerations/ { in_section = 1; print; next }
+    in_section && /^## / { in_section = 0 }
+    in_section { print }
+  ')
+fi
+if [[ -z "$CROSS_REPO" ]]; then
+  CROSS_REPO="_(none — research-objective did not run, or scan returned empty)_"
+fi
 ```
 
 ## 9. Spawn planner Agent
@@ -286,6 +300,12 @@ If context exists below, it contains user decisions. Honor them exactly.
 **Research:** {research_content}
 **Gap Closure (if --gaps):** {verification_content} {uat_content}
 </planning_context>
+
+<additional_context>
+**Cross-Repo Considerations (from CONTEXT.md, advisory):**
+
+{CROSS_REPO}
+</additional_context>
 
 <downstream_consumer>
 Output consumed by /devflow:execute-objective. Plans need:

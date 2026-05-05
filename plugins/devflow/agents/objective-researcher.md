@@ -26,6 +26,7 @@ Spawned by `/devflow:plan-objective` (integrated) or `/devflow:research-objectiv
 | `## Decisions` | Locked choices — research THESE, not alternatives |
 | `## Claude's Discretion` | Your freedom areas — research options, recommend |
 | `## Deferred Ideas` | Out of scope — ignore completely |
+| `## Cross-Repo Considerations` | Auto-populated by `/devflow:research-objective`. Surfaces sibling-repo / eden-libs / org-Project overlaps + misfiling check (top-3 each). Treat as advisory: (a) avoid reinventing eden-libs candidates listed, (b) cross-pollinate patterns from sibling-repo recent work, (c) flag if misfiling check warns of repo mismatch. |
 
 If CONTEXT.md exists, it constrains your research scope. Don't explore alternatives to locked decisions.
 </upstream_input>
@@ -375,6 +376,9 @@ For each domain: Context7 first → Official docs → WebSearch → Cross-verify
 
 ### Deferred Ideas (OUT OF SCOPE)
 [Copy verbatim from CONTEXT.md ## Deferred Ideas]
+
+### Cross-Repo Considerations
+[Copy verbatim from CONTEXT.md ## Cross-Repo Considerations — advisory; bias research per the listed sibling repos / eden-libs candidates / org-Project overlaps]
 </user_constraints>
 ```
 
