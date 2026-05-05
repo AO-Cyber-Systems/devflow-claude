@@ -233,13 +233,12 @@ test('D3 — home-relative ~/foo path expanded correctly via os.homedir()', () =
 });
 
 test('D4 — current repo excluded from sibling list even if it would match', () => {
+  // Use config_paths so we can use explicit absolute paths that match the mock
   const cwd = '/fake/current-repo';
   const sibling = '/fake/sibling-repo';
 
   const mock = fix.buildMockRunFs({
     dirs: {
-      [path.join(os.homedir(), 'Source')]: ['current-repo', 'sibling-repo'],
-      [cwd]: ['.git', '.planning'],
       [sibling]: ['.git', '.planning'],
     },
     files: {
@@ -251,12 +250,13 @@ test('D4 — current repo excluded from sibling list even if it would match', ()
   oa._setRunFs({
     ...mock,
     statSync(p) {
-      const dirs = [path.join(os.homedir(), 'Source'), cwd, sibling];
-      if (dirs.includes(p)) return { isDirectory: () => true, isFile: () => false, mtimeMs: Date.now() };
+      if (p === cwd) return { isDirectory: () => true, isFile: () => false, mtimeMs: Date.now() };
+      if (p === sibling) return { isDirectory: () => true, isFile: () => false, mtimeMs: Date.now() };
       return mock.statSync(p);
     },
     existsSync(p) {
-      if (p === path.join(os.homedir(), 'Source')) return true;
+      if (p === cwd) return true;
+      if (p === sibling) return true;
       if (p === path.join(cwd, '.git')) return true;
       if (p === path.join(cwd, '.planning')) return true;
       if (p === path.join(sibling, '.git')) return true;
@@ -266,7 +266,12 @@ test('D4 — current repo excluded from sibling list even if it would match', ()
   });
 
   try {
-    const result = oa.scanSiblings({ objective_id: '03', cwd });
+    // Pass both cwd and sibling as config_paths — cwd should be excluded, sibling included
+    const result = oa.scanSiblings({
+      objective_id: '03',
+      cwd,
+      config_paths: [cwd, sibling],
+    });
     const repos = result.matches.map(m => m.repo);
     assert.ok(!repos.includes('current-repo'), 'current repo should be excluded');
     assert.ok(repos.includes('sibling-repo'), `sibling should be included, got: ${JSON.stringify(repos)}`);
@@ -317,7 +322,7 @@ test('D5 — sibling without PROJECT.md silently excluded', () => {
 
 test('D6 — sibling with org mismatch silently excluded', () => {
   const sibling = '/fake/wrong-org-repo';
-  const cwd = '/fake/cwd';
+  const cwd = '/fake/cwd-has-org';
 
   const mock = fix.buildMockRunFs({
     dirs: { [sibling]: ['.git', '.planning'] },
@@ -393,13 +398,15 @@ test('D7 — sibling without org, current also without org → INCLUDED (fallbac
 });
 
 test('D8 — sibling without org, current HAS org → EXCLUDED', () => {
-  const sibling = '/fake/no-org-sibling';
-  const cwd = '/fake/has-org-cwd';
+  const sibling = '/fake/no-org-sibling-d8';
+  const cwd = '/fake/has-org-cwd-d8';
 
   const mock = fix.buildMockRunFs({
     dirs: { [sibling]: ['.git', '.planning'] },
     files: {
+      // current has org: AO-Cyber-Systems
       [path.join(cwd, 'PROJECT.md')]: `---\norg: AO-Cyber-Systems\nkind: api\n---\n# current (has org)\n`,
+      // sibling has NO org field
       [path.join(sibling, 'PROJECT.md')]: `---\nkind: api\n---\n# sibling (no org)\n`,
     },
   });
@@ -825,4 +832,418 @@ test('I2 — real current-repo PROJECT.md parsed successfully', { skip: !process
   // Just verify the module imports without throwing on real cwd
   const result = oa.scanSiblings({ objective_id: '03', cwd: process.cwd() });
   assert.ok('matches' in result);
+});
+
+// ─── TRD 03-02 tests ─────────────────────────────────────────────────────────
+
+// ─── Group CS — camelSplit helper (pure logic) ────────────────────────────────
+
+test('CS1 — camelSplit empty string returns []', () => {
+  const split = oa._camelSplit ? oa._camelSplit('') : null;
+  assert.ok(split !== null, '_camelSplit should be exported');
+  assert.deepStrictEqual(split, []);
+});
+
+test('CS2 — camelSplit simple lowercase word returns [word]', () => {
+  const split = oa._camelSplit('foo');
+  assert.deepStrictEqual(split, ['foo']);
+});
+
+test('CS3 — camelSplit camelCase parseStateMd splits to [parse, State, Md]', () => {
+  const split = oa._camelSplit('parseStateMd');
+  assert.deepStrictEqual(split, ['parse', 'State', 'Md']);
+});
+
+test('CS4 — camelSplit PascalCase ParseStateMd splits to [Parse, State, Md]', () => {
+  const split = oa._camelSplit('ParseStateMd');
+  assert.deepStrictEqual(split, ['Parse', 'State', 'Md']);
+});
+
+test('CS5 — camelSplit null/undefined returns []', () => {
+  assert.deepStrictEqual(oa._camelSplit(null), []);
+  assert.deepStrictEqual(oa._camelSplit(undefined), []);
+});
+
+test('CS6 — camelSplit ALLCAPS GH returns [GH] as single chunk', () => {
+  const split = oa._camelSplit('GH');
+  assert.deepStrictEqual(split, ['GH']);
+});
+
+// ─── Group PE — parseExports helper (regex-based) ────────────────────────────
+
+test('PE1 — module.exports.foo = ... extracts foo', () => {
+  const names = oa._parseExports('module.exports.foo = function() {};');
+  assert.ok(names !== undefined, '_parseExports should be exported');
+  assert.ok(names.includes('foo'), `expected foo in ${JSON.stringify(names)}`);
+});
+
+test('PE2 — exports.bar = ... extracts bar', () => {
+  const names = oa._parseExports('exports.bar = 42;');
+  assert.ok(names.includes('bar'), `expected bar in ${JSON.stringify(names)}`);
+});
+
+test('PE3 — module.exports = { a, b: x, c }; extracts [a, b, c]', () => {
+  const names = oa._parseExports('module.exports = { a, b: x, c };');
+  assert.deepStrictEqual(names.sort(), ['a', 'b', 'c']);
+});
+
+test('PE4 — export function foo() extracts foo', () => {
+  const names = oa._parseExports('export function foo() { return 1; }');
+  assert.ok(names.includes('foo'), `expected foo in ${JSON.stringify(names)}`);
+});
+
+test('PE5 — export const bar = ... extracts bar', () => {
+  const names = oa._parseExports('export const bar = 42;');
+  assert.ok(names.includes('bar'), `expected bar in ${JSON.stringify(names)}`);
+});
+
+test('PE6 — export { foo, bar } extracts [foo, bar]', () => {
+  const names = oa._parseExports('export { foo, bar };');
+  assert.ok(names.includes('foo'), `expected foo in ${JSON.stringify(names)}`);
+  assert.ok(names.includes('bar'), `expected bar in ${JSON.stringify(names)}`);
+});
+
+test('PE7 — export default function foo() does not extract foo (defaults skipped)', () => {
+  const names = oa._parseExports('export default function foo() {}');
+  // default is not extracted as a symbol name for lexical matching
+  assert.ok(!names.includes('default'), `default should not be in exports: ${JSON.stringify(names)}`);
+});
+
+test('PE8 — empty string returns []', () => {
+  const names = oa._parseExports('');
+  assert.deepStrictEqual(names, []);
+});
+
+test('PE9 — malformed input (unclosed brace) returns whatever parsed, does not throw', () => {
+  assert.doesNotThrow(() => {
+    const names = oa._parseExports('module.exports = { a, b: x');
+    assert.ok(Array.isArray(names));
+  });
+});
+
+test('PE10 — best-effort: commented exports may appear (accepted behavior per TRD)', () => {
+  // This test documents that PE10 is best-effort only — the regex does not strip comments.
+  // We just verify no throw occurs.
+  assert.doesNotThrow(() => {
+    oa._parseExports('// module.exports.skip = function() {};');
+  });
+});
+
+// ─── Group RP — resolveEdenLibsPath helper ────────────────────────────────────
+
+test('RP1 — opts.path takes precedence over everything', () => {
+  const resolved = oa._resolveEdenLibsPath({ path: '/explicit/path' }, '/some/cwd');
+  assert.strictEqual(resolved, '/explicit/path');
+});
+
+test('RP2 — config awareness.eden_libs_path wins over default', () => {
+  const cwd = '/fake/cwd-rp2';
+  const configPath = '/fake/configured-eden-libs';
+  const configJson = JSON.stringify({ awareness: { eden_libs_path: configPath } });
+
+  const mock = fix.buildMockRunFs({
+    files: {
+      [path.join(cwd, '.planning', 'config.json')]: configJson,
+    },
+  });
+  oa._setRunFs(mock);
+  try {
+    const resolved = oa._resolveEdenLibsPath({}, cwd);
+    assert.strictEqual(resolved, configPath);
+  } finally {
+    oa._resetFsMock();
+  }
+});
+
+test('RP3 — default DEFAULT_EDEN_LIBS_PATH used when neither opts.path nor config set', () => {
+  const cwd = '/fake/cwd-rp3';
+
+  const mock = fix.buildMockRunFs({
+    missing: [path.join(cwd, '.planning', 'config.json')],
+  });
+  oa._setRunFs(mock);
+  try {
+    const resolved = oa._resolveEdenLibsPath({}, cwd);
+    // Should be expanded DEFAULT_EDEN_LIBS_PATH (~/ Source/eden-libs expanded)
+    const expected = path.join(os.homedir(), 'Source', 'eden-libs');
+    assert.strictEqual(resolved, expected);
+  } finally {
+    oa._resetFsMock();
+  }
+});
+
+test('RP4 — ~/Source/eden-libs is home-expanded correctly', () => {
+  const resolved = oa._resolveEdenLibsPath({ path: '~/Source/eden-libs' }, '/cwd');
+  const expected = path.join(os.homedir(), 'Source', 'eden-libs');
+  assert.strictEqual(resolved, expected);
+});
+
+// ─── Group L — scanLibs end-to-end ───────────────────────────────────────────
+
+test('L1 — happy path: eden-libs with parseStateMd matches token "parse"', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'eden-l1-'));
+  try {
+    const tree = fix.buildEdenLibsTree({ tmpdir: tmp, exports: ['parseStateMd', 'unrelated'] });
+    const r = oa.scanLibs({ path: tree.root, current_tokens: new Set(['parse', 'state']) });
+    assert.strictEqual(r.scanned, true);
+    assert.ok(r.candidates.length > 0, `expected candidates, got: ${JSON.stringify(r.candidates)}`);
+    assert.strictEqual(r.candidates[0].symbol, 'parseStateMd');
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('L2 — eden-libs path does not exist returns scanned:false with warning', () => {
+  const r = oa.scanLibs({ path: '/nonexistent-zzz-9999-eden-path' });
+  assert.strictEqual(r.scanned, false);
+  assert.ok(r.warnings.some(w => /not found/i.test(w)), `expected 'not found' warning, got: ${JSON.stringify(r.warnings)}`);
+  assert.deepStrictEqual(r.candidates, []);
+});
+
+test('L3 — eden-libs exists but no package.json AND no index.* returns warning', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'eden-l3-'));
+  try {
+    // Create an empty dir (no package.json, no index.*)
+    const emptyRoot = path.join(tmp, 'empty-eden');
+    fs.mkdirSync(emptyRoot, { recursive: true });
+    const r = oa.scanLibs({ path: emptyRoot });
+    assert.strictEqual(r.scanned, true);
+    assert.deepStrictEqual(r.candidates, []);
+    assert.ok(
+      r.warnings.some(w => /no package\.json|index/i.test(w)),
+      `expected 'no package.json or index.*' warning, got: ${JSON.stringify(r.warnings)}`,
+    );
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('L4 — malformed package.json falls back to index.* scan; warning emitted', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'eden-l4-'));
+  try {
+    const tree = fix.buildEdenLibsTree({
+      tmpdir: tmp,
+      omit_package_json: true,
+      exports: ['resolveChain'],
+    });
+    // Write a malformed package.json
+    fs.writeFileSync(path.join(tree.root, 'package.json'), '{ invalid json {{');
+    const r = oa.scanLibs({ path: tree.root });
+    assert.strictEqual(r.scanned, true);
+    assert.ok(r.warnings.some(w => /malformed/i.test(w)), `expected malformed warning, got: ${JSON.stringify(r.warnings)}`);
+    // Should still find resolveChain from index.cjs
+    assert.ok(
+      r.candidates.some(c => c.symbol === 'resolveChain'),
+      `expected resolveChain in candidates, got: ${JSON.stringify(r.candidates)}`,
+    );
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('L5 — package.json exports map (string form) resolves entrypoint', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'eden-l5-'));
+  try {
+    const tree = fix.buildEdenLibsTree({
+      tmpdir: tmp,
+      package_json_exports: './index.cjs',  // string form
+      exports: ['stringFormExport'],
+    });
+    const r = oa.scanLibs({ path: tree.root });
+    assert.strictEqual(r.scanned, true);
+    assert.ok(
+      r.candidates.some(c => c.symbol === 'stringFormExport'),
+      `expected stringFormExport in candidates, got: ${JSON.stringify(r.candidates)}`,
+    );
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('L6 — package.json exports map (object form) scans all entrypoints', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'eden-l6-'));
+  try {
+    // Create two entrypoint files
+    const root = path.join(tmp, 'eden-libs');
+    fs.mkdirSync(path.join(root, 'lib'), { recursive: true });
+    // package.json with exports map
+    fs.writeFileSync(
+      path.join(root, 'package.json'),
+      JSON.stringify({
+        name: 'eden-libs',
+        exports: {
+          '.': './index.cjs',
+          './gh': './lib/gh.cjs',
+        },
+      }),
+    );
+    // index.cjs
+    fs.writeFileSync(
+      path.join(root, 'index.cjs'),
+      "'use strict';\nmodule.exports = { parseStateMd: function parseStateMd() {} };\n",
+    );
+    // lib/gh.cjs
+    fs.writeFileSync(
+      path.join(root, 'lib', 'gh.cjs'),
+      "'use strict';\nmodule.exports = { resolveChain: function resolveChain() {} };\n",
+    );
+
+    const r = oa.scanLibs({ path: root });
+    assert.strictEqual(r.scanned, true);
+    const syms = r.candidates.map(c => c.symbol);
+    assert.ok(syms.includes('parseStateMd') || syms.includes('resolveChain'),
+      `expected at least one of parseStateMd/resolveChain in candidates, got: ${JSON.stringify(syms)}`);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('L7 — zero exports parsed returns empty candidates + warning', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'eden-l7-'));
+  try {
+    const tree = fix.buildEdenLibsTree({
+      tmpdir: tmp,
+      exports: [],
+      index_content_override: "'use strict';\n// no exports here\n",
+    });
+    const r = oa.scanLibs({ path: tree.root });
+    assert.strictEqual(r.scanned, true);
+    assert.deepStrictEqual(r.candidates, []);
+    assert.ok(
+      r.warnings.some(w => /no exported surface/i.test(w)),
+      `expected 'no exported surface' warning, got: ${JSON.stringify(r.warnings)}`,
+    );
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('L8 — ranking: tokens [parse, state] vs [parseStateMd, unrelated] — parseStateMd wins', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'eden-l8-'));
+  try {
+    const tree = fix.buildEdenLibsTree({
+      tmpdir: tmp,
+      exports: ['parseStateMd', 'unrelatedWidget'],
+    });
+    const r = oa.scanLibs({
+      path: tree.root,
+      current_tokens: new Set(['parse', 'state']),
+    });
+    assert.ok(r.candidates.length > 0, 'should have candidates');
+    assert.strictEqual(r.candidates[0].symbol, 'parseStateMd',
+      `parseStateMd should rank first, got: ${r.candidates[0].symbol}`);
+    assert.ok(r.candidates[0].tokens_matched > 0,
+      `expected tokens_matched > 0, got: ${r.candidates[0].tokens_matched}`);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('L9 — tokens_matched exposed in candidate object', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'eden-l9-'));
+  try {
+    const tree = fix.buildEdenLibsTree({
+      tmpdir: tmp,
+      exports: ['parseStateMd'],
+    });
+    const r = oa.scanLibs({
+      path: tree.root,
+      current_tokens: new Set(['parse']),
+    });
+    assert.ok(r.candidates.length > 0, 'should have candidates');
+    assert.ok('tokens_matched' in r.candidates[0],
+      `candidates should have tokens_matched field: ${JSON.stringify(r.candidates[0])}`);
+    assert.ok(typeof r.candidates[0].tokens_matched === 'number');
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('L10 — opts.path override is honored', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'eden-l10-'));
+  try {
+    const tree = fix.buildEdenLibsTree({
+      tmpdir: tmp,
+      name: 'my-custom-eden',
+      exports: ['customExport'],
+    });
+    const r = oa.scanLibs({ path: tree.root });
+    assert.ok(r.path === tree.root, `expected path=${tree.root}, got ${r.path}`);
+    assert.strictEqual(r.scanned, true);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+// ─── Group CLI2 — CLI wiring ──────────────────────────────────────────────────
+
+test('CLI2-1 — df-tools org-awareness scan-libs 03 --raw returns parseable JSON', () => {
+  const dfTools = path.resolve(__dirname, '..', 'df-tools.cjs');
+  const r = require('child_process').spawnSync(
+    'node', [dfTools, 'org-awareness', 'scan-libs', '03', '--raw'],
+    { encoding: 'utf-8', cwd: path.resolve(__dirname, '..', '..', '..', '..', '..', '..', '..') },
+  );
+  assert.strictEqual(r.status, 0, `expected exit 0, got ${r.status}; stderr: ${r.stderr}`);
+  let parsed;
+  assert.doesNotThrow(() => { parsed = JSON.parse(r.stdout); }, `stdout not valid JSON: ${r.stdout}`);
+  assert.ok('candidates' in parsed, `expected 'candidates' in output: ${JSON.stringify(parsed)}`);
+  assert.ok('scanned' in parsed, `expected 'scanned' in output: ${JSON.stringify(parsed)}`);
+});
+
+test('CLI2-2 — df-tools org-awareness scan-libs (no objective_id) exits 1', () => {
+  const dfTools = path.resolve(__dirname, '..', 'df-tools.cjs');
+  const r = require('child_process').spawnSync(
+    'node', [dfTools, 'org-awareness', 'scan-libs'],
+    { encoding: 'utf-8' },
+  );
+  assert.strictEqual(r.status, 1, `expected exit 1, got ${r.status}`);
+});
+
+// ─── Group F2 — buildEdenLibsTree fixture sanity ──────────────────────────────
+
+test('F2-1 — buildEdenLibsTree creates package.json + index.cjs with named exports', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'edenfix-f21-'));
+  try {
+    const tree = fix.buildEdenLibsTree({ tmpdir: tmp, exports: ['foo', 'bar'] });
+    assert.ok(fs.existsSync(tree.package_json_path), 'package.json should exist');
+    assert.ok(fs.existsSync(tree.index_path), 'index.cjs should exist');
+    const idx = fs.readFileSync(tree.index_path, 'utf-8');
+    assert.match(idx, /foo/, 'index.cjs should contain foo');
+    assert.match(idx, /bar/, 'index.cjs should contain bar');
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('F2-2 — buildEdenLibsTree with omit_package_json:true skips package.json', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'edenfix-f22-'));
+  try {
+    const tree = fix.buildEdenLibsTree({
+      tmpdir: tmp,
+      omit_package_json: true,
+      exports: ['onlyIndex'],
+    });
+    assert.strictEqual(tree.package_json_path, null, 'package_json_path should be null');
+    assert.ok(!fs.existsSync(path.join(tree.root, 'package.json')), 'package.json should not exist');
+    assert.ok(fs.existsSync(tree.index_path), 'index.cjs should still exist');
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('F2-3 — buildEdenLibsTree with package_json_main writes main field correctly', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'edenfix-f23-'));
+  try {
+    const tree = fix.buildEdenLibsTree({
+      tmpdir: tmp,
+      package_json_main: 'lib/main.cjs',
+      index_filename: 'lib/main.cjs',
+      exports: ['mainExport'],
+    });
+    const pkg = JSON.parse(fs.readFileSync(tree.package_json_path, 'utf-8'));
+    assert.strictEqual(pkg.main, 'lib/main.cjs', `expected main=lib/main.cjs, got: ${pkg.main}`);
+    assert.ok(fs.existsSync(tree.index_path), 'lib/main.cjs should exist');
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
 });

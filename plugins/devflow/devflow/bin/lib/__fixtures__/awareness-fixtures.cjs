@@ -438,6 +438,77 @@ function buildMockRunFs({ files = {}, dirs = {}, missing = [], mtimes = {} } = {
   };
 }
 
+// ─── TRD 03-02: eden-libs fixture builder ─────────────────────────────────────
+
+/**
+ * Create a tmp filesystem fixture representing an eden-libs repo.
+ *
+ * Directory structure created:
+ *   ${tmpdir}/${name}/
+ *     package.json       (unless omit_package_json: true)
+ *     ${index_filename}  (named exports; or index_content_override if set)
+ *
+ * IMPORTANT: caller is responsible for cleanup via fs.rmSync(root, { recursive: true, force: true }).
+ *
+ * @param {object}   opts
+ * @param {string}   opts.tmpdir                  - parent tmp dir (required)
+ * @param {string}   [opts.name]                  - dir name (default: 'eden-libs')
+ * @param {boolean}  [opts.omit_package_json]     - if true, skip package.json
+ * @param {string}   [opts.package_json_main]     - main field (default: 'index.cjs')
+ * @param {*}        [opts.package_json_exports]  - exports field (null | string | object)
+ * @param {string}   [opts.index_filename]        - index file name (default: 'index.cjs')
+ * @param {string[]} [opts.exports]               - export symbol names (default: ['parseStateMd', 'resolveChain'])
+ * @param {string}   [opts.index_content_override] - override the generated index content
+ * @returns {{ root: string, index_path: string, package_json_path: string|null }}
+ */
+function buildEdenLibsTree({
+  tmpdir,
+  name = 'eden-libs',
+  omit_package_json = false,
+  package_json_main = 'index.cjs',
+  package_json_exports = null,
+  index_filename = 'index.cjs',
+  exports: exportNames = ['parseStateMd', 'resolveChain'],
+  index_content_override = null,
+} = {}) {
+  if (!tmpdir) throw new Error('buildEdenLibsTree: tmpdir is required');
+
+  const root = path.join(tmpdir, name);
+  fs.mkdirSync(root, { recursive: true });
+
+  let package_json_path = null;
+  if (!omit_package_json) {
+    const pkg = {
+      name: 'eden-libs',
+      version: '0.0.1',
+      main: package_json_main,
+    };
+    if (package_json_exports != null) pkg.exports = package_json_exports;
+    package_json_path = path.join(root, 'package.json');
+    fs.writeFileSync(package_json_path, JSON.stringify(pkg, null, 2));
+  }
+
+  const indexPath = path.join(root, index_filename);
+  // Ensure parent dir exists (for cases where index_filename has nested path like 'lib/main.cjs')
+  fs.mkdirSync(path.dirname(indexPath), { recursive: true });
+
+  let indexContent = index_content_override;
+  if (indexContent == null) {
+    const lines = [];
+    lines.push("'use strict';");
+    lines.push('');
+    lines.push('module.exports = {');
+    for (const sym of exportNames) {
+      lines.push(`  ${sym}: function ${sym}() { return null; },`);
+    }
+    lines.push('};');
+    indexContent = lines.join('\n') + '\n';
+  }
+  fs.writeFileSync(indexPath, indexContent);
+
+  return { root, index_path: indexPath, package_json_path };
+}
+
 // ─── exports ──────────────────────────────────────────────────────────────────
 
 module.exports = {
@@ -459,4 +530,6 @@ module.exports = {
   // TRD 03-01:
   buildSiblingRepoTree,
   buildMockRunFs,
+  // TRD 03-02:
+  buildEdenLibsTree,
 };
