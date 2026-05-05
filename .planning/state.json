@@ -65,6 +65,36 @@
       "objective": "06-unified-check-todos",
       "summary": "SKILL.md REWRITE: /devflow:check-todos now delegates to df-tools check-todos $ARGUMENTS (thin-orchestrator); legacy workflows/check-todos.md preserved for df-tools list-todos.",
       "rationale": null
+    },
+    {
+      "objective": "08-01",
+      "summary": "Snapshots written manually after visual ANSI inspection; never auto-regenerated (mirrors obj 1 cassette discipline)",
+      "rationale": null
+    },
+    {
+      "objective": "08-01",
+      "summary": "_sanitize() replaces ESC byte with '?' in user-supplied text to prevent ANSI injection from branch names/org titles",
+      "rationale": null
+    },
+    {
+      "objective": "08-01",
+      "summary": "no_color contract: strips FG color codes only (\\x1b[3xm); BOLD/DIM/RESET structural escapes preserved",
+      "rationale": null
+    },
+    {
+      "objective": "08-program-aware-tui",
+      "summary": "tui-cli.cjs: idempotent _cleanup via _cleaned guard; non-TTY auto-fallback on !isTTY; hand-rolled key dispatch; --raw implies --once in parser",
+      "rationale": null
+    },
+    {
+      "objective": "08",
+      "summary": "EX1 passed at RED (08-01/08-02 produced exact 7-entry surface); EX3 banner-absent was the true RED gate for TRD 08-03",
+      "rationale": null
+    },
+    {
+      "objective": "08",
+      "summary": "SKILL_PATH path math corrected: 3 ups from lib/ (not 4) to reach plugins/devflow/skills/; used ../../../skills/tui/SKILL.md",
+      "rationale": null
     }
   ],
   "blockers": [],

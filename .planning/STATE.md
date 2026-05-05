@@ -17,7 +17,8 @@
 **Objective complete:** 4 — Duplicate-work detection + 4-option resolution flow (verified 2026-05-05, 967/987 tests pass, all 10 SC met, 6 TRDs done)
 **Objective complete:** 5 — Initiative context layer (verified 2026-05-05, 1097/1097 tests pass, all 10 SC met, 5 TRDs done)
 **Objective complete:** 6 — Unified check-todos morning-standup view (verified 2026-05-05, 1290/1291 tests pass, all 10 SC met, 4 TRDs done, SC-6 through SC-10 closed)
-**Branch:** `feature/v1.1-obj-6-check-todos`
+**Objective complete:** 8 — Program-aware TUI viewer (verified 2026-05-05, 1356/1356 tests pass, all 10 SC met, 3 TRDs done, SC-6 + SC-9 + SC-10 closed)
+**Branch:** `feature/v1.1-obj-8-tui`
 **Status:** Ready to plan
 
 ## Branch State (post-merge)
@@ -157,6 +158,6 @@
 
 ## Session Continuity
 
-Last session: 2026-05-05 — TRD 05-05 (export-surface lock + token-budget + integration tests) complete. 1097/1097 tests pass (0 fail, 23 skip). Objective 5 DONE. All 10 SC closed.
+Last session: 2026-05-05 — TRD 08-03 (export-lock + /devflow:tui skill + E2E self-test) complete. 1356/1356 tests pass (0 fail, 24 skip). Objective 8 DONE. v1.1 COMPLETE. All 10 SC closed.
 Resume file: `.planning/SESSION_PICKUP.md`
-Stopped at: Completed 05-05-library-export-and-integration-TRD.md
+Stopped at: Completed 08-03-skill-and-export-lock-TRD.md
