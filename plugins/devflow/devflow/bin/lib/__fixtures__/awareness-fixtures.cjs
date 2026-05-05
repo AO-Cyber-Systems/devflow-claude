@@ -747,6 +747,122 @@ function buildDupDetectFixtures({
   };
 }
 
+// ─── TRD 05-01: Initiative file fixture builders ──────────────────────────────
+
+/**
+ * Build a complete initiative file content string (frontmatter + body sections).
+ * Locked schema per CONTEXT.md decision #2.
+ *
+ * @param {object} opts
+ * @param {string}   [opts.slug]              - lowercased-hyphenated slug
+ * @param {string}   [opts.github_issue]      - issue ref (owner/repo#NN)
+ * @param {string}   [opts.parent_project]    - org Project node id (or null)
+ * @param {string[]} [opts.key_repos]         - array of github_repo strings
+ * @param {string}   [opts.title]             - human title (rendered as # Heading)
+ * @param {string}   [opts.why]               - Why section body (markdown)
+ * @param {string[]} [opts.open_questions]    - bullet items (without leading "- ")
+ * @param {Array<{ref,title,state}>} [opts.sub_issues] - sub-issue entries
+ * @param {string}   [opts.status]            - GitHub state label (OPEN/CLOSED)
+ * @param {string}   [opts.project_status]    - Project Status field (e.g., "In Progress")
+ * @param {string}   [opts.quarter]           - Project Quarter field
+ * @param {string}   [opts.updated_at]        - ISO-8601 timestamp
+ * @returns {string} - full markdown file content
+ */
+function buildInitiativeFile({
+  slug = 'test-initiative',
+  github_issue = 'AO-Cyber-Systems/devflow#30',
+  parent_project = 'AO-Cyber-Systems/PVT_kwDODwqLrc4BRsOP',
+  key_repos = ['AO-Cyber-Systems/devflow', 'AO-Cyber-Systems/devflow-claude'],
+  title = 'Test Initiative',
+  why = 'This initiative exists to test the initiative reader.',
+  open_questions = ['Question 1?', 'Question 2?'],
+  sub_issues = [
+    { ref: 'AO-Cyber-Systems/devflow-claude#9', title: 'DevFlow Coordination Layer', state: 'OPEN' },
+  ],
+  status = 'OPEN',
+  project_status = 'In Progress',
+  quarter = 'Q2 2026',
+  updated_at = '2026-05-05T18:30:00Z',
+} = {}) {
+  const lines = [];
+  lines.push('---');
+  lines.push(`slug: ${slug}`);
+  lines.push(`github_issue: ${github_issue}`);
+  lines.push(`parent_project: ${parent_project}`);
+  lines.push('key_repos:');
+  for (const r of key_repos) lines.push(`  - ${r}`);
+  lines.push(`updated_at: ${updated_at}`);
+  lines.push('---');
+  lines.push('');
+  lines.push(`# ${title}`);
+  lines.push('');
+  lines.push('## Why');
+  lines.push('');
+  lines.push(why);
+  lines.push('');
+  lines.push('## Open Questions');
+  lines.push('');
+  for (const q of open_questions) lines.push(`- ${q}`);
+  lines.push('');
+  lines.push('## Linked Sub-issues');
+  lines.push('');
+  for (const si of sub_issues) lines.push(`- ${si.ref} — ${si.title} (${si.state})`);
+  lines.push('');
+  lines.push('## Status');
+  lines.push('');
+  lines.push(`- **GitHub:** ${status}`);
+  lines.push(`- **Project status:** ${project_status}`);
+  lines.push(`- **Quarter:** ${quarter}`);
+  lines.push(`- **Updated:** ${updated_at}`);
+  lines.push('');
+  return lines.join('\n');
+}
+
+/**
+ * Build just the frontmatter portion (for round-trip parse tests).
+ * @param {object} opts - subset of buildInitiativeFile opts
+ * @returns {string} - YAML frontmatter (with --- markers)
+ */
+function buildInitiativeYaml({
+  slug = 'test-initiative',
+  github_issue = 'AO-Cyber-Systems/devflow#30',
+  parent_project = 'AO-Cyber-Systems/PVT_kwDODwqLrc4BRsOP',
+  key_repos = ['AO-Cyber-Systems/devflow'],
+  updated_at = '2026-05-05T18:30:00Z',
+} = {}) {
+  const lines = ['---'];
+  lines.push(`slug: ${slug}`);
+  lines.push(`github_issue: ${github_issue}`);
+  lines.push(`parent_project: ${parent_project}`);
+  lines.push('key_repos:');
+  for (const r of key_repos) lines.push(`  - ${r}`);
+  lines.push(`updated_at: ${updated_at}`);
+  lines.push('---');
+  return lines.join('\n');
+}
+
+/**
+ * Write a fixture initiative-projection home dir with multiple <slug>.md files.
+ * Mirror of buildSiblingRepoTree pattern but for initiative files.
+ *
+ * @param {object}   opts
+ * @param {string}   opts.tmpdir   - REQUIRED — base dir to write files under
+ * @param {Array<object>} [opts.files] - array of buildInitiativeFile opts (each one becomes one file)
+ * @returns {{ home: string, slugs: string[] }}
+ */
+function buildInitiativesHomeTree({ tmpdir, files = [] } = {}) {
+  if (!tmpdir) throw new Error('buildInitiativesHomeTree: tmpdir is required');
+  if (!fs.existsSync(tmpdir)) fs.mkdirSync(tmpdir, { recursive: true });
+  const slugs = [];
+  for (const fileOpts of files) {
+    const content = buildInitiativeFile(fileOpts);
+    const slug = fileOpts.slug || 'test-initiative';
+    fs.writeFileSync(path.join(tmpdir, `${slug}.md`), content, 'utf-8');
+    slugs.push(slug);
+  }
+  return { home: tmpdir, slugs };
+}
+
 // ─── exports ──────────────────────────────────────────────────────────────────
 
 module.exports = {
@@ -777,4 +893,8 @@ module.exports = {
   buildPeerScanResult,
   buildOrgOverlapMatch,
   buildDupDetectFixtures,
+  // TRD 05-01:
+  buildInitiativeFile,
+  buildInitiativeYaml,
+  buildInitiativesHomeTree,
 };
