@@ -28,7 +28,9 @@ const INITIATIVES_HOME_REL = path.join('.claude', 'devflow', 'initiatives');
 const MAX_WHY_CHARS = 1500;
 const MAX_QUESTIONS_BULLETS = 7;
 const MAX_SUBISSUES_LINES = 15;
-const MAX_FORMATTED_PLANNER_CHARS = 1500;
+// TRD 05-05: Reduced from 1500 → 1200 so that 5-initiative composition ≤ 6 KB (5×1200+32=6032).
+// Both per-initiative (≤1200) and composition (≤6KB) budgets are satisfied at this value.
+const MAX_FORMATTED_PLANNER_CHARS = 1200;
 const MAX_PLANNER_FORMAT_WHY = 500;    // narrower than MAX_WHY_CHARS for planner format
 const MAX_PLANNER_FORMAT_SUBISSUES = 5;
 
@@ -636,7 +638,11 @@ async function syncInitiatives(opts) {
   return { ok: true, written, deleted, skipped, warnings };
 }
 
-// ─── Partial exports — finalized in TRD 05-05 ─────────────────────────────────
+// ─── module.exports — LOCKED by TRD 05-05 (23-entry surface; SC-8) ───────────
+//
+// This block is the authoritative export surface for lib/initiatives.cjs.
+// Asserted by EX1 test: Object.keys(module.exports).sort() deepStrictEqual.
+// DO NOT add or remove entries without updating the EX1 test + 05-CONTEXT.md §"Module surface".
 
 module.exports = {
   // Reader (TRD 05-01):
