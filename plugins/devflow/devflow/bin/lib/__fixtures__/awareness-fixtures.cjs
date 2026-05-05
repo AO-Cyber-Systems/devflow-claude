@@ -567,6 +567,186 @@ function buildOrgOverlapFixture({
   };
 }
 
+// ─── TRD 04-01: dup-detect fixture builders ───────────────────────────────────
+
+/**
+ * Build a single peer-scanner branch entry shape.
+ * Mirrors the shape that awareness.scanPeer() returns per branch.
+ *
+ * @param {object} opts
+ * @param {string}   [opts.branch]             - "feature/v1.1-obj-04-dup-detect"
+ * @param {string}   [opts.objective]          - "04-duplicate-work-detection"
+ * @param {string}   [opts.github_issue]       - "AO-Cyber-Systems/devflow-claude#13"
+ * @param {string[]} [opts.files_modified]     - file paths from peer TRD frontmatter (pre-read)
+ * @param {string}   [opts.last_commit_iso]    - ISO timestamp of last commit
+ * @param {string}   [opts.trd]               - "04-01"
+ * @param {string}   [opts.developer]         - "mark"
+ * @returns {object}
+ */
+function buildPeerBranch({
+  branch = 'feature/v1.1-obj-04-dup-detect',
+  objective = '04-duplicate-work-detection',
+  github_issue = null,
+  files_modified = [],
+  last_commit_iso = '2026-05-04T10:00:00Z',
+  trd = '04-01',
+  developer = 'mark',
+} = {}) {
+  return {
+    branch,
+    objective,
+    trd,
+    github_issue,
+    files_modified,
+    last_commit: last_commit_iso,
+    developer,
+  };
+}
+
+/**
+ * Build a scanPeer()-shaped result (wraps branches array for mock returns).
+ *
+ * @param {object}   opts
+ * @param {object[]} [opts.branches]        - array of buildPeerBranch results
+ * @param {string}   [opts.current_branch]  - "feature/v1.1-obj-04-dup-detect"
+ * @param {string}   [opts.fetched_at]      - ISO timestamp
+ * @param {string[]} [opts.warnings]        - []
+ * @returns {object}
+ */
+function buildPeerScanResult({
+  branches = [],
+  current_branch = 'feature/v1.1',
+  fetched_at = new Date().toISOString(),
+  warnings = [],
+} = {}) {
+  return { branches, current_branch, fetched_at, warnings };
+}
+
+/**
+ * Build a single scanOrgOverlap items[] entry shape.
+ * Mirrors the shape that scanOrgOverlap() returns per item.
+ *
+ * @param {object} opts
+ * @param {string}   [opts.issue_ref]          - "AO-Cyber-Systems/devflow-claude#13"
+ * @param {string}   [opts.title]              - "Duplicate work detection"
+ * @param {number}   [opts.score]              - overlap score (0-1)
+ * @param {boolean}  [opts.chain_match]        - true if matched via issue chain
+ * @param {string[]} [opts.matched_keywords]   - ["duplicate", "detection"]
+ * @returns {object}
+ */
+function buildOrgOverlapMatch({
+  issue_ref = 'AO-Cyber-Systems/devflow-claude#13',
+  title = 'Duplicate work detection',
+  score = 0.5,
+  chain_match = false,
+  matched_keywords = [],
+} = {}) {
+  return {
+    issue_ref,
+    title,
+    score,
+    chain_match,
+    matched_keywords,
+  };
+}
+
+/**
+ * Combined fixture helper returning paired peer + org-overlap fixtures
+ * for end-to-end detection tests.
+ *
+ * Returns variants with hard/strong/weak signal variations:
+ * - hard: peer with same github_issue as current
+ * - strong_file: peer with >=2 overlapping files_modified
+ * - strong_keyword: peer with >=3 overlapping keywords
+ * - weak: peer with 1 overlapping keyword
+ * - no_match: peer with no overlap
+ * - org_hard: org-overlap item with chain_match: true + matching issue_ref
+ *
+ * @param {object} opts
+ * @param {string}   [opts.current_issue]   - "AO-Cyber-Systems/devflow-claude#13"
+ * @param {string[]} [opts.current_files]   - current objective's files_modified
+ * @returns {object}
+ */
+function buildDupDetectFixtures({
+  current_issue = 'AO-Cyber-Systems/devflow-claude#13',
+  current_files = [
+    'plugins/devflow/devflow/bin/lib/dup-detect.cjs',
+    'plugins/devflow/devflow/bin/lib/dup-detect.test.cjs',
+    'plugins/devflow/devflow/bin/df-tools.cjs',
+  ],
+} = {}) {
+  const hardPeer = buildPeerBranch({
+    branch: 'feature/v1.1-peer-hard-match',
+    objective: '04-duplicate-work-detection',
+    github_issue: current_issue,
+    files_modified: ['plugins/devflow/devflow/bin/lib/some-other.cjs'],
+  });
+
+  const strongFilePeer = buildPeerBranch({
+    branch: 'feature/v1.1-peer-strong-file',
+    objective: '04-something-similar',
+    github_issue: null,
+    files_modified: [
+      'plugins/devflow/devflow/bin/lib/dup-detect.cjs',
+      'plugins/devflow/devflow/bin/lib/dup-detect.test.cjs',
+    ],
+  });
+
+  const strongKeywordPeer = buildPeerBranch({
+    branch: 'feature/v1.1-peer-strong-keyword',
+    objective: 'duplicate work detection engine',
+    github_issue: null,
+    files_modified: [],
+  });
+
+  const weakPeer = buildPeerBranch({
+    branch: 'feature/v1.1-peer-weak',
+    objective: 'duplicate checker tool',
+    github_issue: null,
+    files_modified: [],
+  });
+
+  const noMatchPeer = buildPeerBranch({
+    branch: 'feature/v1.1-peer-no-match',
+    objective: 'unrelated database migration',
+    github_issue: null,
+    files_modified: ['plugins/devflow/devflow/bin/lib/unrelated.cjs'],
+  });
+
+  const orgHardMatch = buildOrgOverlapMatch({
+    issue_ref: current_issue,
+    title: 'Duplicate work detection + resolution',
+    score: 0.9,
+    chain_match: true,
+    matched_keywords: ['duplicate', 'detection'],
+  });
+
+  const orgNoMatch = buildOrgOverlapMatch({
+    issue_ref: 'AO-Cyber-Systems/devflow-claude#99',
+    title: 'Some unrelated roadmap item',
+    score: 0.1,
+    chain_match: false,
+    matched_keywords: [],
+  });
+
+  return {
+    current: {
+      issue: current_issue,
+      files: current_files,
+      keywords: ['duplicate', 'work', 'detection', 'engine', 'dup', 'detect'],
+    },
+    peers: { hardPeer, strongFilePeer, strongKeywordPeer, weakPeer, noMatchPeer },
+    orgItems: { orgHardMatch, orgNoMatch },
+    // Pre-built scan results for common test scenarios
+    hardPeerScan: buildPeerScanResult({ branches: [hardPeer] }),
+    strongFileScan: buildPeerScanResult({ branches: [strongFilePeer] }),
+    strongKeywordScan: buildPeerScanResult({ branches: [strongKeywordPeer] }),
+    weakScan: buildPeerScanResult({ branches: [weakPeer] }),
+    noMatchScan: buildPeerScanResult({ branches: [noMatchPeer] }),
+    emptyScan: buildPeerScanResult({ branches: [] }),
+  };
+}
+
 // ─── exports ──────────────────────────────────────────────────────────────────
 
 module.exports = {
@@ -592,4 +772,9 @@ module.exports = {
   buildEdenLibsTree,
   // TRD 03-03:
   buildOrgOverlapFixture,
+  // TRD 04-01:
+  buildPeerBranch,
+  buildPeerScanResult,
+  buildOrgOverlapMatch,
+  buildDupDetectFixtures,
 };
