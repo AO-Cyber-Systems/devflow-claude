@@ -1900,3 +1900,18 @@ Detected duplicate-work signals at plan-time on `2026-05-05T19:54:30.510Z`:
 **Suggested handoff points:**
 - sync with peer before continuing
 
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T19:55:54.714Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
