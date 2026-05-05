@@ -1011,6 +1011,84 @@ function buildAdversarialInitiative({
   };
 }
 
+// ─── TRD 09-01: Reconcile fixture builder ────────────────────────────────────
+
+/**
+ * Build a tmpdir fixture tree for roadmap-reconcile tests.
+ * Creates:
+ *   <tmpdir>/.planning/ROADMAP.md           ← with TRD checkbox lines per objectives spec
+ *   <tmpdir>/.planning/objectives/<N>-<slug>/
+ *     <trd.id>-<slug>-TRD.md               ← always created (unless trd.no_trd_file: true)
+ *     <trd.id>-<slug>-SUMMARY.md            ← created if trd.summary = 'present' | 'failed' | 'failed-section'
+ *
+ * Per TDD Playbook habit 4: hand-built, deterministic, no LLM-generated test data.
+ *
+ * @param {object}   opts
+ * @param {object[]} [opts.objectives]         - array of { num, slug, title, status, trds: [{ id, desc, slug, summary, initial_checkbox, initial_annotation, no_trd_file }] }
+ * @param {string}   [opts.milestone_status]   - "in flight" | "complete" (default: "in flight")
+ * @returns {{ projectRoot: string, cleanup: () => void }}
+ */
+function buildReconcileFixtures({ objectives = [], milestone_status = 'in flight' } = {}) {
+  const tmpdir = path.join(os.tmpdir(), `reconcile-fixture-${process.pid}-${Date.now()}`);
+  fs.mkdirSync(path.join(tmpdir, '.planning', 'objectives'), { recursive: true });
+
+  for (const obj of objectives) {
+    const objSlug = obj.slug || 'foo';
+    const objNum = String(obj.num).padStart(2, '0');
+    const objDir = path.join(tmpdir, '.planning', 'objectives', `${objNum}-${objSlug}`);
+    fs.mkdirSync(objDir, { recursive: true });
+
+    for (const trd of obj.trds) {
+      const trdSlug = trd.slug || 'bar';
+      // Write TRD file unless explicitly suppressed (for orphan tests)
+      if (!trd.no_trd_file) {
+        const trdPath = path.join(objDir, `${trd.id}-${trdSlug}-TRD.md`);
+        fs.writeFileSync(trdPath, `---\nobjective: ${obj.num}\ntrd: ${trd.id}\n---\n# TRD ${trd.id}\n`, 'utf-8');
+      }
+      // Write SUMMARY file per requested state
+      const summaryPath = path.join(objDir, `${trd.id}-${trdSlug}-SUMMARY.md`);
+      if (trd.summary === 'present') {
+        fs.writeFileSync(summaryPath, `# Summary ${trd.id}\n\n## Self-Check: PASSED\n`, 'utf-8');
+      } else if (trd.summary === 'failed') {
+        fs.writeFileSync(summaryPath, `# Summary ${trd.id}\n\n## Self-Check: FAILED\n\n- foo: missing\n`, 'utf-8');
+      } else if (trd.summary === 'failed-section') {
+        fs.writeFileSync(summaryPath, `# Summary ${trd.id}\n\n## Self-Check\n\n- foo: FAILED\n- bar: PASSED\n`, 'utf-8');
+      }
+      // else 'missing' or undefined → no SUMMARY file written
+    }
+  }
+
+  // Build ROADMAP.md content
+  const roadmapLines = [
+    `## Milestone v1.1 — Test (${milestone_status})`,
+    '',
+  ];
+
+  for (const obj of objectives) {
+    const objNum = String(obj.num).padStart(2, '0');
+    roadmapLines.push(`### Objective ${objNum}: ${obj.title || 'Test obj'}`);
+    roadmapLines.push('');
+    roadmapLines.push(`**Status:** ${obj.status || milestone_status}`);
+    roadmapLines.push('');
+    roadmapLines.push(`**TRDs:** ${obj.trds.length} plans`);
+    roadmapLines.push('');
+    for (const trd of obj.trds) {
+      const checkboxState = trd.initial_checkbox || ' ';
+      const annotation = trd.initial_annotation ? ` ${trd.initial_annotation}` : '';
+      const trdSlug = trd.slug || 'bar';
+      roadmapLines.push(`- [${checkboxState}] ${trd.id}-${trdSlug}-TRD.md — ${trd.desc || 'desc'}${annotation}`);
+    }
+    roadmapLines.push('');
+  }
+
+  fs.writeFileSync(path.join(tmpdir, '.planning', 'ROADMAP.md'), roadmapLines.join('\n'), 'utf-8');
+
+  return {
+    projectRoot: tmpdir,
+    cleanup: () => fs.rmSync(tmpdir, { recursive: true, force: true }),
+  };
+}
+
 // ─── exports ──────────────────────────────────────────────────────────────────
 
 module.exports = {
@@ -1049,4 +1127,6 @@ module.exports = {
   buildMockRunGhForInitiatives,
   // TRD 05-05:
   buildAdversarialInitiative,
+  // TRD 09-01:
+  buildReconcileFixtures,
 };
