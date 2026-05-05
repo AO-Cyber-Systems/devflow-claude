@@ -14,8 +14,8 @@
 **Objective complete:** 1 — GitHub coordination layer (verified 2026-05-04, 563/563 tests, all 6 TRDs done, SC-9 + SC-10 met)
 **Objective complete:** 2 — Cross-repo awareness layer (verified 2026-05-04, 731/731 tests with integration flags, all 10 SC met, 7 TRDs done)
 **Objective complete:** 3 — Planning-time org awareness (verified 2026-05-05, 842/842 tests, all 10 SC met, 7 TRDs done, SC-9 + SC-10 closed)
-**Current TRD:** 04-03 complete (Wave 3 — formatDetectionMarkdown pure renderer: purpose=askuser adds 4-option resolution section; purpose=context omits it; execute-mode uses Recheck title)
-**Status:** Objective 4 in flight — 3/6 TRDs done
+**Current TRD:** 04-04 complete (Wave 4 — plan-objective workflow integration: ## 6.5 step, dup-detect --mode plan, 4-option AskUserQuestion Merge/Defer/Coordinate/Proceed, early-exit routing, advisory JSONL-only)
+**Status:** Objective 4 in flight — 4/6 TRDs done
 
 ## Branch State (post-merge)
 
@@ -122,6 +122,10 @@
 - **TRD 04-03 complete (2026-05-04)** — `lib/dup-detect.cjs` extended with TRD 04-03 region: formatDetectionMarkdown pure renderer + 4 sub-renderers (_renderMatchEntry, _renderAdvisoryEntry, _renderWarnings, _renderResolutionOptions) + 2 helpers (_sanitize, _formatScore). 14 new tests (Group FD, FD1-FD14); 958 total pass (0 fail, 20 skip). Commits: ad7ec68 (test:), 07b3a09 (feat:). SC-5 + SC-6 rendering side complete. Wave 3 complete.
 - **formatDetectionMarkdown opts fallback design (TRD 04-03)** — Unknown opts.purpose falls back to 'askuser' (more verbose; safer default). Empty detection (no matches/advisory/warnings) short-circuits to placeholder before any section rendering. Pure: no fs/network/process.exit side effects; deterministic for fixed input.
 - **purpose='context' omits resolution options (TRD 04-03)** — Coordination Note body (CONTEXT.md) doesn't repeat the 4 options the user already chose. purpose='askuser' includes them for human readability before AskUserQuestion display. Both variants share same title/matches/advisory/warnings sections.
+- **TRD 04-04 complete (2026-05-05)** — `plugins/devflow/devflow/workflows/plan-objective.md` updated: new `## 6.5 Run Duplicate-Work Detection (plan-time)` step inserted between Step 6 (Handle Research) and Step 7 (Check Existing TRDs). Runs df-tools dup-detect --mode plan; blocking match → AskUserQuestion 4-option (Merge/Defer/Coordinate/Proceed); dispatches via df-tools dup-detect resolve; Merge/Defer exit cleanly (planner NOT spawned); Coordinate/Proceed-anyway re-read CONTEXT.md and continue. Advisory JSONL-logged only (no CONTEXT.md write). 958/958 tests pass (no regressions). Commit: dd20bd2 (feat:). SC-5 + SC-6 workflow side complete. Wave 4 TRD 04-04 complete.
+- **'Proceed' label for AskUserQuestion (TRD 04-04)** — AskUserQuestion option labels have ≤12-char constraint. "Proceed-anyway" (14 chars) → "Proceed" label; dispatch case maps Proceed → proceed-anyway resolution string. Documented in mapping table in the workflow step.
+- **Advisory entries JSONL-only in v1.1 (TRD 04-04)** — Tightening from CONTEXT.md decision #6: only blocking matches write Coordination Notes to CONTEXT.md; advisory-only runs log to JSONL and display inline without persistence. Reduces CONTEXT.md noise.
+- **--gaps flag skips dup-detect (TRD 04-04)** — Gap-closure mode operates on already-shipped plans; dup-detect irrelevant. Skip step 6.5 entirely when --gaps is set.
 
 ## Blockers / Concerns
 
@@ -129,7 +133,7 @@
 
 ## Session Continuity
 
-Last session: 2026-05-04 — TRD 04-03 (formatDetectionMarkdown pure renderer) complete. 958 tests pass (0 fail, 20 skip).
+Last session: 2026-05-05 — TRD 04-04 (plan-objective workflow integration) complete. 958 tests pass (0 fail, 20 skip).
 Resume file: `.planning/SESSION_PICKUP.md`
-Stopped at: Completed 04-03-format-detection-markdown-TRD.md
-Next: TRD 04-04 (plan-objective skill integration) + TRD 04-05 (execute-objective skill integration) — parallel Wave 4
+Stopped at: Completed 04-04-plan-skill-integration-TRD.md
+Next: TRD 04-05 (execute-objective skill integration, parallel Wave 4) + TRD 04-06 (library export lock + e2e integration, Wave 5)
