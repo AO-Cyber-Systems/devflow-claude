@@ -1247,3 +1247,421 @@ test('F2-3 — buildEdenLibsTree with package_json_main writes main field correc
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 });
+
+// ─── TRD 03-03 tests ──────────────────────────────────────────────────────────
+
+// RED PHASE: scanOrgOverlap, _detectMisfiling, _scoreOrgItem not yet implemented.
+// All tests in groups SOI, MF, OO, AD, CLI3 will fail with TypeError until Task 2 implements them.
+
+const aw = require('./awareness.cjs');
+const gh = require('./gh.cjs');
+
+// Save originals for restoration in mocking tests
+const origScanOrg = aw.scanOrg;
+const origResolveChain = gh.resolveChain;
+
+// ─── Group SOI — _scoreOrgItem helper (pure logic) ───────────────────────────
+
+test('SOI1 — chain-match (sub-issue ref repo == sibling repo) adds +10 base score', () => {
+  const item = {
+    title: '[Roadmap] unrelated item',
+    body: '',
+    sub_issues: [{ ref: 'AO-Cyber-Systems/aodex#100', title: 'sub', state: 'OPEN' }],
+  };
+  const score = oa._scoreOrgItem(item, new Set(), ['AO-Cyber-Systems/aodex']);
+  assert.strictEqual(score.total, 10);
+  assert.strictEqual(score.chain_match, true);
+  assert.deepStrictEqual(score.matched_keywords, []);
+});
+
+test('SOI2 — keyword-only overlap (no chain match, 3 shared tokens) → score 3', () => {
+  const item = {
+    title: 'parse state markdown',
+    body: '',
+    sub_issues: [],
+  };
+  const score = oa._scoreOrgItem(item, new Set(['parse', 'state', 'markdown']), []);
+  assert.strictEqual(score.total, 3);
+  assert.strictEqual(score.chain_match, false);
+  assert.strictEqual(score.matched_keywords.length, 3);
+});
+
+test('SOI3 — both chain-match + keyword overlap → score 10 + keyword count', () => {
+  const item = {
+    title: 'parse state',
+    body: '',
+    sub_issues: [{ ref: 'AO-Cyber-Systems/aodex#99', title: '', state: 'OPEN' }],
+  };
+  const score = oa._scoreOrgItem(item, new Set(['parse', 'state']), ['AO-Cyber-Systems/aodex']);
+  assert.strictEqual(score.total, 12); // +10 chain + +2 keywords
+  assert.strictEqual(score.chain_match, true);
+  assert.strictEqual(score.matched_keywords.length, 2);
+});
+
+test('SOI4 — empty sub_issues → no chain match contribution', () => {
+  const item = {
+    title: 'auth flow token',
+    body: '',
+    sub_issues: [],
+  };
+  const score = oa._scoreOrgItem(item, new Set(['auth', 'flow']), ['AO-Cyber-Systems/aodex']);
+  assert.strictEqual(score.chain_match, false);
+  assert.ok(score.total < 10, 'total should be less than 10 (no chain match)');
+});
+
+test('SOI5 — no shared keywords AND no chain match → score 0', () => {
+  const item = {
+    title: 'widget layout css grid',
+    body: '',
+    sub_issues: [],
+  };
+  const score = oa._scoreOrgItem(item, new Set(['auth', 'token', 'parse']), []);
+  assert.strictEqual(score.total, 0);
+  assert.strictEqual(score.chain_match, false);
+  assert.deepStrictEqual(score.matched_keywords, []);
+});
+
+// ─── Group MF — _detectMisfiling helper (pure logic) ─────────────────────────
+
+test('MF1 — resolved roadmap_issue repo matches current github_repo → returns null', () => {
+  const r = oa._detectMisfiling(
+    { roadmap_issue: 'AO-Cyber-Systems/devflow-claude#9' },
+    { github_repo: 'AO-Cyber-Systems/devflow-claude' },
+  );
+  assert.strictEqual(r, null);
+});
+
+test('MF2 — resolved roadmap_issue repo differs from current github_repo → returns misfiling object', () => {
+  const r = oa._detectMisfiling(
+    { roadmap_issue: 'AO-Cyber-Systems/aodex#33' },
+    { github_repo: 'AO-Cyber-Systems/devflow-claude' },
+  );
+  assert.ok(r !== null, 'expected misfiling object, got null');
+  assert.strictEqual(r.current_repo, 'AO-Cyber-Systems/devflow-claude');
+  assert.strictEqual(r.resolved_repo, 'AO-Cyber-Systems/aodex');
+  assert.ok(typeof r.message === 'string' && r.message.length > 0);
+});
+
+test('MF3 — current github_repo absent (null) → returns null (no false positive)', () => {
+  const r = oa._detectMisfiling(
+    { roadmap_issue: 'AO-Cyber-Systems/aodex#33' },
+    { github_repo: null },
+  );
+  assert.strictEqual(r, null);
+});
+
+test('MF4 — roadmap_issue absent in resolveChain output → returns null', () => {
+  const r = oa._detectMisfiling(
+    { roadmap_issue: null },
+    { github_repo: 'AO-Cyber-Systems/devflow-claude' },
+  );
+  assert.strictEqual(r, null);
+});
+
+test('MF5 — roadmap_issue is shorthand #9 (no owner/repo) → treat as same-repo, return null', () => {
+  const r = oa._detectMisfiling(
+    { roadmap_issue: '#9' },
+    { github_repo: 'AO-Cyber-Systems/devflow-claude' },
+  );
+  // Short-hand refs have no repo extracted → null (no mismatch possible)
+  assert.strictEqual(r, null);
+});
+
+// ─── Group OO — scanOrgOverlap end-to-end ────────────────────────────────────
+
+test('OO1 — chain-match item ranked first despite weaker keyword overlap', () => {
+  // Item 0: chain match (sub-issue in aodex) + no matching keywords
+  // Item 1: 2 matching keywords, no chain match
+  // Item 2: 1 matching keyword, no chain match
+  // Expected: item 0 (score 10) > item 1 (score 2) > item 2 (score 1)
+  const fixture = fix.buildOrgOverlapFixture({
+    items_count: 3,
+    sibling_repos: ['AO-Cyber-Systems/aodex'],
+    matching_keywords_per_item: [[], ['parse', 'state'], ['parse']],
+    chain_matches: [0],
+  });
+
+  const origScanOrgLocal = aw.scanOrg;
+  aw.scanOrg = () => fixture;
+  try {
+    const r = oa.scanOrgOverlap({
+      objective_id: '03',
+      sibling_repos: ['AO-Cyber-Systems/aodex'],
+      current_tokens: new Set(['parse', 'state']),
+      frontmatter: { github_repo: 'AO-Cyber-Systems/devflow-claude' },
+      projectCtx: { github_repo: 'AO-Cyber-Systems/devflow-claude' },
+    });
+    assert.strictEqual(r.skipped, false);
+    assert.strictEqual(r.items.length, 3);
+    assert.strictEqual(r.items[0].issue_ref, fixture.items[0].issue_ref,
+      `chain-match item should be first, got: ${r.items[0].issue_ref}`);
+    assert.strictEqual(r.items[0].chain_match, true);
+  } finally {
+    aw.scanOrg = origScanOrgLocal;
+  }
+});
+
+test('OO2 — GhAuthError from scanOrg → returns { items: [], warnings: [...], skipped: true, misfiling: null }', () => {
+  const origScanOrgLocal = aw.scanOrg;
+  aw.scanOrg = () => {
+    const e = new Error('Authentication failed: missing scope project');
+    e.name = 'GhAuthError';
+    e.remediation = 'gh auth refresh -h github.com -s project,read:project,repo';
+    e.scopes_missing = ['project'];
+    throw e;
+  };
+  try {
+    const r = oa.scanOrgOverlap({
+      objective_id: '03',
+      frontmatter: {},
+      projectCtx: {},
+    });
+    assert.strictEqual(r.skipped, true);
+    assert.deepStrictEqual(r.items, []);
+    assert.ok(Array.isArray(r.warnings) && r.warnings.length > 0,
+      `expected non-empty warnings, got: ${JSON.stringify(r.warnings)}`);
+    assert.strictEqual(r.misfiling, null);
+  } finally {
+    aw.scanOrg = origScanOrgLocal;
+  }
+});
+
+test('OO3 — non-auth Error from scanOrg → re-thrown (not swallowed)', () => {
+  const origScanOrgLocal = aw.scanOrg;
+  aw.scanOrg = () => { throw new Error('disk full — no space left on device'); };
+  try {
+    assert.throws(
+      () => oa.scanOrgOverlap({ objective_id: '03', frontmatter: {}, projectCtx: {} }),
+      /disk full/,
+      'non-auth errors must propagate',
+    );
+  } finally {
+    aw.scanOrg = origScanOrgLocal;
+  }
+});
+
+test('OO4 — empty items from scanOrg → returns empty items, skipped: false', () => {
+  const origScanOrgLocal = aw.scanOrg;
+  aw.scanOrg = () => fix.buildOrgOverlapFixture({ items_count: 0 });
+  try {
+    const r = oa.scanOrgOverlap({
+      objective_id: '03',
+      frontmatter: {},
+      projectCtx: { github_repo: null },
+    });
+    assert.strictEqual(r.skipped, false);
+    assert.deepStrictEqual(r.items, []);
+  } finally {
+    aw.scanOrg = origScanOrgLocal;
+  }
+});
+
+test('OO5 — chain-match boost: score-1 keyword item beats score-3 keyword item if chain match', () => {
+  // Item 0: 1 keyword (score 1) + chain match (score 10+1=11)
+  // Item 1: 3 keywords (score 3), no chain match
+  const fixture = fix.buildOrgOverlapFixture({
+    items_count: 2,
+    sibling_repos: ['AO-Cyber-Systems/aodex'],
+    matching_keywords_per_item: [['parse'], ['parse', 'state', 'flow']],
+    chain_matches: [0],
+  });
+
+  const origScanOrgLocal = aw.scanOrg;
+  aw.scanOrg = () => fixture;
+  try {
+    const r = oa.scanOrgOverlap({
+      objective_id: '03',
+      sibling_repos: ['AO-Cyber-Systems/aodex'],
+      current_tokens: new Set(['parse', 'state', 'flow']),
+      frontmatter: {},
+      projectCtx: { github_repo: null },
+    });
+    assert.strictEqual(r.items[0].chain_match, true,
+      `chain-match item should be first: ${JSON.stringify(r.items.map(i => ({ cm: i.chain_match, s: i.score })))}`);
+    assert.ok(r.items[0].score > r.items[1].score,
+      `chain-match (score ${r.items[0].score}) should beat keyword-only (score ${r.items[1].score})`);
+  } finally {
+    aw.scanOrg = origScanOrgLocal;
+  }
+});
+
+test('OO6 — top-N truncation: 7 scoring items → returns 3', () => {
+  const fixture = fix.buildOrgOverlapFixture({
+    items_count: 7,
+    sibling_repos: [],
+    matching_keywords_per_item: [
+      ['parse', 'state'],
+      ['parse'],
+      ['state'],
+      ['auth', 'flow'],
+      ['token'],
+      ['auth'],
+      [],
+    ],
+    chain_matches: [],
+  });
+
+  const origScanOrgLocal = aw.scanOrg;
+  aw.scanOrg = () => fixture;
+  try {
+    const r = oa.scanOrgOverlap({
+      objective_id: '03',
+      sibling_repos: [],
+      current_tokens: new Set(['parse', 'state', 'auth', 'flow', 'token']),
+      frontmatter: {},
+      projectCtx: { github_repo: null },
+    });
+    assert.strictEqual(r.items.length, oa.TOP_N,
+      `expected ${oa.TOP_N} items, got ${r.items.length}`);
+  } finally {
+    aw.scanOrg = origScanOrgLocal;
+  }
+});
+
+test('OO7 — output has both items and misfiling keys (shape contract)', () => {
+  const origScanOrgLocal = aw.scanOrg;
+  aw.scanOrg = () => fix.buildOrgOverlapFixture({ items_count: 1 });
+  try {
+    const r = oa.scanOrgOverlap({
+      objective_id: '03',
+      frontmatter: {},
+      projectCtx: { github_repo: null },
+    });
+    assert.ok('items' in r, 'result should have items key');
+    assert.ok('misfiling' in r, 'result should have misfiling key');
+    assert.ok('warnings' in r, 'result should have warnings key');
+    assert.ok('skipped' in r, 'result should have skipped key');
+  } finally {
+    aw.scanOrg = origScanOrgLocal;
+  }
+});
+
+test('OO8 — when resolveChain throws GhAuthError, items still returned, misfiling: null + warning added', () => {
+  const origScanOrgLocal = aw.scanOrg;
+  const origResolveChainLocal = gh.resolveChain;
+  aw.scanOrg = () => fix.buildOrgOverlapFixture({ items_count: 2 });
+  gh.resolveChain = () => {
+    const e = new Error('gh auth expired');
+    e.name = 'GhAuthError';
+    e.remediation = 'gh auth refresh';
+    throw e;
+  };
+  try {
+    const r = oa.scanOrgOverlap({
+      objective_id: '03',
+      frontmatter: {},
+      projectCtx: { github_repo: 'AO-Cyber-Systems/devflow-claude' },
+    });
+    assert.strictEqual(r.skipped, false, 'scan itself should not be skipped');
+    assert.ok(r.items.length > 0, 'items should still be populated');
+    assert.strictEqual(r.misfiling, null, 'misfiling should be null when resolveChain fails');
+    assert.ok(r.warnings.some(w => /misfiling check skipped/i.test(w)),
+      `expected warning about misfiling check skip, got: ${JSON.stringify(r.warnings)}`);
+  } finally {
+    aw.scanOrg = origScanOrgLocal;
+    gh.resolveChain = origResolveChainLocal;
+  }
+});
+
+// ─── Group AD — auth degradation specific ────────────────────────────────────
+
+test('AD1 — GhAuthError thrown inside aw.scanOrg → scanOrgOverlap returns skipped:true', () => {
+  // Mirror the pattern: mock aw.scanOrg to throw GhAuthError
+  // (scanOrg internally calls requireGhAuth; this mock simulates that path)
+  const origScanOrgLocal = aw.scanOrg;
+  aw.scanOrg = () => {
+    const e = new Error('Authentication failed: missing scope project');
+    e.name = 'GhAuthError';
+    e.remediation = 'gh auth refresh -h github.com -s project,read:project,repo';
+    e.scopes_missing = ['project'];
+    throw e;
+  };
+  try {
+    const r = oa.scanOrgOverlap({
+      objective_id: '03',
+      frontmatter: {},
+      projectCtx: {},
+    });
+    assert.strictEqual(r.skipped, true, 'skipped should be true on GhAuthError');
+    assert.deepStrictEqual(r.items, []);
+  } finally {
+    aw.scanOrg = origScanOrgLocal;
+  }
+});
+
+test('AD2 — warning text in skipped result includes the remediation command', () => {
+  const remediationCmd = 'gh auth refresh -h github.com -s project,read:project,repo';
+  const origScanOrgLocal = aw.scanOrg;
+  aw.scanOrg = () => {
+    const e = new Error('Auth failed');
+    e.name = 'GhAuthError';
+    e.remediation = remediationCmd;
+    e.scopes_missing = ['project'];
+    throw e;
+  };
+  try {
+    const r = oa.scanOrgOverlap({
+      objective_id: '03',
+      frontmatter: {},
+      projectCtx: {},
+    });
+    assert.ok(
+      r.warnings.some(w => w.includes(remediationCmd)),
+      `expected warning containing '${remediationCmd}', got: ${JSON.stringify(r.warnings)}`,
+    );
+  } finally {
+    aw.scanOrg = origScanOrgLocal;
+  }
+});
+
+test('AD3 — skipped result still has misfiling key (null) for shape consistency', () => {
+  const origScanOrgLocal = aw.scanOrg;
+  aw.scanOrg = () => {
+    const e = new Error('Auth failed');
+    e.name = 'GhAuthError';
+    e.remediation = 'gh auth refresh';
+    throw e;
+  };
+  try {
+    const r = oa.scanOrgOverlap({
+      objective_id: '03',
+      frontmatter: {},
+      projectCtx: {},
+    });
+    assert.ok('misfiling' in r, 'skipped result must have misfiling key');
+    assert.strictEqual(r.misfiling, null, 'misfiling should be null when skipped');
+  } finally {
+    aw.scanOrg = origScanOrgLocal;
+  }
+});
+
+// ─── Group CLI3 — CLI wiring ──────────────────────────────────────────────────
+
+test('CLI3-1 — df-tools org-awareness scan-org-overlap 03 --raw returns parseable JSON', () => {
+  const dfTools = path.resolve(__dirname, '..', 'df-tools.cjs');
+  const r = require('child_process').spawnSync(
+    'node', [dfTools, 'org-awareness', 'scan-org-overlap', '03', '--raw'],
+    { encoding: 'utf-8', cwd: path.resolve(__dirname, '..', '..', '..', '..', '..', '..', '..') },
+  );
+  assert.strictEqual(r.status, 0, `expected exit 0, got ${r.status}; stderr: ${r.stderr}`);
+  let parsed;
+  assert.doesNotThrow(() => { parsed = JSON.parse(r.stdout); }, `stdout not valid JSON: ${r.stdout}`);
+  assert.ok('items' in parsed, `expected 'items' in output: ${JSON.stringify(parsed)}`);
+  assert.ok('skipped' in parsed, `expected 'skipped' in output: ${JSON.stringify(parsed)}`);
+  assert.ok('misfiling' in parsed, `expected 'misfiling' in output: ${JSON.stringify(parsed)}`);
+});
+
+test('CLI3-2 — under mocked auth failure via env, CLI still returns exit 0 (graceful degradation in JSON)', () => {
+  // We can't easily mock inside the CLI subprocess, but we CAN verify the current stub
+  // exits with non-zero (before TRD 03-03) vs zero (after). This test verifies the
+  // post-implementation behavior: CLI returns exit 0 even if gh auth is unavailable.
+  // The skipped:true result is surfaced via JSON, not via exit code.
+  const dfTools = path.resolve(__dirname, '..', 'df-tools.cjs');
+  const r = require('child_process').spawnSync(
+    'node', [dfTools, 'org-awareness', 'scan-org-overlap', '03', '--raw'],
+    { encoding: 'utf-8', cwd: path.resolve(__dirname, '..', '..', '..', '..', '..', '..', '..') },
+  );
+  // Whether scan ran or skipped (auth unavailable in CI/sandbox), exit code MUST be 0
+  assert.strictEqual(r.status, 0,
+    `CLI must exit 0 regardless of auth state; got ${r.status}; stderr: ${r.stderr}`);
+});

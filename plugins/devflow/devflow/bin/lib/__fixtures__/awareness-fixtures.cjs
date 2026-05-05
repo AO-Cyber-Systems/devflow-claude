@@ -509,6 +509,64 @@ function buildEdenLibsTree({
   return { root, index_path: indexPath, package_json_path };
 }
 
+// ─── TRD 03-03: org-overlap fixture builder ───────────────────────────────────
+
+/**
+ * Build a canned scanOrg-shaped result with controllable scoring inputs.
+ *
+ * Designed for testing scanOrgOverlap without hitting the network.
+ * Each item in the result has:
+ *   - An optional chain_match sub-issue (sub-issue ref in sibling_repos[0])
+ *   - Optional matching keywords in title/body
+ *
+ * @param {object}   opts
+ * @param {number}   [opts.items_count]                - number of items to generate (default: 3)
+ * @param {string[]} [opts.sibling_repos]              - sibling repo refs for chain-match (default: ['AO-Cyber-Systems/aodex'])
+ * @param {string[][]} [opts.matching_keywords_per_item] - per-item keyword arrays for title/body
+ * @param {number[]} [opts.chain_matches]              - indices of items whose sub_issues contain sibling refs
+ * @param {string}   [opts.project_id]                 - project ID (default: 'PVT_test')
+ * @param {string[]} [opts.warnings]                   - warnings on the scanOrg result
+ * @returns {object} scanOrg-shaped result
+ */
+function buildOrgOverlapFixture({
+  items_count = 3,
+  sibling_repos = ['AO-Cyber-Systems/aodex'],
+  matching_keywords_per_item = [],
+  chain_matches = [],
+  project_id = 'PVT_test',
+  warnings = [],
+} = {}) {
+  const items = [];
+  for (let i = 0; i < items_count; i++) {
+    const subs = [];
+    if (chain_matches.includes(i) && sibling_repos.length > 0) {
+      subs.push({
+        ref: `${sibling_repos[0]}#${100 + i}`,
+        title: `sub-issue for item ${i}`,
+        state: 'OPEN',
+      });
+    }
+    const kws = matching_keywords_per_item[i] || [];
+    items.push({
+      item_type: 'issue',
+      issue_ref: `AO-Cyber-Systems/devflow-claude#${50 + i}`,
+      title: kws.length > 0 ? `[Roadmap] ${kws.join(' ')}` : `[Roadmap] item ${i}`,
+      body: kws.join(' '),
+      product: 'DevFlow',
+      quarter: 'Q2 2026',
+      status: 'In Progress',
+      sub_issues: subs,
+      sub_issues_source: subs.length ? 'tracked_issues' : 'none',
+    });
+  }
+  return {
+    items,
+    fetched_at: new Date().toISOString(),
+    project_id,
+    warnings,
+  };
+}
+
 // ─── exports ──────────────────────────────────────────────────────────────────
 
 module.exports = {
@@ -532,4 +590,6 @@ module.exports = {
   buildMockRunFs,
   // TRD 03-02:
   buildEdenLibsTree,
+  // TRD 03-03:
+  buildOrgOverlapFixture,
 };
