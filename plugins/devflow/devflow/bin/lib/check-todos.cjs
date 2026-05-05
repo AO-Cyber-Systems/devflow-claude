@@ -43,6 +43,9 @@ const realFs = {
   readdirSync: (p, opts) => fs.readdirSync(p, opts),
   existsSync: (p) => fs.existsSync(p),
   statSync: (p) => fs.statSync(p),
+  // TRD 06-02: write methods for cache layer
+  writeFileSync: (p, data, opts) => fs.writeFileSync(p, data, opts),
+  mkdirSync: (p, opts) => fs.mkdirSync(p, opts),
 };
 let _runFs = realFs;
 let _runPeer = (opts) => aw.scanPeer(opts);
@@ -426,6 +429,65 @@ function _assignLane(entry, currentUser, currentRepo) {
   }
 }
 
+// ─── TRD 06-02: cache layer ───────────────────────────────────────────────────
+
+/**
+ * Read the check-todos cache file.
+ * Returns null on missing file, empty file, or malformed JSON.
+ * Never throws.
+ * @param {string} cwd - project root
+ * @returns {object|null}
+ */
+function readCheckTodosCache(cwd) {
+  const p = path.join(cwd, CHECK_TODOS_CACHE_REL);
+  if (!_runFs.existsSync(p)) return null;
+  try {
+    const content = _runFs.readFileSync(p, 'utf-8');
+    if (!content.trim()) return null;
+    return JSON.parse(content);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Write check-todos cache with MERGE semantics.
+ * Writing { gh_issues: { data, fetched_at } } preserves other 4 sections.
+ * @param {string} cwd - project root
+ * @param {object} sections - sections to write/merge
+ */
+function writeCheckTodosCache(cwd, sections) {
+  const planningDir = path.join(cwd, '.planning');
+  if (!_runFs.existsSync(planningDir)) _runFs.mkdirSync(planningDir, { recursive: true });
+  const existing = readCheckTodosCache(cwd) || {};
+  const merged = Object.assign({}, existing, sections || {});
+  _runFs.writeFileSync(
+    path.join(cwd, CHECK_TODOS_CACHE_REL),
+    JSON.stringify(merged, null, 2) + '\n',
+    'utf-8',
+  );
+}
+
+/**
+ * Returns true when fetched_at is stale relative to ttl_minutes.
+ * Same rules as obj 2 isStale: null/invalid → true, zero TTL → true,
+ * future timestamp → false (clock skew tolerance).
+ * @param {*} fetched_at - ISO 8601 string (or anything else)
+ * @param {number} [ttl_minutes] - defaults to CHECK_TODOS_TTL_MINUTES (10)
+ * @returns {boolean}
+ */
+function isCheckTodosCacheStale(fetched_at, ttl_minutes) {
+  if (fetched_at == null) return true;
+  if (typeof fetched_at !== 'string') return true;
+  const ts = Date.parse(fetched_at);
+  if (!Number.isFinite(ts)) return true;
+  const ttl = (ttl_minutes != null) ? ttl_minutes : CHECK_TODOS_TTL_MINUTES;
+  if (ttl <= 0) return true;
+  const age_ms = Date.now() - ts;
+  if (age_ms < 0) return false; // future timestamp → fresh (clock-skew tolerance)
+  return age_ms > (ttl * 60_000);
+}
+
 // ─── TRD 06-01: aggregate ─────────────────────────────────────────────────────
 
 /**
@@ -444,63 +506,111 @@ function aggregate({ projectRoot, refresh } = {}) {
     soon: [],
     ideas: [],
     warnings: [],
-    cached: false, // TRD 06-02 will set true on cache hit
+    cached: false,
   };
 
   // Resolve current user + current repo for lane assignment
   const currentUser = _detectCurrentUser({ cwd: projectRoot });
   const currentRepo = _detectCurrentRepo({ cwd: projectRoot });
 
-  // 1. Local todos
-  let localEntries = [];
-  try {
-    localEntries = _fetchLocalTodos(projectRoot || process.cwd(), {});
-  } catch (err) {
-    result.warnings.push({ source: 'local', kind: 'fetch_error', message: err.message });
-  }
+  // ── Cache check ─────────────────────────────────────────────────────────────
+  // Per-source granularity: each section has its own fetched_at.
+  // refresh=true bypasses cache entirely.
+  const cache = refresh ? null : readCheckTodosCache(projectRoot || process.cwd());
+  const sectionsToWrite = {};
+  let allFromCache = (cache !== null);
 
-  // 2. GH issues — catches GhAuthError specifically
-  let ghEntries = [];
-  try {
-    const org = currentRepo ? currentRepo.split('/')[0] : null;
-    ghEntries = _fetchGhIssues({ org });
-  } catch (err) {
-    if (err && err.name === 'GhAuthError') {
-      result.warnings.push({
-        source: 'gh',
-        kind: 'gh_auth_failure',
-        remediation: err.remediation || 'gh auth refresh -h github.com -s repo',
-      });
-    } else {
-      result.warnings.push({ source: 'gh', kind: 'fetch_error', message: err.message });
+  // ── 1. Local todos ───────────────────────────────────────────────────────────
+  let localEntries = [];
+  if (cache && cache.local_todos && !isCheckTodosCacheStale(cache.local_todos.fetched_at)) {
+    localEntries = cache.local_todos.data || [];
+  } else {
+    allFromCache = false;
+    try {
+      localEntries = _fetchLocalTodos(projectRoot || process.cwd(), {});
+      sectionsToWrite.local_todos = { data: localEntries, fetched_at: new Date().toISOString() };
+    } catch (err) {
+      result.warnings.push({ source: 'local', kind: 'fetch_error', message: err.message });
     }
   }
 
-  // 3. Peer sessions
+  // ── 2. GH issues — catches GhAuthError specifically ─────────────────────────
+  let ghEntries = [];
+  if (cache && cache.gh_issues && !isCheckTodosCacheStale(cache.gh_issues.fetched_at)) {
+    ghEntries = cache.gh_issues.data || [];
+  } else {
+    allFromCache = false;
+    try {
+      const org = currentRepo ? currentRepo.split('/')[0] : null;
+      ghEntries = _fetchGhIssues({ org });
+      sectionsToWrite.gh_issues = { data: ghEntries, fetched_at: new Date().toISOString() };
+    } catch (err) {
+      if (err && err.name === 'GhAuthError') {
+        result.warnings.push({
+          source: 'gh',
+          kind: 'gh_auth_failure',
+          remediation: err.remediation || 'gh auth refresh -h github.com -s repo',
+        });
+      } else {
+        result.warnings.push({ source: 'gh', kind: 'fetch_error', message: err.message });
+      }
+    }
+  }
+
+  // ── 3. Peer sessions ─────────────────────────────────────────────────────────
   let peerEntries = [];
-  try {
-    peerEntries = _fetchPeerSessions({ cwd: projectRoot });
-  } catch (err) {
-    result.warnings.push({ source: 'peer', kind: 'fetch_error', message: err.message });
+  if (cache && cache.peer_sessions && !isCheckTodosCacheStale(cache.peer_sessions.fetched_at)) {
+    peerEntries = cache.peer_sessions.data || [];
+  } else {
+    allFromCache = false;
+    try {
+      peerEntries = _fetchPeerSessions({ cwd: projectRoot });
+      sectionsToWrite.peer_sessions = { data: peerEntries, fetched_at: new Date().toISOString() };
+    } catch (err) {
+      result.warnings.push({ source: 'peer', kind: 'fetch_error', message: err.message });
+    }
   }
 
-  // 4. Initiative open questions
+  // ── 4. Initiative open questions ─────────────────────────────────────────────
   let initEntries = [];
-  try {
-    initEntries = _fetchInitiativeQuestions({ githubRepo: currentRepo });
-  } catch (err) {
-    result.warnings.push({ source: 'initiative', kind: 'fetch_error', message: err.message });
+  if (cache && cache.initiative_questions && !isCheckTodosCacheStale(cache.initiative_questions.fetched_at)) {
+    initEntries = cache.initiative_questions.data || [];
+  } else {
+    allFromCache = false;
+    try {
+      initEntries = _fetchInitiativeQuestions({ githubRepo: currentRepo });
+      sectionsToWrite.initiative_questions = { data: initEntries, fetched_at: new Date().toISOString() };
+    } catch (err) {
+      result.warnings.push({ source: 'initiative', kind: 'fetch_error', message: err.message });
+    }
   }
 
-  // 5. Dup-detect log
+  // ── 5. Dup-detect log ────────────────────────────────────────────────────────
   let dupEntries = [];
-  try {
-    dupEntries = _fetchDupDetectLog(projectRoot || process.cwd(), {});
-  } catch (err) {
-    result.warnings.push({ source: 'dup-detect', kind: 'fetch_error', message: err.message });
+  if (cache && cache.dup_detect_log && !isCheckTodosCacheStale(cache.dup_detect_log.fetched_at)) {
+    dupEntries = cache.dup_detect_log.data || [];
+  } else {
+    allFromCache = false;
+    try {
+      dupEntries = _fetchDupDetectLog(projectRoot || process.cwd(), {});
+      sectionsToWrite.dup_detect_log = { data: dupEntries, fetched_at: new Date().toISOString() };
+    } catch (err) {
+      result.warnings.push({ source: 'dup-detect', kind: 'fetch_error', message: err.message });
+    }
   }
 
-  // Route each entry into its lane via _assignLane (pure)
+  // ── Persist newly-fetched sections (non-fatal on write failure) ──────────────
+  if (Object.keys(sectionsToWrite).length > 0) {
+    try {
+      writeCheckTodosCache(projectRoot || process.cwd(), sectionsToWrite);
+    } catch (err) {
+      result.warnings.push({ kind: 'cache_write_error', message: err.message });
+    }
+  }
+
+  result.cached = allFromCache;
+
+  // ── Lane assignment (pure) ───────────────────────────────────────────────────
   const allEntries = [...localEntries, ...ghEntries, ...peerEntries, ...initEntries, ...dupEntries];
   for (const entry of allEntries) {
     const lane = _assignLane(entry, currentUser, currentRepo);
@@ -528,6 +638,11 @@ module.exports = {
 
   // Lane assignment:
   _assignLane,
+
+  // TRD 06-02: Cache layer:
+  readCheckTodosCache,
+  writeCheckTodosCache,
+  isCheckTodosCacheStale,
 
   // Test hooks:
   _setRunGh,

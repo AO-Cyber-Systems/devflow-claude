@@ -38,10 +38,13 @@ describe('check-todos: Group A — aggregate', () => {
     const fixture = buildCheckTodosFixtures();
     ct._setRunFs({
       existsSync: (p) => {
-        // No pending dir, no log file, PROJECT.md exists
+        // No pending dir, no log file, no cache file, PROJECT.md exists
         if (p.includes('pending')) return false;
         if (p.includes('.dup-detect-log')) return false;
+        if (p.includes('.check-todos-cache')) return false;
         if (p.includes('PROJECT.md')) return true;
+        // .planning dir exists so mkdirSync is skipped during cache write
+        if (p.endsWith('.planning')) return true;
         return false;
       },
       readFileSync: (p, enc) => {
@@ -50,6 +53,9 @@ describe('check-todos: Group A — aggregate', () => {
       },
       readdirSync: () => [],
       statSync: () => { throw new Error('no stat'); },
+      // TRD 06-02: write methods required since aggregate now writes cache
+      writeFileSync: () => { /* noop — cache write succeeds silently */ },
+      mkdirSync: () => { /* noop */ },
     });
     ct._setRunPeer(() => ({ branches: [], fetched_at: new Date().toISOString() }));
     ct._setRunGh(fixture.mockGh);
