@@ -16,9 +16,9 @@
 **Objective complete:** 3 — Planning-time org awareness (verified 2026-05-05, 842/842 tests, all 10 SC met, 7 TRDs done, SC-9 + SC-10 closed)
 **Objective complete:** 4 — Duplicate-work detection + 4-option resolution flow (verified 2026-05-05, 967/987 tests pass, all 10 SC met, 6 TRDs done)
 **Objective in flight:** 5 — Initiative context layer
-**Current TRD:** 05-03
+**Current TRD:** 05-04
 **Branch:** `feature/v1.1-obj-5-initiatives`
-**Status:** In progress — TRD 05-02 complete (1055/1075 tests pass, 50 new tests, writer + atomic sync + qualification + render)
+**Status:** In progress — TRD 05-03 complete (1083/1103 tests pass, 28 new tests, stale-deletion + --force + readline + async syncInitiatives)
 
 ## Branch State (post-merge)
 
@@ -141,6 +141,9 @@
 - **TRD 05-02 complete (2026-05-05)** — Writer region in `lib/initiatives.cjs`: syncInitiatives (auth→walk→qualify→write), _writeInitiativeFile (atomic tmp+rename), _qualifiesAsInitiative (4 paths), _slugifyInitiativeTitle (NFKD+ASCII), _renderInitiativeMarkdown (locked schema). realFs augmented in-place (writeFileSync, mkdirSync, renameSync, unlinkSync). cmdInitiativesSync replaces 05-01 stub; GhAuthError → JSON stderr + exit 1; success → JSON stdout + exit 0. buildMockRunGhForInitiatives cassette helper added. 50 new tests (Q/SL/R/W/S/IM/CLI2); 1055 total pass. Commits: 87cfc46 (test:), 37d11ca (feat:). SC-1 + SC-2 + SC-3 closed. Wave 2 complete.
 - **process.exit mock interaction (TRD 05-02 deviation)** — output() calls process.exit(0) which test mock captures by throwing; cmdInitiativesSync catch clause re-calls process.exit(1) on that thrown error. Fix: record only the FIRST process.exit call in CLI2-3/CLI2-4 tests. Live-auth on dev machine causes CLI6 subprocess to exit 0 (real sync ran); relaxed assertion to no-stub-message contract.
 - **realFs in-place augmentation pattern locked (TRD 05-02)** — Write methods added via `realFs.writeFileSync = ...` (not redeclaration). Reader's `_runFs` reference (which points to same realFs object) picks up write methods automatically without requiring _setRunFs reset.
+- **TRD 05-03 complete (2026-05-05)** — Stale-deletion region in `lib/initiatives.cjs`: _detectStaleInitiatives (gh.readIssueState + fresh_items exclusion), _deleteStaleFile (unlinkSync + error shape), _confirmDeleteStale (_runReadline injection), _runStaleDeletionLoop (async, per-file readline or force bypass). syncInitiatives promoted to async. gh.readIssueState added to gh.cjs exports. buildMockRunGhForInitiatives extended with opts.issueStates for issue view mocking. All S/IM/CLI2 tests updated to async/await. 28 new tests (DS 9 + CF 6 + DD 3 + SF 7 + CLI3 3); 1083 total pass (0 fail). Commits: 574d35d (test:), 67b7425 (feat:). SC-7 closed. Wave 3 complete.
+- **_runReadline injection pattern locked (TRD 05-03)** — `let _runReadline = _defaultConfirmDeleteStale; function _setRunReadline(fn) { _runReadline = (fn != null) ? fn : _defaultConfirmDeleteStale; }` — symmetric with _setRunGh/_setRunGit/_setRunFs. _resetMocks() resets _runReadline. Non-TTY guard uses `_runReadline === _defaultConfirmDeleteStale` identity check to skip loop when real readline but non-TTY stdin.
+- **gh.readIssueState via gh.cjs (TRD 05-03)** — Thin wrapper `_runGh(['issue', 'view', issueRef, '--json', 'state,closed'])` added to gh.cjs exports. Keeps test injection unified at existing _setRunGh layer; no new injection hook in initiatives.cjs.
 
 ## Blockers / Concerns
 
@@ -148,7 +151,7 @@
 
 ## Session Continuity
 
-Last session: 2026-05-05 — TRD 05-02 (writer + atomic sync + qualification + render) complete. 1055/1075 tests pass (0 fail, 20 skip). Wave 2 of Objective 5 complete.
+Last session: 2026-05-05 — TRD 05-03 (stale-deletion + --force + readline confirmation) complete. 1083/1103 tests pass (0 fail, 20 skip). Wave 3 of Objective 5 complete.
 Resume file: `.planning/SESSION_PICKUP.md`
-Stopped at: Completed 05-02-writer-sync-TRD.md
-Next: TRD 05-03 (stale deletion + --force + confirmation prompt)
+Stopped at: Completed 05-03-stale-deletion-TRD.md
+Next: TRD 05-04 (skill + plan-time integration — skill markdown + workflow edits only)
