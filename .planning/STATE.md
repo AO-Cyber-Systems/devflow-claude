@@ -13,9 +13,9 @@
 **Objective complete:** 0 — Refine (kind, work) defaults table from codebase evidence (verified 2026-05-04, 443/443 tests, all 10 SC met)
 **Objective complete:** 1 — GitHub coordination layer (verified 2026-05-04, 563/563 tests, all 6 TRDs done, SC-9 + SC-10 met)
 **Objective complete:** 2 — Cross-repo awareness layer (verified 2026-05-04, 731/731 tests with integration flags, all 10 SC met, 7 TRDs done)
-**Objective in flight:** 3 — Planning-time org awareness (in progress)
-**Current TRD:** 03-05 + 03-06 complete (Wave 5 parallel — research-objective + plan-objective skill integrations; SC-7 + SC-8 done)
-**Status:** Executing objective 3
+**Objective complete:** 3 — Planning-time org awareness (verified 2026-05-05, 842/842 tests, all 10 SC met, 7 TRDs done, SC-9 + SC-10 closed)
+**Current TRD:** 03-07 complete (Wave 6 — export lock + dogfood capture; SC-9 + SC-10 done) — Objective 3 DONE
+**Status:** Objective 3 complete; ready for objective 4
 
 ## Branch State (post-merge)
 
@@ -109,6 +109,10 @@
 - **awk bodyfile pattern locked (TRD 03-05)** — macOS BSD awk does not support newlines in -v string arguments. Write multiline CONSIDERATIONS to `BODY_TMP=$(mktemp)`, then use `awk -v bodyfile="$BODY_TMP"` with getline in BEGIN block. Pattern is portable across macOS BSD awk and GNU awk. Used in SKILL.md replace-in-place branch.
 - **TRD 03-06 complete (2026-05-05)** — plan-objective.md Step 8 now extracts `## Cross-Repo Considerations` section from CONTEXT.md via awk (printf '%s' for special-char safety); empty/missing → placeholder. Step 9 planner prompt includes `<additional_context>` block with `{CROSS_REPO}` verbatim. planner.md `<user_preferences>` extended with three advisory biases: reuse eden-libs candidates, cross-pollinate sibling patterns, surface misfiling warnings. 839/839 tests pass (no regressions). Commits: f3f0c5d (feat:), 1961a0c (docs:). SC-8 complete.
 - **CROSS_REPO extraction pattern locked (TRD 03-06)** — awk matches `/^## Cross-Repo Considerations/` as section start; stops on next `/^## /`. `printf '%s'` avoids echo escape interpretation of backticks/dollars in CONTEXT_CONTENT. Placeholder text `_(none — research-objective did not run, or scan returned empty)_` is treated as no-op by the planner (documented in user_preferences).
+- **TRD 03-07 complete (2026-05-05)** — `lib/org-awareness.cjs` module.exports LOCKED at 21-entry surface with banner comment. EX1 export-lock test added (deepStrictEqual). dogfood-04.md captured live from `df-tools org-awareness considerations 4` — 3 subsection headers + live org-overlap entries. 842/842 tests pass (19 skip). Commits: cab4b40 (test:), c4e7a27 (feat:). SC-9 + SC-10 complete. **Objective 3 DONE.**
+- **Export-lock banner comment pattern (TRD 03-07)** — `// ─── module.exports — LOCKED by TRD XX-YY (N-entry surface; SC-N)` with DO-NOT-MODIFY guidance. Mirror of TRD 02-07 pattern for awareness.cjs. Asserted by EX1 deepStrictEqual test. Future TRDs adding exports must update both module AND test atomically.
+- **Dogfood fixture pattern (TRD 03-07)** — structural-only assertion (3 headers present), not verbatim content. Prevents fixture rot. `dogfood-04.md` is the v1.1 baseline; re-capture when obj 4 planning artifacts exist.
+- **Stale "11 entry" references in CONTEXT.md** — line 311 + 03-01 inline comment say "11 entries". Actual live surface confirmed 21 entries. Documentation artifact only; EX1 test is the authoritative source of truth going forward.
 
 ## Blockers / Concerns
 
@@ -116,7 +120,7 @@
 
 ## Session Continuity
 
-Last session: 2026-05-05 — TRD 03-06 (plan-objective skill integration) complete. 839 tests pass (0 fail, 15 skip).
+Last session: 2026-05-05 — TRD 03-07 (library export lock + dogfood) complete. 842 tests pass (0 fail, 19 skip). Objective 3 DONE.
 Resume file: `.planning/SESSION_PICKUP.md`
-Stopped at: Completed 03-06-plan-skill-integration-TRD.md
-Next: TRD 03-07 (library export lock + dogfood test — depends on 03-05 + 03-06 both complete)
+Stopped at: Completed 03-07-library-export-and-dogfood-TRD.md
+Next: Objective 4 (heartbeat / duplicate-work detection — consumes scanSiblings + scanOrgOverlap)
