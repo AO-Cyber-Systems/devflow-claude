@@ -1027,29 +1027,39 @@ function formatConsiderations(scans) {
   return sections.join('\n\n');
 }
 
-// ─── TRD 03-01 → TRD 03-04: Partial exports ──────────────────────────────────
+// ─── module.exports — LOCKED by TRD 03-07 (21-entry surface; SC-9) ───────────
 //
-// This export block is the AUTHORITATIVE surface FOR THIS WAVE only.
-// TRD 03-07 finalizes it (asserts the full export surface via Object.keys deepStrictEqual).
+// This block is the AUTHORITATIVE export surface for lib/org-awareness.cjs.
+// Asserted by EX1 test: Object.keys(module.exports).sort() deepStrictEqual.
+// DO NOT add or remove entries without updating the EX1 test + CONTEXT.md §"Module surface".
 
 module.exports = {
+  // Pure logic / scanners (TDD'd):
   scanSiblings,
-  scanLibs,               // TRD 03-02
-  scanOrgOverlap,         // TRD 03-03
-  formatConsiderations,   // TRD 03-04
-  _renderSiblingsSection, // TRD 03-04
-  _renderLibsSection,     // TRD 03-04
-  _renderOrgSection,      // TRD 03-04
+  scanLibs,
+  scanOrgOverlap,
+  formatConsiderations,
+
+  // Test hooks (mirror _setRunGh / _setRunGit pattern):
   _setRunFs,
   _resetFsMock,
-  _tokenize,              // exported for tests; internal callers use directly
-  _score,                 // exported for tests
-  _camelSplit,            // TRD 03-02
-  _parseExports,          // TRD 03-02
-  _resolveEdenLibsPath,   // TRD 03-02
-  _detectMisfiling,       // TRD 03-03
-  _scoreOrgItem,          // TRD 03-03
-  _extractRepoFromRef,    // TRD 03-03
+
+  // Internal helpers (exposed for tests):
+  _tokenize,
+  _score,
+  _camelSplit,
+  _parseExports,
+  _resolveEdenLibsPath,
+  _detectMisfiling,
+  _scoreOrgItem,
+  _extractRepoFromRef,
+
+  // Sub-renderers (exposed for tests):
+  _renderSiblingsSection,
+  _renderLibsSection,
+  _renderOrgSection,
+
+  // Constants:
   TOP_N,
   SUMMARY_RECENCY_DAYS,
   DEFAULT_SIBLING_GLOB,
