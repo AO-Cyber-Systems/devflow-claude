@@ -974,7 +974,7 @@ function makeSyncMock({ items = [], authOk = true } = {}) {
   return fixtures.buildMockRunGhForInitiatives({ walkProjectItems: items, authOk });
 }
 
-test('S1: syncInitiatives calls requireGhAuth first; on success proceeds', () => {
+test('S1: syncInitiatives calls requireGhAuth first; on success proceeds', async () => {
   const home = mkTmp('df-init-s-');
   let authCalled = false;
   init._setRunGh((args) => {
@@ -988,7 +988,7 @@ test('S1: syncInitiatives calls requireGhAuth first; on success proceeds', () =>
     return { ok: false, stdout: '', stderr: 'unmocked' };
   });
   try {
-    const result = init.syncInitiatives({ home, project_id: 'PVT_test' });
+    const result = await init.syncInitiatives({ home, project_id: 'PVT_test' });
     assert.strictEqual(authCalled, true, 'auth was called');
     assert.strictEqual(result.ok, true, 'result is ok');
   } finally {
@@ -997,11 +997,11 @@ test('S1: syncInitiatives calls requireGhAuth first; on success proceeds', () =>
   }
 });
 
-test('S2: syncInitiatives throws GhAuthError when auth fails', () => {
+test('S2: syncInitiatives throws GhAuthError when auth fails', async () => {
   const home = mkTmp('df-init-s-');
   init._setRunGh(makeSyncMock({ authOk: false }));
   try {
-    assert.throws(
+    await assert.rejects(
       () => init.syncInitiatives({ home, project_id: 'PVT_test' }),
       (err) => err.name === 'GhAuthError' || /auth/i.test(err.message),
       'should throw GhAuthError on auth failure',
@@ -1012,7 +1012,7 @@ test('S2: syncInitiatives throws GhAuthError when auth fails', () => {
   }
 });
 
-test('S3: syncInitiatives calls walkProject with project_id from opts or PRODUCT_ROADMAP_FIELDS', () => {
+test('S3: syncInitiatives calls walkProject with project_id from opts or PRODUCT_ROADMAP_FIELDS', async () => {
   const home = mkTmp('df-init-s-');
   let graphqlArgs = null;
   init._setRunGh((args) => {
@@ -1024,7 +1024,7 @@ test('S3: syncInitiatives calls walkProject with project_id from opts or PRODUCT
     return { ok: false, stdout: '', stderr: 'unmocked' };
   });
   try {
-    init.syncInitiatives({ home, project_id: 'PVT_s3_test' });
+    await init.syncInitiatives({ home, project_id: 'PVT_s3_test' });
     assert.ok(graphqlArgs !== null, 'graphql was called');
     // The project_id should appear somewhere in the graphql args or body
     const argsStr = graphqlArgs.join(' ');
@@ -1036,13 +1036,13 @@ test('S3: syncInitiatives calls walkProject with project_id from opts or PRODUCT
   }
 });
 
-test('S4: syncInitiatives filters items via _qualifiesAsInitiative; non-qualifying items in result.skipped', () => {
+test('S4: syncInitiatives filters items via _qualifiesAsInitiative; non-qualifying items in result.skipped', async () => {
   const home = mkTmp('df-init-s-');
   const epicItem = fixtures.buildOrgItem({ title: '[Epic] Qualifying Initiative', issue_ref: 'AO-Cyber-Systems/devflow#1' });
   const plainItem = fixtures.buildOrgItem({ title: 'Plain bug report', issue_ref: 'AO-Cyber-Systems/devflow#2', sub_issues: [], body: '' });
   init._setRunGh(makeSyncMock({ items: [epicItem, plainItem] }));
   try {
-    const result = init.syncInitiatives({ home, project_id: 'PVT_test' });
+    const result = await init.syncInitiatives({ home, project_id: 'PVT_test' });
     assert.strictEqual(result.ok, true);
     // At least one item should be in skipped (the plain one)
     const skippedTitles = result.skipped.map(s => s.title);
@@ -1055,7 +1055,7 @@ test('S4: syncInitiatives filters items via _qualifiesAsInitiative; non-qualifyi
   }
 });
 
-test('S5: syncInitiatives writes one file per qualifying item under opts.home', () => {
+test('S5: syncInitiatives writes one file per qualifying item under opts.home', async () => {
   const home = mkTmp('df-init-s-');
   const items = [
     fixtures.buildOrgItem({ title: '[Epic] Initiative Alpha', issue_ref: 'AO-Cyber-Systems/devflow#10' }),
@@ -1063,7 +1063,7 @@ test('S5: syncInitiatives writes one file per qualifying item under opts.home', 
   ];
   init._setRunGh(makeSyncMock({ items }));
   try {
-    const result = init.syncInitiatives({ home, project_id: 'PVT_test' });
+    const result = await init.syncInitiatives({ home, project_id: 'PVT_test' });
     assert.strictEqual(result.ok, true);
     assert.strictEqual(result.written.length, 2, `expected 2 written; got: ${JSON.stringify(result.written)}`);
     for (const w of result.written) {
@@ -1075,11 +1075,11 @@ test('S5: syncInitiatives writes one file per qualifying item under opts.home', 
   }
 });
 
-test('S6: syncInitiatives returns structured result { ok, written, deleted, skipped, warnings }', () => {
+test('S6: syncInitiatives returns structured result { ok, written, deleted, skipped, warnings }', async () => {
   const home = mkTmp('df-init-s-');
   init._setRunGh(makeSyncMock({ items: [] }));
   try {
-    const result = init.syncInitiatives({ home, project_id: 'PVT_test' });
+    const result = await init.syncInitiatives({ home, project_id: 'PVT_test' });
     assert.strictEqual(result.ok, true);
     assert.ok(Array.isArray(result.written), 'written is array');
     assert.ok(Array.isArray(result.deleted), 'deleted is array');
@@ -1091,7 +1091,7 @@ test('S6: syncInitiatives returns structured result { ok, written, deleted, skip
   }
 });
 
-test('S7: --initiative <slug> mode syncs only the matching item', () => {
+test('S7: --initiative <slug> mode syncs only the matching item', async () => {
   const home = mkTmp('df-init-s-');
   const items = [
     fixtures.buildOrgItem({ title: '[Epic] Initiative Alpha', issue_ref: 'AO-Cyber-Systems/devflow#10' }),
@@ -1099,7 +1099,7 @@ test('S7: --initiative <slug> mode syncs only the matching item', () => {
   ];
   init._setRunGh(makeSyncMock({ items }));
   try {
-    const result = init.syncInitiatives({ home, project_id: 'PVT_test', initiative: 'initiative-alpha' });
+    const result = await init.syncInitiatives({ home, project_id: 'PVT_test', initiative: 'initiative-alpha' });
     assert.strictEqual(result.ok, true);
     assert.strictEqual(result.written.length, 1, `only 1 item should be written; got: ${JSON.stringify(result.written)}`);
     assert.strictEqual(result.written[0].slug, 'initiative-alpha');
@@ -1109,14 +1109,14 @@ test('S7: --initiative <slug> mode syncs only the matching item', () => {
   }
 });
 
-test('S8: --initiative <slug> mode returns empty deleted array (stale deletion skipped)', () => {
+test('S8: --initiative <slug> mode returns empty deleted array (stale deletion skipped)', async () => {
   const home = mkTmp('df-init-s-');
   const items = [
     fixtures.buildOrgItem({ title: '[Epic] Initiative Alpha', issue_ref: 'AO-Cyber-Systems/devflow#10' }),
   ];
   init._setRunGh(makeSyncMock({ items }));
   try {
-    const result = init.syncInitiatives({ home, project_id: 'PVT_test', initiative: 'initiative-alpha' });
+    const result = await init.syncInitiatives({ home, project_id: 'PVT_test', initiative: 'initiative-alpha' });
     assert.strictEqual(result.ok, true);
     assert.deepStrictEqual(result.deleted, [], 'deleted should be empty in single-initiative mode');
   } finally {
@@ -1125,7 +1125,7 @@ test('S8: --initiative <slug> mode returns empty deleted array (stale deletion s
   }
 });
 
-test('S9: walkProject warnings propagate to result.warnings', () => {
+test('S9: walkProject warnings propagate to result.warnings', async () => {
   const home = mkTmp('df-init-s-');
   // Mock walkProject to return a result with warnings
   // walkProject returns { items, warnings } — we need to mock the underlying gh call
@@ -1139,7 +1139,7 @@ test('S9: walkProject warnings propagate to result.warnings', () => {
     return { ok: false, stdout: '', stderr: 'unmocked' };
   });
   try {
-    const result = init.syncInitiatives({ home, project_id: 'PVT_test' });
+    const result = await init.syncInitiatives({ home, project_id: 'PVT_test' });
     assert.strictEqual(result.ok, true);
     assert.ok(Array.isArray(result.warnings), 'warnings is array');
     // Warnings may be empty for a clean walk — just verify the shape
@@ -1149,7 +1149,7 @@ test('S9: walkProject warnings propagate to result.warnings', () => {
   }
 });
 
-test('S10: walkProject throw (non-auth) caught: returns { ok: false, warnings: [...] }', () => {
+test('S10: walkProject throw (non-auth) caught: returns { ok: false, warnings: [...] }', async () => {
   const home = mkTmp('df-init-s-');
   init._setRunGh((args) => {
     if (args[0] === 'auth') return { ok: true, status: 0, stdout: "Token scopes: 'project', 'read:project', 'repo'", stderr: '' };
@@ -1160,7 +1160,7 @@ test('S10: walkProject throw (non-auth) caught: returns { ok: false, warnings: [
     return { ok: false, stdout: '', stderr: 'unmocked' };
   });
   try {
-    const result = init.syncInitiatives({ home, project_id: 'PVT_test' });
+    const result = await init.syncInitiatives({ home, project_id: 'PVT_test' });
     // walkProject may throw or return error; syncInitiatives should catch and return ok:false
     // If walkProject handles the error internally, result.ok may be true with warnings
     // The contract is: no unhandled exception thrown from syncInitiatives
@@ -1172,11 +1172,11 @@ test('S10: walkProject throw (non-auth) caught: returns { ok: false, warnings: [
   }
 });
 
-test('S11: empty walkProject (no items) returns { ok: true, written: [], skipped: [], warnings: [] }', () => {
+test('S11: empty walkProject (no items) returns { ok: true, written: [], skipped: [], warnings: [] }', async () => {
   const home = mkTmp('df-init-s-');
   init._setRunGh(makeSyncMock({ items: [] }));
   try {
-    const result = init.syncInitiatives({ home, project_id: 'PVT_test' });
+    const result = await init.syncInitiatives({ home, project_id: 'PVT_test' });
     assert.strictEqual(result.ok, true);
     assert.deepStrictEqual(result.written, []);
     // skipped may be empty or have entries — but no failures
@@ -1187,7 +1187,7 @@ test('S11: empty walkProject (no items) returns { ok: true, written: [], skipped
   }
 });
 
-test('S12: items with no slugifiable title appear in result.skipped with reason no_slug', () => {
+test('S12: items with no slugifiable title appear in result.skipped with reason no_slug', async () => {
   const home = mkTmp('df-init-s-');
   // Item with [Epic] prefix but title that slugifies to empty (just brackets + spaces)
   const noSlugItem = {
@@ -1202,7 +1202,7 @@ test('S12: items with no slugifiable title appear in result.skipped with reason 
   };
   init._setRunGh(fixtures.buildMockRunGhForInitiatives({ walkProjectItems: [noSlugItem] }));
   try {
-    const result = init.syncInitiatives({ home, project_id: 'PVT_test' });
+    const result = await init.syncInitiatives({ home, project_id: 'PVT_test' });
     assert.strictEqual(result.ok, true);
     const noSlugSkips = result.skipped.filter(s => s.reason === 'no_slug');
     assert.ok(noSlugSkips.length > 0, `expected no_slug skip; skipped: ${JSON.stringify(result.skipped)}`);
@@ -1214,7 +1214,7 @@ test('S12: items with no slugifiable title appear in result.skipped with reason 
 
 // ─── TRD 05-02: Group IM — Idempotency (integration) ─────────────────────────
 
-test('IM1: two syncs with same mock walkProject produce byte-equal files modulo updated_at', () => {
+test('IM1: two syncs with same mock walkProject produce byte-equal files modulo updated_at', async () => {
   const home = mkTmp('df-init-im-');
   const items = [
     fixtures.buildOrgItem({
@@ -1226,11 +1226,11 @@ test('IM1: two syncs with same mock walkProject produce byte-equal files modulo 
   const mockFn = makeSyncMock({ items });
 
   init._setRunGh(mockFn);
-  const result1 = init.syncInitiatives({ home, project_id: 'PVT_test' });
+  const result1 = await init.syncInitiatives({ home, project_id: 'PVT_test' });
   init._resetMocks();
 
   init._setRunGh(mockFn);
-  const result2 = init.syncInitiatives({ home, project_id: 'PVT_test' });
+  const result2 = await init.syncInitiatives({ home, project_id: 'PVT_test' });
   init._resetMocks();
 
   assert.strictEqual(result1.ok, true, 'first sync ok');
@@ -1251,7 +1251,7 @@ test('IM1: two syncs with same mock walkProject produce byte-equal files modulo 
   fs.rmSync(home, { recursive: true, force: true });
 });
 
-test('IM2: second sync overwrites manual edit (one-way sync contract)', () => {
+test('IM2: second sync overwrites manual edit (one-way sync contract)', async () => {
   const home = mkTmp('df-init-im-');
   const items = [
     fixtures.buildOrgItem({ title: '[Epic] Overwrite Test', issue_ref: 'AO-Cyber-Systems/devflow#43' }),
@@ -1260,7 +1260,7 @@ test('IM2: second sync overwrites manual edit (one-way sync contract)', () => {
 
   // First sync
   init._setRunGh(mockFn);
-  const result1 = init.syncInitiatives({ home, project_id: 'PVT_test' });
+  const result1 = await init.syncInitiatives({ home, project_id: 'PVT_test' });
   init._resetMocks();
   assert.ok(result1.written.length > 0, 'first sync wrote files');
 
@@ -1273,7 +1273,7 @@ test('IM2: second sync overwrites manual edit (one-way sync contract)', () => {
 
   // Second sync overwrites
   init._setRunGh(mockFn);
-  const result2 = init.syncInitiatives({ home, project_id: 'PVT_test' });
+  const result2 = await init.syncInitiatives({ home, project_id: 'PVT_test' });
   init._resetMocks();
   assert.ok(result2.written.length > 0, 'second sync wrote files');
 

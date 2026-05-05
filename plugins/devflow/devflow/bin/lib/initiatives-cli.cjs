@@ -94,13 +94,14 @@ function cmdInitiativesShow(cwd, args) {
   process.exit(0);
 }
 
-function cmdInitiativesSync(cwd, args) {
+async function cmdInitiativesSync(cwd, args) {
   const { flags } = _parseFlags(args);
   try {
-    const result = init.syncInitiatives({
+    const result = await init.syncInitiatives({
       home: flags.home,
       project_id: flags['project-id'],
       initiative: flags.initiative,
+      force: flags.force === true,
     });
     if (!result.ok) {
       process.stderr.write(JSON.stringify(result, null, 2) + '\n');

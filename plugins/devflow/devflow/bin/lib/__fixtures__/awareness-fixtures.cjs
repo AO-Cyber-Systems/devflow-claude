@@ -939,6 +939,18 @@ function buildMockRunGhForInitiatives({
         stderr: '',
       };
     }
+    // TRD 05-03: handle 'issue view' calls for stale-detection
+    if (args && args[0] === 'issue' && args[1] === 'view') {
+      const ref = args[2] || '';
+      const issueStates = opts.issueStates || {};
+      const issueState = issueStates[ref] || 'OPEN';
+      return {
+        ok: true,
+        status: 0,
+        stdout: JSON.stringify({ state: issueState, closed: issueState === 'CLOSED' }),
+        stderr: '',
+      };
+    }
     return { ok: false, status: 1, stdout: '', stderr: `unmocked gh call: ${(args || []).join(' ')}` };
   };
 }

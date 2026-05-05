@@ -58,6 +58,7 @@ function _setRunGh(fn) { return gh._setRunGh(fn); }
 function _resetMocks() {
   _runFs = realFs;
   gh._setRunGh(null);
+  _runReadline = _defaultConfirmDeleteStale;
 }
 
 // ─── TRD 05-01: _truncateWhy + helpers ────────────────────────────────────────
@@ -370,7 +371,167 @@ function _extractQuestionsFromBody(body) {
   return _parseQuestionsSection(section);
 }
 
-// ─── TRD 05-02: syncInitiatives ──────────────────────────────────────────────
+// ─── TRD 05-03: Stale-deletion region ────────────────────────────────────────
+
+const readline = require('node:readline');
+
+/**
+ * Default real-readline confirmation prompt.
+ * On non-TTY stdin, returns false (skip deletion, caller logs warning).
+ *
+ * @param {string} slug - initiative slug to prompt about
+ * @returns {Promise<boolean>}
+ */
+function _defaultConfirmDeleteStale(slug) {
+  if (!process.stdin.isTTY) return Promise.resolve(false);
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise((resolve) => {
+    rl.question(`Delete ${slug}.md? [y/N] `, (answer) => {
+      rl.close();
+      resolve(/^y(es)?$/i.test((answer || '').trim()));
+    });
+  });
+}
+
+let _runReadline = _defaultConfirmDeleteStale;
+function _setRunReadline(fn) { _runReadline = (fn != null) ? fn : _defaultConfirmDeleteStale; }
+
+/**
+ * Confirm deletion of a stale initiative file.
+ * Routes through _runReadline injection hook for test determinism.
+ *
+ * @param {string} slug
+ * @returns {Promise<boolean>}
+ */
+function _confirmDeleteStale(slug) {
+  return Promise.resolve(_runReadline(slug));
+}
+
+/**
+ * Detect initiative files whose source GitHub issue is CLOSED AND not present
+ * in the fresh walkProject items.
+ *
+ * @param {object} opts
+ * @param {string} opts.home        - initiatives home dir
+ * @param {object[]} opts.fresh_items - walkProject items from current sync
+ * @returns {{ stale: Array<{slug, github_issue, reason}>, warnings: string[] }}
+ */
+function _detectStaleInitiatives({ home, fresh_items }) {
+  const stale = [];
+  const warnings = [];
+  if (!_runFs.existsSync(home)) return { stale, warnings };
+
+  // Build a set of issue refs present in fresh walkProject items
+  const freshRefs = new Set();
+  for (const it of (fresh_items || [])) {
+    if (it.issue_ref) freshRefs.add(it.issue_ref);
+  }
+
+  let entries;
+  try {
+    entries = _runFs.readdirSync(home);
+  } catch {
+    return { stale, warnings };
+  }
+
+  for (const entry of entries) {
+    if (!entry.endsWith('.md')) continue;
+    const filePath = path.join(home, entry);
+    let content;
+    try {
+      content = _runFs.readFileSync(filePath, 'utf-8');
+    } catch {
+      continue; // unreadable — skip silently
+    }
+    const parsed = _parseInitiativeFile(content);
+    if (!parsed) continue; // malformed frontmatter — skip silently
+
+    if (!parsed.github_issue) {
+      warnings.push(`${parsed.slug || entry}: no github_issue field`);
+      continue;
+    }
+
+    // If still present in fresh project items, NOT stale (even if closed)
+    if (freshRefs.has(parsed.github_issue)) continue;
+
+    // Verify issue is CLOSED via gh issue view (routes through _runGh mock in tests)
+    const viewR = gh.readIssueState(parsed.github_issue);
+    if (!viewR.ok) {
+      warnings.push(`${parsed.slug}: gh issue view failed: ${viewR.stderr}`);
+      continue; // treat as not-stale (safer than deleting on network error)
+    }
+    let state;
+    try {
+      state = JSON.parse(viewR.stdout).state;
+    } catch {
+      warnings.push(`${parsed.slug}: gh issue view returned non-JSON`);
+      continue;
+    }
+    if (state !== 'CLOSED') continue;
+
+    stale.push({ slug: parsed.slug, github_issue: parsed.github_issue, reason: 'closed_and_removed' });
+  }
+
+  return { stale, warnings };
+}
+
+/**
+ * Delete a stale initiative file from disk.
+ *
+ * @param {string} home - initiatives home dir
+ * @param {string} slug - initiative slug (file is <home>/<slug>.md)
+ * @returns {{ deleted: boolean, slug: string, reason: string }}
+ */
+function _deleteStaleFile(home, slug) {
+  const filePath = path.join(home, `${slug}.md`);
+  try {
+    _runFs.unlinkSync(filePath);
+    return { deleted: true, slug, reason: 'closed_and_removed' };
+  } catch (e) {
+    return { deleted: false, slug, reason: `unlink_failed: ${e.message}` };
+  }
+}
+
+/**
+ * Run the stale-deletion confirmation loop.
+ * With force=true: delete unconditionally.
+ * With force=false: prompt per file via _runReadline.
+ *
+ * @param {object} opts
+ * @param {string} opts.home
+ * @param {Array<{slug, github_issue, reason}>} opts.stale_entries
+ * @param {boolean} opts.force
+ * @returns {Promise<{ deleted: Array, warnings: string[] }>}
+ */
+async function _runStaleDeletionLoop({ home, stale_entries, force }) {
+  const deleted = [];
+  const warnings = [];
+
+  for (const entry of stale_entries) {
+    let proceed = false;
+    if (force) {
+      proceed = true;
+    } else {
+      try {
+        proceed = await Promise.resolve(_runReadline(entry.slug));
+      } catch (e) {
+        warnings.push(`${entry.slug}: confirmation prompt failed: ${e.message}`);
+        continue;
+      }
+    }
+    if (!proceed) continue;
+    const r = _deleteStaleFile(home, entry.slug);
+    if (r.deleted) {
+      deleted.push(r);
+    } else {
+      warnings.push(`${entry.slug}: ${r.reason}`);
+    }
+  }
+
+  return { deleted, warnings };
+}
+
+// ─── TRD 05-02: syncInitiatives (now async for readline support) ──────────────
 
 /**
  * Sync initiatives from org Product Roadmap to disk.
@@ -379,9 +540,10 @@ function _extractQuestionsFromBody(body) {
  * @param {string} opts.home          - target dir; defaults to defaultInitiativesHome()
  * @param {string} opts.project_id    - project node id; defaults to PRODUCT_ROADMAP_FIELDS._project_id
  * @param {string} opts.initiative    - sync ONLY this slug (skips all others; skips stale-deletion)
- * @returns {{ ok: bool, written: [], deleted: [], skipped: [], warnings: [] }}
+ * @param {boolean} opts.force        - delete stale files without confirmation (TRD 05-03)
+ * @returns {Promise<{ ok: bool, written: [], deleted: [], skipped: [], warnings: [] }>}
  */
-function syncInitiatives(opts) {
+async function syncInitiatives(opts) {
   if (opts === undefined) opts = {};
   // 1. Hard-fail auth (throws GhAuthError if missing/insufficient)
   gh.requireGhAuth(['project', 'read:project', 'repo']);
@@ -412,7 +574,7 @@ function syncInitiatives(opts) {
     warnings.push(...walk.warnings);
   }
 
-  // 3. Filter + write
+  // 3. Filter + write (writer loop runs FIRST, per CONTEXT.md locked decision #4 step 4)
   const updatedAt = new Date().toISOString();
   const items = (walk && walk.items) || [];
   for (const item of items) {
@@ -452,6 +614,25 @@ function syncInitiatives(opts) {
     }
   }
 
+  // 4. Stale-deletion loop (TRD 05-03 — NEW)
+  // Skipped entirely in single-initiative mode per CONTEXT.md decision #4 step 6.
+  if (!opts.initiative) {
+    const { stale, warnings: detectWarn } = _detectStaleInitiatives({ home, fresh_items: items });
+    warnings.push(...detectWarn);
+
+    if (stale.length > 0) {
+      // Non-TTY skip when force=false AND using the real readline (not an injected mock)
+      const usingDefaultReadline = _runReadline === _defaultConfirmDeleteStale;
+      if (!opts.force && usingDefaultReadline && !process.stdin.isTTY) {
+        warnings.push(`stale deletion skipped (non-interactive); ${stale.length} files would be deleted with --force`);
+      } else {
+        const loop = await _runStaleDeletionLoop({ home, stale_entries: stale, force: Boolean(opts.force) });
+        deleted.push(...loop.deleted);
+        warnings.push(...loop.warnings);
+      }
+    }
+  }
+
   return { ok: true, written, deleted, skipped, warnings };
 }
 
@@ -471,6 +652,12 @@ module.exports = {
   _qualifiesAsInitiative,
   _slugifyInitiativeTitle,
   _renderInitiativeMarkdown,
+
+  // Stale-deletion (TRD 05-03):
+  _detectStaleInitiatives,
+  _deleteStaleFile,
+  _confirmDeleteStale,
+  _setRunReadline,
 
   // Test hooks:
   _setRunFs,

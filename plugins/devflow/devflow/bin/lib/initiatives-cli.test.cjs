@@ -216,7 +216,7 @@ test('I2: Other case arms still work — awareness, org-awareness, dup-detect no
 const init = require('./initiatives.cjs');
 const { cmdInitiativesSync } = require('./initiatives-cli.cjs');
 
-test('CLI2-1: cmdInitiativesSync in-process with mocked auth — calls syncInitiatives (not stub)', () => {
+test('CLI2-1: cmdInitiativesSync in-process with mocked auth — calls syncInitiatives (not stub)', async () => {
   // Verify that cmdInitiativesSync is no longer a stub by checking it doesn't emit the old stub error
   // We do this by inspecting the source or by calling with mocked auth and catching the process.exit
   const home = mkTmp('df-cli2-');
@@ -241,7 +241,7 @@ test('CLI2-1: cmdInitiativesSync in-process with mocked auth — calls syncIniti
   process.exit = (code) => { exitCode = code; throw new Error(`process.exit(${code})`); };
 
   try {
-    cmdInitiativesSync(process.cwd(), ['--home', home, '--project-id', 'PVT_test']);
+    await cmdInitiativesSync(process.cwd(), ['--home', home, '--project-id', 'PVT_test']);
   } catch (e) {
     if (!e.message.startsWith('process.exit')) throw e;
   } finally {
@@ -257,7 +257,7 @@ test('CLI2-1: cmdInitiativesSync in-process with mocked auth — calls syncIniti
   assert.ok(exitCode === 1, `should exit 1 on auth failure; got: ${exitCode}`);
 });
 
-test('CLI2-2: GhAuthError emits structured JSON to stderr + exit 1', () => {
+test('CLI2-2: GhAuthError emits structured JSON to stderr + exit 1', async () => {
   const home = mkTmp('df-cli2-');
 
   init._setRunGh((args) => {
@@ -276,7 +276,7 @@ test('CLI2-2: GhAuthError emits structured JSON to stderr + exit 1', () => {
   process.exit = (code) => { exitCode = code; throw new Error(`process.exit(${code})`); };
 
   try {
-    cmdInitiativesSync(process.cwd(), ['--home', home, '--project-id', 'PVT_test']);
+    await cmdInitiativesSync(process.cwd(), ['--home', home, '--project-id', 'PVT_test']);
   } catch (e) {
     if (!e.message.startsWith('process.exit')) throw e;
   } finally {
@@ -301,7 +301,7 @@ test('CLI2-2: GhAuthError emits structured JSON to stderr + exit 1', () => {
   assert.ok(errObj && errObj.error, `stderr JSON should have error field; got: ${JSON.stringify(errObj)}`);
 });
 
-test('CLI2-3: successful sync emits structured JSON to stdout + exit 0', () => {
+test('CLI2-3: successful sync emits structured JSON to stdout + exit 0', async () => {
   const home = mkTmp('df-cli2-');
   const items = [
     fixtures.buildOrgItem({ title: '[Epic] Cli2 Test', issue_ref: 'AO-Cyber-Systems/devflow#50' }),
@@ -322,7 +322,7 @@ test('CLI2-3: successful sync emits structured JSON to stdout + exit 0', () => {
   };
 
   try {
-    cmdInitiativesSync(process.cwd(), ['--home', home, '--project-id', 'PVT_test']);
+    await cmdInitiativesSync(process.cwd(), ['--home', home, '--project-id', 'PVT_test']);
   } catch (e) {
     // expected — process.exit throws
   } finally {
@@ -346,7 +346,7 @@ test('CLI2-3: successful sync emits structured JSON to stdout + exit 0', () => {
   assert.ok(Array.isArray(result.written), 'result.written is array');
 });
 
-test('CLI2-4: --initiative <slug> flag passes through to syncInitiatives', () => {
+test('CLI2-4: --initiative <slug> flag passes through to syncInitiatives', async () => {
   const home = mkTmp('df-cli2-');
   const items = [
     fixtures.buildOrgItem({ title: '[Epic] Target Initiative', issue_ref: 'AO-Cyber-Systems/devflow#51' }),
@@ -366,7 +366,7 @@ test('CLI2-4: --initiative <slug> flag passes through to syncInitiatives', () =>
   };
 
   try {
-    cmdInitiativesSync(process.cwd(), ['--home', home, '--project-id', 'PVT_test', '--initiative', 'target-initiative']);
+    await cmdInitiativesSync(process.cwd(), ['--home', home, '--project-id', 'PVT_test', '--initiative', 'target-initiative']);
   } catch (e) {
     // expected — process.exit throws
   } finally {
@@ -516,7 +516,7 @@ test('CLI3-3: --force JSON output includes deleted: [...] array', async () => {
   assert.ok(Array.isArray(result.deleted), 'deleted is an array');
 });
 
-test('CLI2-5: --project-id <id> flag passes through to syncInitiatives', () => {
+test('CLI2-5: --project-id <id> flag passes through to syncInitiatives', async () => {
   const home = mkTmp('df-cli2-');
   let usedProjectId = null;
 
@@ -545,7 +545,7 @@ test('CLI2-5: --project-id <id> flag passes through to syncInitiatives', () => {
   process.stdout.write = (chunk, ...rest) => { stdoutChunks.push(String(chunk)); return true; };
 
   try {
-    cmdInitiativesSync(process.cwd(), ['--home', home, '--project-id', 'PVT_cli2_custom']);
+    await cmdInitiativesSync(process.cwd(), ['--home', home, '--project-id', 'PVT_cli2_custom']);
   } catch (e) {
     if (!e.message.startsWith('process.exit')) throw e;
   } finally {
