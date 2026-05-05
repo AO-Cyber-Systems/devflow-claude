@@ -16,7 +16,8 @@
 **Objective complete:** 3 — Planning-time org awareness (verified 2026-05-05, 842/842 tests, all 10 SC met, 7 TRDs done, SC-9 + SC-10 closed)
 **Objective complete:** 4 — Duplicate-work detection + 4-option resolution flow (verified 2026-05-05, 967/987 tests pass, all 10 SC met, 6 TRDs done)
 **Objective complete:** 5 — Initiative context layer (verified 2026-05-05, 1097/1097 tests pass, all 10 SC met, 5 TRDs done)
-**Branch:** `feature/v1.1-obj-5-initiatives`
+**Objective complete:** 6 — Unified check-todos morning-standup view (verified 2026-05-05, 1290/1291 tests pass, all 10 SC met, 4 TRDs done, SC-6 through SC-10 closed)
+**Branch:** `feature/v1.1-obj-6-check-todos`
 **Status:** Objective complete — ready for verification
 
 ## Branch State (post-merge)
