@@ -842,37 +842,37 @@ function formatDetectionMarkdown(detection, opts) {
   return sections.join('\n\n');
 }
 
-// ─── TRD 04-01 + 04-02 + 04-03: Partial module.exports ──────────────────────
+// ─── module.exports — LOCKED by TRD 04-06 (19-entry surface; SC-10) ──────────
+//
+// This block is the AUTHORITATIVE export surface for lib/dup-detect.cjs.
+// Asserted by EX1 test: Object.keys(module.exports).sort() deepStrictEqual.
+// DO NOT add or remove entries without updating the EX1 test + CONTEXT.md §"Module surface".
 
 module.exports = {
-  // TRD 04-01: Public API
+  // Public API (TDD'd):
   detectDuplicates,
+  formatDetectionMarkdown,
+  recordResolution,
+  applyResolution,
 
-  // TRD 04-01: Signal helpers (exposed for tests)
-  _detectHardMatch,
-  _detectStrongMatch,
-  _detectWeakMatch,
-  _readPeerFilesModified,
-
-  // TRD 04-01: Injection hooks
+  // Test hooks:
   _setRunPeer,
   _setRunOrgOverlap,
   _setRunFs,
   _resetMocks,
 
-  // TRD 04-01: Constants
+  // Internal helpers (exposed for tests):
+  _detectHardMatch,
+  _detectStrongMatch,
+  _detectWeakMatch,
+  _readPeerFilesModified,
+  _writeCoordinationNote,
+  _writeDeferredState,
+
+  // Constants:
   HARD_MATCH_THRESHOLD,
   STRONG_FILE_OVERLAP_THRESHOLD,
   STRONG_KEYWORD_OVERLAP_THRESHOLD,
   DUP_DETECT_LOG_REL,
   DEFERRED_DIR_REL,
-
-  // TRD 04-02: Resolution recorder + dispatcher + writers
-  recordResolution,
-  applyResolution,
-  _writeCoordinationNote,
-  _writeDeferredState,
-
-  // TRD 04-03: Pure markdown renderer
-  formatDetectionMarkdown,
 };
