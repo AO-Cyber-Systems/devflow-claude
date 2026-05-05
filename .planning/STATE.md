@@ -14,8 +14,8 @@
 **Objective complete:** 1 — GitHub coordination layer (verified 2026-05-04, 563/563 tests, all 6 TRDs done, SC-9 + SC-10 met)
 **Objective complete:** 2 — Cross-repo awareness layer (verified 2026-05-04, 731/731 tests with integration flags, all 10 SC met, 7 TRDs done)
 **Objective complete:** 3 — Planning-time org awareness (verified 2026-05-05, 842/842 tests, all 10 SC met, 7 TRDs done, SC-9 + SC-10 closed)
-**Current TRD:** 03-07 complete (Wave 6 — export lock + dogfood capture; SC-9 + SC-10 done) — Objective 3 DONE
-**Status:** Ready to plan
+**Current TRD:** 04-01 complete (Wave 1 — detection engine + signal helpers + injection hooks + fixtures + CLI router)
+**Status:** Objective 4 in flight — 1/6 TRDs done
 
 ## Branch State (post-merge)
 
@@ -113,6 +113,9 @@
 - **Export-lock banner comment pattern (TRD 03-07)** — `// ─── module.exports — LOCKED by TRD XX-YY (N-entry surface; SC-N)` with DO-NOT-MODIFY guidance. Mirror of TRD 02-07 pattern for awareness.cjs. Asserted by EX1 deepStrictEqual test. Future TRDs adding exports must update both module AND test atomically.
 - **Dogfood fixture pattern (TRD 03-07)** — structural-only assertion (3 headers present), not verbatim content. Prevents fixture rot. `dogfood-04.md` is the v1.1 baseline; re-capture when obj 4 planning artifacts exist.
 - **Stale "11 entry" references in CONTEXT.md** — line 311 + 03-01 inline comment say "11 entries". Actual live surface confirmed 21 entries. Documentation artifact only; EX1 test is the authoritative source of truth going forward.
+- **TRD 04-01 complete (2026-05-04)** — `lib/dup-detect.cjs` created: detectDuplicates + _detectHardMatch/Strong/Weak + _readPeerFilesModified + _setRunPeer/_setRunOrgOverlap/_setRunFs/_resetMocks + 5 constants. `lib/dup-detect-cli.cjs`: cmdDupDetectRoute + detect wired; resolve/log stubs for 04-02. `awareness-fixtures.cjs` extended: buildPeerBranch + buildPeerScanResult + buildOrgOverlapMatch + buildDupDetectFixtures. `df-tools.cjs`: case 'dup-detect' arm added. 47 new tests; 903 total pass (0 fail). Commits: 51e5d18 (test:), a86cb27 (feat:). SC-1/SC-2/SC-3/SC-4 complete. Wave 1 complete.
+- **files_modified short-circuit pattern (TRD 04-01)** — If peer branch entry has files_modified pre-populated (from fixture/cache), detectDuplicates uses it directly instead of calling _readPeerFilesModified. Live detection still falls through to git show when absent. Correct behavior per CONTEXT.md awareness cache pre-read design.
+- **Hard match dual-path coverage (TRD 04-01)** — Org-overlap hard match (chain_match: true + issue_ref equality) is checked before the peer-branch loop, emitting { source: 'org-overlap' } match. Peer github_issue equality (source: 'peer') checked in loop. Both paths independently covered by tests D1 and D2.
 
 ## Blockers / Concerns
 
@@ -120,7 +123,7 @@
 
 ## Session Continuity
 
-Last session: 2026-05-05 — TRD 03-07 (library export lock + dogfood) complete. 842 tests pass (0 fail, 19 skip). Objective 3 DONE.
+Last session: 2026-05-04 — TRD 04-01 (detection engine + fixtures + CLI router) complete. 903 tests pass (0 fail, 20 skip).
 Resume file: `.planning/SESSION_PICKUP.md`
-Stopped at: Completed 03-07-library-export-and-dogfood-TRD.md
-Next: Objective 4 (heartbeat / duplicate-work detection — consumes scanSiblings + scanOrgOverlap)
+Stopped at: Completed 04-01-detection-engine-and-fixtures-TRD.md
+Next: TRD 04-02 (resolution recorder — recordResolution + applyResolution + _writeCoordinationNote + _writeDeferredState)

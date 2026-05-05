@@ -320,7 +320,7 @@ Dependency order:
 **Gates** (downstream consumers): obj 6 (check-todos shows dup-detect log entries in urgency lane).
 
 **TRDs:** 6 plans across 5 waves
-- [ ] 04-01-detection-engine-and-fixtures-TRD.md — detectDuplicates + signal scoring + injection helpers + buildDupDetectFixtures (Wave 1, tdd) — SC-1, SC-2, SC-3, SC-4
+- [x] 04-01-detection-engine-and-fixtures-TRD.md — detectDuplicates + signal scoring + injection helpers + buildDupDetectFixtures (Wave 1, tdd) — SC-1, SC-2, SC-3, SC-4 ✓ (2026-05-04, 903 tests, 47 new)
 - [ ] 04-02-resolution-recorder-TRD.md — recordResolution (jsonl append) + applyResolution dispatcher + _writeCoordinationNote + _writeDeferredState + .gitignore for log (Wave 2, tdd) — SC-6, SC-8, SC-9
 - [ ] 04-03-format-detection-markdown-TRD.md — pure formatter for AskUserQuestion display + CONTEXT.md note body (Wave 3, tdd) — SC-5, SC-6 (rendering side)
 - [ ] 04-04-plan-skill-integration-TRD.md — /df:plan-objective workflow runs dup-detect, surfaces 4-option AskUserQuestion, writes Coordination Note (Wave 4, standard) — SC-5, SC-6
