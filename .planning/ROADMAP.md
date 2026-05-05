@@ -499,6 +499,50 @@ Dependency order:
 - [x] 06-03-formatter-TRD.md — formatCheckTodosMarkdown pure renderer + 4 lane sub-renderers + token bounding + --lane filter (Wave 3, tdd) — SC-5
 - [x] 06-04-cli-skill-and-integration-TRD.md — df-tools check-todos full flag wiring + /devflow:check-todos skill REWRITE + module.exports lock + e2e self-test + GH_INTEGRATION round-trip (Wave 4, mixed) — SC-6, SC-7, SC-8, SC-9, SC-10 — DONE 2026-05-05, 1290/1291 tests pass, commits d1125a6 + 08907d1 + cc1dcbd
 
+### Objective 8: Program-aware TUI viewer
+
+**Goal:** Read-only terminal UI rendering parallel sessions + their position in the org tree. Composes obj 2 (peer awareness) + obj 5 (initiatives) + obj 6 (check-todos) + obj 1 (gh chain) into a single screen. tmux-pane friendly. Doesn't gate execution. Refresh on key press; auto-refresh disabled by default.
+
+**Tracks:** devflow-claude#17. Depends on obj 2 ✓, obj 5 ✓, obj 6 ✓.
+
+**Inputs (research complete):**
+- `.planning/research/cross-session-coordination.md` — passing reference (TUI mentioned as v1.1 deliverable)
+
+**Locked decisions:**
+1. **Hand-rolled ANSI rendering — no TUI library dependency.** Keeps install footprint small, avoids node-pty/blessed/ink complexity. Pure stdout escape codes + cursor positioning + key handling via `readline` raw mode.
+2. **Read-only.** No mutation ops surfaced via TUI. View only.
+3. **Three panels (vertically stacked, 80×24 default):**
+   - **Top:** Org tree (Product Roadmap project entries grouped by Product × Quarter)
+   - **Middle:** Peer awareness (from obj 2 — branches with author + objective + last commit)
+   - **Bottom:** Active initiatives (from obj 5 — slug + Why summary + open question count)
+4. **Refresh model:** initial render + manual `r` key refresh. No auto-refresh poll. `q` quits.
+5. **tmux-pane safe.** Detects narrow terminals (< 80 cols) and re-flows rather than crashing. Restores cursor + screen on exit (handles SIGINT cleanly).
+6. **No keystroke side effects beyond r/q.** Future TUI features (selection, drill-down) are v1.2+.
+7. **Reuses every existing data source.** No new fetchers; just composes obj 2 scanPeer + obj 5 loadInitiatives + obj 6 aggregate (cached path) + obj 1 resolveChain.
+8. **Token-bounded.** TUI render code stays under ~600 lines; pure logic + ANSI helpers.
+
+**Success Criteria:**
+1. `lib/tui.cjs` exports `render({ awareness, initiatives, todos, orgChain, opts })` — pure function returning ANSI string (no I/O).
+2. `_renderOrgPanel`, `_renderPeerPanel`, `_renderInitiativesPanel` — three sub-renderers, each tested independently with hand-built fixtures.
+3. `_layoutPanels(rows, cols, panels)` — terminal-size-aware layout helper. Re-flows for narrow terminals (< 80 cols → single-column stack).
+4. `df-tools tui` CLI — opens TUI mode (raw stdin, alternate screen, hides cursor). `r` refreshes data; `q` exits cleanly (restores cursor, leaves alternate screen).
+5. Clean exit handling: SIGINT, EOF on stdin, `q` keypress all restore terminal state via `process.on('exit')` cleanup.
+6. `/devflow:tui` skill invokes the CLI.
+7. Snapshot tests: render against fixed fixture aggregates, assert exact ANSI output (deterministic). Compare against `__fixtures__/tui-snapshots/<scenario>.txt`.
+8. Resilience: missing data source (e.g., obj 5 cache absent) → renders empty panel with "(no initiatives)" placeholder; never crashes.
+9. `lib/tui.cjs` exports stable surface: `render`, `_renderOrgPanel`, `_renderPeerPanel`, `_renderInitiativesPanel`, `_layoutPanels`, `_setRunStdout`, `_resetMocks`. Module locked.
+10. Self-test: `df-tools tui --once --raw` (one-shot mode for testing) renders this repo's actual state to stdout as ANSI; exits 0; exits cleanly even when piped to a non-TTY.
+
+**Out of scope (v1.1 — explicit):**
+- Interactive selection / drill-down (just r/q)
+- Auto-refresh poll (manual only)
+- Mouse support
+- Multi-pane layouts beyond the 3 stacked panels
+- Detailed initiative view / sub-issue expansion
+- TUI-driven mutations (resolve issues, update todos, etc.)
+
+**Gates:** none — closes the v1.1 deliverable.
+
 ---
 
 ## Milestone v1.2 — Handoff Watcher PTY + Coordination-Layer Polish (next)
