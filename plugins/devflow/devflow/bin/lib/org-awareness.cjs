@@ -530,7 +530,53 @@ function _parseExports(source) {
     }
   }
 
+  // Dart: top-level class / enum / mixin / typedef / extension declarations.
+  // Match anywhere — same-line `class Foo {} class Bar {}` legal — but require word
+  // boundary or start-of-string before the keyword (avoid matching inside identifiers).
+  // Skip private names (leading underscore via Dart convention).
+  const reDartType = /\b(?:abstract\s+|sealed\s+|final\s+|base\s+|interface\s+)*(?:class|enum|mixin|typedef|extension)\s+([A-Za-z_]\w*)/g;
+  while ((m = reDartType.exec(source)) !== null) {
+    if (!m[1].startsWith('_')) names.add(m[1]);
+  }
+  // Top-level final/const/var declarations (allow leading indent)
+  const reDartVar = /^[ \t]*(?:final|const|var)\s+(?:[A-Za-z_]\w*(?:<[^>]+>)?\s+)?([a-z_]\w*)\s*=/gm;
+  while ((m = reDartVar.exec(source)) !== null) {
+    if (!m[1].startsWith('_')) names.add(m[1]);
+  }
+  // Top-level functions: `Type funcName(` at line start with optional indent.
+  // (Best-effort — won't distinguish constructors inside classes; tolerated.)
+  const reDartFunc = /^[ \t]*(?:[A-Za-z_]\w*(?:<[^>]+>)?\s+)+([a-z_]\w*)\s*\(/gm;
+  while ((m = reDartFunc.exec(source)) !== null) {
+    if (!m[1].startsWith('_')) names.add(m[1]);
+  }
+
   return Array.from(names);
+}
+
+/**
+ * Walk lib/ directory recursively, returning all .dart file paths.
+ * Skip generated files (*.g.dart, *.freezed.dart) and library-private files (leading _).
+ */
+function _walkDartLib(libDir, out = [], depth = 0) {
+  if (depth > 5) return out; // hard depth limit
+  let entries;
+  try {
+    entries = _runFs.readdirSync(libDir, { withFileTypes: true });
+  } catch {
+    return out;
+  }
+  for (const ent of entries) {
+    if (ent.name.startsWith('.') || ent.name.startsWith('_')) continue;
+    const full = path.join(libDir, ent.name);
+    if (ent.isDirectory()) {
+      _walkDartLib(full, out, depth + 1);
+    } else if (ent.isFile() && ent.name.endsWith('.dart') &&
+               !ent.name.endsWith('.g.dart') &&
+               !ent.name.endsWith('.freezed.dart')) {
+      out.push(full);
+    }
+  }
+  return out;
 }
 
 /**
@@ -667,8 +713,23 @@ function scanLibs({ path: optPath, current_tokens, cwd = process.cwd() } = {}) {
     }
   }
 
+  // Dart/Flutter package detection — pubspec.yaml + lib/*.dart
+  // (handles eden-ui-flutter, eden-biz-flutter, etc.)
+  const pubspecPath = path.join(resolved, 'pubspec.yaml');
+  if (_runFs.existsSync(pubspecPath)) {
+    const libDir = path.join(resolved, 'lib');
+    if (_runFs.existsSync(libDir)) {
+      try {
+        const dartFiles = _walkDartLib(libDir);
+        for (const f of dartFiles) entrypoints.push(f);
+      } catch (e) {
+        out.warnings.push(`pubspec lib walk failed: ${e.message}`);
+      }
+    }
+  }
+
   if (entrypoints.length === 0) {
-    out.warnings.push(`no package.json or index.* found at ${resolved}`);
+    out.warnings.push(`no package.json, pubspec.yaml, or index.* found at ${resolved}`);
     return out;
   }
 

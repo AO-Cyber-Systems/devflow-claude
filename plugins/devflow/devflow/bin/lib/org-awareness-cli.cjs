@@ -13,6 +13,7 @@ const fsBase = require('fs');
 const pathBase = require('path');
 const oa = require('./org-awareness.cjs');
 const { output } = require('./helpers.cjs');
+const { extractFrontmatter } = require('./frontmatter.cjs');
 
 // Read `.planning/config.json` awareness block. Returns {} on any read/parse error.
 function _loadAwarenessConfig(cwd) {
@@ -24,6 +25,55 @@ function _loadAwarenessConfig(cwd) {
   } catch {
     return {};
   }
+}
+
+// Extract richer tokens for an objective by reading on-disk artifacts.
+//
+// Bare `objective_id` like "03" tokenizes to nothing (length filter). The directory
+// NAME (e.g. "03-planning-time-org-awareness") + OBJECTIVE.md frontmatter give the
+// real signal. Fall back to objective_id tokens when nothing on disk.
+function _extractObjectiveTokens(cwd, objective_id) {
+  const tokens = new Set();
+  const tokenize = oa._tokenize || (() => new Set());
+
+  // Always tokenize the bare objective_id (may be empty if length<3)
+  for (const t of tokenize(objective_id)) tokens.add(t);
+
+  try {
+    const objDir = pathBase.join(cwd, '.planning', 'objectives');
+    if (!fsBase.existsSync(objDir)) return tokens;
+    const entries = fsBase.readdirSync(objDir);
+    const sub = entries.find((n) => n.startsWith(`${objective_id}-`) || n === objective_id);
+    if (!sub) return tokens;
+
+    // Directory name is the most reliable rich-keyword source
+    for (const t of tokenize(sub)) tokens.add(t);
+
+    // OBJECTIVE.md frontmatter (when present): title + files_modified
+    const objMd = pathBase.join(objDir, sub, 'OBJECTIVE.md');
+    if (fsBase.existsSync(objMd)) {
+      const fm = extractFrontmatter(fsBase.readFileSync(objMd, 'utf-8')) || {};
+      if (fm.title) for (const t of tokenize(fm.title)) tokens.add(t);
+      if (Array.isArray(fm.files_modified)) {
+        for (const f of fm.files_modified) for (const t of tokenize(f)) tokens.add(t);
+      }
+    }
+
+    // CONTEXT.md first H1/H2 heading (cheap title fallback)
+    for (const ctxName of [`${objective_id}-CONTEXT.md`, 'CONTEXT.md']) {
+      const ctxMd = pathBase.join(objDir, sub, ctxName);
+      if (fsBase.existsSync(ctxMd)) {
+        const content = fsBase.readFileSync(ctxMd, 'utf-8');
+        const m = content.match(/^#+\s+(.+)$/m);
+        if (m) for (const t of tokenize(m[1])) tokens.add(t);
+        break;
+      }
+    }
+  } catch {
+    // best-effort; fall back to whatever's already in tokens
+  }
+
+  return tokens;
 }
 
 // ─── cmdOrgAwarenessScanSiblings ──────────────────────────────────────────────
@@ -49,9 +99,7 @@ function cmdOrgAwarenessScanLibs(cwd, args, raw) {
     process.exit(1);
     return;
   }
-  // Tokenize objective_id as best-effort current_tokens
-  // (richer extraction from OBJECTIVE.md frontmatter lands in TRD 03-04+)
-  const current_tokens = oa._tokenize ? oa._tokenize(objective_id) : new Set();
+  const current_tokens = _extractObjectiveTokens(cwd, objective_id);
   const result = oa.scanLibs({ current_tokens, cwd });
   output(result, raw);
 }
@@ -80,8 +128,7 @@ function cmdOrgAwarenessScanOrgOverlap(cwd, args, raw) {
     };
   } catch { /* PROJECT.md absent or unreadable — misfiling check returns null silently */ }
 
-  // Tokenize objective_id as best-effort current_tokens
-  const current_tokens = oa._tokenize ? oa._tokenize(objective_id) : new Set();
+  const current_tokens = _extractObjectiveTokens(cwd, objective_id);
 
   const result = oa.scanOrgOverlap({
     objective_id,
@@ -148,8 +195,8 @@ function cmdOrgAwarenessConsiderations(cwd, args, raw) {
     scans.siblings = { matches: [], warnings: [`scanSiblings error: ${e.message}`], scanned_repos: 0 };
   }
 
-  // Compute current_tokens from objective_id for scanLibs and scanOrgOverlap
-  const current_tokens = oa._tokenize ? oa._tokenize(objective_id) : new Set();
+  // Rich token extraction (directory name + frontmatter title + files_modified + heading)
+  const current_tokens = _extractObjectiveTokens(cwd, objective_id);
 
   try {
     scans.libs = oa.scanLibs({ current_tokens, cwd });
