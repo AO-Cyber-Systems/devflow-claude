@@ -745,3 +745,1158 @@ Detected duplicate-work signals at plan-time on `2026-05-05T17:10:59.230Z`:
 **Suggested handoff points:**
 - sync with peer before continuing
 
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T17:43:41.040Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T17:46:58.433Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T17:48:37.124Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T17:49:03.745Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T17:51:07.103Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T17:51:33.676Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T17:52:01.007Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T17:55:29.205Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T17:59:39.197Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T17:59:55.880Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T18:00:12.999Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T18:01:42.649Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T18:02:00.809Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T18:02:17.042Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T18:02:34.650Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T18:04:03.165Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T18:04:18.880Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T18:04:57.450Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T18:08:45.616Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T18:11:37.468Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T18:11:54.481Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T18:12:13.052Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T18:12:28.292Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T18:12:45.288Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T18:19:11.623Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T18:19:28.090Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T18:19:46.981Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T18:20:03.898Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T18:20:20.765Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T18:21:03.362Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T18:25:17.999Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T18:27:31.252Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T18:28:02.496Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T18:28:56.994Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T18:30:32.840Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T18:31:09.501Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T18:34:28.462Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T18:34:55.059Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T18:35:12.448Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T18:37:52.349Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T18:38:29.200Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T18:38:55.824Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T18:39:11.869Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T18:39:28.622Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T18:39:45.108Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T18:40:04.646Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T18:41:10.159Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T18:41:50.859Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T18:42:18.795Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T18:42:49.614Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T18:45:36.094Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T18:46:29.726Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T18:48:29.246Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T19:16:58.891Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T19:19:45.277Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T19:21:17.525Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T19:21:35.817Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T19:21:54.447Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T19:22:13.797Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T19:22:30.367Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T19:22:58.659Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T19:25:29.326Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T19:27:38.123Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T19:29:06.441Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T19:29:23.514Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T19:31:04.417Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T19:31:45.757Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T19:34:58.041Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T19:39:48.324Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T19:40:18.775Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T19:40:43.352Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T19:41:07.270Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T19:42:31.005Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T19:42:48.095Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T19:43:06.277Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T19:53:33.848Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+
+
+## Coordination Note
+
+Detected duplicate-work signals at plan-time on `2026-05-05T19:54:30.510Z`:
+
+- **Strength:** unknown
+- **Source:** peer
+- **Peer objective:** `03`
+- **Peer branch:** `feature/x`
+- **Signal:** (provided via CLI; signal omitted)
+- **User resolution:** Coordinate
+
+**Suggested handoff points:**
+- sync with peer before continuing
+

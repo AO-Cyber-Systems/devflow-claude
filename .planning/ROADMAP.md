@@ -130,12 +130,12 @@ Dependency order:
 **Gates** (from ROADMAP dependency graph): v1.1 obj 2 (heartbeat needs `org_context` field), obj 5 (initiatives needs resolver to walk to Epic), obj 6 (check-todos needs resolver for cross-repo aggregation).
 
 **TRDs:** 6 plans across 6 waves
-- [ ] 01-01-frontmatter-fields-and-templates-TRD.md — document new optional GH-link frontmatter fields + back-compat parse tests (Wave 1, standard)
-- [ ] 01-02-resolver-chain-walk-TRD.md — `df-tools gh resolve <objective>` + lib/gh.cjs chain helpers + per-process cache (Wave 2, tdd)
-- [ ] 01-03-auth-and-error-handling-TRD.md — hard-fail with remediation on missing/expired gh auth (Wave 3, tdd)
-- [ ] 01-04-gh-sync-skill-and-cli-TRD.md — idempotent disk → GitHub state push + sticky comment + Project v2 fields (Wave 4, tdd)
-- [ ] 01-05-pm-backend-seam-TRD.md — scaffold abstraction for v1.2+ Linear/Jira backends (Wave 5, standard)
-- [ ] 01-06-dogfood-and-integration-TRD.md — backfill obj 0 frontmatter, capture cassettes, live round-trip (Wave 6, tdd)
+- [x] 01-01-frontmatter-fields-and-templates-TRD.md — document new optional GH-link frontmatter fields + back-compat parse tests (Wave 1, standard)
+- [x] 01-02-resolver-chain-walk-TRD.md — `df-tools gh resolve <objective>` + lib/gh.cjs chain helpers + per-process cache (Wave 2, tdd)
+- [x] 01-03-auth-and-error-handling-TRD.md — hard-fail with remediation on missing/expired gh auth (Wave 3, tdd)
+- [x] 01-04-gh-sync-skill-and-cli-TRD.md — idempotent disk → GitHub state push + sticky comment + Project v2 fields (Wave 4, tdd)
+- [x] 01-05-pm-backend-seam-TRD.md — scaffold abstraction for v1.2+ Linear/Jira backends (Wave 5, standard)
+- [x] 01-06-dogfood-and-integration-TRD.md — backfill obj 0 frontmatter, capture cassettes, live round-trip (Wave 6, tdd)
 
 ### Objective 2: Cross-repo awareness layer (peer + org views)
 
@@ -196,12 +196,12 @@ Dependency order:
 
 **TRDs:** 7 plans across 7 waves
 - [x] 02-01-state-md-parser-and-fixtures-TRD.md — STATE.md parser + awareness-fixtures.cjs scaffold (Wave 1, tdd) — DONE 2026-05-04, 592/592 tests (586 pass), commits d8b3c75 + cddcc7e
-- [ ] 02-02-peer-scanner-TRD.md — scanPeer + git-branch walker + _setRunGit injection (Wave 3, tdd)
-- [ ] 02-03-org-scanner-TRD.md — walkProject (lib/gh.cjs) + scanOrg + task-list fallback (Wave 4, tdd)
-- [ ] 02-04-cache-layer-TRD.md — readCache + writeCache + isStale + .gitignore (Wave 2, tdd)
-- [ ] 02-05-skill-and-cli-TRD.md — /devflow:awareness skill + df-tools awareness CLI router (Wave 5, standard)
+- [x] 02-02-peer-scanner-TRD.md — scanPeer + git-branch walker + _setRunGit injection (Wave 3, tdd)
+- [x] 02-03-org-scanner-TRD.md — walkProject (lib/gh.cjs) + scanOrg + task-list fallback (Wave 4, tdd)
+- [x] 02-04-cache-layer-TRD.md — readCache + writeCache + isStale + .gitignore (Wave 2, tdd)
+- [x] 02-05-skill-and-cli-TRD.md — /devflow:awareness skill + df-tools awareness CLI router (Wave 5, standard)
 - [x] 02-06-lifecycle-integration-TRD.md — SessionStart hook + plan/execute init refresh wiring (Wave 6, tdd) — DONE 2026-05-04, 710/719 tests pass, commits f35aaa3 + 5ddb3b6
-- [ ] 02-07-library-export-and-integration-TRD.md — export surface lock + integration tests + cassette capture (Wave 7, tdd)
+- [x] 02-07-library-export-and-integration-TRD.md — export surface lock + integration tests + cassette capture (Wave 7, tdd)
 
 ### Objective 3: Planning-time org awareness — surface cross-repo considerations in CONTEXT.md
 
@@ -255,13 +255,13 @@ Dependency order:
 **Gates** (downstream consumers): obj 4 (dup-detect uses scanSiblings + scanOrgOverlap), obj 5 (initiatives consumes scanOrgOverlap), obj 6 (check-todos uses sibling scan for cross-repo todos).
 
 **TRDs:** 7 plans across 6 waves
-- [ ] 03-01-sibling-scanner-and-fixtures-TRD.md — scanSiblings + tokenize/score + fs fixtures + CLI scaffold (Wave 1, tdd)
-- [ ] 03-02-eden-libs-scanner-TRD.md — scanLibs + camelSplit + parseExports + lexical match heuristic (Wave 2, tdd)
-- [ ] 03-03-org-overlap-and-misfiling-TRD.md — scanOrgOverlap (graceful auth degrade) + misfiling detection (Wave 3, tdd)
-- [ ] 03-04-format-considerations-TRD.md — formatConsiderations Markdown renderer + considerations CLI orchestrator (Wave 4, tdd)
-- [ ] 03-05-research-skill-integration-TRD.md — /df:research-objective writes Cross-Repo Considerations section to CONTEXT.md (Wave 5, standard)
-- [ ] 03-06-plan-skill-integration-TRD.md — /df:plan-objective workflow + planner agent read Cross-Repo Considerations (Wave 5, standard, parallel with 03-05)
-- [ ] 03-07-library-export-and-dogfood-TRD.md — module.exports lock (21-entry surface) + integration tests + dogfood capture (Wave 6, tdd)
+- [x] 03-01-sibling-scanner-and-fixtures-TRD.md — scanSiblings + tokenize/score + fs fixtures + CLI scaffold (Wave 1, tdd)
+- [x] 03-02-eden-libs-scanner-TRD.md — scanLibs + camelSplit + parseExports + lexical match heuristic (Wave 2, tdd)
+- [x] 03-03-org-overlap-and-misfiling-TRD.md — scanOrgOverlap (graceful auth degrade) + misfiling detection (Wave 3, tdd)
+- [x] 03-04-format-considerations-TRD.md — formatConsiderations Markdown renderer + considerations CLI orchestrator (Wave 4, tdd)
+- [x] 03-05-research-skill-integration-TRD.md — /df:research-objective writes Cross-Repo Considerations section to CONTEXT.md (Wave 5, standard)
+- [x] 03-06-plan-skill-integration-TRD.md — /df:plan-objective workflow + planner agent read Cross-Repo Considerations (Wave 5, standard, parallel with 03-05)
+- [x] 03-07-library-export-and-dogfood-TRD.md — module.exports lock (21-entry surface) + integration tests + dogfood capture (Wave 6, tdd)
 
 ### Objective 4: Duplicate-work detection + resolution flow
 
@@ -321,11 +321,11 @@ Dependency order:
 
 **TRDs:** 6 plans across 5 waves
 - [x] 04-01-detection-engine-and-fixtures-TRD.md — detectDuplicates + signal scoring + injection helpers + buildDupDetectFixtures (Wave 1, tdd) — SC-1, SC-2, SC-3, SC-4 ✓ (2026-05-04, 903 tests, 47 new)
-- [ ] 04-02-resolution-recorder-TRD.md — recordResolution (jsonl append) + applyResolution dispatcher + _writeCoordinationNote + _writeDeferredState + .gitignore for log (Wave 2, tdd) — SC-6, SC-8, SC-9
-- [ ] 04-03-format-detection-markdown-TRD.md — pure formatter for AskUserQuestion display + CONTEXT.md note body (Wave 3, tdd) — SC-5, SC-6 (rendering side)
-- [ ] 04-04-plan-skill-integration-TRD.md — /df:plan-objective workflow runs dup-detect, surfaces 4-option AskUserQuestion, writes Coordination Note (Wave 4, standard) — SC-5, SC-6
-- [ ] 04-05-execute-skill-integration-TRD.md — /df:execute-objective workflow runs dup-detect at entry, friction-minimal (Wave 4, standard, parallel with 04-04) — SC-7, SC-8
-- [ ] 04-06-library-export-and-integration-TRD.md — surface lock + e2e integration tests covering all 4 resolution paths (Wave 5, tdd) — SC-10
+- [x] 04-02-resolution-recorder-TRD.md — recordResolution (jsonl append) + applyResolution dispatcher + _writeCoordinationNote + _writeDeferredState + .gitignore for log (Wave 2, tdd) — SC-6, SC-8, SC-9
+- [x] 04-03-format-detection-markdown-TRD.md — pure formatter for AskUserQuestion display + CONTEXT.md note body (Wave 3, tdd) — SC-5, SC-6 (rendering side)
+- [x] 04-04-plan-skill-integration-TRD.md — /df:plan-objective workflow runs dup-detect, surfaces 4-option AskUserQuestion, writes Coordination Note (Wave 4, standard) — SC-5, SC-6
+- [x] 04-05-execute-skill-integration-TRD.md — /df:execute-objective workflow runs dup-detect at entry, friction-minimal (Wave 4, standard, parallel with 04-04) — SC-7, SC-8
+- [x] 04-06-library-export-and-integration-TRD.md — surface lock + e2e integration tests covering all 4 resolution paths (Wave 5, tdd) — SC-10
 
 ### Objective 5: Initiative context layer
 
@@ -376,11 +376,67 @@ Dependency order:
 **Gates** (downstream consumers): obj 6 (check-todos shows initiative open questions in urgency lane), obj 8 (TUI renders initiative tree).
 
 **TRDs:** 5 plans across 5 waves
-- [ ] 05-01-reader-and-fixtures-TRD.md — loadInitiatives + matchByRepo + formatInitiativeForPlanner + token-budget primitives + CLI list/show + fixtures (Wave 1, tdd) — SC-4, SC-6 list/show side
-- [ ] 05-02-writer-sync-TRD.md — syncInitiatives + _writeInitiativeFile (atomic tmp + rename) + qualification + slug + render (Wave 2, tdd) — SC-1, SC-2, SC-3
-- [ ] 05-03-stale-deletion-TRD.md — _detectStaleInitiatives + _deleteStaleFile + --force + TTY readline confirmation + non-TTY skip (Wave 3, tdd) — SC-7
-- [ ] 05-04-skill-and-plan-integration-TRD.md — /devflow:initiatives skill + format-for-planner CLI + plan-objective workflow + planner agent INITIATIVES block (Wave 4, standard) — SC-5, SC-6 sync side
-- [ ] 05-05-library-export-and-integration-TRD.md — module.exports surface lock + EX1 deepStrictEqual + GH_INTEGRATION=1 round-trip + token-budget assertion (Wave 5, tdd) — SC-8, SC-9, SC-10
+- [x] 05-01-reader-and-fixtures-TRD.md — loadInitiatives + matchByRepo + formatInitiativeForPlanner + token-budget primitives + CLI list/show + fixtures (Wave 1, tdd) — SC-4, SC-6 list/show side
+- [x] 05-02-writer-sync-TRD.md — syncInitiatives + _writeInitiativeFile (atomic tmp + rename) + qualification + slug + render (Wave 2, tdd) — SC-1, SC-2, SC-3
+- [x] 05-03-stale-deletion-TRD.md — _detectStaleInitiatives + _deleteStaleFile + --force + TTY readline confirmation + non-TTY skip (Wave 3, tdd) — SC-7
+- [x] 05-04-skill-and-plan-integration-TRD.md — /devflow:initiatives skill + format-for-planner CLI + plan-objective workflow + planner agent INITIATIVES block (Wave 4, standard) — SC-5, SC-6 sync side
+- [x] 05-05-library-export-and-integration-TRD.md — module.exports surface lock + EX1 deepStrictEqual + GH_INTEGRATION=1 round-trip + token-budget assertion (Wave 5, tdd) — SC-8, SC-9, SC-10
+
+### Objective 9: Roadmap ↔ disk reconciliation
+
+**Goal:** `df:sync-roadmap` walks `ROADMAP.md` and reconciles its checkbox state against on-disk reality (which TRDs have SUMMARY.md, which objectives are complete, etc.). Drift between ROADMAP claims and actual filesystem state is silently corrected (or surfaced for review). Eliminates the recurring chore of manually flipping `[ ]` → `[x]` after each TRD ships.
+
+**Tracks:** devflow-claude#18 (sub-issue of #9 [Roadmap]). Independent of all other v1.1 objectives — can land any time.
+
+**Inputs (research complete):**
+- `.planning/research/cross-session-coordination.md` — passing reference
+- Direct observation: every v1.1 objective so far has manually updated ROADMAP TRD checkboxes after each wave; this objective automates that
+
+**Locked decisions:**
+1. **Walk + write — no questions asked when reconciling drift.** Default mode rewrites ROADMAP checkboxes to match on-disk truth. `--dry-run` shows diff without writing. `--interactive` prompts per drift.
+2. **Three reconciliation rules:**
+   - TRD has `<TRD-id>-SUMMARY.md` on disk → mark `[x]` in ROADMAP
+   - TRD has `Self-Check: FAILED` in SUMMARY → mark `[ ]` and add `(failed)` annotation
+   - TRD listed in ROADMAP but no TRD file exists → leave `[ ]` and surface a warning (don't auto-delete)
+3. **Objective-level rollup:** when ALL TRDs in an objective are checked, mark the objective complete in §"Progress" table (if it exists) AND in §"Status:" line.
+4. **Single ROADMAP.md only.** Doesn't cross repos. Multi-repo reconciliation is obj 6 territory.
+5. **Atomic write (tmp + rename).** Same pattern as obj 2 awareness cache + obj 5 initiatives.
+6. **Idempotent.** Running twice produces no diff in second run.
+7. **Read-only at plan-time + execute-time.** `df:sync-roadmap` is invoked manually OR as a post-execute hook. Never mutates during planning.
+8. **No GitHub side effects.** ROADMAP.md is local; this objective doesn't touch GH issues. (GH sync is obj 1's `df-tools gh sync` — separate command.)
+
+**Success Criteria:**
+
+*Reconciler*
+1. `lib/roadmap-reconcile.cjs` exports `reconcile({ projectRoot, mode: 'write' | 'dry-run' | 'interactive' })` returning `{ changes: [{ kind, path, before, after }], warnings: [] }`. Hand-built fixtures; pure logic.
+2. Three rule kinds enforced: trd_summary_exists, trd_summary_failed, trd_orphan_warning.
+3. Atomic write via tmp + rename; idempotent (second run = empty changes).
+
+*Objective-level rollup*
+4. When all TRDs in an objective have SUMMARYs, `### Objective N` section's `**Status:**` line gets updated (e.g., "Status: in flight" → "Status: complete 2026-05-05"). Frontmatter Progress table (if present) updated similarly.
+
+*CLI surface*
+5. `df-tools sync-roadmap [--dry-run] [--interactive]` runs reconcile + writes (or shows diff). Default: write mode.
+6. `/devflow:sync-roadmap` skill invokes the CLI.
+
+*Library + tests*
+7. `lib/roadmap-reconcile.cjs` exports stable surface: `reconcile`, `_walkTrdLines`, `_checkSummaryExists`, `_checkSummaryFailed`, `_writeReconciledRoadmap`. Unit-testable with fixture trees.
+8. Round-trip integration test: create fixture project with mismatched ROADMAP + SUMMARYs → run reconcile → assert ROADMAP matches disk truth.
+9. Self-test: `df-tools sync-roadmap --dry-run` against THIS repo's ROADMAP shows zero drift (since we maintain it manually); after a fake breakage (`sed` an `[x]` to `[ ]`), `--dry-run` shows the drift; `write` fixes it.
+10. Idempotency test: running twice produces zero second-run changes.
+
+**Out of scope (v1.1 — explicit):**
+- Cross-repo reconciliation (obj 6 territory)
+- Auto-deletion of orphan TRDs (warn only — never delete user files)
+- GitHub issue state sync (that's obj 1's `df-tools gh sync`)
+- ROADMAP.md schema migration (assumes current format)
+
+**Gates:** none — pure utility. Available immediately for use across v1.1+.
+
+**TRDs:** 3 plans across 3 waves
+- [x] 09-01-reconciler-engine-and-fixtures-TRD.md — reconcile() + 3 rule helpers + atomic write + buildReconcileFixtures (Wave 1, tdd) — SC-1, SC-2, SC-3
+- [x] 09-02-objective-rollup-TRD.md — _rollupObjectiveStatus + Status line + Progress table updater + reconcile integration (Wave 2, tdd) — SC-4
+- [ ] 09-03-cli-skill-and-integration-TRD.md — df-tools sync-roadmap CLI + /devflow:sync-roadmap skill + module.exports lock + e2e self-test/idempotency (Wave 3, tdd+standard) — SC-5, SC-6, SC-7, SC-8, SC-9, SC-10
 
 ---
 
