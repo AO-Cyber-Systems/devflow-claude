@@ -382,6 +382,57 @@ Dependency order:
 - [ ] 05-04-skill-and-plan-integration-TRD.md — /devflow:initiatives skill + format-for-planner CLI + plan-objective workflow + planner agent INITIATIVES block (Wave 4, standard) — SC-5, SC-6 sync side
 - [ ] 05-05-library-export-and-integration-TRD.md — module.exports surface lock + EX1 deepStrictEqual + GH_INTEGRATION=1 round-trip + token-budget assertion (Wave 5, tdd) — SC-8, SC-9, SC-10
 
+### Objective 9: Roadmap ↔ disk reconciliation
+
+**Goal:** `df:sync-roadmap` walks `ROADMAP.md` and reconciles its checkbox state against on-disk reality (which TRDs have SUMMARY.md, which objectives are complete, etc.). Drift between ROADMAP claims and actual filesystem state is silently corrected (or surfaced for review). Eliminates the recurring chore of manually flipping `[ ]` → `[x]` after each TRD ships.
+
+**Tracks:** devflow-claude#18 (sub-issue of #9 [Roadmap]). Independent of all other v1.1 objectives — can land any time.
+
+**Inputs (research complete):**
+- `.planning/research/cross-session-coordination.md` — passing reference
+- Direct observation: every v1.1 objective so far has manually updated ROADMAP TRD checkboxes after each wave; this objective automates that
+
+**Locked decisions:**
+1. **Walk + write — no questions asked when reconciling drift.** Default mode rewrites ROADMAP checkboxes to match on-disk truth. `--dry-run` shows diff without writing. `--interactive` prompts per drift.
+2. **Three reconciliation rules:**
+   - TRD has `<TRD-id>-SUMMARY.md` on disk → mark `[x]` in ROADMAP
+   - TRD has `Self-Check: FAILED` in SUMMARY → mark `[ ]` and add `(failed)` annotation
+   - TRD listed in ROADMAP but no TRD file exists → leave `[ ]` and surface a warning (don't auto-delete)
+3. **Objective-level rollup:** when ALL TRDs in an objective are checked, mark the objective complete in §"Progress" table (if it exists) AND in §"Status:" line.
+4. **Single ROADMAP.md only.** Doesn't cross repos. Multi-repo reconciliation is obj 6 territory.
+5. **Atomic write (tmp + rename).** Same pattern as obj 2 awareness cache + obj 5 initiatives.
+6. **Idempotent.** Running twice produces no diff in second run.
+7. **Read-only at plan-time + execute-time.** `df:sync-roadmap` is invoked manually OR as a post-execute hook. Never mutates during planning.
+8. **No GitHub side effects.** ROADMAP.md is local; this objective doesn't touch GH issues. (GH sync is obj 1's `df-tools gh sync` — separate command.)
+
+**Success Criteria:**
+
+*Reconciler*
+1. `lib/roadmap-reconcile.cjs` exports `reconcile({ projectRoot, mode: 'write' | 'dry-run' | 'interactive' })` returning `{ changes: [{ kind, path, before, after }], warnings: [] }`. Hand-built fixtures; pure logic.
+2. Three rule kinds enforced: trd_summary_exists, trd_summary_failed, trd_orphan_warning.
+3. Atomic write via tmp + rename; idempotent (second run = empty changes).
+
+*Objective-level rollup*
+4. When all TRDs in an objective have SUMMARYs, `### Objective N` section's `**Status:**` line gets updated (e.g., "Status: in flight" → "Status: complete 2026-05-05"). Frontmatter Progress table (if present) updated similarly.
+
+*CLI surface*
+5. `df-tools sync-roadmap [--dry-run] [--interactive]` runs reconcile + writes (or shows diff). Default: write mode.
+6. `/devflow:sync-roadmap` skill invokes the CLI.
+
+*Library + tests*
+7. `lib/roadmap-reconcile.cjs` exports stable surface: `reconcile`, `_walkTrdLines`, `_checkSummaryExists`, `_checkSummaryFailed`, `_writeReconciledRoadmap`. Unit-testable with fixture trees.
+8. Round-trip integration test: create fixture project with mismatched ROADMAP + SUMMARYs → run reconcile → assert ROADMAP matches disk truth.
+9. Self-test: `df-tools sync-roadmap --dry-run` against THIS repo's ROADMAP shows zero drift (since we maintain it manually); after a fake breakage (`sed` an `[x]` to `[ ]`), `--dry-run` shows the drift; `write` fixes it.
+10. Idempotency test: running twice produces zero second-run changes.
+
+**Out of scope (v1.1 — explicit):**
+- Cross-repo reconciliation (obj 6 territory)
+- Auto-deletion of orphan TRDs (warn only — never delete user files)
+- GitHub issue state sync (that's obj 1's `df-tools gh sync`)
+- ROADMAP.md schema migration (assumes current format)
+
+**Gates:** none — pure utility. Available immediately for use across v1.1+.
+
 ---
 
 ## Milestone v1.2 — Handoff Watcher PTY + Coordination-Layer Polish (next)
