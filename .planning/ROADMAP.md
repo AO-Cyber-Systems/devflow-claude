@@ -375,6 +375,13 @@ Dependency order:
 
 **Gates** (downstream consumers): obj 6 (check-todos shows initiative open questions in urgency lane), obj 8 (TUI renders initiative tree).
 
+**TRDs:** 5 plans across 5 waves
+- [ ] 05-01-reader-and-fixtures-TRD.md — loadInitiatives + matchByRepo + formatInitiativeForPlanner + token-budget primitives + CLI list/show + fixtures (Wave 1, tdd) — SC-4, SC-6 list/show side
+- [ ] 05-02-writer-sync-TRD.md — syncInitiatives + _writeInitiativeFile (atomic tmp + rename) + qualification + slug + render (Wave 2, tdd) — SC-1, SC-2, SC-3
+- [ ] 05-03-stale-deletion-TRD.md — _detectStaleInitiatives + _deleteStaleFile + --force + TTY readline confirmation + non-TTY skip (Wave 3, tdd) — SC-7
+- [ ] 05-04-skill-and-plan-integration-TRD.md — /devflow:initiatives skill + format-for-planner CLI + plan-objective workflow + planner agent INITIATIVES block (Wave 4, standard) — SC-5, SC-6 sync side
+- [ ] 05-05-library-export-and-integration-TRD.md — module.exports surface lock + EX1 deepStrictEqual + GH_INTEGRATION=1 round-trip + token-budget assertion (Wave 5, tdd) — SC-8, SC-9, SC-10
+
 ---
 
 ## Milestone v1.2 — Handoff Watcher PTY + Coordination-Layer Polish (next)
