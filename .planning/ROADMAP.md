@@ -543,6 +543,12 @@ Dependency order:
 
 **Gates:** none — closes the v1.1 deliverable.
 
+**TRDs:** 3 plans across 3 waves
+- [ ] 08-01-renderer-and-fixtures-TRD.md — render + _renderOrgPanel/_renderPeerPanel/_renderInitiativesPanel + _layoutPanels + ANSI helpers + 9 hand-built snapshot fixtures (Wave 1, tdd) — SC-1, SC-2, SC-3, SC-7, SC-8
+- [ ] 08-02-cli-and-terminal-control-TRD.md — df-tools tui CLI + raw stdin + alt-screen + cursor restore + signal handlers + non-TTY auto-fallback (Wave 2, standard) — SC-4, SC-5
+- [ ] 08-03-skill-and-export-lock-TRD.md — /devflow:tui skill + module.exports LOCKED + composition tests + e2e self-test (Wave 3, tdd) — SC-6, SC-9, SC-10
+
+
 ---
 
 ## Milestone v1.2 — Handoff Watcher PTY + Coordination-Layer Polish (next)
