@@ -319,6 +319,14 @@ Dependency order:
 
 **Gates** (downstream consumers): obj 6 (check-todos shows dup-detect log entries in urgency lane).
 
+**TRDs:** 6 plans across 5 waves
+- [ ] 04-01-detection-engine-and-fixtures-TRD.md — detectDuplicates + signal scoring + injection helpers + buildDupDetectFixtures (Wave 1, tdd) — SC-1, SC-2, SC-3, SC-4
+- [ ] 04-02-resolution-recorder-TRD.md — recordResolution (jsonl append) + applyResolution dispatcher + _writeCoordinationNote + _writeDeferredState + .gitignore for log (Wave 2, tdd) — SC-6, SC-8, SC-9
+- [ ] 04-03-format-detection-markdown-TRD.md — pure formatter for AskUserQuestion display + CONTEXT.md note body (Wave 3, tdd) — SC-5, SC-6 (rendering side)
+- [ ] 04-04-plan-skill-integration-TRD.md — /df:plan-objective workflow runs dup-detect, surfaces 4-option AskUserQuestion, writes Coordination Note (Wave 4, standard) — SC-5, SC-6
+- [ ] 04-05-execute-skill-integration-TRD.md — /df:execute-objective workflow runs dup-detect at entry, friction-minimal (Wave 4, standard, parallel with 04-04) — SC-7, SC-8
+- [ ] 04-06-library-export-and-integration-TRD.md — surface lock + e2e integration tests covering all 4 resolution paths (Wave 5, tdd) — SC-10
+
 ---
 
 ## Milestone v1.2 — Handoff Watcher PTY + Coordination-Layer Polish (next)
