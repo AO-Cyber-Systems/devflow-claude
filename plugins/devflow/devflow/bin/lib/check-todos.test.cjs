@@ -21,6 +21,11 @@
 // Group FF — formatCheckTodosMarkdown (top-level): FF1-FF13
 // Group FE — _renderEntry / _entryTitle / _attributionSuffix: FE1-FE9
 // Group FT — Truncation + token bounds: FT1-FT6
+//
+// ## Test list — TRD 06-04 export-lock + integration
+//
+// Group EX — Export-surface lock: EX1-EX3
+// Group E2E — Self-test + GH_INTEGRATION round-trip: E2E1-E2E3
 
 const { describe, it, afterEach, before } = require('node:test');
 const assert = require('node:assert/strict');
@@ -1665,5 +1670,141 @@ describe('check-todos: Group FT — Truncation + token bounds', () => {
     assert.ok(!out.includes('## 💡 Ideas'), 'Ideas absent');
     // Truncation applies: 10 entries, shows 5
     assert.match(out, /\[showing 5; --all for full list \(10 total\)\]/);
+  });
+});
+
+// ─── Group EX — Export-surface lock (TRD 06-04) ──────────────────────────────
+
+describe('check-todos: Group EX — export-surface lock (TRD 06-04)', () => {
+  it('EX1: module.exports surface is locked (deepStrictEqual on Object.keys)', () => {
+    // Locked 20-entry surface: 2 public + 5 fetchers + 1 lane + 3 cache + 4 hooks + 5 constants
+    // ASCII sort order: UPPERCASE < _ < lowercase
+    const expected = [
+      'CHECK_TODOS_CACHE_REL',
+      'CHECK_TODOS_TTL_MINUTES',
+      'DEFAULT_LANE_TRUNCATE',
+      'LANE_NAMES',
+      'MAX_CHECK_TODOS_OUTPUT_CHARS',
+      '_assignLane',
+      '_fetchDupDetectLog',
+      '_fetchGhIssues',
+      '_fetchInitiativeQuestions',
+      '_fetchLocalTodos',
+      '_fetchPeerSessions',
+      '_resetMocks',
+      '_setRunFs',
+      '_setRunGh',
+      '_setRunPeer',
+      'aggregate',
+      'formatCheckTodosMarkdown',
+      'isCheckTodosCacheStale',
+      'readCheckTodosCache',
+      'writeCheckTodosCache',
+    ];
+    assert.deepStrictEqual(Object.keys(ct).sort(), expected.sort());
+  });
+
+  it('EX2: module.exports block has banner comment LOCKED by TRD 06-04', () => {
+    const fs = require('fs');
+    const src = fs.readFileSync(require.resolve('./check-todos.cjs'), 'utf-8');
+    assert.match(src, /─── module\.exports — LOCKED by TRD 06-04/);
+  });
+
+  it('EX3: module.exports has exactly 20 entries (count guard)', () => {
+    assert.strictEqual(Object.keys(ct).length, 20);
+  });
+});
+
+// ─── Group E2E — Self-test + GH_INTEGRATION round-trip (TRD 06-04) ──────────
+
+describe('check-todos: Group E2E — self-test + integration (TRD 06-04)', () => {
+  it('E2E1: SELF-TEST — df-tools check-todos --raw against this repo emits valid JSON with 6-key shape', { timeout: 30000 }, () => {
+    const { execSync } = require('child_process');
+    const path = require('path');
+    const repoRoot = process.cwd();
+    const dfTools = path.join(repoRoot, 'plugins', 'devflow', 'devflow', 'bin', 'df-tools.cjs');
+
+    let stdout;
+    try {
+      stdout = execSync(`node "${dfTools}" check-todos --raw`, {
+        cwd: repoRoot,
+        encoding: 'utf-8',
+        timeout: 25000,
+      });
+    } catch (err) {
+      // execSync throws on non-zero exit; check-todos may exit 1 if gh auth missing.
+      // We tolerate that — the JSON should still be on stdout.
+      stdout = err.stdout || '';
+    }
+
+    // Parse stdout as JSON
+    let result;
+    try {
+      result = JSON.parse(stdout);
+    } catch (parseErr) {
+      assert.fail(`Could not parse stdout as JSON. Raw output (first 500 chars): ${stdout.slice(0, 500)}`);
+    }
+
+    // Verify 6-key aggregate shape
+    for (const key of ['blocked', 'now', 'soon', 'ideas', 'warnings', 'cached']) {
+      assert.ok(key in result, `Expected key '${key}' in aggregate result`);
+    }
+    assert.ok(Array.isArray(result.blocked), 'blocked is array');
+    assert.ok(Array.isArray(result.now), 'now is array');
+    assert.ok(Array.isArray(result.soon), 'soon is array');
+    assert.ok(Array.isArray(result.ideas), 'ideas is array');
+    assert.ok(Array.isArray(result.warnings), 'warnings is array');
+    assert.strictEqual(typeof result.cached, 'boolean', 'cached is boolean');
+
+    // Verify at least one source surfaced data — this repo has dup-detect log,
+    // initiatives, STATE.md etc., so SOME entries/warnings should appear.
+    const totalEntries = result.blocked.length + result.now.length + result.soon.length + result.ideas.length;
+    const totalWarnings = result.warnings.length;
+    assert.ok(
+      totalEntries + totalWarnings > 0,
+      'Expected at least one entry or warning surfaced from this repo state',
+    );
+  });
+
+  it('E2E2: GH_INTEGRATION round-trip — live aggregate against current GH state', { skip: !process.env.GH_INTEGRATION, timeout: 60000 }, () => {
+    const { execSync } = require('child_process');
+    const path = require('path');
+    const repoRoot = process.cwd();
+    const dfTools = path.join(repoRoot, 'plugins', 'devflow', 'devflow', 'bin', 'df-tools.cjs');
+
+    // Force-refresh to bypass any cache from previous test runs
+    const stdout = execSync(`node "${dfTools}" check-todos --raw --refresh`, {
+      cwd: repoRoot,
+      encoding: 'utf-8',
+      timeout: 55000,
+    });
+
+    const result = JSON.parse(stdout);
+
+    // With GH_INTEGRATION, expect EITHER gh entries OR a gh_auth_failure warning
+    const hasGhEntries = (result.blocked.concat(result.now, result.soon, result.ideas))
+      .some(e => e && e.source === 'gh');
+    const hasGhAuthFailure = (result.warnings || []).some(w => w.kind === 'gh_auth_failure');
+
+    if (!hasGhEntries && !hasGhAuthFailure) {
+      // User has gh auth but zero matching issues — also valid.
+      // Just verify gh source was attempted (no fetch_error warning for gh).
+      const ghFetchError = (result.warnings || []).some(w => w.source === 'gh' && w.kind === 'fetch_error');
+      assert.ok(!ghFetchError, 'gh source should not have fetch_error in GH_INTEGRATION mode');
+    }
+
+    assert.strictEqual(result.cached, false, 'Expected cached=false under --refresh');
+  });
+
+  it('E2E3: skill exists check — SKILL.md present with correct frontmatter + df-tools invocation', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const repoRoot = process.cwd();
+    const skillPath = path.join(repoRoot, 'plugins', 'devflow', 'skills', 'check-todos', 'SKILL.md');
+
+    assert.ok(fs.existsSync(skillPath), `SKILL.md must exist at ${skillPath}`);
+    const content = fs.readFileSync(skillPath, 'utf-8');
+    assert.match(content, /^name: check-todos/m, 'frontmatter must have name: check-todos');
+    assert.match(content, /df-tools check-todos/, 'skill body must invoke df-tools check-todos');
   });
 });
