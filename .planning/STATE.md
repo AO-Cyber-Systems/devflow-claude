@@ -15,7 +15,7 @@
 **Objective complete:** 2 — Cross-repo awareness layer (verified 2026-05-04, 731/731 tests with integration flags, all 10 SC met, 7 TRDs done)
 **Objective complete:** 3 — Planning-time org awareness (verified 2026-05-05, 842/842 tests, all 10 SC met, 7 TRDs done, SC-9 + SC-10 closed)
 **Current TRD:** 03-07 complete (Wave 6 — export lock + dogfood capture; SC-9 + SC-10 done) — Objective 3 DONE
-**Status:** Objective 3 complete; ready for objective 4
+**Status:** Ready to plan
 
 ## Branch State (post-merge)
 
