@@ -6,6 +6,70 @@ const crypto = require('crypto');
 
 const HANDOFF_DIR = '.devflow-handoff';
 
+// TRD 19-02: token-passing schema constants.
+// `keyring` source rejected for v1.2; deferred to v1.3+ per locked decision 5.
+const VALID_INPUT_SOURCES = ['stash', 'env'];
+const KEYRING_REJECT_MSG =
+  'value_source "keyring" deferred to v1.3+ — use stash or env in v1.2';
+
+/**
+ * Validate the optional `inputs` field on a pending handoff record.
+ *
+ * Schema:
+ *   inputs: {
+ *     secrets?: [
+ *       { prompt_match: string (regex), value_source: 'stash'|'env', value_ref: string }
+ *     ]
+ *   }
+ *
+ * Returns:
+ *   { ok: true }
+ *   { ok: false, reason: string }
+ *
+ * Empty/missing secrets array is a valid no-op (returns ok:true).
+ */
+function validateInputsSchema(inputs) {
+  if (inputs == null || typeof inputs !== 'object' || Array.isArray(inputs)) {
+    return { ok: false, reason: 'inputs must be an object' };
+  }
+  const secrets = inputs.secrets;
+  if (secrets == null) return { ok: true };
+  if (!Array.isArray(secrets)) {
+    return { ok: false, reason: 'inputs.secrets must be an array' };
+  }
+  for (let i = 0; i < secrets.length; i += 1) {
+    const s = secrets[i];
+    if (s == null || typeof s !== 'object' || Array.isArray(s)) {
+      return { ok: false, reason: `inputs.secrets[${i}] must be an object` };
+    }
+    if (typeof s.prompt_match !== 'string' || !s.prompt_match) {
+      return { ok: false, reason: `inputs.secrets[${i}].prompt_match required (non-empty string)` };
+    }
+    try {
+      // Compile-test the regex; new RegExp() throws SyntaxError on malformed pattern.
+      new RegExp(s.prompt_match);
+    } catch (e) {
+      return {
+        ok: false,
+        reason: `inputs.secrets[${i}] invalid regex in prompt_match: ${e.message}`,
+      };
+    }
+    if (s.value_source === 'keyring') {
+      return { ok: false, reason: `inputs.secrets[${i}]: ${KEYRING_REJECT_MSG}` };
+    }
+    if (!VALID_INPUT_SOURCES.includes(s.value_source)) {
+      return {
+        ok: false,
+        reason: `inputs.secrets[${i}].value_source must be one of: ${VALID_INPUT_SOURCES.join(', ')}`,
+      };
+    }
+    if (typeof s.value_ref !== 'string' || !s.value_ref) {
+      return { ok: false, reason: `inputs.secrets[${i}].value_ref required (non-empty string)` };
+    }
+  }
+  return { ok: true };
+}
+
 function dirs(cwd) {
   const root = path.join(cwd, HANDOFF_DIR);
   return {
@@ -54,10 +118,25 @@ function output(obj, raw) {
   }
 }
 
-function cmdHandoffCreate(cwd, cmd, raw) {
+function cmdHandoffCreate(cwd, cmd, raw, opts) {
   if (!cmd) {
     process.stderr.write('handoff create requires a command\n');
     process.exit(2);
+  }
+  const o = opts || {};
+  let inputs = null;
+  if (o.inputsJson != null) {
+    try {
+      inputs = JSON.parse(o.inputsJson);
+    } catch (e) {
+      process.stderr.write(`handoff create: invalid --inputs-json: ${e.message}\n`);
+      process.exit(2);
+    }
+    const v = validateInputsSchema(inputs);
+    if (!v.ok) {
+      process.stderr.write(`handoff create: inputs schema invalid: ${v.reason}\n`);
+      process.exit(2);
+    }
   }
   const d = ensureDirs(cwd);
   const id = newId();
@@ -67,6 +146,7 @@ function cmdHandoffCreate(cwd, cmd, raw) {
     cwd,
     status: 'pending',
     created_at: new Date().toISOString(),
+    ...(inputs ? { inputs } : {}),
   };
   const filePath = path.join(d.pending, `${id}.json`);
   writeJson(filePath, record);
@@ -129,4 +209,5 @@ module.exports = {
   cmdHandoffComplete,
   cmdHandoffList,
   cmdHandoffGet,
+  validateInputsSchema,
 };

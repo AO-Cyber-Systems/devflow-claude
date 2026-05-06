@@ -623,8 +623,18 @@ async function main() {
     case 'handoff': {
       const subcommand = args[1];
       if (subcommand === 'create') {
-        const cmd = args.slice(2).join(' ');
-        cmdHandoffCreate(cwd, cmd, raw);
+        // Pull --inputs-json <json> out of the arg list before joining the
+        // command (TRD 19-02). The flag and its value are removed; the rest
+        // of the args become the command string.
+        const createArgs = args.slice(2);
+        let inputsJson;
+        const idx = createArgs.indexOf('--inputs-json');
+        if (idx !== -1) {
+          inputsJson = createArgs[idx + 1];
+          createArgs.splice(idx, 2);
+        }
+        const cmd = createArgs.join(' ');
+        cmdHandoffCreate(cwd, cmd, raw, { inputsJson });
       } else if (subcommand === 'complete') {
         const id = args[2];
         const exitIdx = args.indexOf('--exit-code');
