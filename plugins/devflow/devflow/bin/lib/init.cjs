@@ -2,12 +2,168 @@
 
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const { execSync, spawnSync } = require('child_process');
 const { output, error, safeReadFile, generateSlugInternal, pathExistsInternal, MODEL_PROFILES } = require('./helpers.cjs');
 const { loadConfig } = require('./config.cjs');
 const { findObjectiveInternal } = require('./objective.cjs');
 const { getMilestoneInfo, getRoadmapObjectiveInternal } = require('./roadmap.cjs');
 const { bootstrapProjectMd } = require('./project-bootstrap.cjs');
+
+// ─── Git plumbing (TRD 22-01) ─────────────────────────────────────────────────
+//
+// Pattern mirrors awareness.cjs lines 233-251: a thin spawnSync wrapper plus a
+// `_setRunGit` test injection hook so unit tests can mock git without spawning
+// processes. Use ONLY the `_runGit` shadow inside production code paths added
+// by TRD 22-01; existing init.cjs code paths keep using `execSync` directly
+// (back-compat preserved).
+
+function runGit(args, opts = {}) {
+  const r = spawnSync('git', args, {
+    encoding: 'utf-8',
+    stdio: ['pipe', 'pipe', 'pipe'],
+    timeout: 30000,
+    ...opts,
+  });
+  return {
+    ok: r.status === 0,
+    status: r.status,
+    stdout: r.stdout || '',
+    stderr: (r.stderr || '').trim(),
+  };
+}
+
+let _runGit = runGit;
+function _setRunGit(fn) { _runGit = (fn != null) ? fn : runGit; }
+function _resetGitMock() { _runGit = runGit; }
+
+// ─── --branch flag resolution (TRD 22-01) ─────────────────────────────────────
+
+/**
+ * Resolve --branch flag from argv slice into a branch spec.
+ *
+ * Modes:
+ *   working_tree (default): read .planning/* via fs from cwd
+ *   git_show:               read .planning/* via `git show <branch>:<path>`
+ *
+ * Aliases: 'current', 'HEAD' → working_tree mode (per G3 in 22-RESEARCH.md;
+ * detached HEAD returns literal 'HEAD' from git rev-parse, so treat it as alias).
+ *
+ * Errors (calls helpers.cjs error() → process.exit(1)):
+ *   --branch=<name> where <name> does not exist (rev-parse --verify fails)
+ *
+ * Accepts both `--branch foo` and `--branch=foo` forms.
+ *
+ * @param {string[]} args - argv slice
+ * @param {string}   cwd  - working directory (passed to git for repo context)
+ * @returns {{ mode: 'working_tree'|'git_show', branch: string|null }}
+ */
+function _resolveBranch(args, cwd) {
+  let requested = null;
+
+  // Form 1: --branch foo  (separate tokens)
+  const idx = args.indexOf('--branch');
+  if (idx !== -1 && idx + 1 < args.length) {
+    const next = args[idx + 1];
+    // Only accept as the value if it doesn't itself look like a flag
+    if (typeof next === 'string' && !next.startsWith('--')) {
+      requested = next;
+    }
+  }
+
+  // Form 2: --branch=foo  (single token; takes precedence if present)
+  for (const a of args) {
+    if (typeof a === 'string' && a.startsWith('--branch=')) {
+      requested = a.slice('--branch='.length);
+      break;
+    }
+  }
+
+  if (!requested || requested === 'current' || requested === 'HEAD') {
+    return { mode: 'working_tree', branch: null };
+  }
+
+  const verifyR = _runGit(['rev-parse', '--verify', '--quiet', requested], { cwd });
+  if (!verifyR.ok) {
+    error(
+      `--branch=${requested} does not exist. ` +
+      `Hint: 'git branch --list ${requested}*' to find similar names, ` +
+      `or omit --branch to read from current working tree.`
+    );
+  }
+
+  return { mode: 'git_show', branch: requested };
+}
+
+/**
+ * Read .planning/STATE.md respecting branch spec.
+ *
+ * working_tree mode: fs.readFileSync — errors if STATE.md missing.
+ * git_show    mode: git show <branch>:.planning/STATE.md — errors if missing.
+ *
+ * Both error paths call error() with actionable message. PRIOR behavior in some
+ * call sites (silent null/empty fallback via safeReadFile) is REMOVED for
+ * STATE.md reads gated by --include state. Callers that legitimately tolerate
+ * missing STATE.md (cmdInitNewProject, cmdInitResume) MUST NOT call this helper.
+ *
+ * @param {string} cwd
+ * @param {{ mode: string, branch: string|null }} branchSpec
+ * @returns {string} STATE.md content
+ */
+function _readStateBranch(cwd, branchSpec) {
+  if (branchSpec.mode === 'working_tree') {
+    const full = path.join(cwd, '.planning', 'STATE.md');
+    if (!fs.existsSync(full)) {
+      error(
+        `.planning/STATE.md not found on current branch. ` +
+        `If you need state from another branch, pass --branch=<name>. ` +
+        `If this is a new project, run /devflow:new-project first.`
+      );
+    }
+    return fs.readFileSync(full, 'utf-8');
+  }
+  // git_show mode
+  const showR = _runGit(['show', `${branchSpec.branch}:.planning/STATE.md`], { cwd });
+  if (!showR.ok) {
+    error(`.planning/STATE.md not found on branch ${branchSpec.branch}.`);
+  }
+  return showR.stdout;
+}
+
+/**
+ * Build informational note when --branch=X but current HEAD = Y (X ≠ Y).
+ *
+ * Returns null when:
+ *   - branchSpec.mode === 'working_tree' (no mismatch possible)
+ *   - currentBranch is null or 'HEAD' (detached — no mismatch)
+ *   - currentBranch === branchSpec.branch (same branch — no mismatch)
+ *
+ * Otherwise returns a single-line informational note. Not a warning; the
+ * caller is reading state from another branch on purpose.
+ *
+ * @param {string|null} currentBranch
+ * @param {{ mode: string, branch: string|null }} branchSpec
+ * @returns {string|null}
+ */
+function _buildBranchMismatchNote(currentBranch, branchSpec) {
+  if (!branchSpec || branchSpec.mode !== 'git_show') return null;
+  if (!currentBranch || currentBranch === 'HEAD') return null;
+  if (currentBranch === branchSpec.branch) return null;
+  return `current branch is ${currentBranch}; reading state from ${branchSpec.branch} (--branch flag)`;
+}
+
+/**
+ * Resolve current branch (best-effort). Returns null when not in a git repo
+ * or when git is unavailable. In detached HEAD state, git rev-parse returns
+ * literal 'HEAD' which we propagate so _buildBranchMismatchNote can short
+ * circuit the mismatch check.
+ *
+ * @param {string} cwd
+ * @returns {string|null}
+ */
+function _resolveCurrentBranch(cwd) {
+  const r = _runGit(['rev-parse', '--abbrev-ref', 'HEAD'], { cwd });
+  return r.ok ? r.stdout.trim() : null;
+}
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
@@ -152,11 +308,12 @@ function cmdResolveModel(cwd, agentType, raw) {
   output(result, raw, model);
 }
 
-function cmdInitExecuteObjective(cwd, objective, includes, raw) {
+function cmdInitExecuteObjective(cwd, objective, includes, raw, args = []) {
   if (!objective) {
     error('objective required for init execute-objective');
   }
 
+  const branchSpec = _resolveBranch(args, cwd);
   const config = loadConfig(cwd);
   const objectiveInfo = findObjectiveInternal(cwd, objective);
   const milestone = getMilestoneInfo(cwd);
@@ -211,8 +368,11 @@ function cmdInitExecuteObjective(cwd, objective, includes, raw) {
   };
 
   // Include file contents if requested via --include
+  // TRD 22-01: STATE.md gets strict missing-state error via _readStateBranch
+  // (vs. silent null fallback). config.json + ROADMAP.md keep safeReadFile
+  // (legitimately-optional artifacts).
   if (includes.has('state')) {
-    result.state_content = safeReadFile(path.join(cwd, '.planning', 'STATE.md'));
+    result.state_content = _readStateBranch(cwd, branchSpec);
   }
   if (includes.has('config')) {
     result.config_content = safeReadFile(path.join(cwd, '.planning', 'config.json'));
@@ -235,6 +395,10 @@ function cmdInitExecuteObjective(cwd, objective, includes, raw) {
   if (ctPreviewExec.warning) result.advisories_warnings.push(ctPreviewExec.warning);
   if (awPreviewExec.warning) result.advisories_warnings.push(awPreviewExec.warning);
 
+  // TRD 22-01: surface branch resolution + mismatch note
+  result.branch_spec = branchSpec;
+  result.branch_mismatch_note = _buildBranchMismatchNote(_resolveCurrentBranch(cwd), branchSpec);
+
   // Self-healing bootstrap: ensure PROJECT.md has org + github_repo fields.
   // If anything was added, the result.bootstrap object communicates what changed
   // so the calling skill can surface it to the user (no auto-commit; user folds
@@ -244,11 +408,12 @@ function cmdInitExecuteObjective(cwd, objective, includes, raw) {
   output(result, raw);
 }
 
-function cmdInitPlanObjective(cwd, objective, includes, raw) {
+function cmdInitPlanObjective(cwd, objective, includes, raw, args = []) {
   if (!objective) {
     error('objective required for init plan-objective');
   }
 
+  const branchSpec = _resolveBranch(args, cwd);
   const config = loadConfig(cwd);
   const objectiveInfo = findObjectiveInternal(cwd, objective);
 
@@ -283,8 +448,9 @@ function cmdInitPlanObjective(cwd, objective, includes, raw) {
   };
 
   // Include file contents if requested via --include
+  // TRD 22-01: STATE.md gets strict missing-state error via _readStateBranch.
   if (includes.has('state')) {
-    result.state_content = safeReadFile(path.join(cwd, '.planning', 'STATE.md'));
+    result.state_content = _readStateBranch(cwd, branchSpec);
   }
   if (includes.has('roadmap')) {
     result.roadmap_content = safeReadFile(path.join(cwd, '.planning', 'ROADMAP.md'));
@@ -351,6 +517,10 @@ function cmdInitPlanObjective(cwd, objective, includes, raw) {
   if (ctPreviewPlan.warning) result.advisories_warnings.push(ctPreviewPlan.warning);
   if (awPreviewPlan.warning) result.advisories_warnings.push(awPreviewPlan.warning);
 
+  // TRD 22-01: surface branch resolution + mismatch note
+  result.branch_spec = branchSpec;
+  result.branch_mismatch_note = _buildBranchMismatchNote(_resolveCurrentBranch(cwd), branchSpec);
+
   // Self-healing bootstrap: ensure PROJECT.md has org + github_repo fields.
   // See cmdInitExecuteObjective for the same pattern.
   result.bootstrap = bootstrapProjectMd(cwd);
@@ -358,7 +528,10 @@ function cmdInitPlanObjective(cwd, objective, includes, raw) {
   output(result, raw);
 }
 
-function cmdInitNewProject(cwd, raw) {
+function cmdInitNewProject(cwd, raw, args = []) {
+  // TRD 22-01: resolve --branch (no-op for new-project — no state to read yet,
+  // but flag must parse cleanly so the missing-branch error fires consistently).
+  const branchSpec = _resolveBranch(args, cwd);
   const config = loadConfig(cwd);
 
   // Detect Brave Search API key availability
@@ -414,7 +587,9 @@ function cmdInitNewProject(cwd, raw) {
   output(result, raw);
 }
 
-function cmdInitNewMilestone(cwd, raw) {
+function cmdInitNewMilestone(cwd, raw, args = []) {
+  // TRD 22-01: resolve --branch (validates flag; not currently consumed in body)
+  _resolveBranch(args, cwd);
   const config = loadConfig(cwd);
   const milestone = getMilestoneInfo(cwd);
 
@@ -441,7 +616,9 @@ function cmdInitNewMilestone(cwd, raw) {
   output(result, raw);
 }
 
-function cmdInitQuick(cwd, description, raw) {
+function cmdInitQuick(cwd, description, raw, args = []) {
+  // TRD 22-01: resolve --branch (validates flag; not currently consumed in body)
+  _resolveBranch(args, cwd);
   const config = loadConfig(cwd);
   const now = new Date();
   const slug = description ? generateSlugInternal(description)?.substring(0, 40) : null;
@@ -490,7 +667,9 @@ function cmdInitQuick(cwd, description, raw) {
   output(result, raw);
 }
 
-function cmdInitResume(cwd, raw) {
+function cmdInitResume(cwd, raw, args = []) {
+  // TRD 22-01: resolve --branch (validates flag; not currently consumed in body)
+  _resolveBranch(args, cwd);
   const config = loadConfig(cwd);
 
   // Check for interrupted agent
@@ -517,11 +696,13 @@ function cmdInitResume(cwd, raw) {
   output(result, raw);
 }
 
-function cmdInitVerifyWork(cwd, objective, raw) {
+function cmdInitVerifyWork(cwd, objective, raw, args = []) {
   if (!objective) {
     error('objective required for init verify-work');
   }
 
+  // TRD 22-01: resolve --branch (validates flag; not currently consumed in body)
+  _resolveBranch(args, cwd);
   const config = loadConfig(cwd);
   const objectiveInfo = findObjectiveInternal(cwd, objective);
 
@@ -546,7 +727,9 @@ function cmdInitVerifyWork(cwd, objective, raw) {
   output(result, raw);
 }
 
-function cmdInitObjectiveOp(cwd, objective, raw) {
+function cmdInitObjectiveOp(cwd, objective, raw, args = []) {
+  // TRD 22-01: resolve --branch (validates flag; not currently consumed in body)
+  _resolveBranch(args, cwd);
   const config = loadConfig(cwd);
   let objectiveInfo = findObjectiveInternal(cwd, objective);
 
@@ -599,7 +782,9 @@ function cmdInitObjectiveOp(cwd, objective, raw) {
   output(result, raw);
 }
 
-function cmdInitTodos(cwd, area, raw) {
+function cmdInitTodos(cwd, area, raw, args = []) {
+  // TRD 22-01: resolve --branch (validates flag; not currently consumed in body)
+  _resolveBranch(args, cwd);
   const config = loadConfig(cwd);
   const now = new Date();
 
@@ -658,7 +843,9 @@ function cmdInitTodos(cwd, area, raw) {
   output(result, raw);
 }
 
-function cmdInitMilestoneOp(cwd, raw) {
+function cmdInitMilestoneOp(cwd, raw, args = []) {
+  // TRD 22-01: resolve --branch (validates flag; not currently consumed in body)
+  _resolveBranch(args, cwd);
   const config = loadConfig(cwd);
   const milestone = getMilestoneInfo(cwd);
 
@@ -719,7 +906,9 @@ function cmdInitMilestoneOp(cwd, raw) {
   output(result, raw);
 }
 
-function cmdInitMapCodebase(cwd, raw) {
+function cmdInitMapCodebase(cwd, raw, args = []) {
+  // TRD 22-01: resolve --branch (validates flag; not currently consumed in body)
+  _resolveBranch(args, cwd);
   const config = loadConfig(cwd);
 
   // Check for existing codebase maps
@@ -753,7 +942,9 @@ function cmdInitMapCodebase(cwd, raw) {
   output(result, raw);
 }
 
-function cmdInitSecurityAudit(cwd, raw) {
+function cmdInitSecurityAudit(cwd, raw, args = []) {
+  // TRD 22-01: resolve --branch (validates flag; not currently consumed in body)
+  _resolveBranch(args, cwd);
   const config = loadConfig(cwd);
 
   // Resolve auditor model
@@ -794,7 +985,8 @@ function cmdInitSecurityAudit(cwd, raw) {
   output(result, raw);
 }
 
-function cmdInitProgress(cwd, includes, raw) {
+function cmdInitProgress(cwd, includes, raw, args = []) {
+  const branchSpec = _resolveBranch(args, cwd);
   const config = loadConfig(cwd);
   const milestone = getMilestoneInfo(cwd);
   const { findPlanFiles } = require('./helpers.cjs');
@@ -886,8 +1078,9 @@ function cmdInitProgress(cwd, includes, raw) {
   };
 
   // Include file contents if requested via --include
+  // TRD 22-01: STATE.md gets strict missing-state error via _readStateBranch.
   if (includes.has('state')) {
-    result.state_content = safeReadFile(path.join(cwd, '.planning', 'STATE.md'));
+    result.state_content = _readStateBranch(cwd, branchSpec);
   }
   if (includes.has('roadmap')) {
     result.roadmap_content = safeReadFile(path.join(cwd, '.planning', 'ROADMAP.md'));
@@ -921,4 +1114,11 @@ module.exports = {
   // TRD 18-03: exported for unit testing (underscore-prefix = test-only, not public API)
   _buildCheckTodosPreview,
   _buildAwarenessPreview,
+  // TRD 22-01: --branch flag plumbing + branch-aware state readers
+  _resolveBranch,
+  _readStateBranch,
+  _buildBranchMismatchNote,
+  _resolveCurrentBranch,
+  _setRunGit,
+  _resetGitMock,
 };

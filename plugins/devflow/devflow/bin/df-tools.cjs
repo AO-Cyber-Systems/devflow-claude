@@ -671,45 +671,48 @@ async function main() {
     case 'init': {
       const workflow = args[1];
       const includes = parseIncludeFlag(args);
+      // TRD 22-01: pass argv tail (everything after subcommand) so cmdInitX
+      // functions can extract --branch via _resolveBranch.
+      const initArgs = args.slice(2);
       switch (workflow) {
         case 'execute-objective':
-          cmdInitExecuteObjective(cwd, args[2], includes, raw);
+          cmdInitExecuteObjective(cwd, args[2], includes, raw, initArgs);
           break;
         case 'plan-objective':
-          cmdInitPlanObjective(cwd, args[2], includes, raw);
+          cmdInitPlanObjective(cwd, args[2], includes, raw, initArgs);
           break;
         case 'new-project':
-          cmdInitNewProject(cwd, raw);
+          cmdInitNewProject(cwd, raw, initArgs);
           break;
         case 'new-milestone':
-          cmdInitNewMilestone(cwd, raw);
+          cmdInitNewMilestone(cwd, raw, initArgs);
           break;
         case 'quick':
-          cmdInitQuick(cwd, args.slice(2).join(' '), raw);
+          cmdInitQuick(cwd, args.slice(2).join(' '), raw, initArgs);
           break;
         case 'resume':
-          cmdInitResume(cwd, raw);
+          cmdInitResume(cwd, raw, initArgs);
           break;
         case 'verify-work':
-          cmdInitVerifyWork(cwd, args[2], raw);
+          cmdInitVerifyWork(cwd, args[2], raw, initArgs);
           break;
         case 'objective-op':
-          cmdInitObjectiveOp(cwd, args[2], raw);
+          cmdInitObjectiveOp(cwd, args[2], raw, initArgs);
           break;
         case 'todos':
-          cmdInitTodos(cwd, args[2], raw);
+          cmdInitTodos(cwd, args[2], raw, initArgs);
           break;
         case 'milestone-op':
-          cmdInitMilestoneOp(cwd, raw);
+          cmdInitMilestoneOp(cwd, raw, initArgs);
           break;
         case 'map-codebase':
-          cmdInitMapCodebase(cwd, raw);
+          cmdInitMapCodebase(cwd, raw, initArgs);
           break;
         case 'security-audit':
-          cmdInitSecurityAudit(cwd, raw);
+          cmdInitSecurityAudit(cwd, raw, initArgs);
           break;
         case 'progress':
-          cmdInitProgress(cwd, includes, raw);
+          cmdInitProgress(cwd, includes, raw, initArgs);
           break;
         default:
           error(`Unknown init workflow: ${workflow}\nAvailable: execute-objective, plan-objective, new-project, new-milestone, quick, resume, verify-work, objective-op, todos, milestone-op, map-codebase, security-audit, progress`);
@@ -835,6 +838,23 @@ async function main() {
 
     case 'org-awareness': {
       cmdOrgAwarenessRoute(cwd, args.slice(1), raw);
+      break;
+    }
+
+    case 'project-hygiene': {
+      const subcommand = args[1];
+      if (subcommand === 'check') {
+        const { cmdProjectHygieneCheck } = require('./lib/project-hygiene.cjs');
+        cmdProjectHygieneCheck(cwd, raw);
+      } else if (subcommand === 'move') {
+        const { cmdProjectHygieneMove } = require('./lib/project-hygiene.cjs');
+        cmdProjectHygieneMove(cwd, args.slice(2), raw);
+      } else if (subcommand === 'archive') {
+        const { cmdProjectHygieneArchive } = require('./lib/project-hygiene.cjs');
+        cmdProjectHygieneArchive(cwd, args.slice(2), raw);
+      } else {
+        error(`Unknown project-hygiene subcommand${subcommand ? ': ' + subcommand : ''}. Available: check, move, archive`);
+      }
       break;
     }
 
