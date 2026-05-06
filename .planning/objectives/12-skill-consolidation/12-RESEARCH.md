@@ -191,7 +191,39 @@ df-tools survey decimal-objectives --root ~/Source
 
 ### I2 disposition
 
-*To be filled by executor in 12-05-i2-i4-cleanup-TRD execution.*
+**Survey ran:** 2026-05-04T00:00:00Z
+**Survey root:** /Users/markemerson/Source
+**Projects scanned:** 16
+**Total objectives:** 120
+**Decimal objectives:** 0 (0%)
+**Threshold:** 5.0%
+**Recommendation:** drop
+
+**Per-project breakdown:**
+
+| Project | Total objectives | Decimal objectives |
+|---|---|---|
+| aodex | 11 | 0 |
+| aodex-dev | 6 | 0 |
+| aodex-flutter | 11 | 0 |
+| aodex-go | 2 | 0 |
+| aohealth | 15 | 0 |
+| aosentry | 3 | 0 |
+| claude-relay | 1 | 0 |
+| devflow-claude | 1 | 0 |
+| devflow-claude-handoff-completion | 1 | 0 |
+| devflow-claude-v1.1 | 13 | 0 |
+| devflow-claude-v11 | 1 | 0 |
+| eden-biz-flutter | 4 | 0 |
+| eden-biz-flutter.SAAS | 4 | 0 |
+| eden-biz-go | 17 | 0 |
+| eden-biz-go.SAAS | 14 | 0 |
+| eden-libs | 16 | 0 |
+
+**Action taken:**
+- Recommendation is `drop` (0% usage across 16 active projects, 120 objectives scanned).
+- Task 3 of this TRD (12-06) removes `lib/objective.cjs` decimal-handling code per this disposition.
+- `df-tools objective insert` (decimal-objective insertion) deprecated and returns error JSON in v1.2.
 
 ## I4: Summary template canonicalization
 
