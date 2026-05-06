@@ -91,6 +91,11 @@
  *   verify trd-pre <objective>        Cheap pre-flight: req coverage, task completeness,
  *                                       dep cycles, scope counts (pure-logic, no agent spawn)
  *
+ * Detection:
+ *   detect novel-domain <objective>   Detect if objective crosses research boundary
+ *     [--raw]                           Returns { novel, signals, recommendation }
+ *                                       Signals: new_dep, missing_patterns, comparison_keyword
+ *
  * Template Fill:
  *   template fill summary --objective N    Create pre-filled SUMMARY.md
  *     [--job M] [--name "..."]
@@ -159,6 +164,7 @@ const {
   cmdVerifyReferences, cmdVerifyCommits, cmdVerifyArtifacts, cmdVerifyKeyLinks,
 } = require('./lib/verify.cjs');
 const { cmdVerifyTrdPre } = require('./lib/trd-pre-check.cjs');
+const { cmdDetectNovelDomain } = require('./lib/novel-domain.cjs');
 const { cmdValidateConsistency, cmdValidateHealth } = require('./lib/validate.cjs');
 const {
   cmdResolveModel, cmdInitExecuteObjective, cmdInitPlanObjective, cmdInitNewProject,
@@ -209,7 +215,7 @@ async function main() {
   const cwd = process.cwd();
 
   if (!command) {
-    error('Usage: df-tools <command> [args] [--raw]\nCommands: state, resolve-model, find-objective, commit, verify-summary, verify, frontmatter, template, generate-slug, current-timestamp, list-todos, verify-path-exists, config-ensure-section, awareness, init');
+    error('Usage: df-tools <command> [args] [--raw]\nCommands: state, resolve-model, find-objective, commit, verify-summary, verify, detect, frontmatter, template, generate-slug, current-timestamp, list-todos, verify-path-exists, config-ensure-section, awareness, init');
   }
 
   switch (command) {
@@ -368,6 +374,17 @@ async function main() {
         cmdVerifyTrdPre(cwd, args[2], raw);
       } else {
         error('Unknown verify subcommand. Available: job-structure, objective-completeness, references, commits, artifacts, key-links, trd-pre');
+      }
+      break;
+    }
+
+    case 'detect': {
+      const subcommand = args[1];
+      if (subcommand === 'novel-domain') {
+        // detect novel-domain <objective> [--raw]
+        cmdDetectNovelDomain(cwd, args[2], raw);
+      } else {
+        error('Unknown detect subcommand. Available: novel-domain');
       }
       break;
     }
