@@ -16,6 +16,14 @@
             "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/awareness-cache-populate.js"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/classify-session.js"
+          }
+        ]
       }
     ],
     "Stop": [
