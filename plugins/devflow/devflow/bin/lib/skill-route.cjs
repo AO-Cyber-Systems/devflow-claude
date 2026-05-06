@@ -32,6 +32,20 @@ const SKILL_ROUTES = {
       return map[subcommand] || null;
     },
   },
+  // Added in TRD 12-02: milestone subcommand dispatch.
+  // Note: 'gaps' maps to 'plan-milestone-gaps.md' (not 'gaps-milestone.md').
+  milestone: {
+    subcommands: ['new', 'audit', 'complete', 'gaps'],
+    workflow_for(subcommand) {
+      const map = {
+        'new': '~/.claude/devflow/workflows/new-milestone.md',
+        'audit': '~/.claude/devflow/workflows/audit-milestone.md',
+        'complete': '~/.claude/devflow/workflows/complete-milestone.md',
+        'gaps': '~/.claude/devflow/workflows/plan-milestone-gaps.md',
+      };
+      return map[subcommand] || null;
+    },
+  },
 };
 
 // ─── DEPRECATION_MAP ──────────────────────────────────────────────────────────
@@ -43,6 +57,11 @@ const DEPRECATION_MAP = {
   // Redirects to objective add as the functional equivalent for urgent work.
   'insert-objective': 'objective add',
   'remove-objective': 'objective remove',
+  // Added in TRD 12-02: milestone siblings replaced by consolidated /devflow:milestone.
+  'new-milestone': 'milestone new',
+  'audit-milestone': 'milestone audit',
+  'complete-milestone': 'milestone complete',
+  'plan-milestone-gaps': 'milestone gaps',
 };
 
 // ─── Argument validation ──────────────────────────────────────────────────────
