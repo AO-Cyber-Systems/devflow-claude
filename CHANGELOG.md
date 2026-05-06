@@ -6,8 +6,117 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-### Added
+## [2.1.0] - 2026-05-06
+
+### Added — v1.2 milestone (PTY watcher, daemon polish, bidirectional GH sync, workflow polish)
+
+- **PTY support for handoff watcher** — `node-pty` integration in `watcher-shell.cjs`
+  closes the TTY-interactive auth gap. `gh auth login`, `doctl auth init`, and similar
+  TTY-stdin-required flows now work through the daemon. Token-passing schema
+  (`inputs.secrets[]` with `value_source: stash | env`) lets the daemon answer prompts
+  from the user's environment. Deny-list (`sudo`, `su -`) preserved. macOS-first;
+  Linux out-of-box; Windows best-effort. Includes `postinstall` chmod for
+  spawn-helper binaries.
+- **Daemon polish bundle** —
+  - **OS notifications** via `osascript`/`notify-send` on dispatch start/complete
+    (gated by `daemon.notifications` config flag, default off).
+  - **Auto-launch** via `devflow-watch install-service` / `uninstall-service` —
+    user-domain `~/Library/LaunchAgents/` (macOS) / `~/.config/systemd/user/`
+    (Linux) plist/unit generation.
+  - **Multi-project watching** — daemon iterates `watching: []` array; new
+    `devflow-watch add-project <path>` / `remove-project <path>` CLI; serial
+    dispatch round-robin (no worker pool).
+  - **Status-line indicator** — `statusline.js` shows `▶ watcher` / `⏸ N pending`
+    when daemon active, hides cleanly when off.
+  - **Cross-shell support** — `lib/wrappers/{bash,fish,powershell}.cjs` modules
+    behind a `getWrapper(shell)` factory. bash/zsh byte-identical preserved;
+    fish + PowerShell new. nushell deferred.
+- **Bidirectional GitHub sync** —
+  - **`df-tools gh pull <objective> [--apply]`** — inbound poll: reads GH issue
+    state, detects drift vs disk frontmatter (status, labels, assignees, milestone),
+    optionally writes changed fields back to OBJECTIVE.md.
+  - **3-way conflict detection** — `--resolve={disk,gh,merge}` flag for explicit
+    resolution; non-zero exit on unresolved conflict.
+  - **Sync state tracking** — `.planning/.gh-sync-state.json` with atomic
+    read/write; integrated into both push (`gh sync`) and pull paths.
+- **Configurable kind/work defaults table** — 3-tier resolution:
+  project (`.planning/defaults-table.md`) > org (`~/.claude/devflow/defaults-table.md`)
+  > bundled. New `df-tools defaults-table init --scope=org|project [--force] [--dry-run]`
+  CLI scaffolds editable copies. `intent resolve` output now includes
+  `cell_provenance` showing which tier supplied each cell.
+- **Token efficiency / ambient mode (Phase 1+2)** —
+  - **Skill consolidation 28→14** via `df-tools skill-route`: `/devflow:objective`,
+    `/devflow:milestone`, `/devflow:status`, `/devflow:todo` now consolidate prior
+    sub-skills with deprecation redirects.
+  - **Prompt extraction to references** — duplicated agent-prompt content
+    (debugging methodology, goal-backward methodology, TRD spec, research tooling,
+    stub patterns) moved to shared references; saves ~25-55k tokens per build.
+  - **Authoritative routing** (`route-intent.js` + new `classify-session.js`
+    SessionStart hook) — DevFlow project detection injects routing decision table
+    as system context. `gate-edits` hook converted to strict-DENY-by-default in
+    ambient mode; allowed only with `.planning/.skill-active` marker, override
+    phrase, or `DEVFLOW_SKIP_EDIT_GATE=1`.
+  - **`/devflow:micro` skill** — sub-30-LOC, single-file changes; ~2k token target.
+    `df-tools micro start|commit|abort` CLI manages skill marker.
+  - **Auto-init detection** — non-DevFlow projects get an init offer at session
+    start when isSubstantive (git>7d OR >10 files; manifest present; not scratch)
+    AND not previously declined. New `df-tools project-state`, `project-decline`,
+    `project-accept`, `global-config` CLIs.
+  - **Default-on safety nets** — verifier always-on; `df-tools verify trd-pre`
+    cheap pre-flight checker (req coverage, task completeness, dep cycles, scope
+    sanity); `df-tools detect novel-domain` and `detect brownfield-map` helpers.
+    Confidence frontmatter dropped in favor of per-task `caution` attribute.
+- **Workflow-impediment fixes** —
+  - **`df-tools init --branch=<name>`** flag — defaults to current; missing-state
+    errors with hint instead of silent history walking.
+  - **`df-tools project-hygiene check`** — read-only scan for objectives whose
+    `parent_issue` or `github_issue` resolves to a different repo than PROJECT.md
+    `github_repo` (misfiled candidates).
+  - **`df-tools project-hygiene move <id> --to=<path>`** — atomic copy + verify
+    (file count + bytes match) + remove source. Verify-fail rolls back dest.
+  - **`df-tools project-hygiene archive [--apply <name>]`** — flags retired
+    repos (`archived: true` frontmatter or last commit > 6mo); apply moves
+    `.planning/` to `<workspace>/archived-projects/<name>/` and emits
+    `gh repo archive` command without executing it (preserves user authority).
+- **OBJECTIVE.md auto-scaffold** — `bootstrapObjectiveMd` + `backfillAllObjectives`
+  helpers run on every `df-tools init plan-objective` / `init execute-objective`,
+  generating minimal `OBJECTIVE.md` stubs from PROJECT.md `default_work` and
+  ROADMAP goal lines for any objective directory missing one.
+- **Roadmap reconciliation** — `df-tools sync-roadmap` (auto-runs at objective
+  complete) and `df-tools gh sync` keep planning artifacts and remote state in
+  sync without manual invocation.
+- **Unified `df-tools check-todos`** — standup-format aggregator across all
+  DevFlow surfaces with cache layer, lane assignment (Now / Soon / Blocked /
+  Ideas), and per-source attribution.
+- **Program-aware TUI viewer** (`df-tools tui`) — terminal renderer for objective
+  state with hand-rolled ANSI; no library dependency.
+- **Cross-repo awareness** — `df-tools awareness scan-peer` (peer branches)
+  and `awareness scan-org` (org-level views) with cache layer; surfaces during
+  planning to flag cross-repo work.
+- **Initiative context layer** — `df-tools initiatives list|show` reads
+  `.planning/initiatives/` and feeds the planner with cross-objective context.
+- **Duplicate-work detection** — `df-tools dup-detect` runs at plan + execute
+  init; flags overlapping objectives with 4-option resolution flow.
+- **Per-objective benchmarking** — `df-tools benchmark per-objective` and
+  `benchmark summary`. Walks subagent JSONL transcripts, attributes by
+  objective via prompt regex, computes weighted dollar cost using Anthropic
+  prompt-cache pricing (cache reads 0.1×, cache writes 1.25×, output 5×).
+  Auto-detects v1.X-obj-N attribution via merge commit subject scanning.
+  Pure Node.js — zero LLM cost to run.
+
+### Added — v1.1 milestone (handoff watcher, kind/work intent model)
+
 - **Seamless handoff watcher (`devflow-watch`)** — local daemon that
+  executes interactive and shell-flow commands in the user's interactive
+  shell so Claude Code can keep executing without instructing the user
+  to paste `! cmd`. New CLI subcommands: `start`, `stop`, `status`,
+  `logs`, `version`. Approach B from `docs/PROPOSAL-handoff-watcher.md`.
+- **`gate-interactive` hook is daemon-aware**: when watcher PID is live,
+  deny message says "queued for daemon — continue with other work" and
+  does not instruct paste. Falls back to original Approach A
+  ("tell user `! cmd`") when daemon is absent. Hook is useful in either
+  mode.
+- **13 new shell-flow patterns** in the curated allowlist: `nvm use`,
   executes interactive and shell-flow commands in the user's interactive
   shell so Claude Code can keep executing without instructing the user
   to paste `! cmd`. New CLI subcommands: `start`, `stop`, `status`,
