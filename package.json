@@ -27,5 +27,8 @@
   },
   "scripts": {
     "test": "node --test 'plugins/devflow/**/*.test.cjs' 'plugins/devflow/**/*.test.js'"
+  },
+  "dependencies": {
+    "node-pty": "1.1.0"
   }
 }
