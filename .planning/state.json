@@ -2,7 +2,7 @@
   "current_objective": null,
   "current_job": 0,
   "total_jobs": 0,
-  "progress_pct": 95,
+  "progress_pct": 98,
   "status": "ready_for_verification",
   "last_activity": "2026-05-06",
   "metrics": {
@@ -179,6 +179,66 @@
     {
       "objective": "12",
       "summary": "resume-work skill maps to resume-project.md workflow (not resume-work.md)",
+      "rationale": null
+    },
+    {
+      "objective": "12",
+      "summary": "DEPRECATION_MAP unchanged for workstreams TRD — no sibling skill dirs ever existed, so no deprecation entries needed",
+      "rationale": null
+    },
+    {
+      "objective": "12",
+      "summary": "workstreams run subcommand is a stub (workstreams-run.md) locked for v1.2 obj 6 Phase A — informs user, exits 0, no mutation",
+      "rationale": null
+    },
+    {
+      "objective": "12",
+      "summary": "help.md main catalog uses only 5 consolidated skill forms; 13 old names isolated to deprecation appendix table",
+      "rationale": null
+    },
+    {
+      "objective": "12",
+      "summary": "Phase A handoff JSON snapshot committed in 12-RESEARCH.md for v1.2 obj 6 classify-session.js to bootstrap routing table",
+      "rationale": null
+    },
+    {
+      "objective": "12",
+      "summary": "Token savings proxy measurement: description-field delta −130 tokens; full ≥1500 target deferred to Phase A empirical verification",
+      "rationale": null
+    },
+    {
+      "objective": "13-phase-h-prompt-extraction",
+      "summary": "research-tooling.md merge: project-researcher narrative tool_strategy + objective-researcher compact table as quick-reference; source_hierarchy from objective-researcher only; project-researcher verification_protocol kept as canonical",
+      "rationale": null
+    },
+    {
+      "objective": "13-phase-h-prompt-extraction",
+      "summary": "TRD 03: Collapsed <tool_strategy>+<verification_protocol> into single <research_tooling> wrapper matching objective-researcher.md pattern from TRD 02",
+      "rationale": null
+    },
+    {
+      "objective": "13-phase-h-prompt-extraction",
+      "summary": "TRD 03: project-researcher COMPARISON.md + FEASIBILITY.md templates removed from output_formats (no on-disk counterparts); flagged for TRD 04",
+      "rationale": null
+    },
+    {
+      "objective": "13-phase-h-prompt-extraction",
+      "summary": "debugger.md Option B: 4 debugging sections collapsed to single <debugging_methods> wrapper with @~/.claude/devflow/references/debugging-methods.md reference",
+      "rationale": null
+    },
+    {
+      "objective": "13-phase-h-prompt-extraction",
+      "summary": "verifier.md VERIFICATION.md inline kept (path 3): inline has re_verification/gaps/human_verification frontmatter fields absent from on-disk verification-report.md template — substantively different intents",
+      "rationale": null
+    },
+    {
+      "objective": "13",
+      "summary": "Quality gate 25k tokens interpreted as cumulative across /devflow:build invocations; single-invocation cut is ~7002 tokens, threshold crossed at 6+ builds",
+      "rationale": null
+    },
+    {
+      "objective": "13",
+      "summary": "COMPARISON.md + FEASIBILITY.md inline templates in project-researcher have no on-disk counterparts — accepted as known gap, format guidance preserved in execution_flow",
       "rationale": null
     }
   ],
