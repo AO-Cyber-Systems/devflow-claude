@@ -657,7 +657,15 @@ Dependency order:
      - [x] 20-03-multi-project-TRD.md — Daemon iterates `watching: []`; per-project pending dirs; `add-project` / `remove-project` CLI; PID file mutation atomic (Wave 1, tdd) — DAEMON-MULTI-PROJECT — DONE 2026-05-06, 9 watcher-state Group W + 8 daemon Group D + 8 CLI Group C tests pass, commits 5cb5fe0 + bbb7b64 + 914299c + 192dfc9
      - [x] 20-05-cross-shell-TRD.md — `lib/wrappers/{bash,fish,powershell}.cjs` modules; `getWrapper(shellName)` factory; sentinel parser remains shell-agnostic (Wave 1, tdd) — DAEMON-CROSS-SHELL — DONE 2026-05-06, 35 wrapper unit tests pass + 5 fish/pwsh-gated tests skip cleanly + 28 watcher-shell tests byte-identical, commits 39c653d + 22cf3ca
      - [x] 20-04-status-line-TRD.md — Extend `hooks/statusline.js` with `▶ watcher` / `⏸ N pending` segment behind `daemon.status_line` flag; multi-project aware (Wave 2, tdd) — DAEMON-STATUS-LINE — DONE 2026-05-06, 25 new tests in first-ever statusline.test.js (S=6 OFF + A=7 ALIVE + F=4 tolerance + P=5 format + D=3 doc), all pass; 2089 total / 2053 pass / 2 pre-existing failures unchanged / 34 skipped, commits 1740dfc + fb9d2c3
-12. **Bidirectional GH sync + configurable kind/work defaults table** — inbound GH state → objective frontmatter (webhook or periodic poll); org-level `~/.claude/devflow/defaults-table.md` override.
+12. **Bidirectional GH sync + configurable kind/work defaults table** — inbound GH state → objective frontmatter (poll-based); 3-tier defaults table override (project > org > bundled). Webhook deferred to v1.3+.
+   - **Status:** Planned 2026-05-06 (objective 21 / branch `feature/v1.2-obj-12-bidirectional-gh-sync`)
+   - **Requirements:** [GH-PULL-CLI, GH-PULL-APPLY, SYNC-STATE-SCHEMA, SYNC-STATE-WIRING, CONFLICT-DETECT, CONFLICT-RESOLVE, CONFLICT-EXIT-NONZERO, DEFAULTS-LOADER, DEFAULTS-LOADER-MERGE, DEFAULTS-INIT-CLI, PROVENANCE-CELL, PROVENANCE-VOCAB]
+   - **TRDs:** 5 plans across 2 waves
+     - [ ] 21-01-gh-pull-cli-TRD.md — `df-tools gh pull <objective>` CLI + GH issue read + drift detection + 4 cassette fixtures (Wave 1, tdd) — GH-PULL-CLI, GH-PULL-APPLY
+     - [ ] 21-04-defaults-table-loader-TRD.md — 3-tier defaults-table loader (project > org > bundled) + cell-level merge + `df-tools defaults-table init --scope` CLI (Wave 1, tdd) — DEFAULTS-LOADER, DEFAULTS-LOADER-MERGE, DEFAULTS-INIT-CLI
+     - [ ] 21-05-intent-provenance-TRD.md — extend `intent.cjs` resolve() with per-cell `cell_provenance` field + vocabulary doc update (Wave 1, tdd) — PROVENANCE-CELL, PROVENANCE-VOCAB
+     - [ ] 21-02-sync-state-tracking-TRD.md — `.gh-sync-state.json` schema + atomic read/write + push/pull integration (Wave 2, tdd) — SYNC-STATE-SCHEMA, SYNC-STATE-WIRING
+     - [ ] 21-03-conflict-resolution-TRD.md — 3-way diff detection + `--resolve={disk,gh,merge}` flag + non-zero exit on conflict (Wave 2, tdd) — CONFLICT-DETECT, CONFLICT-RESOLVE, CONFLICT-EXIT-NONZERO
 
 *Phase 5 — Workflow polish:*
 
