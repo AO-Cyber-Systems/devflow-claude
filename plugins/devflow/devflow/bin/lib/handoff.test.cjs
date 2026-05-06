@@ -9,6 +9,28 @@
  *   - missing-id error paths
  *   - unique id generation across rapid creates
  *   - SKILL flow: hook denies → record exists → user runs → handoff complete
+ *
+ * TRD 19-02: validateInputsSchema + cmdHandoffCreate --inputs-json extension
+ *
+ *   Behavior list — validateInputsSchema(inputs):
+ *     VS-1:  returns {ok:true} for empty/missing secrets ({}, {secrets:[]})
+ *     VS-2:  rejects value_source='keyring' with v1.3+ deferral message
+ *     VS-3:  rejects non-object inputs (null, number, string, array)
+ *     VS-4:  rejects malformed prompt_match regex (e.g. '[invalid')
+ *     VS-5:  rejects entry missing prompt_match
+ *     VS-6:  rejects entry missing value_ref
+ *     VS-7:  rejects unknown value_source ('vault', 'op', etc.)
+ *     VS-8:  accepts valid stash entry
+ *     VS-9:  accepts valid env entry
+ *     VS-10: accepts multiple valid entries (mix of stash + env)
+ *     VS-11: rejects when ANY entry in array is invalid (fail-on-first)
+ *     VS-12: rejects empty value_ref string
+ *
+ *   Behavior list — cmdHandoffCreate --inputs-json extension:
+ *     HC-1:  without inputs writes record without `inputs` key (back-compat)
+ *     HC-2:  with valid --inputs-json writes record WITH `inputs` field
+ *     HC-3:  with malformed --inputs-json exits with code 2 + stderr message
+ *     HC-4:  with inputs failing validation exits with code 2 + reason
  */
 
 const { test, describe, beforeEach, afterEach } = require('node:test');
@@ -20,6 +42,7 @@ const { execFileSync, spawnSync } = require('child_process');
 
 const TOOLS_PATH = path.join(__dirname, '..', 'df-tools.cjs');
 const HOOK_PATH = path.join(__dirname, '..', '..', '..', 'hooks', 'gate-interactive.js');
+const handoffLib = require('./handoff.cjs');
 
 function mkTmp() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'handoff-test-'));
@@ -285,5 +308,166 @@ describe('end-to-end SKILL flow', () => {
 
     const finalList = JSON.parse(runTool(['handoff', 'list'], tmp).stdout);
     assert.deepEqual(finalList.counts, { pending: 0, done: 1 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TRD 19-02: validateInputsSchema unit tests
+// ---------------------------------------------------------------------------
+
+describe('validateInputsSchema (TRD 19-02)', () => {
+  test('VS-1: returns {ok:true} for empty/missing secrets', () => {
+    assert.deepEqual(handoffLib.validateInputsSchema({}), { ok: true });
+    assert.deepEqual(handoffLib.validateInputsSchema({ secrets: [] }), { ok: true });
+  });
+
+  test('VS-2: rejects value_source="keyring" with v1.3+ deferral message', () => {
+    const r = handoffLib.validateInputsSchema({
+      secrets: [{ prompt_match: 'Token:', value_source: 'keyring', value_ref: 'gh-token' }],
+    });
+    assert.equal(r.ok, false);
+    assert.match(r.reason, /keyring/);
+    assert.match(r.reason, /v1\.3\+/);
+  });
+
+  test('VS-3: rejects non-object inputs (null, number, string, array)', () => {
+    for (const bad of [null, 42, 'string', [1, 2, 3]]) {
+      const r = handoffLib.validateInputsSchema(bad);
+      assert.equal(r.ok, false, `expected reject for: ${JSON.stringify(bad)}`);
+      assert.match(r.reason, /inputs must be an object/);
+    }
+  });
+
+  test('VS-4: rejects malformed prompt_match regex', () => {
+    const r = handoffLib.validateInputsSchema({
+      secrets: [{ prompt_match: '[invalid', value_source: 'env', value_ref: 'GH_TOKEN' }],
+    });
+    assert.equal(r.ok, false);
+    assert.match(r.reason, /invalid regex/);
+  });
+
+  test('VS-5: rejects entry missing prompt_match', () => {
+    const r = handoffLib.validateInputsSchema({
+      secrets: [{ value_source: 'env', value_ref: 'GH_TOKEN' }],
+    });
+    assert.equal(r.ok, false);
+    assert.match(r.reason, /prompt_match required/);
+  });
+
+  test('VS-6: rejects entry missing value_ref', () => {
+    const r = handoffLib.validateInputsSchema({
+      secrets: [{ prompt_match: 'Token:', value_source: 'env' }],
+    });
+    assert.equal(r.ok, false);
+    assert.match(r.reason, /value_ref required/);
+  });
+
+  test('VS-7: rejects unknown value_source', () => {
+    for (const src of ['vault', 'op', 'unknown', '']) {
+      const r = handoffLib.validateInputsSchema({
+        secrets: [{ prompt_match: 'Token:', value_source: src, value_ref: 'foo' }],
+      });
+      assert.equal(r.ok, false, `expected reject for value_source: ${src}`);
+      assert.match(r.reason, /value_source/);
+    }
+  });
+
+  test('VS-8: accepts valid stash entry', () => {
+    const r = handoffLib.validateInputsSchema({
+      secrets: [{ prompt_match: 'Enter token:', value_source: 'stash', value_ref: 'do-token' }],
+    });
+    assert.deepEqual(r, { ok: true });
+  });
+
+  test('VS-9: accepts valid env entry', () => {
+    const r = handoffLib.validateInputsSchema({
+      secrets: [{ prompt_match: 'Enter token:', value_source: 'env', value_ref: 'GH_TOKEN' }],
+    });
+    assert.deepEqual(r, { ok: true });
+  });
+
+  test('VS-10: accepts multiple valid entries (mix of stash + env)', () => {
+    const r = handoffLib.validateInputsSchema({
+      secrets: [
+        { prompt_match: 'GH token:', value_source: 'env', value_ref: 'GH_TOKEN' },
+        { prompt_match: 'DO token:', value_source: 'stash', value_ref: 'do-token' },
+      ],
+    });
+    assert.deepEqual(r, { ok: true });
+  });
+
+  test('VS-11: rejects when ANY entry in array is invalid (fail-on-first)', () => {
+    const r = handoffLib.validateInputsSchema({
+      secrets: [
+        { prompt_match: 'GH token:', value_source: 'env', value_ref: 'GH_TOKEN' },
+        { prompt_match: 'DO token:', value_source: 'keyring', value_ref: 'do-token' },
+      ],
+    });
+    assert.equal(r.ok, false);
+    assert.match(r.reason, /keyring/);
+  });
+
+  test('VS-12: rejects empty value_ref string', () => {
+    const r = handoffLib.validateInputsSchema({
+      secrets: [{ prompt_match: 'Token:', value_source: 'env', value_ref: '' }],
+    });
+    assert.equal(r.ok, false);
+    assert.match(r.reason, /value_ref required/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TRD 19-02: cmdHandoffCreate --inputs-json extension
+// ---------------------------------------------------------------------------
+
+describe('df-tools handoff create --inputs-json (TRD 19-02)', () => {
+  let tmp;
+  beforeEach(() => { tmp = mkTmp(); });
+  afterEach(() => { rmTmp(tmp); });
+
+  test('HC-1: create without --inputs-json writes record without `inputs` key (back-compat)', () => {
+    const r = runTool(['handoff', 'create', 'gh', 'auth', 'login'], tmp);
+    assert.ok(r.ok, `create failed: ${r.stderr}`);
+    const out = JSON.parse(r.stdout);
+    assert.equal(out.record.inputs, undefined, 'record should NOT have inputs key when flag absent');
+    // Re-read from disk to confirm absence
+    const onDisk = JSON.parse(fs.readFileSync(path.join(tmp, out.path), 'utf-8'));
+    assert.ok(!('inputs' in onDisk), 'disk record should not include inputs key');
+  });
+
+  test('HC-2: create with valid --inputs-json writes record WITH `inputs` field', () => {
+    const inputsJson = JSON.stringify({
+      secrets: [
+        { prompt_match: 'Enter your access token:', value_source: 'env', value_ref: 'DO_TOKEN' },
+      ],
+    });
+    const r = runTool(['handoff', 'create', 'doctl', 'auth', 'init', '--inputs-json', inputsJson], tmp);
+    assert.ok(r.ok, `create failed: ${r.stderr}`);
+    const out = JSON.parse(r.stdout);
+    assert.ok(out.record.inputs, 'record should include inputs field');
+    assert.equal(out.record.inputs.secrets.length, 1);
+    assert.equal(out.record.inputs.secrets[0].value_source, 'env');
+    assert.equal(out.record.inputs.secrets[0].value_ref, 'DO_TOKEN');
+    // Confirm the cmd field still strips the --inputs-json flag (or excludes it)
+    assert.ok(!out.record.cmd.includes('--inputs-json'),
+      'cmd field should not include --inputs-json flag itself');
+  });
+
+  test('HC-3: create with malformed --inputs-json exits with code 2 + stderr message', () => {
+    const r = runTool(['handoff', 'create', 'doctl', 'auth', 'init', '--inputs-json', 'not-json{{{'], tmp);
+    assert.equal(r.ok, false);
+    assert.equal(r.code, 2);
+    assert.match(r.stderr, /invalid --inputs-json/);
+  });
+
+  test('HC-4: create with inputs failing validation exits with code 2 + reason from validation', () => {
+    const inputsJson = JSON.stringify({
+      secrets: [{ prompt_match: 'Token:', value_source: 'keyring', value_ref: 'gh-token' }],
+    });
+    const r = runTool(['handoff', 'create', 'gh', 'auth', 'login', '--inputs-json', inputsJson], tmp);
+    assert.equal(r.ok, false);
+    assert.equal(r.code, 2);
+    assert.match(r.stderr, /inputs schema invalid/);
+    assert.match(r.stderr, /keyring/);
   });
 });

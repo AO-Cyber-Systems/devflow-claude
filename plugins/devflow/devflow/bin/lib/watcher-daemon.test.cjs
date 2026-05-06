@@ -253,3 +253,372 @@ describe('runLoop', () => {
     assert.equal(dispatchResolved, true, 'stop should await in-flight dispatch');
   });
 });
+
+// =============================================================================
+// TRD 19-02: processOnce token-passing tests
+// =============================================================================
+// Behavior list:
+//   TP-1:  pending with valid inputs.secrets[env] resolves and writes value to session
+//   TP-2:  pending with inputs.secrets[stash] but no stashGetter → status:'failed' with reason
+//   TP-3:  pending with inputs.secrets[env] but env var unset → status:'failed' with reason
+//   TP-4:  prompt re-match → Ctrl+C injection + status:'failed' with 'duplicate prompt match'
+//   TP-5:  stdout containing the resolved secret value gets redacted in done record
+//   TP-6:  pending without inputs field dispatches byte-identical to v1.1 (back-compat)
+//   TP-7:  pending with inputs.secrets:[] dispatches like TP-6 (empty array OK)
+//   TP-8:  pending with inputs.secrets[keyring] → status:'failed' before dispatch
+//   TP-9:  redaction skips values shorter than MIN_REDACT_LEN
+//   TP-10: stderr containing resolved secret also gets redacted
+// =============================================================================
+
+/**
+ * Token-passing-aware mock session. Exposes attachDataListener / detachDataListener
+ * / injectInput so processOnce can wire its prompt detector. Tests can drive
+ * `dispatch` to simulate prompt streams (call session._emitData(chunk)) while
+ * dispatch is in-flight.
+ */
+function makeTokenSession(opts) {
+  const o = opts || {};
+  const session = {
+    _listeners: [],
+    _injectedInputs: [],
+    _dispatchedCmds: [],
+    attachDataListener(fn) { this._listeners.push(fn); },
+    detachDataListener(fn) { this._listeners = this._listeners.filter((x) => x !== fn); },
+    injectInput(s) { this._injectedInputs.push(s); },
+    _emitData(chunk) {
+      // Snapshot listeners so detach during iteration doesn't break.
+      for (const fn of this._listeners.slice()) fn(chunk);
+    },
+    dispatch(id, cmd /* , opts */) {
+      this._dispatchedCmds.push({ id, cmd });
+      return new Promise((resolve) => {
+        // If a `stream` array was provided, emit each chunk synchronously
+        // so the prompt detector sees them BEFORE we resolve. The result
+        // value comes from `result()` (called after streaming).
+        if (Array.isArray(o.stream)) {
+          for (const chunk of o.stream) this._emitData(chunk);
+        }
+        const r = (typeof o.result === 'function')
+          ? o.result(this)
+          : (o.result || { stdout: '', stderr: '', exit_code: 0, status: 'done' });
+        resolve(r);
+      });
+    },
+  };
+  return session;
+}
+
+describe('processOnce — token passing (TRD 19-02)', () => {
+  let root;
+  beforeEach(() => { root = mkTmpProject(); });
+  afterEach(() => rmTmp(root));
+
+  test('TP-1: valid inputs.secrets[env] resolves and writes value to session', async () => {
+    process.env.TP1_TOKEN = 'super-secret-token-12345';
+    try {
+      writePending(root, 'h-tp1', 'doctl auth init', {
+        inputs: {
+          secrets: [{
+            prompt_match: 'Enter your access token:',
+            value_source: 'env',
+            value_ref: 'TP1_TOKEN',
+          }],
+        },
+      });
+      const allow = allowlistLib.defaultAllowlist();
+      const session = makeTokenSession({
+        // Simulate the tool prompting for the token
+        stream: ['Enter your access token: '],
+        result: { stdout: 'authenticated\n', stderr: '', exit_code: 0, status: 'done' },
+      });
+      const pending = daemon.readPending(root);
+      const done = await daemon.processOnce(pending[0], {
+        session, allowlist: allow, projectRoot: root,
+      });
+      assert.equal(done.status, 'done');
+      assert.equal(done.exit_code, 0);
+      // The injected value should include the token + carriage-return.
+      const injected = session._injectedInputs.join('');
+      assert.ok(injected.includes('super-secret-token-12345'),
+        `expected injected token, got: ${JSON.stringify(session._injectedInputs)}`);
+      assert.ok(injected.endsWith('\r'),
+        'injection must terminate with carriage-return');
+    } finally {
+      delete process.env.TP1_TOKEN;
+    }
+  });
+
+  test('TP-2: inputs.secrets[stash] with no stashGetter → status:failed on prompt match', async () => {
+    writePending(root, 'h-tp2', 'doctl auth init', {
+      inputs: {
+        secrets: [{
+          prompt_match: 'Enter your access token:',
+          value_source: 'stash',
+          value_ref: 'do-token',
+        }],
+      },
+    });
+    const allow = allowlistLib.defaultAllowlist();
+    const session = makeTokenSession({
+      stream: ['Enter your access token: '],
+      result: { stdout: '', stderr: '', exit_code: 0, status: 'done' },
+    });
+    const pending = daemon.readPending(root);
+    const done = await daemon.processOnce(pending[0], {
+      session, allowlist: allow, projectRoot: root,
+      stashGetter: null,
+    });
+    assert.equal(done.status, 'failed');
+    assert.match(done.stderr, /secret resolution failed/);
+    assert.match(done.stderr, /stash empty/);
+    // Ctrl+C should have been injected to abort
+    assert.ok(session._injectedInputs.includes('\x03'),
+      'expected Ctrl+C injection on resolution failure');
+  });
+
+  test('TP-3: inputs.secrets[env] with unset env var → status:failed on prompt match', async () => {
+    delete process.env.TP3_MISSING_TOKEN;
+    writePending(root, 'h-tp3', 'doctl auth init', {
+      inputs: {
+        secrets: [{
+          prompt_match: 'Enter your access token:',
+          value_source: 'env',
+          value_ref: 'TP3_MISSING_TOKEN',
+        }],
+      },
+    });
+    const allow = allowlistLib.defaultAllowlist();
+    const session = makeTokenSession({
+      stream: ['Enter your access token: '],
+      result: { stdout: '', stderr: '', exit_code: 0, status: 'done' },
+    });
+    const pending = daemon.readPending(root);
+    const done = await daemon.processOnce(pending[0], {
+      session, allowlist: allow, projectRoot: root,
+    });
+    assert.equal(done.status, 'failed');
+    assert.match(done.stderr, /secret resolution failed/);
+    assert.match(done.stderr, /env var "TP3_MISSING_TOKEN" unset/);
+    assert.ok(session._injectedInputs.includes('\x03'));
+  });
+
+  test('TP-4: prompt re-match → Ctrl+C + status:failed with duplicate prompt match', async () => {
+    process.env.TP4_TOKEN = 'token-with-enough-length';
+    try {
+      writePending(root, 'h-tp4', 'doctl auth init', {
+        inputs: {
+          secrets: [{
+            prompt_match: 'Enter your access token:',
+            value_source: 'env',
+            value_ref: 'TP4_TOKEN',
+          }],
+        },
+      });
+      const allow = allowlistLib.defaultAllowlist();
+      const session = makeTokenSession({
+        // Simulate: tool prompts, daemon answers, tool re-prompts (rejected value)
+        stream: [
+          'Enter your access token: ',
+          // The daemon writes the value; that doesn't show up in the stream
+          // (mock session doesn't echo). Then the tool prompts again:
+          '\nInvalid token.\nEnter your access token: ',
+        ],
+        result: { stdout: '', stderr: '', exit_code: 0, status: 'done' },
+      });
+      const pending = daemon.readPending(root);
+      const done = await daemon.processOnce(pending[0], {
+        session, allowlist: allow, projectRoot: root,
+      });
+      assert.equal(done.status, 'failed');
+      assert.match(done.stderr, /duplicate prompt match/);
+      assert.ok(session._injectedInputs.includes('\x03'),
+        'expected Ctrl+C on duplicate prompt');
+    } finally {
+      delete process.env.TP4_TOKEN;
+    }
+  });
+
+  test('TP-5: stdout containing resolved secret gets redacted in done record', async () => {
+    process.env.TP5_TOKEN = 'super-secret-token-12345';
+    try {
+      writePending(root, 'h-tp5', 'doctl auth init', {
+        inputs: {
+          secrets: [{
+            prompt_match: 'Token:',
+            value_source: 'env',
+            value_ref: 'TP5_TOKEN',
+          }],
+        },
+      });
+      const allow = allowlistLib.defaultAllowlist();
+      const session = makeTokenSession({
+        stream: ['Token: '],
+        // Buggy tool echoes the token back in its stdout — must be redacted.
+        result: {
+          stdout: 'Authenticated. Token saved as super-secret-token-12345.\n',
+          stderr: '',
+          exit_code: 0,
+          status: 'done',
+        },
+      });
+      const pending = daemon.readPending(root);
+      const done = await daemon.processOnce(pending[0], {
+        session, allowlist: allow, projectRoot: root,
+      });
+      assert.equal(done.status, 'done');
+      assert.ok(!done.stdout.includes('super-secret-token-12345'),
+        `stdout should NOT contain raw token, got: ${done.stdout}`);
+      assert.match(done.stdout, /\*\*\*REDACTED\*\*\*/);
+    } finally {
+      delete process.env.TP5_TOKEN;
+    }
+  });
+
+  test('TP-6: pending without inputs field dispatches byte-identical to v1.1', async () => {
+    writePending(root, 'h-tp6', 'gh auth login');
+    const allow = allowlistLib.defaultAllowlist();
+    let listenerAttached = false;
+    const session = {
+      attachDataListener() { listenerAttached = true; },
+      detachDataListener() {},
+      injectInput() {},
+      async dispatch() {
+        return { stdout: 'logged in\n', stderr: '', exit_code: 0, status: 'done' };
+      },
+    };
+    const pending = daemon.readPending(root);
+    const done = await daemon.processOnce(pending[0], {
+      session, allowlist: allow, projectRoot: root,
+    });
+    assert.equal(done.status, 'done');
+    assert.equal(done.stdout, 'logged in\n');
+    assert.equal(listenerAttached, false,
+      'no data listener should be attached when no inputs.secrets');
+  });
+
+  test('TP-7: pending with inputs.secrets:[] dispatches like TP-6 (empty array OK)', async () => {
+    writePending(root, 'h-tp7', 'gh auth login', {
+      inputs: { secrets: [] },
+    });
+    const allow = allowlistLib.defaultAllowlist();
+    let listenerAttached = false;
+    const session = {
+      attachDataListener() { listenerAttached = true; },
+      detachDataListener() {},
+      injectInput() {},
+      async dispatch() {
+        return { stdout: 'ok\n', stderr: '', exit_code: 0, status: 'done' };
+      },
+    };
+    const pending = daemon.readPending(root);
+    const done = await daemon.processOnce(pending[0], {
+      session, allowlist: allow, projectRoot: root,
+    });
+    assert.equal(done.status, 'done');
+    assert.equal(listenerAttached, false,
+      'empty secrets array should NOT attach a data listener');
+  });
+
+  test('TP-8: inputs.secrets[keyring] → status:failed before dispatch (validation rejects)', async () => {
+    writePending(root, 'h-tp8', 'doctl auth init', {
+      inputs: {
+        secrets: [{
+          prompt_match: 'Token:',
+          value_source: 'keyring',
+          value_ref: 'do-token',
+        }],
+      },
+    });
+    const allow = allowlistLib.defaultAllowlist();
+    let dispatched = false;
+    const session = {
+      attachDataListener() {},
+      detachDataListener() {},
+      injectInput() {},
+      async dispatch() {
+        dispatched = true;
+        return { stdout: '', stderr: '', exit_code: 0, status: 'done' };
+      },
+    };
+    const pending = daemon.readPending(root);
+    const done = await daemon.processOnce(pending[0], {
+      session, allowlist: allow, projectRoot: root,
+    });
+    assert.equal(done.status, 'failed');
+    assert.equal(dispatched, false, 'must not dispatch when validation fails');
+    assert.match(done.stderr, /inputs invalid/);
+    assert.match(done.stderr, /keyring/);
+  });
+
+  test('TP-9: redaction skips values shorter than MIN_REDACT_LEN', async () => {
+    process.env.TP9_TOKEN = 'short'; // 5 chars, below MIN_REDACT_LEN=8
+    try {
+      writePending(root, 'h-tp9', 'doctl auth init', {
+        inputs: {
+          secrets: [{
+            prompt_match: 'Token:',
+            value_source: 'env',
+            value_ref: 'TP9_TOKEN',
+          }],
+        },
+      });
+      const allow = allowlistLib.defaultAllowlist();
+      const session = makeTokenSession({
+        stream: ['Token: '],
+        // Output contains the short token literally; redaction must NOT collapse
+        // unrelated 'short' substrings (e.g. "URL is too short").
+        result: {
+          stdout: 'Login flow short-circuited.\n',
+          stderr: '',
+          exit_code: 0,
+          status: 'done',
+        },
+      });
+      const pending = daemon.readPending(root);
+      const done = await daemon.processOnce(pending[0], {
+        session, allowlist: allow, projectRoot: root,
+      });
+      assert.equal(done.status, 'done');
+      assert.ok(done.stdout.includes('short'),
+        'short tokens must NOT be redacted (collision risk)');
+      assert.ok(!done.stdout.includes('***REDACTED***'),
+        'no redaction marker expected for short value');
+    } finally {
+      delete process.env.TP9_TOKEN;
+    }
+  });
+
+  test('TP-10: stderr containing resolved secret also gets redacted', async () => {
+    process.env.TP10_TOKEN = 'leaked-on-stderr-token-XYZ';
+    try {
+      writePending(root, 'h-tp10', 'doctl auth init', {
+        inputs: {
+          secrets: [{
+            prompt_match: 'Token:',
+            value_source: 'env',
+            value_ref: 'TP10_TOKEN',
+          }],
+        },
+      });
+      const allow = allowlistLib.defaultAllowlist();
+      const session = makeTokenSession({
+        stream: ['Token: '],
+        result: {
+          stdout: '',
+          stderr: 'Warning: token leaked-on-stderr-token-XYZ in debug log.\n',
+          exit_code: 0,
+          status: 'done',
+        },
+      });
+      const pending = daemon.readPending(root);
+      const done = await daemon.processOnce(pending[0], {
+        session, allowlist: allow, projectRoot: root,
+      });
+      assert.ok(!done.stderr.includes('leaked-on-stderr-token-XYZ'),
+        'stderr must redact the secret');
+      assert.match(done.stderr, /\*\*\*REDACTED\*\*\*/);
+    } finally {
+      delete process.env.TP10_TOKEN;
+    }
+  });
+});

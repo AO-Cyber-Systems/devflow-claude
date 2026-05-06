@@ -221,7 +221,11 @@ describe('hook subprocess — daemon-aware deny message (TRD 01-06)', () => {
       assert.equal(result.status, 0);
       const reason = JSON.parse(result.stdout).hookSpecificOutput.permissionDecisionReason;
       assert.match(reason, /queued/);
-      assert.match(reason, /devflow-watch daemon/);
+      // TRD 19-03: wording extended from "devflow-watch daemon" → "devflow-watch
+      // PTY-backed daemon". Loosen the regex so the test asserts the daemon-by-
+      // name contract without pinning the exact phrase (BD-1 in 19-03 pins the
+      // PTY-backed substring as the v1.2+ contract).
+      assert.match(reason, /devflow-watch[^.]*daemon/);
       assert.ok(!/Tell the user verbatim/.test(reason),
         'should NOT instruct user paste when daemon is live');
       assert.ok(!/`! gh auth login`/.test(reason),
@@ -378,5 +382,97 @@ describe('hook integration — subprocess', () => {
       new RegExp('! ' + cmd.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
       'reason should include the verbatim ! cmd');
     fs.rmSync(tmp, { recursive: true, force: true });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TRD 19-03: buildDenyReason — PTY messaging (post-PTY-backend)
+// ---------------------------------------------------------------------------
+//
+// Behavior list:
+//   BD-1: watcher-live branch reason contains "PTY-backed daemon" (exact, hyphenated)
+//   BD-2: watcher-live branch preserves "Continue with other work" promise
+//   BD-3: watcher-live branch preserves "Do NOT instruct the user to paste anything"
+//   BD-4: watcher-live branch preserves "do NOT retry the Bash tool"
+//   BD-5: watcher-absent branch preserves "paste this in the prompt" wording
+//   BD-6: watcher-absent branch does NOT contain "PTY-backed daemon"
+//   BD-7: watcher-live branch includes daemon pid number when watcherInfo provided
+//   BD-8: subprocess invocation with watcher-live env emits well-formed deny JSON containing new wording
+//   BD-9: pattern count regression check still passes (23 patterns)
+
+describe('buildDenyReason — PTY messaging (post-TRD-19-03)', () => {
+  const { buildDenyReason } = require('./gate-interactive.js');
+
+  function liveReason(overrides = {}) {
+    return buildDenyReason({
+      id: 'h-test1234',
+      cmd: 'gh auth login',
+      hit: { reason: 'gh auth login is interactive without --with-token', category: 'tty' },
+      watcherLive: true,
+      watcherInfo: { pid: 12345 },
+      ...overrides,
+    });
+  }
+  function absentReason(overrides = {}) {
+    return buildDenyReason({
+      id: 'h-test1234',
+      cmd: 'gh auth login',
+      hit: { reason: 'gh auth login is interactive without --with-token', category: 'tty' },
+      watcherLive: false,
+      watcherInfo: null,
+      ...overrides,
+    });
+  }
+
+  test('BD-1: watcher-live branch contains "PTY-backed daemon" (exact, hyphenated)', () => {
+    assert.match(liveReason(), /PTY-backed daemon/);
+  });
+
+  test('BD-2: watcher-live branch preserves "Continue with other work" promise', () => {
+    assert.match(liveReason(), /Continue with other work/);
+  });
+
+  test('BD-3: watcher-live branch preserves "Do NOT instruct the user to paste anything"', () => {
+    assert.match(liveReason(), /Do NOT instruct the user to paste anything/);
+  });
+
+  test('BD-4: watcher-live branch preserves "do NOT retry the Bash tool"', () => {
+    assert.match(liveReason(), /do NOT retry the Bash tool/);
+  });
+
+  test('BD-5: watcher-absent branch preserves "paste this in the prompt" wording', () => {
+    assert.match(absentReason(), /paste this in the prompt/);
+  });
+
+  test('BD-6: watcher-absent branch does NOT contain "PTY-backed daemon"', () => {
+    assert.doesNotMatch(absentReason(), /PTY-backed daemon/);
+  });
+
+  test('BD-7: watcher-live branch includes daemon pid number when watcherInfo provided', () => {
+    const reason = liveReason({ watcherInfo: { pid: 98765 } });
+    assert.match(reason, /pid 98765/);
+  });
+
+  test('BD-8: subprocess invocation with watcher-live env emits PreToolUse deny JSON with new wording', () => {
+    withFakePidFile({ alive: true }, (pidFile) => {
+      const { tmp, result } = runHook(
+        { tool_name: 'Bash', tool_input: { command: 'gh auth login' } },
+        { DEVFLOW_HANDOFF_PID_FILE: pidFile },
+      );
+      assert.equal(result.status, 0);
+      const out = JSON.parse(result.stdout);
+      assert.equal(out.hookSpecificOutput.hookEventName, 'PreToolUse');
+      assert.equal(out.hookSpecificOutput.permissionDecision, 'deny');
+      assert.match(out.hookSpecificOutput.permissionDecisionReason, /PTY-backed daemon/);
+      fs.rmSync(tmp, { recursive: true, force: true });
+    });
+  });
+
+  test('BD-9: pattern count regression check still passes (23 patterns)', () => {
+    // Re-assert the pattern count locked by TRD 01-06 + 19-03 anti-pattern.
+    // If this fails, an INTERACTIVE_PATTERNS entry was inadvertently added/removed.
+    assert.equal(INTERACTIVE_PATTERNS.length, 23);
+    assert.equal(INTERACTIVE_PATTERNS.filter(p => p.category === 'tty').length, 10);
+    assert.equal(INTERACTIVE_PATTERNS.filter(p => p.category === 'shell-flow').length, 13);
   });
 });

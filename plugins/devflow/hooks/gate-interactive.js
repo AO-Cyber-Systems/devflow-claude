@@ -258,7 +258,7 @@ function buildDenyReason({ id, cmd, hit, watcherLive, watcherInfo }) {
   if (watcherLive) {
     return [
       `This command needs the user's shell (${hit.reason}; category: ${hit.category}).`,
-      `It has been queued to the devflow-watch daemon (pid ${watcherInfo && watcherInfo.pid}). Continue with other work — the daemon will run it and inject the result into your next turn automatically. Do NOT instruct the user to paste anything; do NOT retry the Bash tool.`,
+      `It has been queued to the devflow-watch PTY-backed daemon (pid ${watcherInfo && watcherInfo.pid}). Continue with other work — the daemon will run it via a real PTY and inject the result into your next turn automatically. Do NOT instruct the user to paste anything; do NOT retry the Bash tool.`,
       `(handoff id: ${id} — record at .devflow-handoff/pending/${id}.json)`,
       'Escape hatch: set DEVFLOW_SKIP_INTERACTIVE_GATE=1 if this is a false positive.',
     ].join(' ');
