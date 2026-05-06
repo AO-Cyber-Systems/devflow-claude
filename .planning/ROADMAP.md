@@ -630,6 +630,12 @@ Dependency order:
 *Phase 3 — v1.1 leveraging (closes shelf-ware gap):*
 
 9. **v1.1 polish bundle** — OBJECTIVE.md auto-scaffold + backfill objs 1-9; auto-run `df-tools sync-roadmap` and `df-tools gh sync` at objective complete; surface check-todos + awareness in plan/execute init output. Closes the gaps where v1.1 tools require manual invocation.
+   - **Status:** Planned 2026-05-04 (objective 18 / branch `feature/v1.2-obj-9-polish-bundle`)
+   - **Requirements:** [POLISH-OBJ-MD-SCAFFOLD, POLISH-OBJ-MD-BACKFILL, POLISH-AUTO-SYNC-ROADMAP, POLISH-AUTO-GH-SYNC, POLISH-CHECK-TODOS-PREVIEW, POLISH-AWARENESS-PREVIEW]
+   - **TRDs:** 3 plans across 1 wave (all parallel-safe — disjoint files)
+     - [ ] 18-01-objective-md-scaffold-TRD.md — Extend `lib/project-bootstrap.cjs` with `bootstrapObjectiveMd` + `backfillAllObjectives`; backfill objectives 01-17 (Wave 1, tdd) — POLISH-OBJ-MD-SCAFFOLD, POLISH-OBJ-MD-BACKFILL
+     - [ ] 18-02-objective-complete-auto-hooks-TRD.md — Wire `df-tools sync-roadmap` + `df-tools gh sync` into `execute-objective.md` `update_roadmap` step (non-blocking, gated on github_issue) (Wave 1, standard) — POLISH-AUTO-SYNC-ROADMAP, POLISH-AUTO-GH-SYNC
+     - [ ] 18-03-init-output-preview-TRD.md — Add `check_todos_preview` + `awareness_preview` (cache-only, one-line advisories) to `init plan-objective` and `init execute-objective` JSON output (Wave 1, tdd) — POLISH-CHECK-TODOS-PREVIEW, POLISH-AWARENESS-PREVIEW
 
 *Phase 4 — Handoff watcher polish:*
 
