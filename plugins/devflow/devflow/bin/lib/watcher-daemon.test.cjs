@@ -641,7 +641,7 @@ describe('processOnce — Group I: notifier integration (TRD 20-01)', () => {
   afterEach(() => rmTmp(root));
 
   test('I-1 deps.notifier=null: no notifier calls; behavior byte-identical', async () => {
-    writePending(root, 'h-i1', 'echo hi');
+    writePending(root, 'h-i1', 'gh auth login');
     const allow = allowlistLib.defaultAllowlist();
     const session = fakeSession(() => ({ stdout: 'hi\n', stderr: '', exit_code: 0, status: 'done' }));
     const pending = daemon.readPending(root);
@@ -652,7 +652,7 @@ describe('processOnce — Group I: notifier integration (TRD 20-01)', () => {
   });
 
   test('I-2 deps.notifier set: notify called BEFORE session.dispatch (dispatch-start)', async () => {
-    writePending(root, 'h-i2', 'echo hi');
+    writePending(root, 'h-i2', 'gh auth login');
     const allow = allowlistLib.defaultAllowlist();
     const order = [];
     const notif = {
@@ -675,11 +675,11 @@ describe('processOnce — Group I: notifier integration (TRD 20-01)', () => {
     assert.equal(order[1].type, 'dispatch');
     assert.equal(order[2].type, 'notify-complete');
     // Body of start references the cmd
-    assert.match(order[0].body, /echo hi/);
+    assert.match(order[0].body, /gh auth login/);
   });
 
   test('I-3 notifier.notify called AFTER writeDoneRecord (dispatch-complete signal)', async () => {
-    writePending(root, 'h-i3', 'echo hi');
+    writePending(root, 'h-i3', 'gh auth login');
     const allow = allowlistLib.defaultAllowlist();
     const notif = makeNotifierMock();
     const session = fakeSession(() => ({ stdout: '', stderr: '', exit_code: 0, status: 'done' }));
@@ -694,7 +694,7 @@ describe('processOnce — Group I: notifier integration (TRD 20-01)', () => {
   });
 
   test('I-4 notifier errors during dispatch-start do NOT prevent dispatch', async () => {
-    writePending(root, 'h-i4', 'echo hi');
+    writePending(root, 'h-i4', 'gh auth login');
     const allow = allowlistLib.defaultAllowlist();
     let dispatchHappened = false;
     const notif = {
@@ -712,7 +712,7 @@ describe('processOnce — Group I: notifier integration (TRD 20-01)', () => {
   });
 
   test('I-5 notifier errors during dispatch-complete do NOT prevent done record', async () => {
-    writePending(root, 'h-i5', 'echo hi');
+    writePending(root, 'h-i5', 'gh auth login');
     const allow = allowlistLib.defaultAllowlist();
     let calls = 0;
     const notif = {
@@ -732,7 +732,7 @@ describe('processOnce — Group I: notifier integration (TRD 20-01)', () => {
   });
 
   test('I-8 notify_on_start=false suppresses dispatch-start (only complete called)', async () => {
-    writePending(root, 'h-i8', 'echo hi');
+    writePending(root, 'h-i8', 'gh auth login');
     const allow = allowlistLib.defaultAllowlist();
     const notif = makeNotifierMock();
     const session = fakeSession(() => ({ stdout: '', stderr: '', exit_code: 0, status: 'done' }));
@@ -746,7 +746,7 @@ describe('processOnce — Group I: notifier integration (TRD 20-01)', () => {
   });
 
   test('I-9 notify_on_complete=false suppresses dispatch-complete (only start called)', async () => {
-    writePending(root, 'h-i9', 'echo hi');
+    writePending(root, 'h-i9', 'gh auth login');
     const allow = allowlistLib.defaultAllowlist();
     const notif = makeNotifierMock();
     const session = fakeSession(() => ({ stdout: '', stderr: '', exit_code: 0, status: 'done' }));
@@ -803,7 +803,7 @@ describe('runLoop — Group D: multi-project iteration (TRD 20-03)', () => {
         return { stdout: '', stderr: '', exit_code: 0, status: 'done' };
       },
     };
-    writePending(projects[0], 'h-d1-a', 'echo a');
+    writePending(projects[0], 'h-d1-a', 'gh auth login');
     const allow = allowlistLib.defaultAllowlist();
     const loop = daemon.runLoop({
       projectRoot: projects[0], session, allowlist: allow, log: () => {}, pollIntervalMs: 30,
@@ -822,19 +822,19 @@ describe('runLoop — Group D: multi-project iteration (TRD 20-03)', () => {
         return { stdout: '', stderr: '', exit_code: 0, status: 'done' };
       },
     };
-    writePending(projects[0], 'h-d2-a', 'echo p1');
+    writePending(projects[0], 'h-d2-a', 'gh auth login');
     const allow = allowlistLib.defaultAllowlist();
     const loop = daemon.runLoop({
       projectRoot: projects[0], session, allowlist: allow, log: () => {}, pollIntervalMs: 30,
     });
     await new Promise((r) => setTimeout(r, 250));
     await loop.stop();
-    assert.ok(calls.some((c) => c.cmd === 'echo p1'), 'p1 was dispatched');
+    assert.ok(calls.some((c) => c.id === 'h-d2-a'), 'p1 was dispatched');
   });
 
   test('D-3 p1 has pending, p2 empty → tick processes p1 (skips empty p2)', async () => {
     stateLib.writePidFile({ pid: process.pid, version: '0.1.0', shell: 'bash', watching: projects });
-    writePending(projects[0], 'h-d3-a', 'echo only-in-p1');
+    writePending(projects[0], 'h-d3-a', 'gh auth login');
     const calls = [];
     const session = {
       dispatch: async (id, cmd) => {
@@ -848,7 +848,7 @@ describe('runLoop — Group D: multi-project iteration (TRD 20-03)', () => {
     });
     await new Promise((r) => setTimeout(r, 250));
     await loop.stop();
-    assert.ok(calls.some((c) => c.cmd === 'echo only-in-p1'));
+    assert.ok(calls.some((c) => c.id === 'h-d3-a'));
   });
 
   test('D-4 watching=[] → tick is silent no-op', async () => {
@@ -868,7 +868,7 @@ describe('runLoop — Group D: multi-project iteration (TRD 20-03)', () => {
 
   test('D-5 PID file null (test path) → fall back to opts.projectRoot', async () => {
     stateLib.removePidFile();
-    writePending(projects[0], 'h-d5-fallback', 'echo fallback');
+    writePending(projects[0], 'h-d5-fallback', 'gh auth login');
     const calls = [];
     const session = {
       dispatch: async (id, cmd) => { calls.push({ id, cmd }); return { stdout: '', stderr: '', exit_code: 0, status: 'done' }; },
@@ -879,14 +879,14 @@ describe('runLoop — Group D: multi-project iteration (TRD 20-03)', () => {
     });
     await new Promise((r) => setTimeout(r, 250));
     await loop.stop();
-    assert.ok(calls.some((c) => c.cmd === 'echo fallback'), 'fallback when PID file missing');
+    assert.ok(calls.some((c) => c.id === 'h-d5-fallback'), 'fallback when PID file missing');
   });
 
   test('D-6 dispatch remains serial — only one inFlight at a time', async () => {
     stateLib.writePidFile({ pid: process.pid, version: '0.1.0', shell: 'bash', watching: projects });
-    writePending(projects[0], 'h-d6-a', 'echo a');
-    writePending(projects[0], 'h-d6-b', 'echo b');
-    writePending(projects[1], 'h-d6-c', 'echo c');
+    writePending(projects[0], 'h-d6-a', 'gh auth login');
+    writePending(projects[0], 'h-d6-b', 'doctl auth init');
+    writePending(projects[1], 'h-d6-c', 'gcloud auth login');
     let inFlightAtAnyTime = 0;
     let maxInFlight = 0;
     const session = {
@@ -909,7 +909,7 @@ describe('runLoop — Group D: multi-project iteration (TRD 20-03)', () => {
 
   test('D-7 addWatchedProject mid-runLoop visible to next tick', async () => {
     stateLib.writePidFile({ pid: process.pid, version: '0.1.0', shell: 'bash', watching: [projects[0]] });
-    writePending(projects[1], 'h-d7-late', 'echo late');
+    writePending(projects[1], 'h-d7-late', 'gh auth login');
     const calls = [];
     const session = {
       dispatch: async (id, cmd) => { calls.push({ id, cmd }); return { stdout: '', stderr: '', exit_code: 0, status: 'done' }; },
@@ -925,12 +925,12 @@ describe('runLoop — Group D: multi-project iteration (TRD 20-03)', () => {
     stateLib.addWatchedProject(projects[1]);
     await new Promise((r) => setTimeout(r, 200));
     await loop.stop();
-    assert.ok(calls.some((c) => c.cmd === 'echo late'), 'mid-loop add-project visible to next tick');
+    assert.ok(calls.some((c) => c.id === 'h-d7-late'), 'mid-loop add-project visible to next tick');
   });
 
   test('D-9 processOnce called with correct projectRoot per pending record', async () => {
     stateLib.writePidFile({ pid: process.pid, version: '0.1.0', shell: 'bash', watching: projects });
-    writePending(projects[1], 'h-d9-only-p2', 'echo p2-only');
+    writePending(projects[1], 'h-d9-only-p2', 'gh auth login');
     const session = {
       dispatch: async (id, cmd) => ({ stdout: '', stderr: '', exit_code: 0, status: 'done' }),
     };
@@ -946,7 +946,7 @@ describe('runLoop — Group D: multi-project iteration (TRD 20-03)', () => {
 
   test('D-8 remove-project of project with in-flight dispatch — dispatch completes', async () => {
     stateLib.writePidFile({ pid: process.pid, version: '0.1.0', shell: 'bash', watching: projects });
-    writePending(projects[0], 'h-d8-inflight', 'sleep-equiv');
+    writePending(projects[0], 'h-d8-inflight', 'gh auth login');
     let dispatchStarted = false;
     let dispatchCompleted = false;
     const session = {

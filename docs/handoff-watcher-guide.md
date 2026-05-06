@@ -164,6 +164,43 @@ them.
 | `DEVFLOW_HANDOFF_RESULT_TTL_MS` | route-results TTL for done records (default 1h) |
 | `DEVFLOW_SKIP_INTERACTIVE_GATE=1` | Bypass `gate-interactive` hook entirely |
 | `DEVFLOW_SKIP_HANDOFF_RESULTS=1` | Bypass `route-results` hook entirely |
+| `NOTIFIER_DISABLE=1` | Disable OS notifications regardless of `daemon.notifications` config |
+
+### OS notifications
+
+The daemon can dispatch OS desktop notifications when it picks up a handoff
+(`dispatch-start`) and when it completes one (`dispatch-complete`). Disabled
+by default; opt in via `.planning/config.json`:
+
+```json
+{
+  "daemon": {
+    "notifications": true,
+    "notify_on_start": true,
+    "notify_on_complete": true
+  }
+}
+```
+
+Notification dispatch uses system binaries — no extra npm dependencies:
+
+| Platform | Tool | Install if missing |
+|---|---|---|
+| macOS | `osascript` | First-class (system-shipped) |
+| Linux | `notify-send` | `apt install libnotify-bin` / `dnf install libnotify` |
+| Windows | unsupported in v1.2 | Deferred to v1.3+ |
+
+If the platform's binary is not on PATH, the daemon logs a warning ONCE per
+session and disables notifications for the remainder of the session. Set
+`NOTIFIER_DISABLE=1` in the daemon's environment to disable notifications
+entirely without editing config.
+
+`notify-send` on headless / SSH sessions without `$DISPLAY` may fail with
+DBus errors — these are logged per-occurrence (the user may switch to a
+local terminal mid-session and want notifications resumed).
+
+macOS notifications are silent in fullscreen mode and Do Not Disturb. This
+is a system-level setting, not a daemon limitation.
 
 ## PTY support (v1.2+)
 
