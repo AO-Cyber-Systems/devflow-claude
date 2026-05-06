@@ -2,7 +2,7 @@
   "current_objective": null,
   "current_job": 0,
   "total_jobs": 0,
-  "progress_pct": 96,
+  "progress_pct": 99,
   "status": "ready_for_verification",
   "last_activity": "2026-05-06",
   "metrics": {
@@ -354,6 +354,26 @@
     {
       "objective": "18-v1-1-polish-bundle",
       "summary": "sync-roadmap runs before gh sync and before final commit in update_roadmap — ensures ROADMAP drift captured in same atomic commit",
+      "rationale": null
+    },
+    {
+      "objective": "18",
+      "summary": "JSDoc block comments must not contain */ glob patterns — terminates comment early in Node.js parser; use prose description instead",
+      "rationale": null
+    },
+    {
+      "objective": "18",
+      "summary": "bootstrapObjectiveMd mirrors bootstrapProjectMd return shape { applied, added_fields, path, reason } — consistent contract across all bootstrap helpers",
+      "rationale": null
+    },
+    {
+      "objective": "18",
+      "summary": "backfillAllObjectives uses sorted fs.readdirSync for cross-platform determinism; per-dir try/catch with errors[] aggregation",
+      "rationale": null
+    },
+    {
+      "objective": "18",
+      "summary": "Cache-only preview helpers in init.cjs — _buildCheckTodosPreview reads parsed.now array, _buildAwarenessPreview filters current branch from peer.branches; advisories_warnings always emitted as [] for stable JSON shape",
       "rationale": null
     }
   ],

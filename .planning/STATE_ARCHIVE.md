@@ -26,6 +26,26 @@ STATE.md stays lean; this file grows over time.
 - [Objective 10-phase-e-agent-audit]: subagent_type=general-purpose is correct ONLY for workflow invocations (Task prompt='Run /devflow:<skill> ...'); all agent-class work must use a dedicated df-* agent
 - [Objective 10-phase-e-agent-audit]: Single atomic commit for all 6 workflow files: uniform mechanical subagent_type replacements, no behavioral divergence between files
 - [Objective 10-phase-e-agent-audit]: Convention established: general-purpose is correct ONLY for Task(prompt='Run /devflow:...') workflow-invocation trampolines; all other spawns use dedicated df-* agents
+- [Objective 16-phase-b-micro-skill]: Cutoff numbers for /devflow:quick are advisory (<5 files, <200 LOC, no new abstractions) — exact wording from issue #27, preserved for 16-04 classifier consistency
+- [Objective 16-phase-b-micro-skill]: quick triggers drop tiny/quick-fix/can-you-just — those route to /devflow:micro; workflow.md process steps are unchanged
+- [Objective 16-phase-b-micro-skill]: 16-04: Trivial-noun whitelist approach for micro INTENT_MAP entry prevents collision with build/debug/quick
+- [Objective 16-phase-b-micro-skill]: 16-04: classifier.cjs case 9 inverted to 4-assertion gate proving Phase B shipped state
+- [Objective 16]: gitRunner injection in commitMicro avoids coupling to cmdCommit's loadConfig/isGitIgnored checks that fail in test tmpdir fixtures
+- [Objective 16]: .micro-description sidecar for cross-invocation description persistence (skill-active marker has no description field by design)
+- [Objective 16]: No Task tool in SKILL.md allowed-tools: micro's value is single-context execution; agent spawn excluded to enforce no-ceremony promise
+- [Objective 17-phase-c-auto-init]: Time injected as ISO string param in decline-tracker for deterministic test assertions
+- [Objective 17-phase-c-auto-init]: clearDecline writes {} when last entry removed (avoids TOCTOU race vs file delete)
+- [Objective 17-phase-c-auto-init]: global-config: forward-compat merge uses {...DEFAULT_CONFIG, ...parsed} — user values win; unknown v1.3+ keys survive unchanged
+- [Objective 17-phase-c-auto-init]: global-config shouldAutoInit uses strict === true, not truthy — guards against string 'true' from hand-edited config
+- [Objective 17-phase-c-auto-init]: Non-scratch tmpdir via ~/.devflow-test-fixtures/ for Phase C fixtures: macOS os.tmpdir() returns /var/folders/ (scratch prefix) — all non-scratch fixtures must use homedir-relative path
+- [Objective 17-phase-c-auto-init]: Backdated git commits in fixtures: GIT_AUTHOR_DATE/GIT_COMMITTER_DATE must be on 'git commit' command, not 'git add' — env vars only apply to the process they prefix
+- [Objective 17-phase-c-auto-init]: isSubstantive=true default preserves 15-01 back-compat without test modification
+- [Objective 17-phase-c-auto-init]: Mode promotion post-classifySession: hook promotes init-offer to auto-init keeping classifier pure
+- [Objective 18-v1-1-polish-bundle]: sync-roadmap runs before gh sync and before final commit in update_roadmap — ensures ROADMAP drift captured in same atomic commit
+- [Objective 18]: JSDoc block comments must not contain */ glob patterns — terminates comment early in Node.js parser; use prose description instead
+- [Objective 18]: bootstrapObjectiveMd mirrors bootstrapProjectMd return shape { applied, added_fields, path, reason } — consistent contract across all bootstrap helpers
+- [Objective 18]: backfillAllObjectives uses sorted fs.readdirSync for cross-platform determinism; per-dir try/catch with errors[] aggregation
+- [Objective 18]: Cache-only preview helpers in init.cjs — _buildCheckTodosPreview reads parsed.now array, _buildAwarenessPreview filters current branch from peer.branches; advisories_warnings always emitted as [] for stable JSON shape
 
 ## Performance Metrics
 
@@ -37,4 +57,8 @@ STATE.md stays lean; this file grows over time.
 | Objective 08 P08-02 | 6 | 2 tasks | 3 files |
 | Objective 08 P08-03 | 226 | - tasks | - files |
 | Objective 10-phase-e-agent-audit P02 | 2 | 1 tasks | 1 files |
+| Objective 16-phase-b-micro-skill P03 | 2 | 1 tasks | 2 files |
+| Objective 16 P01 | 9min | 3 tasks | 3 files |
+| Objective 17-phase-c-auto-init P04 | 5min | 2 tasks | 4 files |
+| Objective 18 P18-01 | 6 | 3 tasks | 20 files |
 
