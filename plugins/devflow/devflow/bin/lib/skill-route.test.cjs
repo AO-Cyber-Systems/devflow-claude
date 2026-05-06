@@ -346,6 +346,120 @@ describe('CLI integration', () => {
   });
 });
 
+// ─── Group M: milestone routing ───────────────────────────────────────────────
+
+describe('milestone routing', () => {
+  test('M1: milestone new with arg routes to new-milestone workflow', () => {
+    const result = routeSkill('milestone', ['new', 'v1.3']);
+    assert.deepStrictEqual(result, {
+      skill: 'milestone',
+      subcommand: 'new',
+      args: ['v1.3'],
+      workflow: '~/.claude/devflow/workflows/new-milestone.md',
+    });
+  });
+
+  test('M2: milestone audit with no arg returns subcommand audit, empty args, audit-milestone workflow', () => {
+    const result = routeSkill('milestone', ['audit']);
+    assert.deepStrictEqual(result, {
+      skill: 'milestone',
+      subcommand: 'audit',
+      args: [],
+      workflow: '~/.claude/devflow/workflows/audit-milestone.md',
+    });
+  });
+
+  test('M3: milestone audit with version arg routes to audit-milestone workflow', () => {
+    const result = routeSkill('milestone', ['audit', 'v1.2']);
+    assert.deepStrictEqual(result, {
+      skill: 'milestone',
+      subcommand: 'audit',
+      args: ['v1.2'],
+      workflow: '~/.claude/devflow/workflows/audit-milestone.md',
+    });
+  });
+
+  test('M4: milestone complete with version arg routes to complete-milestone workflow', () => {
+    const result = routeSkill('milestone', ['complete', 'v1.2']);
+    assert.deepStrictEqual(result, {
+      skill: 'milestone',
+      subcommand: 'complete',
+      args: ['v1.2'],
+      workflow: '~/.claude/devflow/workflows/complete-milestone.md',
+    });
+  });
+
+  test('M5: milestone gaps routes to plan-milestone-gaps.md (NOT gaps-milestone.md)', () => {
+    const result = routeSkill('milestone', ['gaps']);
+    assert.deepStrictEqual(result, {
+      skill: 'milestone',
+      subcommand: 'gaps',
+      args: [],
+      workflow: '~/.claude/devflow/workflows/plan-milestone-gaps.md',
+    });
+    assert.ok(
+      !result.workflow.includes('gaps-milestone'),
+      'workflow must NOT be gaps-milestone.md',
+    );
+  });
+
+  test('M6: milestone with no subcommand returns error with usage', () => {
+    const result = routeSkill('milestone', []);
+    assert.strictEqual(result.error, 'missing subcommand');
+    assert.strictEqual(result.usage, 'milestone <new|audit|complete|gaps>');
+    assert.deepStrictEqual(result.valid_subcommands, ['new', 'audit', 'complete', 'gaps']);
+  });
+
+  test('M7: milestone with unknown subcommand returns error', () => {
+    const result = routeSkill('milestone', ['unknown']);
+    assert.strictEqual(result.error, 'unknown subcommand');
+    assert.strictEqual(result.got, 'unknown');
+    assert.deepStrictEqual(result.valid_subcommands, ['new', 'audit', 'complete', 'gaps']);
+  });
+});
+
+// ─── Group MD: DEPRECATION_MAP milestone additions ────────────────────────────
+
+describe('DEPRECATION_MAP milestone additions', () => {
+  test('MD1: new-milestone maps to milestone new', () => {
+    assert.strictEqual(DEPRECATION_MAP['new-milestone'], 'milestone new');
+  });
+
+  test('MD2: audit-milestone maps to milestone audit', () => {
+    assert.strictEqual(DEPRECATION_MAP['audit-milestone'], 'milestone audit');
+  });
+
+  test('MD3: complete-milestone maps to milestone complete', () => {
+    assert.strictEqual(DEPRECATION_MAP['complete-milestone'], 'milestone complete');
+  });
+
+  test('MD4: plan-milestone-gaps maps to milestone gaps', () => {
+    assert.strictEqual(DEPRECATION_MAP['plan-milestone-gaps'], 'milestone gaps');
+  });
+});
+
+// ─── Group ML: --list reflects milestone extension ────────────────────────────
+
+describe('--list reflects milestone extension', () => {
+  test('ML1: cmdSkillRouteList returns milestone entry with 4 subcommands', () => {
+    // Capture stdout by calling the underlying function directly via the catalog
+    const skills = Object.entries(SKILL_ROUTES).map(([name, route]) => ({
+      name,
+      subcommands: route.subcommands,
+    }));
+    const milestoneEntry = skills.find(s => s.name === 'milestone');
+    assert.ok(milestoneEntry, 'milestone must be in skills catalog');
+    assert.deepStrictEqual(milestoneEntry.subcommands, ['new', 'audit', 'complete', 'gaps']);
+  });
+
+  test('ML2: DEPRECATION_MAP contains all 4 new milestone entries', () => {
+    assert.ok('new-milestone' in DEPRECATION_MAP, 'new-milestone must be in DEPRECATION_MAP');
+    assert.ok('audit-milestone' in DEPRECATION_MAP, 'audit-milestone must be in DEPRECATION_MAP');
+    assert.ok('complete-milestone' in DEPRECATION_MAP, 'complete-milestone must be in DEPRECATION_MAP');
+    assert.ok('plan-milestone-gaps' in DEPRECATION_MAP, 'plan-milestone-gaps must be in DEPRECATION_MAP');
+  });
+});
+
 // ─── Group EX: export-lock ────────────────────────────────────────────────────
 
 describe('export-lock', () => {
@@ -371,5 +485,11 @@ describe('export-lock', () => {
       /LOCKED by TRD 12-01/.test(src),
       'Banner comment "LOCKED by TRD 12-01" must be present in skill-route.cjs',
     );
+  });
+
+  test('EX3: module.exports still exactly 8 entries after milestone extension (no new exports added)', () => {
+    const mod = require('./skill-route.cjs');
+    const keys = Object.keys(mod);
+    assert.strictEqual(keys.length, 8, `Expected exactly 8 exports, got ${keys.length}: ${keys.join(', ')}`);
   });
 });
