@@ -19,7 +19,7 @@
 **Objective complete:** 6 — Unified check-todos morning-standup view (verified 2026-05-05, 1290/1291 tests pass, all 10 SC met, 4 TRDs done, SC-6 through SC-10 closed)
 **Objective complete:** 8 — Program-aware TUI viewer (verified 2026-05-05, 1356/1356 tests pass, all 10 SC met, 3 TRDs done, SC-6 + SC-9 + SC-10 closed)
 **Branch:** `feature/v1.1-obj-8-tui`
-**Status:** Ready to plan
+**Status:** Objective complete — ready for verification
 
 ## Branch State (post-merge)
 

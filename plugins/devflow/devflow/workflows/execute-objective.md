@@ -586,7 +586,7 @@ MAX_GAP_CYCLES=2
      **State:** {state_content}
      **Roadmap:** {roadmap_content}
      </planning_context>",
-     subagent_type="general-purpose",
+     subagent_type="planner",
      model="{planner_model}",
      description="Plan gap closure for Objective {objective_number}"
    )
