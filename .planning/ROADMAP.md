@@ -583,6 +583,12 @@ Dependency order:
      - [x] 12-04-workstreams-extension-TRD.md — Update /devflow:workstreams to use skill-route + add `run` subcommand stub for v1.2 obj 6 (Wave 2, tdd) — PHASE-G1 — DONE
      - [x] 12-07-docs-and-routing-prep-TRD.md — Rewrite help.md + README skill table + Phase A handoff JSON snapshot (Wave 3, standard) — PHASE-G4, PHASE-A-HANDOFF — DONE 2026-05-06, 1471/1496 tests pass
 4. **Phase H — Prompt extraction to references/templates** — move duplicated agent-prompt content (debugging methodology, goal-backward methodology, TRD spec) to shared references. ~25-55k tokens saved per `/devflow:build`. **Tracks: devflow-claude#33**
+   - **Status:** Planned 2026-05-04 (objective 13 / branch `feature/v1.2-obj-4-prompt-extraction`)
+   - **TRDs:** 4 plans across 3 waves
+     - [ ] 13-01-create-shared-references-TRD.md — Create 5 reference files (trd-spec, research-tooling, goal-backward, debugging-methods, stub-patterns) + 1 template (codebase/patterns) (Wave 1, standard) — PHASE-H1
+     - [ ] 13-02-edit-agents-group-a-TRD.md — Edit planner + job-checker + debugger + objective-researcher + verifier to externalize inline content (Wave 2, standard) — PHASE-H2-PLANNER, PHASE-H2-JOB-CHECKER, PHASE-H2-DEBUGGER, PHASE-H2-OBJECTIVE-RESEARCHER, PHASE-H2-VERIFIER-STUB, PHASE-H3-VERIFIER-TEMPLATE
+     - [ ] 13-03-edit-agents-group-b-TRD.md — Edit project-researcher + codebase-mapper to externalize inline templates (Wave 2, standard) — PHASE-H2-PROJECT-RESEARCHER, PHASE-H3-PROJECT-RESEARCHER, PHASE-H3-CODEBASE-MAPPER
+     - [ ] 13-04-token-savings-and-verify-TRD.md — Compute line-count delta + token-savings estimate + back-compat verification (1471 tests pass, @-ref resolvability) (Wave 3, standard) — PHASE-H-MEASUREMENT, PHASE-H-BACKCOMPAT
 5. **Phase F — Default-on safety nets** — mandatory df-verifier invocation + route-intent enforcement; closes the routing→verification loop. Depends on D + E. **Tracks: devflow-claude#31**
 
 *Phase 2 — Ambient mode (adoption):*

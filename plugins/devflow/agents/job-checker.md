@@ -43,21 +43,13 @@ If CONTEXT.md exists, add verification dimension: **Context Compliance**
 
 A task "create auth endpoint" can be in the job while password hashing is missing. The task exists but the goal "secure authentication" won't be achieved.
 
-Goal-backward verification works backwards from outcome:
+job-checker applies goal-backward verification BEFORE execution (vs verifier which applies it AFTER). Same methodology, different timing.
 
-1. What must be TRUE for the objective goal to be achieved?
-2. Which tasks address each truth?
-3. Are those tasks complete (files, action, verify, done)?
-4. Are artifacts wired together, not just created in isolation?
-5. Will execution complete within context budget?
-
-Then verify each level against the actual job files.
+@~/.claude/devflow/references/goal-backward.md
 
 **The difference:**
 - `verifier`: Verifies code DID achieve goal (after execution)
 - `job-checker`: Verifies plans WILL achieve goal (before execution)
-
-Same methodology (goal-backward), different timing, different subject matter.
 </core_principle>
 
 <verification_dimensions>

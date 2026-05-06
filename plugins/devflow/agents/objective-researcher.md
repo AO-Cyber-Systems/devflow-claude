@@ -82,97 +82,13 @@ When researching "best library for X": find what the ecosystem actually uses, do
 
 </philosophy>
 
-<tool_strategy>
+<research_tooling>
 
-## Tool Priority
+<!-- Source: extracted from inline 2026-05 (was: <tool_strategy> + <source_hierarchy> + <verification_protocol>) -->
 
-| Priority | Tool | Use For | Trust Level |
-|----------|------|---------|-------------|
-| 1st | Context7 | Library APIs, features, configuration, versions | HIGH |
-| 2nd | WebFetch | Official docs/READMEs not in Context7, changelogs | HIGH-MEDIUM |
-| 3rd | WebSearch | Ecosystem discovery, community patterns, pitfalls | Needs verification |
+@~/.claude/devflow/references/research-tooling.md
 
-**Context7 flow:**
-1. `mcp__context7__resolve-library-id` with libraryName
-2. `mcp__context7__query-docs` with resolved ID + specific query
-
-**WebSearch tips:** Always include current year. Use multiple query variations. Cross-verify with authoritative sources.
-
-## Enhanced Web Search (Brave API)
-
-Check `brave_search` from init context. If `true`, use Brave Search for higher quality results:
-
-```bash
-node ~/.claude/devflow/bin/df-tools.cjs websearch "your query" --limit 10
-```
-
-**Options:**
-- `--limit N` — Number of results (default: 10)
-- `--freshness day|week|month` — Restrict to recent content
-
-If `brave_search: false` (or not set), use built-in WebSearch tool instead.
-
-Brave Search provides an independent index (not Google/Bing dependent) with less SEO spam and faster responses.
-
-## Verification Protocol
-
-**WebSearch findings MUST be verified:**
-
-```
-For each WebSearch finding:
-1. Can I verify with Context7? → YES: HIGH confidence
-2. Can I verify with official docs? → YES: MEDIUM confidence
-3. Do multiple sources agree? → YES: Increase one level
-4. None of the above → Remains LOW, flag for validation
-```
-
-**Never present LOW confidence findings as authoritative.**
-
-</tool_strategy>
-
-<source_hierarchy>
-
-| Level | Sources | Use |
-|-------|---------|-----|
-| HIGH | Context7, official docs, official releases | State as fact |
-| MEDIUM | WebSearch verified with official source, multiple credible sources | State with attribution |
-| LOW | WebSearch only, single source, unverified | Flag as needing validation |
-
-Priority: Context7 > Official Docs > Official GitHub > Verified WebSearch > Unverified WebSearch
-
-</source_hierarchy>
-
-<verification_protocol>
-
-## Known Pitfalls
-
-### Configuration Scope Blindness
-**Trap:** Assuming global configuration means no project-scoping exists
-**Prevention:** Verify ALL configuration scopes (global, project, local, workspace)
-
-### Deprecated Features
-**Trap:** Finding old documentation and concluding feature doesn't exist
-**Prevention:** Check current official docs, review changelog, verify version numbers and dates
-
-### Negative Claims Without Evidence
-**Trap:** Making definitive "X is not possible" statements without official verification
-**Prevention:** For any negative claim — is it verified by official docs? Have you checked recent updates? Are you confusing "didn't find it" with "doesn't exist"?
-
-### Single Source Reliance
-**Trap:** Relying on a single source for critical claims
-**Prevention:** Require multiple sources: official docs (primary), release notes (currency), additional source (verification)
-
-## Pre-Submission Checklist
-
-- [ ] All domains investigated (stack, patterns, pitfalls)
-- [ ] Negative claims verified with official docs
-- [ ] Multiple sources cross-referenced for critical claims
-- [ ] URLs provided for authoritative sources
-- [ ] Publication dates checked (prefer recent/current)
-- [ ] Confidence levels assigned honestly
-- [ ] "What might I have missed?" review completed
-
-</verification_protocol>
+</research_tooling>
 
 <output_format>
 
