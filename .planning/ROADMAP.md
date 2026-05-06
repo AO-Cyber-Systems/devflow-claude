@@ -670,6 +670,13 @@ Dependency order:
 *Phase 5 — Workflow polish:*
 
 13. **Workflow-impediment fixes** — `df-tools init --branch` flag (default current; error on missing rather than walking history); project-hygiene tooling (detect/move misfiled objectives, archive retired repos).
+   - **Status:** Planned 2026-05-06 (objective 22 / branch `feature/v1.2-obj-13-workflow-impediment`) — 4 TRDs across 2 waves; all type:tdd per TDD playbook; `.planning/objectives/22-workflow-impediment-fixes/` contains 22-CONTEXT.md + 22-RESEARCH.md + 4 TRDs.
+   - **Requirements:** [INIT-BRANCH-FLAG, INIT-NO-IMPLICIT-WALK, INIT-MISSING-STATE-ERROR, HYGIENE-CHECK-CLI, HYGIENE-MISFILED-DETECTION, HYGIENE-JSON-CONTRACT, HYGIENE-MOVE-CLI, HYGIENE-MOVE-ATOMIC, HYGIENE-MOVE-VERIFY, HYGIENE-ARCHIVE-DETECT, HYGIENE-ARCHIVE-APPLY, HYGIENE-ARCHIVE-EMIT-GH-CMD]
+   - **TRDs:** 4 plans across 2 waves
+     - [ ] 22-01-init-branch-flag-TRD.md — `--branch=<name>` flag across all `df-tools init *` commands; `_resolveBranch` shared helper; missing-state errors with hint instead of silent fallback (Wave 1, tdd) — INIT-BRANCH-FLAG, INIT-NO-IMPLICIT-WALK, INIT-MISSING-STATE-ERROR
+     - [ ] 22-02-hygiene-check-TRD.md — `lib/project-hygiene.cjs` + `df-tools project-hygiene check` read-only CLI; misfiled-objective detection via direct ref extraction (no gh CLI required) (Wave 1, tdd) — HYGIENE-CHECK-CLI, HYGIENE-MISFILED-DETECTION, HYGIENE-JSON-CONTRACT
+     - [ ] 22-03-hygiene-move-TRD.md — `df-tools project-hygiene move <id> --to=<path>` atomic-ish copy+verify+rm with rollback on verify failure (Wave 2, tdd) — HYGIENE-MOVE-CLI, HYGIENE-MOVE-ATOMIC, HYGIENE-MOVE-VERIFY
+     - [ ] 22-04-hygiene-archive-TRD.md — `df-tools project-hygiene archive [--apply <name>]` retired-repo detection (last commit > 6mo OR `archived: true`) + apply moves `.planning/` to `<workspace>/archived-projects/` and emits `gh repo archive` command (does not execute) (Wave 2, tdd) — HYGIENE-ARCHIVE-DETECT, HYGIENE-ARCHIVE-APPLY, HYGIENE-ARCHIVE-EMIT-GH-CMD
 
 **Dependency graph:**
 
