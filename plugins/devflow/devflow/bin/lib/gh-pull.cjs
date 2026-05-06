@@ -21,6 +21,7 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 const { extractFrontmatter } = require('./frontmatter.cjs');
 const { readSyncState, recordSync, hashFrontmatter, getLastSync } = require('./sync-state.cjs');
+const conflictMod = require('./conflict.cjs');
 
 // Local emitter — bypasses helpers.output() because that helper always exits 0
 // and inverts raw semantics (raw=true→prose). cmdGhPull contract: raw=true→JSON,
@@ -260,8 +261,25 @@ function cmdGhPull(cwd, args, raw) {
   const objectiveId = args.find((a) => !a.startsWith('--'));
   const apply = args.includes('--apply');
 
+  // TRD 21-03: --resolve flag handling
+  const resolveFlag = args.find((a) => a.startsWith('--resolve='));
+  const resolveValue = resolveFlag ? resolveFlag.split('=')[1] : null;
+  const resolved = args.includes('--resolved');
+
+  if (resolveValue && !['disk', 'gh', 'merge'].includes(resolveValue)) {
+    const msg = `Invalid --resolve value: ${resolveValue}. Use disk, gh, or merge.`;
+    _emit({ ok: false, error: msg }, msg + '\n', raw, 1);
+    return;
+  }
+  // Reject `--resolve disk` (space-separated, no '=')
+  if (args.some((a) => a === '--resolve')) {
+    const msg = 'Use --resolve=disk (with equals sign), not --resolve disk.';
+    _emit({ ok: false, error: msg }, msg + '\n', raw, 1);
+    return;
+  }
+
   if (!objectiveId) {
-    process.stderr.write('Usage: df-tools gh pull <objective> [--apply]\n');
+    process.stderr.write('Usage: df-tools gh pull <objective> [--apply] [--resolve=disk|gh|merge] [--resolved]\n');
     process.exit(1);
     return;
   }
@@ -331,6 +349,102 @@ function cmdGhPull(cwd, args, raw) {
 
   // Read last sync state via sync-state.cjs (TRD 21-02)
   const last_sync_state = getLastSync(cwd, objectiveId);
+
+  // ── TRD 21-03: --resolve=merge --resolved continuation path ──
+  // When user is completing a previously-surfaced conflict via merge, dispatch BEFORE
+  // the conflict detector runs (their edits may have removed the conflict; we still
+  // honor their resolution intent based on pending_resolution.disk_hash_at_conflict).
+  if (resolveValue === 'merge' && resolved && last_sync_state && last_sync_state.pending_resolution) {
+    const r = conflictMod.resolveMerge({ cwd, objectiveId, currentDiskFm: disk_fm });
+    if (!r.ok) { _emit({ ok: false, error: r.error }, r.error + '\n', raw, 1); return; }
+    _emit(
+      { ok: true, action: 'merged', resolution: 'merge', message: r.message },
+      r.message + '\n',
+      raw,
+      0
+    );
+    return;
+  }
+
+  // ── TRD 21-03: conflict detection runs BEFORE drift logic ──
+  if (last_sync_state) {
+    const currentDiskHash = hashFrontmatter(disk_fm);
+    const diskChangedSinceLastSync = currentDiskHash !== last_sync_state.last_synced_disk_hash;
+    const ghChangedSinceLastSync = ghIssue.updatedAt !== last_sync_state.gh_updated_at;
+
+    if (diskChangedSinceLastSync && ghChangedSinceLastSync) {
+      const ghNorm = normalizeGhIssue(ghIssue);
+      const conflict = conflictMod.detectConflict({
+        disk_fm,
+        gh_norm: ghNorm,
+        last_sync: last_sync_state,
+      });
+
+      if (conflict.conflict) {
+        // Real per-field conflict on at least one field. Dispatch on --resolve flag.
+
+        if (resolveValue === 'disk') {
+          const r = conflictMod.resolveDisk({ cwd, objectiveId, issueRef, ghIssue, currentDiskFm: disk_fm });
+          if (!r.ok) { _emit({ ok: false, error: r.error }, r.error + '\n', raw, 1); return; }
+          _emit({ ok: true, action: 'pushed', resolution: 'disk' }, 'Pushed disk state to GitHub.\n', raw, 0);
+          return;
+        }
+        if (resolveValue === 'gh') {
+          const r = conflictMod.resolveGh({ cwd, objectiveId, issueRef, ghIssue, currentDiskFm: disk_fm });
+          if (!r.ok) { _emit({ ok: false, error: r.error }, r.error + '\n', raw, 1); return; }
+          _emit({ ok: true, action: 'pulled', resolution: 'gh', applied: r.applied }, 'Applied GitHub state to disk.\n', raw, 0);
+          return;
+        }
+        if (resolveValue === 'merge' && resolved) {
+          const r = conflictMod.resolveMerge({ cwd, objectiveId, currentDiskFm: disk_fm });
+          if (!r.ok) { _emit({ ok: false, error: r.error }, r.error + '\n', raw, 1); return; }
+          _emit(
+            { ok: true, action: 'merged', resolution: 'merge', message: r.message },
+            r.message + '\n',
+            raw,
+            0
+          );
+          return;
+        }
+
+        // No --resolve flag (or --resolve=merge without --resolved):
+        // record pending_resolution with the conflict-time disk hash, then surface diff + exit 1.
+        recordSync(cwd, objectiveId, {
+          ...last_sync_state,
+          pending_resolution: {
+            disk_hash_at_conflict: currentDiskHash,
+            surfaced_at: new Date().toISOString(),
+          },
+        });
+
+        const diffStr = conflictMod.formatThreeWayDiff({
+          objectiveId,
+          issueRef,
+          conflicting_fields: conflict.conflicting_fields,
+        });
+        const isMergePending = (resolveValue === 'merge' && !resolved);
+        const proseTail = isMergePending
+          ? '\n\nNext: edit OBJECTIVE.md to merge changes, then re-run with --resolve=merge --resolved.\n'
+          : '\n';
+        process.stderr.write(diffStr + proseTail);
+        _emit(
+          {
+            ok: false,
+            conflict: true,
+            conflicting_fields: conflict.conflicting_fields,
+            non_conflicting_fields: conflict.non_conflicting_fields,
+            hint: isMergePending
+              ? 'Edit OBJECTIVE.md, then re-run with --resolve=merge --resolved.'
+              : 'Re-run with --resolve=disk|gh|merge to resolve.',
+          },
+          '',
+          raw,
+          1,
+        );
+        return;
+      }
+    }
+  }
 
   const drift = detectDrift({ disk_fm, gh_state: ghIssue, last_sync_state });
 

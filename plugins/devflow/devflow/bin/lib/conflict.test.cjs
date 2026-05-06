@@ -464,3 +464,203 @@ describe('resolveMerge (R5-R6)', () => {
     }
   });
 });
+
+// ─── cmdGhPull integration with conflict detection (W group) ─────────────────
+
+const ghPull = require('./gh-pull.cjs');
+
+describe('cmdGhPull conflict integration (W1-W5)', () => {
+  // Capture stdout/stderr + process.exit. Mirrors gh-pull.test.cjs captureRun.
+  function captureRun(fn) {
+    const origStdout = process.stdout.write.bind(process.stdout);
+    const origStderr = process.stderr.write.bind(process.stderr);
+    const origExit = process.exit;
+    let stdout = '', stderr = '', exitCode = null;
+    process.stdout.write = (chunk) => { stdout += chunk; return true; };
+    process.stderr.write = (chunk) => { stderr += chunk; return true; };
+    process.exit = (code) => { exitCode = code; throw new Error('__exit__'); };
+    try {
+      try { fn(); } catch (e) { if (e.message !== '__exit__') throw e; }
+    } finally {
+      process.stdout.write = origStdout;
+      process.stderr.write = origStderr;
+      process.exit = origExit;
+    }
+    return { stdout, stderr, exitCode };
+  }
+
+  // Helper: build a project where:
+  //  - disk has changed since last sync (status edited from 'open' → 'in_progress')
+  //  - gh has changed independently (cassette returns CLOSED)
+  //  - last_sync's last_synced_disk_hash != current disk hash AND last_sync.gh_updated_at != cassette's
+  function buildConflictProject() {
+    const project = ghPullFx.buildTempProject({
+      objectiveId: '21-bidirectional-gh-sync',
+      // disk has 'in_progress' (edited locally — different from last_sync's snapshot of 'open')
+      frontmatter: { status: 'in_progress', labels: ['devflow:objective'] },
+      mapping: { milestone_id: 0, objectives: { '21-bidirectional-gh-sync': { issue_id: 11, state_comment_id: null } } },
+      projectFm: { github_repo: 'AO-Cyber-Systems/devflow-claude' },
+    });
+    // last_sync says: disk was 'open' at hash sha256:before; gh was at older updatedAt
+    ss.recordSync(project.root, '21-bidirectional-gh-sync', {
+      issue_ref: 'AO-Cyber-Systems/devflow-claude#11',
+      gh_updated_at: '2026-01-01T00:00:00Z',  // OLDER than cassette's updatedAt
+      status: 'open',                         // disk-snapshot at sync time
+      label_set: ['devflow:objective'],
+      assignees: [],
+      milestone: null,
+      last_synced_at: '2026-01-01T00:00:00Z',
+      last_synced_disk_hash: 'sha256:stale',  // different from current disk hash
+    });
+    return project;
+  }
+
+  function mockRunGhWithCassette(cassetteName) {
+    const cassette = ghPullFx.loadCassette(cassetteName);
+    return (args) => {
+      if (args[0] === 'auth' && args[1] === 'status') {
+        return { ok: true, status: 0, stdout: "  - Token scopes: 'repo'", stderr: '' };
+      }
+      if (args[0] === 'issue' && args[1] === 'view') return cassette.response;
+      return { ok: false, status: 1, stdout: '', stderr: 'unexpected' };
+    };
+  }
+
+  test('W1: conflict detected without --resolve → exits 1 with 3-way diff + records pending_resolution', () => {
+    const project = buildConflictProject();
+    try {
+      ghPull._setRunGh(mockRunGhWithCassette('objective-closed-on-gh'));
+      const r = captureRun(() => ghPull.cmdGhPull(project.root, ['21-bidirectional-gh-sync'], false));
+      ghPull._setRunGh(null);
+
+      assert.strictEqual(r.exitCode, 1, 'exit 1 on unresolved conflict');
+      // Stderr contains 3-way diff
+      assert.match(r.stderr, /Conflict in objective/);
+      assert.match(r.stderr, /status:/);
+      assert.match(r.stderr, /disk:\s+"in_progress"/);
+      assert.match(r.stderr, /gh:\s+"done"/);
+      assert.match(r.stderr, /last:\s+"open"/);
+      assert.match(r.stderr, /--resolve=disk|gh|merge/);
+      // Sync state has pending_resolution
+      const last = ss.getLastSync(project.root, '21-bidirectional-gh-sync');
+      assert.ok(last.pending_resolution, 'pending_resolution recorded');
+      assert.match(last.pending_resolution.disk_hash_at_conflict, /^sha256:[a-f0-9]{64}$/);
+    } finally {
+      project.cleanup();
+    }
+  });
+
+  test('W2: --resolve=disk on conflict → calls resolveDisk; success exits 0', () => {
+    const project = buildConflictProject();
+    // Stub gh.cmdGhSyncObjective so resolveDisk's push succeeds without real GH
+    const gh = require('./gh.cjs');
+    const origFn = gh.cmdGhSyncObjective;
+    gh.cmdGhSyncObjective = (cwd, objectiveId, raw) => { /* simulate success */ };
+    try {
+      ghPull._setRunGh(mockRunGhWithCassette('objective-closed-on-gh'));
+      const r = captureRun(() => ghPull.cmdGhPull(project.root, ['21-bidirectional-gh-sync', '--resolve=disk'], false));
+      ghPull._setRunGh(null);
+
+      assert.strictEqual(r.exitCode, null, 'exit not called for successful resolve=disk');
+      assert.match(r.stdout, /Pushed disk state/);
+      const last = ss.getLastSync(project.root, '21-bidirectional-gh-sync');
+      assert.strictEqual(last.pending_resolution, undefined, 'pending_resolution cleared');
+    } finally {
+      gh.cmdGhSyncObjective = origFn;
+      project.cleanup();
+    }
+  });
+
+  test('W3: --resolve=gh on conflict → calls resolveGh; success exits 0; disk overwritten', () => {
+    const project = buildConflictProject();
+    try {
+      ghPull._setRunGh(mockRunGhWithCassette('objective-closed-on-gh'));
+      const r = captureRun(() => ghPull.cmdGhPull(project.root, ['21-bidirectional-gh-sync', '--resolve=gh'], false));
+      ghPull._setRunGh(null);
+
+      assert.strictEqual(r.exitCode, null, 'exit not called for successful resolve=gh');
+      assert.match(r.stdout, /Applied GitHub state/);
+      // OBJECTIVE.md status updated to 'done' (CLOSED on GH)
+      const objContent = fs.readFileSync(
+        path.join(project.root, '.planning', 'objectives', project.objectiveId, 'OBJECTIVE.md'),
+        'utf-8',
+      );
+      assert.match(objContent, /status: done/);
+      const last = ss.getLastSync(project.root, '21-bidirectional-gh-sync');
+      assert.strictEqual(last.pending_resolution, undefined, 'pending_resolution cleared');
+    } finally {
+      project.cleanup();
+    }
+  });
+
+  test('W4: --resolve=merge --resolved with unchanged disk → exits 1 with /unchanged/ error', () => {
+    const project = buildConflictProject();
+    try {
+      // First run surfaces conflict + records pending_resolution
+      ghPull._setRunGh(mockRunGhWithCassette('objective-closed-on-gh'));
+      captureRun(() => ghPull.cmdGhPull(project.root, ['21-bidirectional-gh-sync'], false));
+
+      // Second run with --resolved but disk unchanged
+      const r = captureRun(() => ghPull.cmdGhPull(project.root, ['21-bidirectional-gh-sync', '--resolve=merge', '--resolved'], false));
+      ghPull._setRunGh(null);
+
+      assert.strictEqual(r.exitCode, 1);
+      assert.match(r.stdout + r.stderr, /unchanged/i);
+    } finally {
+      project.cleanup();
+    }
+  });
+
+  test('W5: --resolve=merge --resolved with edited disk → exits 0; records merge', () => {
+    const project = buildConflictProject();
+    try {
+      // First run surfaces conflict + records pending_resolution
+      ghPull._setRunGh(mockRunGhWithCassette('objective-closed-on-gh'));
+      captureRun(() => ghPull.cmdGhPull(project.root, ['21-bidirectional-gh-sync'], false));
+
+      // User edits OBJECTIVE.md (different status)
+      const objPath = path.join(project.root, '.planning', 'objectives', project.objectiveId, 'OBJECTIVE.md');
+      const before = fs.readFileSync(objPath, 'utf-8');
+      const after = before.replace(/status: in_progress/, 'status: done');
+      fs.writeFileSync(objPath, after, 'utf-8');
+
+      const r = captureRun(() => ghPull.cmdGhPull(project.root, ['21-bidirectional-gh-sync', '--resolve=merge', '--resolved'], false));
+      ghPull._setRunGh(null);
+
+      assert.strictEqual(r.exitCode, null, 'exit not called for successful merge');
+      assert.match(r.stdout, /Manual merge recorded|gh sync/);
+      const last = ss.getLastSync(project.root, '21-bidirectional-gh-sync');
+      assert.strictEqual(last.pending_resolution, undefined, 'pending_resolution cleared');
+    } finally {
+      project.cleanup();
+    }
+  });
+
+  test('W6: invalid --resolve value → exits 1 with usage error', () => {
+    const project = buildConflictProject();
+    try {
+      ghPull._setRunGh(mockRunGhWithCassette('objective-closed-on-gh'));
+      const r = captureRun(() => ghPull.cmdGhPull(project.root, ['21-bidirectional-gh-sync', '--resolve=invalid'], false));
+      ghPull._setRunGh(null);
+
+      assert.strictEqual(r.exitCode, 1);
+      assert.match(r.stdout + r.stderr, /Invalid --resolve|disk, gh, or merge/i);
+    } finally {
+      project.cleanup();
+    }
+  });
+
+  test('W7: space-separated --resolve disk → rejected with hint', () => {
+    const project = buildConflictProject();
+    try {
+      ghPull._setRunGh(mockRunGhWithCassette('objective-closed-on-gh'));
+      const r = captureRun(() => ghPull.cmdGhPull(project.root, ['21-bidirectional-gh-sync', '--resolve', 'disk'], false));
+      ghPull._setRunGh(null);
+
+      assert.strictEqual(r.exitCode, 1);
+      assert.match(r.stdout + r.stderr, /equals sign|--resolve=disk/i);
+    } finally {
+      project.cleanup();
+    }
+  });
+});

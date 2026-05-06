@@ -298,18 +298,31 @@ describe('integration: cmdGhPull --apply records sync state (W1, W3)', () => {
   }
 
   test('W1: cmdGhPull --apply success path writes a recordSync entry', () => {
+    // Setup: disk has NOT changed since last sync (matching disk hash); only GH changed.
+    // This is the "non-conflicting drift" case — TRD 21-03 conflict detector skips it.
+    const fm = { status: 'in_progress', labels: ['devflow:objective'] };
     const project = ghPullFx.buildTempProject({
       objectiveId: '21-bidirectional-gh-sync',
-      frontmatter: { status: 'in_progress', labels: ['devflow:objective'] },
+      frontmatter: fm,
       mapping: { milestone_id: 0, objectives: { '21-bidirectional-gh-sync': { issue_id: 11, state_comment_id: null } } },
       projectFm: { github_repo: 'AO-Cyber-Systems/devflow-claude' },
     });
     try {
-      // Pre-seed sync state so applyDrift's "no prior sync" guard is satisfied
+      // Read the actual disk frontmatter to compute the correct hash for last_synced_disk_hash
+      const actualFm = require('./frontmatter.cjs').extractFrontmatter(
+        require('fs').readFileSync(
+          require('path').join(project.root, '.planning', 'objectives', project.objectiveId, 'OBJECTIVE.md'),
+          'utf-8',
+        ),
+      );
+      const diskHash = ss.hashFrontmatter(actualFm);
+
+      // Pre-seed sync state: disk hash matches (no disk drift) so conflict detector
+      // sees only GH-side change → falls through to drift→apply path.
       ss.recordSync(project.root, project.objectiveId, fx.buildSyncStateRecord({
         gh_updated_at: '2026-05-01T00:00:00Z',
         label_set: ['devflow:objective'],
-        last_synced_disk_hash: 'sha256:initial',
+        last_synced_disk_hash: diskHash,
       }));
 
       const cassette = ghPullFx.loadCassette('objective-closed-on-gh');
@@ -331,8 +344,8 @@ describe('integration: cmdGhPull --apply records sync state (W1, W3)', () => {
       assert.strictEqual(last.gh_updated_at, cassetteIssue.updatedAt);
       assert.strictEqual(last.status, cassetteIssue.state === 'CLOSED' ? 'done' : 'open');
       assert.match(last.last_synced_disk_hash, /^sha256:[a-f0-9]{64}$/);
-      // Hash should be updated post-apply (NOT 'sha256:initial' from pre-seed)
-      assert.notStrictEqual(last.last_synced_disk_hash, 'sha256:initial');
+      // Hash should be updated post-apply (different from pre-seed because disk was overwritten)
+      assert.notStrictEqual(last.last_synced_disk_hash, diskHash);
     } finally {
       project.cleanup();
     }
