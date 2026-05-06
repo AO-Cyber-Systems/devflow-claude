@@ -1,27 +1,33 @@
 ---
 name: progress
 description: |
-  Show where the project stands — completion status, recent work, and what to do next.
-  Use when the user asks about project status, what's next, or where things stand.
-  Triggers on: "where are we?", "what's the status?", "show progress", "what's next?", "project status", "how far along are we?"
+  DEPRECATED — use `/devflow:status` instead. Will be removed in v3.0.
+  This redirect logs a deprecation entry and forwards to the consolidated skill.
 allowed-tools:
-  - Read
   - Bash
-  - Grep
-  - Glob
   - SlashCommand
 ---
-<objective>
-Check project progress, summarize recent work and what's ahead, then intelligently route to the next action - either executing an existing job or creating the next one.
 
-Provides situational awareness before continuing work.
+<objective>
+DEPRECATED redirect. Forwards to `/devflow:status` (default subcommand — shows progress).
 </objective>
 
-<execution_context>
-@~/.claude/devflow/workflows/progress.md
-</execution_context>
-
 <process>
-Execute the progress workflow from @~/.claude/devflow/workflows/progress.md end-to-end.
-Preserve all routing logic (Routes A through F) and edge case handling.
+**1. Log deprecation:**
+
+```bash
+node ~/.claude/devflow/bin/df-tools.cjs deprecation log progress --raw > /dev/null
+```
+
+**2. Display deprecation notice to user:**
+
+```
+/devflow:progress is DEPRECATED.
+    Use /devflow:status instead.
+    This shim will be removed in v3.0.
+```
+
+**3. Forward to consolidated skill:**
+
+Invoke `/devflow:status` (no subcommand — defaults to progress workflow) and let it run.
 </process>

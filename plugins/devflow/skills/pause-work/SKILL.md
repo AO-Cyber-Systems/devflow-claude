@@ -1,38 +1,33 @@
 ---
 name: pause-work
 description: |
-  Save your current progress and context so you can resume later without losing track.
-  Use when the user needs to stop working and wants to save context for later resumption.
-  Triggers on: "I need to stop", "save context", "pausing for now", "let's pause", "I'm done for today", "save my progress"
+  DEPRECATED — use `/devflow:status pause` instead. Will be removed in v3.0.
+  This redirect logs a deprecation entry and forwards to the consolidated skill.
 allowed-tools:
-  - Read
-  - Write
   - Bash
+  - SlashCommand
 ---
 
 <objective>
-Create `.continue-here.md` handoff file to preserve complete work state across sessions.
-
-Routes to the pause-work workflow which handles:
-- Current objective detection from recent files
-- Complete state gathering (position, completed work, remaining work, decisions, blockers)
-- Handoff file creation with all context sections
-- Git commit as WIP
-- Resume instructions
+DEPRECATED redirect. Forwards to `/devflow:status pause`.
 </objective>
 
-<execution_context>
-@.planning/STATE.md
-@~/.claude/devflow/workflows/pause-work.md
-</execution_context>
-
 <process>
-**Follow the pause-work workflow** from `@~/.claude/devflow/workflows/pause-work.md`.
+**1. Log deprecation:**
 
-The workflow handles all logic including:
-1. Objective directory detection
-2. State gathering with user clarifications
-3. Handoff file writing with timestamp
-4. Git commit
-5. Confirmation with resume instructions
+```bash
+node ~/.claude/devflow/bin/df-tools.cjs deprecation log pause-work --raw > /dev/null
+```
+
+**2. Display deprecation notice to user:**
+
+```
+/devflow:pause-work is DEPRECATED.
+    Use /devflow:status pause instead.
+    This shim will be removed in v3.0.
+```
+
+**3. Forward to consolidated skill:**
+
+Invoke `/devflow:status pause` and let it run.
 </process>

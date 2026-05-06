@@ -1,43 +1,33 @@
 ---
 name: resume-work
 description: |
-  Pick up where you left off — restores project context and shows what to do next.
-  Use when the user returns to continue work, wants to pick up where they left off, or starts a new session.
-  Triggers on: "let's continue", "pick up where we left off", "resume", "what were we doing?", "where did we leave off?", "continue working"
+  DEPRECATED — use `/devflow:status resume` instead. Will be removed in v3.0.
+  This redirect logs a deprecation entry and forwards to the consolidated skill.
 allowed-tools:
-  - Read
   - Bash
-  - Write
-  - AskUserQuestion
   - SlashCommand
 ---
 
 <objective>
-Restore complete project context and resume work seamlessly from previous session.
-
-Routes to the resume-project workflow which handles:
-
-- STATE.md loading (or reconstruction if missing)
-- Checkpoint detection (.continue-here files)
-- Incomplete work detection (JOB without SUMMARY)
-- Status presentation
-- Context-aware next action routing
-  </objective>
-
-<execution_context>
-@~/.claude/devflow/workflows/resume-project.md
-</execution_context>
+DEPRECATED redirect. Forwards to `/devflow:status resume`.
+</objective>
 
 <process>
-**Follow the resume-project workflow** from `@~/.claude/devflow/workflows/resume-project.md`.
+**1. Log deprecation:**
 
-The workflow handles all resumption logic including:
+```bash
+node ~/.claude/devflow/bin/df-tools.cjs deprecation log resume-work --raw > /dev/null
+```
 
-1. Project existence verification
-2. STATE.md loading or reconstruction
-3. Checkpoint and incomplete work detection
-4. Visual status presentation
-5. Context-aware option offering (checks CONTEXT.md before suggesting plan vs discuss)
-6. Routing to appropriate next command
-7. Session continuity updates
-   </process>
+**2. Display deprecation notice to user:**
+
+```
+/devflow:resume-work is DEPRECATED.
+    Use /devflow:status resume instead.
+    This shim will be removed in v3.0.
+```
+
+**3. Forward to consolidated skill:**
+
+Invoke `/devflow:status resume` and let it run.
+</process>
