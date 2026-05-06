@@ -2,7 +2,7 @@
   "current_objective": null,
   "current_job": 0,
   "total_jobs": 0,
-  "progress_pct": 98,
+  "progress_pct": 99,
   "status": "ready_for_verification",
   "last_activity": "2026-05-06",
   "metrics": {
@@ -239,6 +239,41 @@
     {
       "objective": "13",
       "summary": "COMPARISON.md + FEASIBILITY.md inline templates in project-researcher have no on-disk counterparts — accepted as known gap, format guidance preserved in execution_flow",
+      "rationale": null
+    },
+    {
+      "objective": "15-phase-a-routing-keystone",
+      "summary": "route-intent Q&A skip-rule excludes 'what' — What's our progress? is a fire prompt for the status rule",
+      "rationale": null
+    },
+    {
+      "objective": "15-phase-a-routing-keystone",
+      "summary": "route-intent debug regex uses {0,3} optional-adjective slot for 'Fix the login bug' pattern",
+      "rationale": null
+    },
+    {
+      "objective": "15",
+      "summary": "subprocess-based integration tests for CLI handlers that call process.exit",
+      "rationale": null
+    },
+    {
+      "objective": "15",
+      "summary": "pid in .skill-active marker is df-tools subprocess PID (diagnostic only)",
+      "rationale": null
+    },
+    {
+      "objective": "15",
+      "summary": "output() called with JSON.stringify(result) as 3rd arg to produce JSON in --raw mode",
+      "rationale": null
+    },
+    {
+      "objective": "15",
+      "summary": "gate-edits.js: strict DENY by default (no TRD check needed), three escape hatches: .skill-active marker, override phrase, DEVFLOW_SKIP_EDIT_GATE=1",
+      "rationale": null
+    },
+    {
+      "objective": "15",
+      "summary": "Audit log: append-only JSONL at ~/.claude/devflow/audit.log; DEVFLOW_AUDIT_LOG_PATH override for test isolation; route-recommendation marker read from .planning/.route-recommendation",
       "rationale": null
     }
   ],

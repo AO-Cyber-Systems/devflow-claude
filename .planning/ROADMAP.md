@@ -602,6 +602,14 @@ Dependency order:
 *Phase 2 — Ambient mode (adoption):*
 
 6. **Phase A — Authoritative routing keystone** — convert `route-intent.js` from advisory to authoritative; new `classify-session.js` SessionStart hook; routing decision table injected as system context. **Tracks: devflow-claude#26**
+   - **Status:** Planned 2026-05-04 (objective 15 / branch `feature/v1.2-obj-6-routing-keystone`)
+   - **Requirements:** [A1, A2, A3, A4]
+   - **TRDs:** 5 plans across 1 wave (all parallel-safe — disjoint files)
+     - [ ] 15-01-classifier-and-session-hook-TRD.md — New `lib/classifier.cjs` pure-logic helper + `classify-session.js` SessionStart hook + hooks.json registration (Wave 1, tdd) — A1
+     - [ ] 15-02-route-intent-tightening-TRD.md — Tighten `route-intent.js` regex (10 fire / 5 no-fire fixtures) + box-drawn directive injection + consolidated skill names (Wave 1, tdd) — A2
+     - [ ] 15-03-gate-edits-strict-TRD.md — Convert `gate-edits.js` to strict-by-default DENY with skill-active marker + override-phrase escapes (Wave 1, tdd) — A3
+     - [ ] 15-04-skill-active-cli-TRD.md — `df-tools skill-active --start <name> | --end | --status` CLI for skill marker writes/removes (Wave 1, tdd) — A3 (supporting)
+     - [ ] 15-05-audit-log-and-completion-TRD.md — `verify-completion.js` Stop-hook audit log emission to ~/.claude/devflow/audit.log (Wave 1, standard) — A4
 7. **Phase B — `/devflow:micro` skill** — sub-30-LOC, single-file changes, ~2k token target; cheap target for ambient routing. Depends on A. **Tracks: devflow-claude#27**
 8. **Phase C — Auto-init detection for non-DevFlow projects** — detect `.planning/` absence; offer init flow. Depends on A. **Tracks: devflow-claude#28**
 

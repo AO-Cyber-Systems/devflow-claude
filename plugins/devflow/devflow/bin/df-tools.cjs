@@ -91,6 +91,11 @@
  *   verify trd-pre <objective>        Cheap pre-flight: req coverage, task completeness,
  *                                       dep cycles, scope counts (pure-logic, no agent spawn)
  *
+ * Skill Lifecycle:
+ *   skill-active --start <name>        Mark skill as active (writes .planning/.skill-active)
+ *   skill-active --end                 Mark skill as ended (removes .planning/.skill-active)
+ *   skill-active --status              Show active skill marker (or {active:false})
+ *
  * Detection:
  *   detect novel-domain <objective>   Detect if objective crosses research boundary
  *     [--raw]                           Returns { novel, signals, recommendation }
@@ -184,6 +189,7 @@ const {
 const {
   cmdChangelogUpdate, cmdChangelogCheck,
 } = require('./lib/changelog.cjs');
+const { cmdSkillActive } = require('./lib/skill-active.cjs');
 const { cmdAwarenessRoute } = require('./lib/awareness-cli.cjs');
 const { cmdOrgAwarenessRoute } = require('./lib/org-awareness-cli.cjs');
 const { cmdDupDetectRoute } = require('./lib/dup-detect-cli.cjs');
@@ -879,6 +885,14 @@ async function main() {
       } else {
         error('Usage: df-tools trd-tdd inspect <trd-path>');
       }
+      break;
+    }
+
+    case 'skill-active': {
+      // df-tools skill-active --start <name>
+      // df-tools skill-active --end
+      // df-tools skill-active --status
+      cmdSkillActive(cwd, args.slice(1), raw);
       break;
     }
 

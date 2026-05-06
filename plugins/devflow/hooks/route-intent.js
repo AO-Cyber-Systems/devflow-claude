@@ -4,14 +4,14 @@
  * DevFlow Intent Routing Hook (UserPromptSubmit)
  *
  * When a DevFlow-initialized project is detected (.planning/ exists) and the
- * user's prompt signals build/plan/verify/debug intent WITHOUT invoking a
- * /devflow: skill, inject a system reminder telling Claude to route through
- * the appropriate skill rather than editing code directly.
+ * user prompt signals build/plan/verify/debug intent WITHOUT invoking a
+ * /devflow: skill, inject a box-drawn OBLIGATORY directive telling Claude to
+ * route through the appropriate skill rather than editing code directly.
  *
- * Mechanism: stdout JSON with additionalContext is injected as a system note
- * the model must consider before responding.
+ * Regexes require imperative/possessive form -- bare verbs without article+noun
+ * do NOT fire (prevents Q&A false positives).
  *
- * Never blocks. Silent for non-DevFlow repos and for explicit skill calls.
+ * Phase G consolidated skill names only.
  */
 
 const fs = require('fs');
@@ -30,23 +30,119 @@ function findPlanningDir(start) {
   return null;
 }
 
-// Intent -> recommended skill
+// INTENT_MAP -- EXPORTED for unit tests.
+// Rules require imperative verb + article/possessive + project noun.
+// No bare-verb matches -- prevents Q&A prompts from firing.
+
 const INTENT_MAP = [
-  { rx: /\b(build|implement|ship|make|create)\s+(the|a|this|that|feature|it)\b/i, skill: '/devflow:build' },
-  { rx: /\b(discuss|shape|preferences?\s+for|decisions?\s+for)\s+(objective|the|this|it)\b/i, skill: '/devflow:discuss-objective' },
-  { rx: /\b(plan|break\s*down|design)\s+(objective|the|this|it)\b/i, skill: '/devflow:plan-objective' },
-  { rx: /\b(execute|run|start)\s+(objective|the\s+plan|build)\b/i, skill: '/devflow:execute-objective' },
-  { rx: /\b(verify|test|validate|check)\s+(work|it|the|what|objective)\b/i, skill: '/devflow:verify-work' },
-  { rx: /\b(debug|not\s+working|broken|error|bug|crash|fail(ed|ing)?)\b/i, skill: '/devflow:debug' },
-  { rx: /\b(new\s+project|start\s+a\s+project|initialize)\b/i, skill: '/devflow:new-project' },
-  { rx: /\b(research|investigate|explore\s+options)\b/i, skill: '/devflow:research-objective' },
-  { rx: /\b(resume|continue|pick\s+up|where\s+(we|I)\s+left)\b/i, skill: '/devflow:resume-work' },
-  { rx: /\b(pause|stop\s+for\s+now|save\s+context)\b/i, skill: '/devflow:pause-work' },
-  { rx: /\b(progress|status|where\s+are\s+we|what'?s?\s+next)\b/i, skill: '/devflow:progress' },
-  { rx: /\b(audit|security\s+(scan|check|audit))\b/i, skill: '/devflow:security-audit' },
-  { rx: /\b(map|analyze|understand)\s+(the\s+)?codebase\b/i, skill: '/devflow:map-codebase' },
-  { rx: /\b(sync.*github|push.*(issues|objectives).*github|github\s+(release|notes|issues))\b/i, skill: '/devflow:gh-sync' },
+  // BUILD: imperative + article + noun
+  {
+    rx: /\b(?:build|implement|ship|make|create|add)\s+(?:the|a|an|this|that|some)\s+\w+/i,
+    skill: '/devflow:build',
+    label: 'build',
+  },
+  // DEBUG: imperative + article + optional-adjectives + bug-noun
+  {
+    rx: /\b(?:fix|debug|investigate|diagnose|troubleshoot)\s+(?:the|this|that|a|an)\s+(?:\w+\s+){0,3}(?:bug|error|crash|failure|issue|problem|test|build|ci)\b/i,
+    skill: '/devflow:debug',
+    label: 'debug',
+  },
+  // PLAN: plan + article + optional-adj + objective-noun
+  {
+    rx: /\b(?:plan|break\s+down|design)\s+(?:the|this|an|a)\s+(?:next\s+)?(?:objective|feature|task|work|milestone)\b|\bplan\s+next\s+(?:objective|feature|task|work|milestone)\b/i,
+    skill: '/devflow:plan-objective',
+    label: 'plan',
+  },
+  // VERIFY: verify + (the)? + work-noun
+  {
+    rx: /\b(?:verify|test|validate|check)\s+(?:the\s+)?(?:work|build|objective|feature|implementation)\b/i,
+    skill: '/devflow:verify-work',
+    label: 'verify',
+  },
+  // STATUS: possessive phrase "our/the progress/status" or "where are we"
+  {
+    rx: /\b(?:what'?s?\s+(?:our|the)\s+(?:progress|status))|\b(?:show|check)\s+(?:the\s+)?(?:progress|status)\b|\bwhere\s+are\s+we\b/i,
+    skill: '/devflow:status',
+    label: 'status',
+  },
+  // RESUME (consolidated): resume/continue/pick up + work/project/objective
+  {
+    rx: /\b(?:resume|continue|pick\s+up)\s+(?:the\s+)?(?:work|project|objective)\b|\bwhere\s+(?:we|I)\s+left\s+off\b/i,
+    skill: '/devflow:status resume',
+    label: 'resume',
+  },
+  // PAUSE (consolidated): pause/stop + work/project
+  {
+    rx: /\b(?:pause|stop)\s+(?:the\s+)?(?:work|project)\b|\b(?:pause|stop)\s+(?:for\s+(?:now|today|tonight|the\s+day))\b|\bsave\s+(?:the\s+)?context\b/i,
+    skill: '/devflow:status pause',
+    label: 'pause',
+  },
+  // OBJECTIVE ADD (consolidated): add/create + a/an/the + objective
+  {
+    rx: /\b(?:add|create)\s+(?:a|an|the)\s+objective\b/i,
+    skill: '/devflow:objective add',
+    label: 'objective-add',
+  },
+  // NEW PROJECT: new project / start a project / initialize devflow
+  {
+    rx: /\b(?:new\s+project|start\s+a\s+(?:new\s+)?project|initialize\s+(?:devflow|planning))\b/i,
+    skill: '/devflow:new-project',
+    label: 'new-project',
+  },
+  // RESEARCH: research/explore + objective/approach/library
+  {
+    rx: /\b(?:research|explore\s+options\s+for)\s+(?:the\s+)?(?:objective|approach|library|framework)\b/i,
+    skill: '/devflow:research-objective',
+    label: 'research',
+  },
 ];
+
+// matchIntent -- Returns deduplicated array of skill strings matching the prompt.
+// Q&A skip-rule: prompts starting with interrogative words (Why/How/Can/etc) return [].
+// NOTE: "What" NOT in skip-list -- "What's our progress?" is a status fire prompt.
+
+function matchIntent(prompt) {
+  if (!prompt) return [];
+  if (/^\s*\/(devflow:|df:)/i.test(prompt)) return [];
+  if (/^\s*(?:why|how|can|could|would|should|is|are|does|did|do)\b/i.test(prompt)) return [];
+  const matches = INTENT_MAP.filter(e => e.rx.test(prompt));
+  return [...new Set(matches.map(m => m.skill))];
+}
+
+// renderDirective -- box-drawn obligatory directive for additionalContext injection.
+
+function padEnd(s, width) {
+  if (s.length >= width) return s.slice(0, width);
+  return s + ' '.repeat(width - s.length);
+}
+
+function renderDirective(skills) {
+  const skillList = skills.join(' or ');
+  const BOX_TOP    = '╔' + '═'.repeat(70) + '╗';
+  const BOX_DIV    = '╠' + '═'.repeat(70) + '╣';
+  const BOX_BOT    = '╚' + '═'.repeat(70) + '╝';
+  const L = '║';
+  const pad = (s, w) => L + ' ' + padEnd(s, w) + L;
+  return [
+    BOX_TOP,
+    pad('           DEVFLOW ROUTING DIRECTIVE — OBLIGATORY', 68),
+    BOX_DIV,
+    pad('This is a DEVFLOW project (.planning/ exists).', 68),
+    pad('Intent matched: ' + skillList, 68),
+    pad('', 68),
+    pad('You MUST invoke ' + skillList, 68),
+    pad('via the Skill tool BEFORE editing any code.', 68),
+    pad('', 68),
+    pad('Do NOT call Edit, Write, or MultiEdit first.', 68),
+    pad('gate-edits.js will DENY edits in ambient mode without a skill.', 68),
+    pad('', 68),
+    pad('If the request is out of scope (a question, tiny ad-hoc fix),', 68),
+    pad('you may proceed -- but prefer /devflow:quick for <5 file changes.', 68),
+    BOX_BOT,
+  ].join('\n');
+}
+
+// main -- entry point when executed directly
 
 function main() {
   let input;
@@ -54,32 +150,20 @@ function main() {
   const prompt = (input.prompt || '').trim();
   if (!prompt) return;
 
-  // Already invoking a skill — do nothing
-  if (/^\s*\/(devflow:|df:)/i.test(prompt)) return;
+  if (!findPlanningDir(process.cwd())) return;
 
-  const planningDir = findPlanningDir(process.cwd());
-  if (!planningDir) return; // Not a DevFlow project
+  const skills = matchIntent(prompt);
+  if (skills.length === 0) return;
 
-  // Detect intent
-  const matches = INTENT_MAP.filter(e => e.rx.test(prompt));
-  if (matches.length === 0) return;
-
-  const skills = [...new Set(matches.map(m => m.skill))];
-  const reminder = [
-    'DevFlow project detected (.planning/ exists).',
-    `The user's request signals intent matching: ${skills.join(', ')}.`,
-    'You MUST invoke the appropriate skill via the Skill tool before editing code directly.',
-    'Skills enforce atomic commits, state tracking, and verification. Bypassing them causes drift.',
-    'If the request is genuinely out-of-scope for DevFlow (docs, small ad-hoc fix), proceed — but prefer /devflow:quick for small tasks.'
-  ].join(' ');
-
-  const output = {
+  const out = {
     hookSpecificOutput: {
       hookEventName: 'UserPromptSubmit',
-      additionalContext: reminder
-    }
+      additionalContext: renderDirective(skills),
+    },
   };
-  process.stdout.write(JSON.stringify(output));
+  process.stdout.write(JSON.stringify(out));
 }
 
-main();
+if (require.main === module) main();
+
+module.exports = { INTENT_MAP, matchIntent, renderDirective, findPlanningDir };
