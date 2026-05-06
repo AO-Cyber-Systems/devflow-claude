@@ -445,6 +445,15 @@ function resolve({ projectRoot, objectiveId, trdPath, userHome, tablePath } = {}
     provenance[field] = normalizeProvenance(sources[field]);
   }
 
+  // TRD 21-05: per-cell defaults-table tier origin (orthogonal to overrides)
+  const cellProvenance = computeCellProvenance({
+    kind,
+    work,
+    projectRoot,
+    userHome: userHome || null,
+    tablePath,
+  });
+
   return {
     kind,
     work,
@@ -453,10 +462,58 @@ function resolve({ projectRoot, objectiveId, trdPath, userHome, tablePath } = {}
     config,
     sources,
     provenance,
+    cell_provenance: cellProvenance,
     constraints,
     directives: directives._sources || [],
     warnings,
   };
+}
+
+// ─── TRD 21-05: cell_provenance — per-cell defaults-table tier origin ───────
+//
+// Reports which TIER (project_table / org_table / bundled_table) supplied each
+// (kind, work, field) cell — independent of override layers above.
+//
+// Vocabulary:
+//   'project_table'   — project tier (.planning/defaults-table.md) supplied this cell
+//   'org_table'       — org tier (~/.claude/devflow/defaults-table.md) supplied this cell
+//   'bundled_table'   — bundled fallback (references/defaults-table.md) supplied this cell
+//   'table_explicit'  — test path with explicit tablePath (single-file mode)
+//   'unknown'         — defensive fallback (key missing from loader provenance)
+//
+// Reading provenance + cell_provenance together:
+//   provenance.tdd === 'trd_override' AND cell_provenance.tdd === 'project_table'
+//   → "Your TRD overrode the value, but if it hadn't, your project's
+//      defaults-table would have supplied it (overriding org and bundled)."
+function computeCellProvenance({ kind, work, projectRoot, userHome, tablePath }) {
+  const ALL_FIELDS = ['tdd', 'depth', 'model_profile', 'verification',
+    'security_isolation', 'back_compat', 'tdd_default', 'test_list_first',
+    'fixture_strategy', 'outside_in'];
+
+  // Test-only path: explicit single-file tablePath
+  if (tablePath !== null && tablePath !== undefined && tablePath !== DEFAULTS_TABLE_PATH) {
+    const out = {};
+    for (const field of ALL_FIELDS) out[field] = 'table_explicit';
+    return out;
+  }
+
+  // Production path: 3-tier loader provenance
+  let merged;
+  try {
+    const defaultsLoader = require('./defaults-loader.cjs');
+    merged = defaultsLoader.loadMergedDefaultsTable({ projectRoot, userHome });
+  } catch (_) {
+    const out = {};
+    for (const field of ALL_FIELDS) out[field] = 'unknown';
+    return out;
+  }
+
+  const out = {};
+  for (const field of ALL_FIELDS) {
+    const key = `${kind}.${work}.${field}`;
+    out[field] = merged.provenance[key] || 'unknown';
+  }
+  return out;
 }
 
 // Maps freeform source strings (from result.sources) to normalized enum values.
