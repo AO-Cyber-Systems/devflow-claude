@@ -166,6 +166,15 @@ None of these are caused by 15-02 changes.
 - `.planning/.route-recommendation` marker written for 15-05's audit log
 - All 10 Phase G consolidated skill names present in INTENT_MAP — ready for classify-session (15-01) to reference
 
+## Self-Check: PASSED
+
+All created files verified present on disk. All 3 commits verified in git log:
+- `78a0c65` test(15-02): add 10 fire / 5 no-fire intent fixtures + failing route-intent tests
+- `b24d229` feat(15-02): tighten route-intent regex + box-drawn directive + exports
+- `1a1e5ff` chore(15-02): add .route-recommendation marker for 15-05 audit log
+
+SUMMARY.md committed in: `d8c208a` (bundled with 15-05 commit — file is tracked)
+
 ---
 *Objective: 15-phase-a-routing-keystone*
 *Completed: 2026-05-06*
