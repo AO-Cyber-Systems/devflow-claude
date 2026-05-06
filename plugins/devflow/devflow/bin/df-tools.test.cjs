@@ -2839,3 +2839,48 @@ describe('verify trd-pre command', () => {
     );
   });
 });
+
+// =============================================================================
+// F5 confidence-field back-compat (objective 14-phase-f-default-on-safety)
+// =============================================================================
+
+describe('F5 confidence-field back-compat', () => {
+  let tmpDir;
+  beforeEach(() => { tmpDir = require('fs').mkdtempSync(require('path').join(require('os').tmpdir(), 'df-test-')); });
+  afterEach(() => { if (tmpDir) fs.rmSync(tmpDir, { recursive: true, force: true }); });
+
+  test('trd schema does not require confidence field', () => {
+    const trdPath = path.join(tmpDir, 'trd.md');
+    fs.writeFileSync(trdPath,
+      `---\nobjective: "14-phase-f"\ntrd: "01"\ntype: standard\nwave: 1\ndepends_on: []\nfiles_modified: []\nautonomous: true\nmust_haves:\n  truths: []\n  artifacts: []\n  key_links: []\n---\n\n# TRD\n`,
+      'utf-8'
+    );
+    const result = runGsdTools(`frontmatter validate "${trdPath}" --schema trd`);
+    const parsed = JSON.parse(result.output);
+    assert.strictEqual(parsed.valid, true, 'TRD without confidence must validate');
+    assert.deepStrictEqual(parsed.missing, [], 'no fields should be missing');
+  });
+
+  test('trd schema accepts confidence field if present (back-compat)', () => {
+    const trdPath = path.join(tmpDir, 'trd.md');
+    fs.writeFileSync(trdPath,
+      `---\nobjective: "14-phase-f"\ntrd: "01"\ntype: standard\nconfidence: high\nwave: 1\ndepends_on: []\nfiles_modified: []\nautonomous: true\nmust_haves:\n  truths: []\n  artifacts: []\n  key_links: []\n---\n\n# TRD\n`,
+      'utf-8'
+    );
+    const result = runGsdTools(`frontmatter validate "${trdPath}" --schema trd`);
+    const parsed = JSON.parse(result.output);
+    assert.strictEqual(parsed.valid, true, 'legacy TRD with confidence must still validate');
+    assert.ok(!parsed.missing.includes('confidence'), 'confidence must not be a missing required field');
+  });
+
+  test('plan schema unchanged (legacy JOB.md still validates)', () => {
+    const jobPath = path.join(tmpDir, 'job.md');
+    fs.writeFileSync(jobPath,
+      `---\nobjective: "test"\njob: "01"\ntype: standard\nwave: 1\ndepends_on: []\nfiles_modified: []\nautonomous: true\nmust_haves:\n  truths: []\n  artifacts: []\n  key_links: []\n---\n\n# JOB\n`,
+      'utf-8'
+    );
+    const result = runGsdTools(`frontmatter validate "${jobPath}" --schema plan`);
+    const parsed = JSON.parse(result.output);
+    assert.strictEqual(parsed.valid, true, 'plan schema must still accept JOB.md');
+  });
+});

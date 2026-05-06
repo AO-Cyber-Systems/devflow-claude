@@ -224,6 +224,8 @@ function parseMustHavesBlock(content, blockName) {
 
 const FRONTMATTER_SCHEMAS = {
   plan: { required: ['objective', 'job', 'type', 'wave', 'depends_on', 'files_modified', 'autonomous', 'must_haves'] },
+  trd:  { required: ['objective', 'trd', 'type', 'wave', 'depends_on', 'files_modified', 'autonomous', 'must_haves'] },
+  // Note: NO 'confidence' in trd.required. Field is accepted if present (back-compat), but not required.
   summary: { required: ['objective', 'job', 'subsystem', 'tags', 'duration', 'completed'] },
   verification: { required: ['objective', 'verified', 'status', 'score'] },
 };
