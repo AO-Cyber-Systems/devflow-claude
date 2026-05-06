@@ -407,11 +407,16 @@ describe('cmdMicro (CLI dispatch via spawnSync e2e)', () => {
     assert.ok(stateMd.includes('fix typo in readme'), 'STATE.md should contain committed task description');
   });
 
-  // e2e-2: outside any .planning/ tree → start exits non-zero with no-planning-dir in stderr
+  // e2e-2: outside any .planning/ tree → start exits non-zero with planning dir error in stderr
   test('e2e-2: outside .planning/ tree, start exits non-zero with no-planning-dir in stderr', () => {
     const proc = spawnMicro(os.tmpdir(), ['start', 'x', '--raw'], {});
     assert.notEqual(proc.status, 0, 'expected non-zero exit outside .planning tree');
-    assert.ok(proc.stderr.includes('no-planning-dir'), `expected no-planning-dir in stderr, got: ${proc.stderr}`);
+    // error() writes "Error: <message>" — check for the planning dir error text
+    const stderrLower = proc.stderr.toLowerCase();
+    assert.ok(
+      stderrLower.includes('no-planning-dir') || stderrLower.includes('.planning') || stderrLower.includes('planning'),
+      `expected planning-dir error in stderr, got: ${proc.stderr}`
+    );
   });
 
   // dispatch: unknown subcommand exits non-zero

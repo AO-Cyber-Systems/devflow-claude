@@ -209,6 +209,7 @@ const {
 const {
   cmdTrdTddInspect,
 } = require('./lib/trd-tdd.cjs');
+const { cmdMicro } = require('./lib/micro.cjs');
 
 // ─── CLI Router ───────────────────────────────────────────────────────────────
 
@@ -893,6 +894,14 @@ async function main() {
       // df-tools skill-active --end
       // df-tools skill-active --status
       cmdSkillActive(cwd, args.slice(1), raw);
+      break;
+    }
+
+    case 'micro': {
+      // df-tools micro start <description>
+      // df-tools micro commit [--files <path>...]
+      // df-tools micro abort
+      cmdMicro(cwd, args.slice(1), raw);
       break;
     }
 
