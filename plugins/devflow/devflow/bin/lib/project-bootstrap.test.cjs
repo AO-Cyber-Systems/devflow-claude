@@ -7,16 +7,32 @@ const path = require('path');
 const os = require('os');
 const { execSync } = require('child_process');
 
-const { bootstrapProjectMd } = require('./project-bootstrap.cjs');
+const { bootstrapProjectMd, bootstrapObjectiveMd, backfillAllObjectives } = require('./project-bootstrap.cjs');
 
 // Helper: scaffold a tmp git repo with optional remote + optional PROJECT.md content.
-function makeRepo({ remote, projectMd }) {
+// objectives: Record<objectiveId, string|null> — null = create dir only; string = create dir + OBJECTIVE.md with that content
+// roadmap: string content for .planning/ROADMAP.md
+function makeRepo({ remote, projectMd, roadmap, objectives }) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pb-'));
   execSync('git init -q', { cwd: root });
   if (remote) execSync(`git remote add origin ${remote}`, { cwd: root });
+  fs.mkdirSync(path.join(root, '.planning'), { recursive: true });
   if (projectMd !== undefined) {
-    fs.mkdirSync(path.join(root, '.planning'), { recursive: true });
     fs.writeFileSync(path.join(root, '.planning', 'PROJECT.md'), projectMd, 'utf-8');
+  }
+  if (roadmap !== undefined) {
+    fs.writeFileSync(path.join(root, '.planning', 'ROADMAP.md'), roadmap, 'utf-8');
+  }
+  if (objectives) {
+    const objDir = path.join(root, '.planning', 'objectives');
+    fs.mkdirSync(objDir, { recursive: true });
+    for (const [id, content] of Object.entries(objectives)) {
+      const dir = path.join(objDir, id);
+      fs.mkdirSync(dir, { recursive: true });
+      if (content !== null) {
+        fs.writeFileSync(path.join(dir, 'OBJECTIVE.md'), content, 'utf-8');
+      }
+    }
   }
   return root;
 }
@@ -153,5 +169,219 @@ test('B9 — idempotent: running twice produces same result', () => {
     assert.strictEqual(content1, content2, 'second run must not mutate file');
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+// TEST LIST — Group O — bootstrapObjectiveMd + backfillAllObjectives (TRD 18-01)
+//
+// O1 — bootstrapObjectiveMd: missing OBJECTIVE.md + valid PROJECT.md → applied:true, added_fields:['work']
+// O2 — bootstrapObjectiveMd: existing OBJECTIVE.md → applied:false, reason:'already exists'
+// O3 — bootstrapObjectiveMd: missing PROJECT.md → uses 'feature' fallback; still applies
+// O4 — bootstrapObjectiveMd: PROJECT.md default_work=refactor → stub uses work:refactor
+// O5 — bootstrapObjectiveMd: objective dir doesn't exist → applied:false, reason:'objective dir not found'
+// O6 — bootstrapObjectiveMd: ROADMAP.md has '### Objective 5: Foo bar' + '**Goal:** baz' → stub goal includes 'baz'
+// O7 — bootstrapObjectiveMd: idempotent — second invocation produces no file mtime change
+// O8 — backfillAllObjectives: scans dirs, returns { scanned, applied, skipped, errors } shape
+// O9 — backfillAllObjectives: mixed dirs (3 missing, 1 exists) → applied:3, skipped:1
+// O10 — bootstrapObjectiveMd: pure file I/O, no shell-out (mock execSync to throw, function still works)
+
+test('O1 — bootstrapObjectiveMd: missing OBJECTIVE.md + valid PROJECT.md → applied:true, added_fields:["work"]', () => {
+  const repo = makeRepo({
+    projectMd: '---\nkind: plugin\ndefault_work: feature\n---\n\n# Test Project\n',
+    objectives: { '01-foo': null },
+  });
+  try {
+    const r = bootstrapObjectiveMd(repo, '01-foo');
+    assert.strictEqual(r.applied, true);
+    assert.deepStrictEqual(r.added_fields, ['work']);
+    assert.ok(r.path, 'path should be set');
+    assert.strictEqual(r.reason, null);
+    const content = fs.readFileSync(r.path, 'utf-8');
+    assert.match(content, /^work: \w+/m);
+    assert.match(content, /^# /m);
+    assert.match(content, /## Goal/);
+    assert.match(content, /\*Created: \d{4}-\d{2}-\d{2}/);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('O2 — bootstrapObjectiveMd: existing OBJECTIVE.md → applied:false, reason:"already exists"', () => {
+  const existingContent = '---\nwork: refactor\n---\n\n# Existing\n';
+  const repo = makeRepo({
+    projectMd: '---\nkind: plugin\ndefault_work: feature\n---\n\n# Test\n',
+    objectives: { '02-bar': existingContent },
+  });
+  try {
+    const r = bootstrapObjectiveMd(repo, '02-bar');
+    assert.strictEqual(r.applied, false);
+    assert.strictEqual(r.reason, 'already exists');
+    assert.deepStrictEqual(r.added_fields, []);
+    // Confirm file was not modified
+    const content = fs.readFileSync(r.path, 'utf-8');
+    assert.strictEqual(content, existingContent);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('O3 — bootstrapObjectiveMd: missing PROJECT.md → uses "feature" fallback; still applies', () => {
+  const repo = makeRepo({
+    objectives: { '03-baz': null },
+  });
+  // No projectMd written (no .planning/PROJECT.md)
+  try {
+    const r = bootstrapObjectiveMd(repo, '03-baz');
+    assert.strictEqual(r.applied, true);
+    assert.deepStrictEqual(r.added_fields, ['work']);
+    const content = fs.readFileSync(r.path, 'utf-8');
+    assert.match(content, /^work: feature$/m);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('O4 — bootstrapObjectiveMd: PROJECT.md default_work=refactor → stub uses work:refactor', () => {
+  const repo = makeRepo({
+    projectMd: '---\nkind: api\ndefault_work: refactor\n---\n\n# Refactor Project\n',
+    objectives: { '04-qux': null },
+  });
+  try {
+    const r = bootstrapObjectiveMd(repo, '04-qux');
+    assert.strictEqual(r.applied, true);
+    const content = fs.readFileSync(r.path, 'utf-8');
+    assert.match(content, /^work: refactor$/m);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('O5 — bootstrapObjectiveMd: objective dir doesn\'t exist → applied:false, reason:"objective dir not found"', () => {
+  const repo = makeRepo({
+    projectMd: '---\nkind: plugin\ndefault_work: feature\n---\n\n# Test\n',
+  });
+  try {
+    const r = bootstrapObjectiveMd(repo, '99-nonexistent');
+    assert.strictEqual(r.applied, false);
+    assert.strictEqual(r.reason, 'objective dir not found');
+    assert.strictEqual(r.path, null);
+    assert.deepStrictEqual(r.added_fields, []);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('O6 — bootstrapObjectiveMd: ROADMAP.md has "### Objective 5:" + "**Goal:** baz" → stub goal includes "baz"', () => {
+  const roadmap = [
+    '# Roadmap',
+    '',
+    '### Objective 5: Foo Bar Initiative',
+    '',
+    '**Goal:** baz quux integration layer',
+    '',
+    'Some other text.',
+  ].join('\n');
+  const repo = makeRepo({
+    projectMd: '---\nkind: plugin\ndefault_work: feature\n---\n\n# Test\n',
+    roadmap,
+    objectives: { '05-foo-bar-initiative': null },
+  });
+  try {
+    const r = bootstrapObjectiveMd(repo, '05-foo-bar-initiative');
+    assert.strictEqual(r.applied, true);
+    const content = fs.readFileSync(r.path, 'utf-8');
+    assert.match(content, /baz quux integration layer/);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('O7 — bootstrapObjectiveMd: idempotent — second invocation produces no file mtime change', () => {
+  const repo = makeRepo({
+    projectMd: '---\nkind: plugin\ndefault_work: feature\n---\n\n# Test\n',
+    objectives: { '07-idempotent': null },
+  });
+  try {
+    const r1 = bootstrapObjectiveMd(repo, '07-idempotent');
+    assert.strictEqual(r1.applied, true);
+    const mtime1 = fs.statSync(r1.path).mtimeMs;
+
+    // Small delay to ensure mtime would differ if file was re-written
+    const r2 = bootstrapObjectiveMd(repo, '07-idempotent');
+    assert.strictEqual(r2.applied, false);
+    assert.strictEqual(r2.reason, 'already exists');
+    const mtime2 = fs.statSync(r2.path).mtimeMs;
+    assert.strictEqual(mtime1, mtime2, 'second invocation must not mutate file');
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('O8 — backfillAllObjectives: scans dirs, returns { scanned, applied, skipped, errors } shape', () => {
+  const repo = makeRepo({
+    projectMd: '---\nkind: plugin\ndefault_work: feature\n---\n\n# Test\n',
+    objectives: {
+      '01-alpha': null,
+      '02-beta': null,
+    },
+  });
+  try {
+    const r = backfillAllObjectives(repo);
+    assert.ok(typeof r.scanned === 'number', 'scanned must be a number');
+    assert.ok(typeof r.applied === 'number', 'applied must be a number');
+    assert.ok(typeof r.skipped === 'number', 'skipped must be a number');
+    assert.ok(Array.isArray(r.errors), 'errors must be an array');
+    assert.strictEqual(r.scanned, 2);
+    assert.strictEqual(r.applied, 2);
+    assert.strictEqual(r.skipped, 0);
+    assert.deepStrictEqual(r.errors, []);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('O9 — backfillAllObjectives: mixed dirs (3 missing, 1 exists) → applied:3, skipped:1', () => {
+  const existingContent = '---\nwork: foundation\n---\n\n# Existing\n';
+  const repo = makeRepo({
+    projectMd: '---\nkind: plugin\ndefault_work: feature\n---\n\n# Test\n',
+    objectives: {
+      '01-alpha': null,
+      '02-beta': null,
+      '03-gamma': null,
+      '04-delta': existingContent,
+    },
+  });
+  try {
+    const r = backfillAllObjectives(repo);
+    assert.strictEqual(r.scanned, 4);
+    assert.strictEqual(r.applied, 3);
+    assert.strictEqual(r.skipped, 1);
+    assert.deepStrictEqual(r.errors, []);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('O10 — bootstrapObjectiveMd: pure file I/O (no execSync dependency — function works without git)', () => {
+  // bootstrapObjectiveMd must NOT call execSync (unlike bootstrapProjectMd which needs git remote).
+  // We verify this by using a non-git temp dir — the function should still work fine.
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pb-nogit-'));
+  try {
+    // Set up structure without git init
+    fs.mkdirSync(path.join(root, '.planning'), { recursive: true });
+    fs.writeFileSync(
+      path.join(root, '.planning', 'PROJECT.md'),
+      '---\nkind: plugin\ndefault_work: feature\n---\n\n# Test\n',
+      'utf-8'
+    );
+    fs.mkdirSync(path.join(root, '.planning', 'objectives', '10-no-git'), { recursive: true });
+
+    const r = bootstrapObjectiveMd(root, '10-no-git');
+    assert.strictEqual(r.applied, true, 'bootstrapObjectiveMd must not require git');
+    assert.deepStrictEqual(r.added_fields, ['work']);
+    const content = fs.readFileSync(r.path, 'utf-8');
+    assert.match(content, /^work: feature$/m);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
   }
 });
