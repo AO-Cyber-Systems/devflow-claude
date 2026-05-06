@@ -151,7 +151,9 @@ function formatThreeWayDiff({ objectiveId, issueRef, conflicting_fields }) {
  * Returns: { ok, action, error? }
  */
 function resolveDisk({ cwd, objectiveId, issueRef, ghIssue, currentDiskFm }) {
-  const { cmdGhSyncObjective } = require('./gh.cjs');
+  // Live require lookup (NOT destructure) so test monkey-patching of gh.cmdGhSyncObjective
+  // takes effect.
+  const gh = require('./gh.cjs');
   try {
     // cmdGhSyncObjective uses helpers.output() which calls process.exit; capture it.
     const origExit = process.exit;
@@ -160,7 +162,7 @@ function resolveDisk({ cwd, objectiveId, issueRef, ghIssue, currentDiskFm }) {
     process.exit = (code) => { exitCode = code; throw new Error('__resolve_disk_exit__'); };
     process.stdout.write = () => true;
     try {
-      try { cmdGhSyncObjective(cwd, objectiveId, true); }
+      try { gh.cmdGhSyncObjective(cwd, objectiveId, true); }
       catch (e) { if (e.message !== '__resolve_disk_exit__') throw e; }
     } finally {
       process.exit = origExit;

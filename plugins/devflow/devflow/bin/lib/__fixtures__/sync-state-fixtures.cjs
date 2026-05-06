@@ -20,6 +20,7 @@ function buildSyncStateRecord({
   status = 'open',
   last_synced_at = '2026-05-01T00:00:00Z',
   last_synced_disk_hash = 'sha256:def456',
+  ...extra
 } = {}) {
   return {
     issue_ref,
@@ -31,6 +32,7 @@ function buildSyncStateRecord({
     status,
     last_synced_at,
     last_synced_disk_hash,
+    ...extra,
   };
 }
 

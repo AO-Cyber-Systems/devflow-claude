@@ -186,3 +186,281 @@ describe('formatThreeWayDiff (F1-F3)', () => {
     assert.doesNotMatch(out, /\[object Object\]/);
   });
 });
+
+// ─── Resolvers (R group) ─────────────────────────────────────────────────────
+
+const ss = require('./sync-state.cjs');
+const ssFx = require('./__fixtures__/sync-state-fixtures.cjs');
+const ghPullFx = require('./__fixtures__/gh-pull-fixtures.cjs');
+
+describe('resolveDisk (R1-R2)', () => {
+  // resolveDisk delegates to gh.cmdGhSyncObjective — testing that path requires a
+  // full PROJECT/OBJECTIVE/mapping setup AND mocked _runGh for issue edit + project fields.
+  // Strategy: monkey-patch gh.cmdGhSyncObjective to assert it was called with correct args
+  // and to simulate success (R1) or failure (R2).
+  test('R1: calls cmdGhSyncObjective; success → recordSync clears pending_resolution + records new disk hash', () => {
+    const gh = require('./gh.cjs');
+    const origFn = gh.cmdGhSyncObjective;
+    let calls = [];
+    gh.cmdGhSyncObjective = (cwd, objectiveId, raw) => {
+      calls.push({ cwd, objectiveId, raw });
+      // Simulate success: cmdGhSyncObjective normally calls helpers.output (no exit on success).
+      // No-op here. Note: we don't try to call process.exit(0) because that's covered by output(),
+      // but the real production code DOES exit(0) — resolveDisk handles that via __resolve_disk_exit__.
+    };
+
+    const project = ssFx.buildTempProjectWithSyncState({ syncState: null });
+    try {
+      const fm = { status: 'open', labels: ['devflow:objective'], assignees: [], milestone: null };
+      ss.recordSync(project.root, '21-test', {
+        issue_ref: 'TestOrg/TestRepo#1',
+        gh_updated_at: '2026-05-01T00:00:00Z',
+        status: 'open',
+        label_set: ['devflow:objective'],
+        assignees: [],
+        milestone: null,
+        last_synced_at: '2026-05-01T00:00:00Z',
+        last_synced_disk_hash: 'sha256:initial',
+        pending_resolution: { disk_hash_at_conflict: 'sha256:abc', surfaced_at: '2026-05-01T01:00:00Z' },
+      });
+
+      const r = conflict.resolveDisk({
+        cwd: project.root,
+        objectiveId: '21-test',
+        issueRef: 'TestOrg/TestRepo#1',
+        ghIssue: { state: 'OPEN', labels: [], assignees: [], milestone: null, updatedAt: '2026-05-01T00:00:00Z' },
+        currentDiskFm: fm,
+      });
+
+      assert.strictEqual(r.ok, true);
+      assert.strictEqual(r.action, 'pushed');
+      assert.strictEqual(calls.length, 1, 'cmdGhSyncObjective called once');
+      assert.strictEqual(calls[0].objectiveId, '21-test');
+
+      const last = ss.getLastSync(project.root, '21-test');
+      assert.strictEqual(last.pending_resolution, undefined, 'pending_resolution cleared');
+      assert.strictEqual(last.last_synced_disk_hash, ss.hashFrontmatter(fm));
+    } finally {
+      gh.cmdGhSyncObjective = origFn;
+      project.cleanup();
+    }
+  });
+
+  test('R2: cmdGhSyncObjective fails (exit code 1) → { ok: false }; sync state untouched', () => {
+    const gh = require('./gh.cjs');
+    const origFn = gh.cmdGhSyncObjective;
+    gh.cmdGhSyncObjective = (cwd, objectiveId, raw) => {
+      process.exit(1);
+    };
+
+    const project = ssFx.buildTempProjectWithSyncState({ syncState: null });
+    try {
+      const fm = { status: 'open', labels: ['devflow:objective'], assignees: [], milestone: null };
+      ss.recordSync(project.root, '21-test', {
+        issue_ref: 'TestOrg/TestRepo#1',
+        gh_updated_at: '2026-05-01T00:00:00Z',
+        status: 'open',
+        label_set: ['devflow:objective'],
+        assignees: [],
+        milestone: null,
+        last_synced_at: '2026-05-01T00:00:00Z',
+        last_synced_disk_hash: 'sha256:initial',
+        pending_resolution: { disk_hash_at_conflict: 'sha256:abc', surfaced_at: '2026-05-01T01:00:00Z' },
+      });
+      const filePath = path.join(project.root, '.planning', '.gh-sync-state.json');
+      const beforeContent = fs.readFileSync(filePath, 'utf-8');
+
+      const r = conflict.resolveDisk({
+        cwd: project.root,
+        objectiveId: '21-test',
+        issueRef: 'TestOrg/TestRepo#1',
+        ghIssue: { state: 'OPEN', labels: [], assignees: [], milestone: null, updatedAt: '2026-05-01T00:00:00Z' },
+        currentDiskFm: fm,
+      });
+
+      assert.strictEqual(r.ok, false);
+      assert.match(r.error, /exited with code 1/i);
+      // Sync state untouched
+      const afterContent = fs.readFileSync(filePath, 'utf-8');
+      assert.strictEqual(afterContent, beforeContent);
+      const last = ss.getLastSync(project.root, '21-test');
+      assert.ok(last.pending_resolution, 'pending_resolution preserved');
+    } finally {
+      gh.cmdGhSyncObjective = origFn;
+      project.cleanup();
+    }
+  });
+});
+
+describe('resolveGh (R3-R4)', () => {
+  test('R3: applies GH state to disk + records sync state, clears pending_resolution', () => {
+    const project = ghPullFx.buildTempProject({
+      objectiveId: '21-test',
+      frontmatter: { status: 'in_progress', labels: ['devflow:objective'] },
+      mapping: { milestone_id: 0, objectives: { '21-test': { issue_id: 11, state_comment_id: null } } },
+      projectFm: { github_repo: 'TestOrg/TestRepo' },
+    });
+    try {
+      // Pre-seed sync state with pending_resolution
+      ss.recordSync(project.root, '21-test', ssFx.buildSyncStateRecord({
+        gh_updated_at: '2026-05-01T00:00:00Z',
+        label_set: ['devflow:objective'],
+        last_synced_disk_hash: 'sha256:initial',
+        pending_resolution: { disk_hash_at_conflict: 'sha256:abc', surfaced_at: '2026-05-01T01:00:00Z' },
+      }));
+
+      const cassette = ghPullFx.loadCassette('objective-closed-on-gh');
+      const ghIssue = JSON.parse(cassette.response.stdout);
+
+      const r = conflict.resolveGh({
+        cwd: project.root,
+        objectiveId: '21-test',
+        issueRef: 'TestOrg/TestRepo#11',
+        ghIssue,
+        currentDiskFm: { status: 'in_progress', labels: ['devflow:objective'], assignees: [], milestone: null },
+      });
+
+      assert.strictEqual(r.ok, true);
+      assert.strictEqual(r.action, 'pulled');
+      // Sync state updated; pending_resolution cleared
+      const last = ss.getLastSync(project.root, '21-test');
+      assert.ok(last);
+      assert.strictEqual(last.pending_resolution, undefined);
+      assert.strictEqual(last.gh_updated_at, ghIssue.updatedAt);
+      assert.strictEqual(last.status, ghIssue.state === 'CLOSED' ? 'done' : 'open');
+    } finally {
+      project.cleanup();
+    }
+  });
+
+  test('R4: applyDrift fails (missing OBJECTIVE.md) → { ok: false, error }; sync state untouched', () => {
+    const project = ghPullFx.buildTempProject({
+      objectiveId: '21-test',
+      frontmatter: { status: 'in_progress' },
+      mapping: { milestone_id: 0, objectives: { '21-test': { issue_id: 11, state_comment_id: null } } },
+      projectFm: { github_repo: 'TestOrg/TestRepo' },
+    });
+    try {
+      // Pre-seed sync state with pending_resolution
+      const before = ssFx.buildSyncStateRecord({
+        last_synced_disk_hash: 'sha256:initial',
+        pending_resolution: { disk_hash_at_conflict: 'sha256:abc', surfaced_at: '2026-05-01T01:00:00Z' },
+      });
+      ss.recordSync(project.root, '21-test', before);
+      const filePath = path.join(project.root, '.planning', '.gh-sync-state.json');
+      const beforeContent = fs.readFileSync(filePath, 'utf-8');
+
+      // Delete the OBJECTIVE.md so applyDrift fails
+      fs.unlinkSync(path.join(project.root, '.planning', 'objectives', '21-test', 'OBJECTIVE.md'));
+
+      const cassette = ghPullFx.loadCassette('objective-closed-on-gh');
+      const ghIssue = JSON.parse(cassette.response.stdout);
+
+      const r = conflict.resolveGh({
+        cwd: project.root,
+        objectiveId: '21-test',
+        issueRef: 'TestOrg/TestRepo#11',
+        ghIssue,
+        currentDiskFm: { status: 'in_progress', labels: ['devflow:objective'], assignees: [], milestone: null },
+      });
+
+      assert.strictEqual(r.ok, false);
+      assert.match(r.error, /not found|OBJECTIVE/i);
+      // Sync state file unchanged
+      const afterContent = fs.readFileSync(filePath, 'utf-8');
+      assert.strictEqual(afterContent, beforeContent);
+      const last = ss.getLastSync(project.root, '21-test');
+      assert.ok(last.pending_resolution, 'pending_resolution NOT cleared on failure');
+    } finally {
+      project.cleanup();
+    }
+  });
+});
+
+describe('resolveMerge (R5-R6)', () => {
+  test('R5: --resolved with unchanged disk hash → { ok: false, error: /unchanged/ }', () => {
+    const project = ssFx.buildTempProjectWithSyncState({ syncState: null });
+    try {
+      const fm = { status: 'open', labels: ['devflow:objective'], assignees: [], milestone: null };
+      const conflictHash = ss.hashFrontmatter(fm);
+      ss.recordSync(project.root, '21-test', {
+        issue_ref: 'TestOrg/TestRepo#1',
+        gh_updated_at: '2026-05-01T00:00:00Z',
+        status: 'open',
+        label_set: ['devflow:objective'],
+        assignees: [],
+        milestone: null,
+        last_synced_at: '2026-05-01T00:00:00Z',
+        last_synced_disk_hash: conflictHash,
+        pending_resolution: { disk_hash_at_conflict: conflictHash, surfaced_at: '2026-05-01T01:00:00Z' },
+      });
+
+      // currentDiskFm matches conflict-time hash → user didn't edit
+      const r = conflict.resolveMerge({
+        cwd: project.root,
+        objectiveId: '21-test',
+        currentDiskFm: fm,
+      });
+
+      assert.strictEqual(r.ok, false);
+      assert.match(r.error, /unchanged/i);
+      // pending_resolution preserved
+      const last = ss.getLastSync(project.root, '21-test');
+      assert.ok(last.pending_resolution);
+    } finally {
+      project.cleanup();
+    }
+  });
+
+  test('R6: --resolved with edited disk → records merge + clears pending_resolution', () => {
+    const project = ssFx.buildTempProjectWithSyncState({ syncState: null });
+    try {
+      const oldFm = { status: 'open', labels: ['devflow:objective'], assignees: [], milestone: null };
+      const newFm = { status: 'done', labels: ['devflow:objective', 'devflow:done'], assignees: [], milestone: null };
+      const conflictHash = ss.hashFrontmatter(oldFm);
+      ss.recordSync(project.root, '21-test', {
+        issue_ref: 'TestOrg/TestRepo#1',
+        gh_updated_at: '2026-05-01T00:00:00Z',
+        status: 'open',
+        label_set: ['devflow:objective'],
+        assignees: [],
+        milestone: null,
+        last_synced_at: '2026-05-01T00:00:00Z',
+        last_synced_disk_hash: conflictHash,
+        pending_resolution: { disk_hash_at_conflict: conflictHash, surfaced_at: '2026-05-01T01:00:00Z' },
+      });
+
+      const r = conflict.resolveMerge({
+        cwd: project.root,
+        objectiveId: '21-test',
+        currentDiskFm: newFm,
+      });
+
+      assert.strictEqual(r.ok, true);
+      assert.strictEqual(r.action, 'merged');
+      assert.match(r.message, /Run.*gh sync/);
+      // pending_resolution cleared, new hash recorded
+      const last = ss.getLastSync(project.root, '21-test');
+      assert.strictEqual(last.pending_resolution, undefined);
+      assert.strictEqual(last.last_synced_disk_hash, ss.hashFrontmatter(newFm));
+      assert.strictEqual(last.status, 'done');
+    } finally {
+      project.cleanup();
+    }
+  });
+
+  test('R5b: --resolved with no pending_resolution → returns helpful error', () => {
+    const project = ssFx.buildTempProjectWithSyncState({ syncState: null });
+    try {
+      const r = conflict.resolveMerge({
+        cwd: project.root,
+        objectiveId: '21-no-state',
+        currentDiskFm: { status: 'open' },
+      });
+      assert.strictEqual(r.ok, false);
+      assert.match(r.error, /No pending conflict resolution/i);
+    } finally {
+      project.cleanup();
+    }
+  });
+});
