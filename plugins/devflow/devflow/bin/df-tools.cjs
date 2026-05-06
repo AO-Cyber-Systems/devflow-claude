@@ -858,6 +858,12 @@ async function main() {
       break;
     }
 
+    case 'benchmark': {
+      const { cmdBenchmarkRoute } = require('./lib/benchmark.cjs');
+      cmdBenchmarkRoute(cwd, args.slice(1), raw);
+      break;
+    }
+
     case 'dup-detect': {
       cmdDupDetectRoute(cwd, args.slice(1), raw);
       break;
