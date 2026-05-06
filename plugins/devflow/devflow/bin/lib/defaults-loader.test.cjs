@@ -138,3 +138,90 @@ describe('mergeDefaultsTables (pure logic)', () => {
     assert.strictEqual(result.table.api.feature.tdd, 'bundled');
   });
 });
+
+describe('loadMergedDefaultsTable (resolver)', () => {
+  beforeEach(() => { loader._resetCache(); });
+
+  test('L1: only bundled present → result.provenance entirely bundled_table', () => {
+    const project = fx.buildTempProjectWithDefaults({});
+    try {
+      const r = loader.loadMergedDefaultsTable({ projectRoot: project.root, userHome: project.userHome });
+      // every entry in provenance map should be 'bundled_table'
+      const sources = new Set(Object.values(r.provenance));
+      assert.deepStrictEqual([...sources], ['bundled_table']);
+      // sanity: bundled has the (api, feature) cell
+      assert.ok(r.table.api && r.table.api.feature, 'bundled file must have (api, feature)');
+    } finally { project.cleanup(); }
+  });
+
+  test('L2: bundled + org-fixture present → org overrides flow through', () => {
+    const project = fx.buildTempProjectWithDefaults({
+      orgTable: fx.buildPartialDefaultsTable({ cells: { 'api.feature': { tdd: 'org-tdd-override' } } }),
+    });
+    try {
+      const r = loader.loadMergedDefaultsTable({ projectRoot: project.root, userHome: project.userHome });
+      assert.strictEqual(r.table.api.feature.tdd, 'org-tdd-override');
+      assert.strictEqual(r.provenance['api.feature.tdd'], 'org_table');
+      // other fields fall through to bundled
+      assert.strictEqual(r.provenance['api.feature.depth'], 'bundled_table');
+    } finally { project.cleanup(); }
+  });
+
+  test('L3: bundled + org + project all present → project wins on shared cells', () => {
+    const project = fx.buildTempProjectWithDefaults({
+      orgTable: fx.buildPartialDefaultsTable({ cells: { 'api.feature': { tdd: 'org' } } }),
+      projectTable: fx.buildPartialDefaultsTable({ cells: { 'api.feature': { tdd: 'project' } } }),
+    });
+    try {
+      const r = loader.loadMergedDefaultsTable({ projectRoot: project.root, userHome: project.userHome });
+      assert.strictEqual(r.table.api.feature.tdd, 'project');
+      assert.strictEqual(r.provenance['api.feature.tdd'], 'project_table');
+    } finally { project.cleanup(); }
+  });
+
+  test('L4: malformed project file → throws with clear error', () => {
+    const project = fx.buildTempProjectWithDefaults({
+      projectTable: '# malformed — no yaml block\n\njust prose, no fenced yaml\n',
+    });
+    try {
+      assert.throws(
+        () => loader.loadMergedDefaultsTable({ projectRoot: project.root, userHome: project.userHome }),
+        /malformed: missing yaml block/,
+      );
+    } finally { project.cleanup(); }
+  });
+
+  test('L5: missing org file → silent skip, no error', () => {
+    // userHome dir exists but no defaults-table.md inside it
+    const project = fx.buildTempProjectWithDefaults({});
+    try {
+      // Should not throw
+      const r = loader.loadMergedDefaultsTable({ projectRoot: project.root, userHome: project.userHome });
+      assert.ok(r.table, 'result should have table');
+      // No org cells in provenance
+      const sources = new Set(Object.values(r.provenance));
+      assert.ok(!sources.has('org_table'), 'no org_table provenance expected');
+    } finally { project.cleanup(); }
+  });
+
+  test('L6: cache hit returns same object reference (identity) on second call', () => {
+    const project = fx.buildTempProjectWithDefaults({});
+    try {
+      const r1 = loader.loadMergedDefaultsTable({ projectRoot: project.root, userHome: project.userHome });
+      const r2 = loader.loadMergedDefaultsTable({ projectRoot: project.root, userHome: project.userHome });
+      assert.strictEqual(r1, r2, 'cache should return identical reference');
+    } finally { project.cleanup(); }
+  });
+
+  test('L7: _resetCache clears cache; next call re-reads files', () => {
+    const project = fx.buildTempProjectWithDefaults({});
+    try {
+      const r1 = loader.loadMergedDefaultsTable({ projectRoot: project.root, userHome: project.userHome });
+      loader._resetCache();
+      const r2 = loader.loadMergedDefaultsTable({ projectRoot: project.root, userHome: project.userHome });
+      assert.notStrictEqual(r1, r2, 'cache reset should produce a fresh object');
+      // But the contents should still match
+      assert.deepStrictEqual(r1.provenance, r2.provenance);
+    } finally { project.cleanup(); }
+  });
+});
