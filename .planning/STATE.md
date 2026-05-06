@@ -21,9 +21,9 @@
 **Objective complete:** 12 — Skill consolidation (verified 2026-05-06, 1471/1496 tests pass, all 7 TRDs done, Phase A handoff snapshot committed)
 **Objective complete:** 13 — Phase H prompt extraction (verified 2026-05-06, 1471/1471 tests pass, all 4 TRDs done, 2000 lines cut from 7 agents, ~7002 tokens gross cut, 20 @-references verified 0 dangling)
 **Objective complete:** 19 — PTY handoff watcher (verified 2026-05-06, 1911/1940 tests pass + 2 pre-existing failures unchanged + 27 skipped, all 5 TRDs done, +7 new tests in Wave 3 [4 pass + 3 architectural-gap skips]. Architectural findings documented for v1.3+ follow-up.)
-**Objective in flight:** 20 — Daemon polish bundle. Wave 1 done (4/5 TRDs): 20-01 OS notifications + 20-02 auto-launch + 20-03 multi-project + 20-05 cross-shell. 20-04 status-line deferred to Wave 2 (depends on 20-03 PID schema landing). 2064/2066 tests pass + 2 pre-existing failures unchanged + 34 skipped (+5 fish/pwsh-gated additions). 8 commits (~+117 new tests passing).
+**Objective complete:** 20 — Daemon polish bundle (verified 2026-05-06, 2053/2055 tests pass + 2 pre-existing failures unchanged + 34 skipped, all 5 TRDs done across 2 waves). Wave 1: 20-01 OS notifications + 20-02 auto-launch + 20-03 multi-project + 20-05 cross-shell (8 commits). Wave 2: 20-04 status-line indicator (2 commits, +25 new tests, statusline.test.js created fresh — first-ever test file for that hook). 10 commits across waves; all 5 daemon polish features (notifications, auto-launch, multi-project, status-line, cross-shell) shipped behind opt-in feature flags with byte-identical default-OFF behavior.
 **Branch:** `feature/v1.2-obj-11-daemon-polish`
-**Status:** Wave 1 pushed to remote — awaiting Wave 2 (20-04 status-line)
+**Status:** Objective complete — ready for verification
 
 ## Branch State (post-merge)
 
@@ -34,6 +34,7 @@
 
 ## Recent Decisions
 
+- **TRD 20-04 complete (2026-05-06)** — `hooks/statusline.js` extended with watcher status segment (~30 LOC additive, wrapped in nested try/catch). Reads project-local `.planning/config.json` for `daemon.status_line` flag (default OFF), requires `lib/watcher-state.cjs` from synced runtime path, queries `isWatcherLive()` + `readPidFile()`, sums per-project pending counts across `watching: []` (multi-project from 20-03). Renders `▶ watcher` (green idle) or `⏸ N pending` (yellow active) or hides entirely (zero output bytes). First-ever `statusline.test.js` shipped (561 lines, 25 tests across S/A/F/P/D groups). `templates/config.json` adds `daemon.status_line: false`. `docs/handoff-watcher-guide.md` adds `### Status-line indicator` subsection. 2089 total / 2053 pass / 2 pre-existing failures unchanged / 34 skipped (delta: +25 tests, all pass). Commits: 1740dfc (test:), fb9d2c3 (feat:). Wave 2 of objective 20 — DONE.
 - **Plan org-aware, execute repo-focused** — devflow-claude consults org state at planning time; execution stays repo-local. Brains at plan time, not exec time. (Project memory: `project_devflow_claude_scope`)
 - **Continue executing — no manual paste** — seamless-handoff watcher daemon (Approach B) shipped; daemon executes queued commands in user's interactive shell, injects results back via UserPromptSubmit hook. v1.1 limit: stdio-pipe dispatch can't satisfy true TTY-required prompts (doctl auth init etc.); v1.2 PTY backend closes that gap.
 - **Org-level coordination via GitHub** — Product Roadmap project (`PVT_kwDODwqLrc4BRsOP`) is the substrate. devflow-claude#9 [Roadmap] now exists with 9 v1.1 sub-issues (#10–#18). Linked as sub-issue of devflow#30 (DevFlow Internal Alpha Q2 2026 epic).
@@ -186,6 +187,6 @@
 
 ## Session Continuity
 
-Last session: 2026-05-06 — Objective 19 COMPLETE: all 5 TRDs done across 3 waves. Wave 1: TRD 19-01 (PTY backend) + 19-04 (doc update). Wave 2: TRD 19-02 (token-passing) + 19-03 (gate-interactive PTY messaging). Wave 3: TRD 19-05 (mock-auth e2e + 3 architectural-gap findings). 1911/1940 tests pass + 2 pre-existing failures + 27 skipped (3 new arch-gap skips). 11 commits across waves: bf290ba, 310fdb4, 88fe5b5 (Wave 1) + 348dd91, ead5811, 69397d6, 998b42e, 1313dc7, 7cf0203 (Wave 2) + e795a87, 5439e37 (Wave 3).
+Last session: 2026-05-06 — Objective 20 COMPLETE: all 5 TRDs done across 2 waves. Wave 1: 20-01 OS notifications + 20-02 auto-launch + 20-03 multi-project + 20-05 cross-shell (5cb5fe0, bbb7b64, 914299c, 192dfc9, 39c653d, 22cf3ca, 786b36b — 8 commits). Wave 2: 20-04 status-line watcher segment (1740dfc test:, fb9d2c3 feat: — 2 commits, +25 tests, statusline.test.js created fresh, first-ever statusline test file). 2089 total / 2053 pass / 2 pre-existing failures unchanged / 34 skipped. All 5 daemon polish features shipped behind opt-in feature flags (default OFF — byte-identical existing-user behavior).
 Resume file: `.planning/SESSION_PICKUP.md`
-Stopped at: Completed 19-05-mock-auth-e2e-TRD.md (Wave 3 / Objective 19 DONE). Next: PR + auto-merge.
+Stopped at: Completed 20-04-status-line-TRD.md (Wave 2 / Objective 20 DONE). Next: PR + auto-merge.
