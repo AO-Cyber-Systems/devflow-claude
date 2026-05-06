@@ -692,6 +692,111 @@ describe('status normalizeStatusSubcommand behavior', () => {
   });
 });
 
+// ─── Group W: workstreams routing ────────────────────────────────────────────
+
+describe('workstreams routing', () => {
+  test('W1: workstreams setup routes to workstreams-setup.md', () => {
+    const result = routeSkill('workstreams', ['setup']);
+    assert.deepStrictEqual(result, {
+      skill: 'workstreams',
+      subcommand: 'setup',
+      args: [],
+      workflow: '~/.claude/devflow/workflows/workstreams-setup.md',
+    });
+  });
+
+  test('W2: workstreams status routes to workstreams-status.md', () => {
+    const result = routeSkill('workstreams', ['status']);
+    assert.deepStrictEqual(result, {
+      skill: 'workstreams',
+      subcommand: 'status',
+      args: [],
+      workflow: '~/.claude/devflow/workflows/workstreams-status.md',
+    });
+  });
+
+  test('W3: workstreams merge routes to workstreams-merge.md', () => {
+    const result = routeSkill('workstreams', ['merge']);
+    assert.deepStrictEqual(result, {
+      skill: 'workstreams',
+      subcommand: 'merge',
+      args: [],
+      workflow: '~/.claude/devflow/workflows/workstreams-merge.md',
+    });
+  });
+
+  test('W4: workstreams run routes to workstreams-run.md (stub)', () => {
+    const result = routeSkill('workstreams', ['run']);
+    assert.deepStrictEqual(result, {
+      skill: 'workstreams',
+      subcommand: 'run',
+      args: [],
+      workflow: '~/.claude/devflow/workflows/workstreams-run.md',
+    });
+  });
+
+  test('W5: workstreams with no subcommand returns missing subcommand error with correct usage', () => {
+    const result = routeSkill('workstreams', []);
+    assert.strictEqual(result.error, 'missing subcommand');
+    assert.strictEqual(result.usage, 'workstreams <setup|status|merge|run>');
+    assert.deepStrictEqual(result.valid_subcommands, ['setup', 'status', 'merge', 'run']);
+  });
+
+  test('W6: workstreams with unknown subcommand returns error', () => {
+    const result = routeSkill('workstreams', ['unknown']);
+    assert.strictEqual(result.error, 'unknown subcommand');
+    assert.strictEqual(result.got, 'unknown');
+    assert.deepStrictEqual(result.valid_subcommands, ['setup', 'status', 'merge', 'run']);
+  });
+});
+
+// ─── Group WL: --list reflects workstreams extension ─────────────────────────
+
+describe('--list reflects workstreams extension', () => {
+  test('WL1: cmdSkillRouteList skills contains workstreams with 4 subcommands', () => {
+    const skills = Object.entries(SKILL_ROUTES).map(([name, route]) => ({
+      name,
+      subcommands: route.subcommands,
+    }));
+    const wsEntry = skills.find(s => s.name === 'workstreams');
+    assert.ok(wsEntry, 'workstreams must be in skills catalog');
+    assert.deepStrictEqual(wsEntry.subcommands, ['setup', 'status', 'merge', 'run']);
+  });
+});
+
+// ─── Group WD: DEPRECATION_MAP unchanged (no workstreams entries) ─────────────
+
+describe('DEPRECATION_MAP unchanged — no workstreams entries', () => {
+  test('WD1: DEPRECATION_MAP has exactly 13 entries (no growth from TRD 12-04)', () => {
+    const count = Object.keys(DEPRECATION_MAP).length;
+    assert.strictEqual(count, 13, `Expected 13 DEPRECATION_MAP entries, got ${count}: ${Object.keys(DEPRECATION_MAP).join(', ')}`);
+  });
+
+  test('WD2: DEPRECATION_MAP[workstreams] is undefined (no workstreams key added)', () => {
+    assert.strictEqual(DEPRECATION_MAP['workstreams'], undefined);
+  });
+});
+
+// ─── Group EX5: export-lock unchanged after workstreams extension ─────────────
+
+describe('export-lock unchanged after workstreams extension', () => {
+  test('EX5: module.exports still exactly 8 entries after workstreams extension', () => {
+    const mod = require('./skill-route.cjs');
+    const keys = Object.keys(mod).sort();
+    const expected = [
+      'DEPRECATION_MAP',
+      'SKILL_ROUTES',
+      '_resetMocks',
+      '_setRunFs',
+      'cmdDeprecationLog',
+      'cmdSkillRoute',
+      'cmdSkillRouteList',
+      'routeSkill',
+    ];
+    assert.deepStrictEqual(keys, expected, 'Exports must remain at 8 entries after workstreams extension');
+  });
+});
+
 // ─── Group LL: --list reflects todo + status extensions ───────────────────────
 
 describe('--list reflects todo + status extensions', () => {
