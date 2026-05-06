@@ -31,7 +31,11 @@ const fs = require('fs');
 const path = require('path');
 
 // PATH-LOCKED: relative path from plugins/devflow/hooks/ → plugins/devflow/devflow/bin/lib/
+// All requires below use the same path-locked discipline — relative to plugin tree.
 const { classifySession, renderRoutingPreamble } = require('../devflow/bin/lib/classifier.cjs');
+// 17-03: project-state + global-config wiring (C1 + C4 → C2 keystone)
+const { getProjectState } = require('../devflow/bin/lib/project-state.cjs');
+const { shouldAutoInit } = require('../devflow/bin/lib/global-config.cjs');
 
 // ─── Filesystem probes ────────────────────────────────────────────────────────
 
@@ -88,11 +92,37 @@ function main() {
   const hasGit = !!findGitDir(cwd);
   const declineMarker = hasDeclineMarker(planningDir);
 
-  const mode = classifySession({
+  // 17-03: Compute substantive + previously_declined via project-state (C1)
+  // and auto_init flag via global-config (C4).
+  // Only meaningful for non-DevFlow git repos — skip for ambient mode (saves ~50ms).
+  let isSubstantive = false;
+  let previouslyDeclined = false;
+  let autoInit = false;
+  try {
+    if (hasGit && !planningDir) {
+      const state = getProjectState(cwd);
+      isSubstantive = state.is_substantive;
+      previouslyDeclined = state.previously_declined;
+      autoInit = shouldAutoInit();
+    }
+  } catch (e) {
+    // Fail-open: any error → safe defaults (skip mode via isSubstantive=false)
+    // Session MUST NOT crash. Diagnostics go to stderr only.
+    process.stderr.write(`[classify-session] project-state lookup failed: ${e.message}\n`);
+  }
+
+  let mode = classifySession({
     planningDir,
     hasGitDir: hasGit,
     hasDeclineMarker: declineMarker,
+    isSubstantive,
+    previouslyDeclined,
   });
+
+  // 17-03: Promote init-offer → auto-init when global config opt-in is active
+  if (mode === 'init-offer' && autoInit) {
+    mode = 'auto-init';
+  }
 
   if (mode === 'skip') return;
 
