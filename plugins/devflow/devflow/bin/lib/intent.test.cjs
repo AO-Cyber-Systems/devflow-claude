@@ -1096,4 +1096,31 @@ describe('cell_provenance (TRD 21-05)', () => {
     }
     assert.strictEqual(Object.keys(result.cell_provenance).length, expectedFields.length);
   });
+
+  test('D1: references/defaults-table.md documents both provenance vocabularies', () => {
+    const refPath = path.join(__dirname, '..', '..', 'references', 'defaults-table.md');
+    const content = fs.readFileSync(refPath, 'utf-8');
+    assert.match(content, /## Provenance/);
+    assert.match(content, /project_table/);
+    assert.match(content, /org_table/);
+    assert.match(content, /bundled_table/);
+    assert.match(content, /cell_provenance/);
+  });
+
+  test('D2: intent.resolve() output structure includes cell_provenance with all 10 fields', () => {
+    project = fixtures.buildProject({
+      projectFrontmatter: { kind: 'api' },
+      objectives: [{ id: '01-foo', work: 'feature' }],
+    });
+    const result = intent.resolve({
+      projectRoot: project.root,
+      objectiveId: '01-foo',
+      userHome: '/nonexistent',
+    });
+    assert.ok(result.cell_provenance, 'cell_provenance field expected');
+    assert.strictEqual(typeof result.cell_provenance, 'object');
+    for (const f of ['tdd', 'depth', 'model_profile', 'verification', 'security_isolation', 'back_compat', 'tdd_default', 'test_list_first', 'fixture_strategy', 'outside_in']) {
+      assert.ok(f in result.cell_provenance, `cell_provenance.${f} expected`);
+    }
+  });
 });

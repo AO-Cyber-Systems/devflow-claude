@@ -17,6 +17,31 @@ Machine-readable lookup table mapping every (`kind`, `work`) pair to a recommend
 
 **Precedence:** This table is **level 4** in the resolution chain. TRD frontmatter, OBJECTIVE.md `overrides`, and CLAUDE.md user playbooks all win over these defaults.
 
+## Provenance
+
+`df-tools intent resolve` returns two parallel provenance maps:
+
+**`provenance`** — *effective* source per field after all overrides:
+- `table` — value came from the (kind, work) defaults cell
+- `user_playbook` — promoted by CLAUDE.md TDD Playbook absorption
+- `objective_override` — set in OBJECTIVE.md `overrides:` block
+- `trd_override` — set in TRD frontmatter
+
+**`cell_provenance`** — *table-tier* origin per field, regardless of overrides:
+- `project_table` — `.planning/defaults-table.md` supplied this cell
+- `org_table` — `~/.claude/devflow/defaults-table.md` supplied this cell
+- `bundled_table` — bundled `references/defaults-table.md` supplied this cell
+- `table_explicit` — test-only path (explicit `tablePath` argument)
+- `unknown` — defensive fallback
+
+**Reading the two together:** if `provenance.tdd === 'trd_override'` and `cell_provenance.tdd === 'project_table'`, your TRD frontmatter overrode the value, but if it hadn't, your project's `defaults-table.md` would have supplied it (overriding org and bundled).
+
+**To override (kind, work) cells without forking the plugin:**
+- **Org-wide:** `df-tools defaults-table init --scope=org` then edit `~/.claude/devflow/defaults-table.md`
+- **Per-project:** `df-tools defaults-table init --scope=project` then edit `.planning/defaults-table.md`
+
+The 3-tier loader (project > org > bundled) merges cell-by-cell — your override file does NOT need to copy all 42 cells. Omitted cells fall through to the next tier.
+
 **Rationale and pedigree:** See `docs/PROPOSAL-kind-and-work.md` for the full rationale on each cell, validation against ~33 real objectives, and citations to industry sources (Feathers, Beck, Fowler, ThoughtWorks, contract-testing consensus).
 
 **Open structural notes:** Cells now carry 9 fields each (4 original + 5 new from the 2026-04-29 codebase-survey research).
