@@ -818,8 +818,12 @@ async function main() {
         } else {
           cmdGhSyncObjectives(cwd, raw);
         }
+      } else if (subcommand === 'pull') {
+        // df-tools gh pull <objectiveId> [--apply] [--raw]
+        const { cmdGhPull } = require('./lib/gh-pull.cjs');
+        cmdGhPull(cwd, args.slice(2), raw);
       } else {
-        error('Unknown gh subcommand. Available: status, sync, sync-objectives, resolve, comment, close-issue, sync-release');
+        error('Unknown gh subcommand. Available: status, sync, pull, sync-objectives, resolve, comment, close-issue, sync-release');
       }
       break;
     }
