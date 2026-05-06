@@ -104,7 +104,7 @@ Node.js hooks declared in `plugins/devflow/hooks/hooks.json` and auto-registered
 **Enforcement (active gates):**
 - `route-intent.js` — UserPromptSubmit; injects skill-routing reminders when DevFlow project is detected
 - `gate-commits.js` — PreToolUse(Bash); blocks raw `git commit`. Escape: `DEVFLOW_ALLOW_RAW_COMMIT=1`
-- `gate-edits.js` — PreToolUse(Edit/Write/MultiEdit); prompts before edits outside executor when an objective is in progress. Strict: `DEVFLOW_STRICT_EDITS=1`
+- `gate-edits.js` — PreToolUse(Edit/Write/MultiEdit); **strict DENY by default** in ambient mode (DevFlow project + no skill active). Allows edits when `.planning/.skill-active` marker exists (set by executor), user prompt contains an override phrase (`skip devflow`, `just edit`, `bypass devflow`, `force edit`), or `DEVFLOW_SKIP_EDIT_GATE=1` env var. (Prior `DEVFLOW_STRICT_EDITS=1` behavior is now the default; escape hatch inverted to `DEVFLOW_SKIP_EDIT_GATE=1`.)
 - `changelog-on-tag.js` — PreToolUse(Bash); blocks `git tag -a vX.Y.Z` if `CHANGELOG.md` lacks `## [X.Y.Z]`. Escape: `DEVFLOW_SKIP_CHANGELOG_GATE=1`
 
 ### Marketplace (`/.claude-plugin/marketplace.json`)
