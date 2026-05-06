@@ -622,3 +622,350 @@ describe('processOnce — token passing (TRD 19-02)', () => {
     }
   });
 });
+
+// ===========================================================================
+// TRD 20-01 Group I — Notifier integration (processOnce + runLoop)
+// ===========================================================================
+
+function makeNotifierMock() {
+  const calls = [];
+  return {
+    calls,
+    notify: async (opts) => { calls.push(opts); },
+  };
+}
+
+describe('processOnce — Group I: notifier integration (TRD 20-01)', () => {
+  let root;
+  beforeEach(() => { root = mkTmpProject(); });
+  afterEach(() => rmTmp(root));
+
+  test('I-1 deps.notifier=null: no notifier calls; behavior byte-identical', async () => {
+    writePending(root, 'h-i1', 'echo hi');
+    const allow = allowlistLib.defaultAllowlist();
+    const session = fakeSession(() => ({ stdout: 'hi\n', stderr: '', exit_code: 0, status: 'done' }));
+    const pending = daemon.readPending(root);
+    const done = await daemon.processOnce(pending[0], {
+      session, allowlist: allow, projectRoot: root, notifier: null,
+    });
+    assert.equal(done.status, 'done');
+  });
+
+  test('I-2 deps.notifier set: notify called BEFORE session.dispatch (dispatch-start)', async () => {
+    writePending(root, 'h-i2', 'echo hi');
+    const allow = allowlistLib.defaultAllowlist();
+    const order = [];
+    const notif = {
+      notify: async (opts) => {
+        order.push({ type: 'notify-' + (opts.body && opts.body.startsWith('dispatching') ? 'start' : 'complete'), body: opts.body });
+      },
+    };
+    const session = {
+      dispatch: async (id, cmd) => {
+        order.push({ type: 'dispatch', id, cmd });
+        return { stdout: '', stderr: '', exit_code: 0, status: 'done' };
+      },
+    };
+    const pending = daemon.readPending(root);
+    await daemon.processOnce(pending[0], {
+      session, allowlist: allow, projectRoot: root, notifier: notif,
+    });
+    // Order: notify-start → dispatch → notify-complete
+    assert.equal(order[0].type, 'notify-start');
+    assert.equal(order[1].type, 'dispatch');
+    assert.equal(order[2].type, 'notify-complete');
+    // Body of start references the cmd
+    assert.match(order[0].body, /echo hi/);
+  });
+
+  test('I-3 notifier.notify called AFTER writeDoneRecord (dispatch-complete signal)', async () => {
+    writePending(root, 'h-i3', 'echo hi');
+    const allow = allowlistLib.defaultAllowlist();
+    const notif = makeNotifierMock();
+    const session = fakeSession(() => ({ stdout: '', stderr: '', exit_code: 0, status: 'done' }));
+    const pending = daemon.readPending(root);
+    const done = await daemon.processOnce(pending[0], {
+      session, allowlist: allow, projectRoot: root, notifier: notif,
+    });
+    assert.equal(notif.calls.length, 2, 'two calls: start + complete');
+    // Second call body references status / completion
+    assert.match(notif.calls[1].body, /completed h-i3/);
+    assert.equal(done.status, 'done');
+  });
+
+  test('I-4 notifier errors during dispatch-start do NOT prevent dispatch', async () => {
+    writePending(root, 'h-i4', 'echo hi');
+    const allow = allowlistLib.defaultAllowlist();
+    let dispatchHappened = false;
+    const notif = {
+      notify: async () => { throw new Error('boom'); },
+    };
+    const session = {
+      dispatch: async () => { dispatchHappened = true; return { stdout: '', stderr: '', exit_code: 0, status: 'done' }; },
+    };
+    const pending = daemon.readPending(root);
+    const done = await daemon.processOnce(pending[0], {
+      session, allowlist: allow, projectRoot: root, notifier: notif,
+    });
+    assert.ok(dispatchHappened, 'dispatch must run despite notifier throwing');
+    assert.equal(done.status, 'done');
+  });
+
+  test('I-5 notifier errors during dispatch-complete do NOT prevent done record', async () => {
+    writePending(root, 'h-i5', 'echo hi');
+    const allow = allowlistLib.defaultAllowlist();
+    let calls = 0;
+    const notif = {
+      notify: async () => {
+        calls++;
+        if (calls === 2) throw new Error('boom-complete');
+      },
+    };
+    const session = fakeSession(() => ({ stdout: '', stderr: '', exit_code: 0, status: 'done' }));
+    const pending = daemon.readPending(root);
+    const done = await daemon.processOnce(pending[0], {
+      session, allowlist: allow, projectRoot: root, notifier: notif,
+    });
+    const donePath = path.join(root, '.devflow-handoff', 'done', 'h-i5.json');
+    assert.ok(fs.existsSync(donePath), 'done record written despite notifier throwing');
+    assert.equal(done.status, 'done');
+  });
+
+  test('I-8 notify_on_start=false suppresses dispatch-start (only complete called)', async () => {
+    writePending(root, 'h-i8', 'echo hi');
+    const allow = allowlistLib.defaultAllowlist();
+    const notif = makeNotifierMock();
+    const session = fakeSession(() => ({ stdout: '', stderr: '', exit_code: 0, status: 'done' }));
+    const pending = daemon.readPending(root);
+    await daemon.processOnce(pending[0], {
+      session, allowlist: allow, projectRoot: root, notifier: notif,
+      notify_on_start: false,
+    });
+    assert.equal(notif.calls.length, 1, 'only complete called when notify_on_start=false');
+    assert.match(notif.calls[0].body, /completed/);
+  });
+
+  test('I-9 notify_on_complete=false suppresses dispatch-complete (only start called)', async () => {
+    writePending(root, 'h-i9', 'echo hi');
+    const allow = allowlistLib.defaultAllowlist();
+    const notif = makeNotifierMock();
+    const session = fakeSession(() => ({ stdout: '', stderr: '', exit_code: 0, status: 'done' }));
+    const pending = daemon.readPending(root);
+    await daemon.processOnce(pending[0], {
+      session, allowlist: allow, projectRoot: root, notifier: notif,
+      notify_on_complete: false,
+    });
+    assert.equal(notif.calls.length, 1, 'only start called when notify_on_complete=false');
+    assert.match(notif.calls[0].body, /dispatching/);
+  });
+});
+
+// ===========================================================================
+// TRD 20-03 Group D — runLoop multi-project iteration
+// ===========================================================================
+
+const stateLib = require('./watcher-state.cjs');
+
+describe('runLoop — Group D: multi-project iteration (TRD 20-03)', () => {
+  let h;
+  let projects;
+  beforeEach(() => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dfw-mp-home-'));
+    const prevHOME = process.env.HOME;
+    process.env.HOME = home;
+    h = {
+      home,
+      cleanup: () => {
+        if (prevHOME === undefined) delete process.env.HOME;
+        else process.env.HOME = prevHOME;
+        try { fs.rmSync(home, { recursive: true, force: true }); } catch {}
+      },
+    };
+    projects = [
+      fs.mkdtempSync(path.join(os.tmpdir(), 'dfw-mp-p1-')),
+      fs.mkdtempSync(path.join(os.tmpdir(), 'dfw-mp-p2-')),
+    ];
+    for (const p of projects) {
+      fs.mkdirSync(path.join(p, '.devflow-handoff', 'pending'), { recursive: true });
+    }
+  });
+  afterEach(() => {
+    h.cleanup();
+    for (const p of projects) rmTmp(p);
+  });
+
+  test('D-1 tick re-reads watching:[] from PID file each call', async () => {
+    stateLib.writePidFile({ pid: process.pid, version: '0.1.0', shell: 'bash', watching: [projects[0]] });
+    const calls = [];
+    const session = {
+      dispatch: async (id, cmd) => {
+        calls.push({ id, cmd });
+        return { stdout: '', stderr: '', exit_code: 0, status: 'done' };
+      },
+    };
+    writePending(projects[0], 'h-d1-a', 'echo a');
+    const allow = allowlistLib.defaultAllowlist();
+    const loop = daemon.runLoop({
+      projectRoot: projects[0], session, allowlist: allow, log: () => {}, pollIntervalMs: 30,
+    });
+    await new Promise((r) => setTimeout(r, 250));
+    await loop.stop();
+    assert.ok(calls.length >= 1, 'at least one dispatch happened');
+  });
+
+  test('D-2 watching=[p1, p2], pending in p1 → tick processes p1', async () => {
+    stateLib.writePidFile({ pid: process.pid, version: '0.1.0', shell: 'bash', watching: projects });
+    const calls = [];
+    const session = {
+      dispatch: async (id, cmd) => {
+        calls.push({ id, cmd });
+        return { stdout: '', stderr: '', exit_code: 0, status: 'done' };
+      },
+    };
+    writePending(projects[0], 'h-d2-a', 'echo p1');
+    const allow = allowlistLib.defaultAllowlist();
+    const loop = daemon.runLoop({
+      projectRoot: projects[0], session, allowlist: allow, log: () => {}, pollIntervalMs: 30,
+    });
+    await new Promise((r) => setTimeout(r, 250));
+    await loop.stop();
+    assert.ok(calls.some((c) => c.cmd === 'echo p1'), 'p1 was dispatched');
+  });
+
+  test('D-3 p1 has pending, p2 empty → tick processes p1 (skips empty p2)', async () => {
+    stateLib.writePidFile({ pid: process.pid, version: '0.1.0', shell: 'bash', watching: projects });
+    writePending(projects[0], 'h-d3-a', 'echo only-in-p1');
+    const calls = [];
+    const session = {
+      dispatch: async (id, cmd) => {
+        calls.push({ id, cmd });
+        return { stdout: '', stderr: '', exit_code: 0, status: 'done' };
+      },
+    };
+    const allow = allowlistLib.defaultAllowlist();
+    const loop = daemon.runLoop({
+      projectRoot: projects[0], session, allowlist: allow, log: () => {}, pollIntervalMs: 30,
+    });
+    await new Promise((r) => setTimeout(r, 250));
+    await loop.stop();
+    assert.ok(calls.some((c) => c.cmd === 'echo only-in-p1'));
+  });
+
+  test('D-4 watching=[] → tick is silent no-op', async () => {
+    stateLib.writePidFile({ pid: process.pid, version: '0.1.0', shell: 'bash', watching: [] });
+    const calls = [];
+    const session = {
+      dispatch: async (id, cmd) => { calls.push({ id, cmd }); return { stdout: '', stderr: '', exit_code: 0, status: 'done' }; },
+    };
+    const allow = allowlistLib.defaultAllowlist();
+    const loop = daemon.runLoop({
+      projectRoot: projects[0], session, allowlist: allow, log: () => {}, pollIntervalMs: 30,
+    });
+    await new Promise((r) => setTimeout(r, 150));
+    await loop.stop();
+    assert.equal(calls.length, 0, 'no dispatches when watching=[]');
+  });
+
+  test('D-5 PID file null (test path) → fall back to opts.projectRoot', async () => {
+    stateLib.removePidFile();
+    writePending(projects[0], 'h-d5-fallback', 'echo fallback');
+    const calls = [];
+    const session = {
+      dispatch: async (id, cmd) => { calls.push({ id, cmd }); return { stdout: '', stderr: '', exit_code: 0, status: 'done' }; },
+    };
+    const allow = allowlistLib.defaultAllowlist();
+    const loop = daemon.runLoop({
+      projectRoot: projects[0], session, allowlist: allow, log: () => {}, pollIntervalMs: 30,
+    });
+    await new Promise((r) => setTimeout(r, 250));
+    await loop.stop();
+    assert.ok(calls.some((c) => c.cmd === 'echo fallback'), 'fallback when PID file missing');
+  });
+
+  test('D-6 dispatch remains serial — only one inFlight at a time', async () => {
+    stateLib.writePidFile({ pid: process.pid, version: '0.1.0', shell: 'bash', watching: projects });
+    writePending(projects[0], 'h-d6-a', 'echo a');
+    writePending(projects[0], 'h-d6-b', 'echo b');
+    writePending(projects[1], 'h-d6-c', 'echo c');
+    let inFlightAtAnyTime = 0;
+    let maxInFlight = 0;
+    const session = {
+      dispatch: async (id, cmd) => {
+        inFlightAtAnyTime++;
+        if (inFlightAtAnyTime > maxInFlight) maxInFlight = inFlightAtAnyTime;
+        await new Promise((r) => setTimeout(r, 50));
+        inFlightAtAnyTime--;
+        return { stdout: '', stderr: '', exit_code: 0, status: 'done' };
+      },
+    };
+    const allow = allowlistLib.defaultAllowlist();
+    const loop = daemon.runLoop({
+      projectRoot: projects[0], session, allowlist: allow, log: () => {}, pollIntervalMs: 30,
+    });
+    await new Promise((r) => setTimeout(r, 500));
+    await loop.stop();
+    assert.equal(maxInFlight, 1, 'serial dispatch — max 1 in flight');
+  });
+
+  test('D-7 addWatchedProject mid-runLoop visible to next tick', async () => {
+    stateLib.writePidFile({ pid: process.pid, version: '0.1.0', shell: 'bash', watching: [projects[0]] });
+    writePending(projects[1], 'h-d7-late', 'echo late');
+    const calls = [];
+    const session = {
+      dispatch: async (id, cmd) => { calls.push({ id, cmd }); return { stdout: '', stderr: '', exit_code: 0, status: 'done' }; },
+    };
+    const allow = allowlistLib.defaultAllowlist();
+    const loop = daemon.runLoop({
+      projectRoot: projects[0], session, allowlist: allow, log: () => {}, pollIntervalMs: 30,
+    });
+    // Initially watching only p1; p2 has pending but won't be picked up
+    await new Promise((r) => setTimeout(r, 100));
+    assert.equal(calls.length, 0, 'p2 pending NOT picked up before add-project');
+    // Now add p2
+    stateLib.addWatchedProject(projects[1]);
+    await new Promise((r) => setTimeout(r, 200));
+    await loop.stop();
+    assert.ok(calls.some((c) => c.cmd === 'echo late'), 'mid-loop add-project visible to next tick');
+  });
+
+  test('D-9 processOnce called with correct projectRoot per pending record', async () => {
+    stateLib.writePidFile({ pid: process.pid, version: '0.1.0', shell: 'bash', watching: projects });
+    writePending(projects[1], 'h-d9-only-p2', 'echo p2-only');
+    const session = {
+      dispatch: async (id, cmd) => ({ stdout: '', stderr: '', exit_code: 0, status: 'done' }),
+    };
+    const allow = allowlistLib.defaultAllowlist();
+    const loop = daemon.runLoop({
+      projectRoot: projects[0], session, allowlist: allow, log: () => {}, pollIntervalMs: 30,
+    });
+    await new Promise((r) => setTimeout(r, 300));
+    await loop.stop();
+    const doneFile = path.join(projects[1], '.devflow-handoff', 'done', 'h-d9-only-p2.json');
+    assert.ok(fs.existsSync(doneFile), 'done record landed in p2');
+  });
+
+  test('D-8 remove-project of project with in-flight dispatch — dispatch completes', async () => {
+    stateLib.writePidFile({ pid: process.pid, version: '0.1.0', shell: 'bash', watching: projects });
+    writePending(projects[0], 'h-d8-inflight', 'sleep-equiv');
+    let dispatchStarted = false;
+    let dispatchCompleted = false;
+    const session = {
+      dispatch: async (id, cmd) => {
+        dispatchStarted = true;
+        // Mid-dispatch, remove the project from watching
+        stateLib.removeWatchedProject(projects[0]);
+        await new Promise((r) => setTimeout(r, 50));
+        dispatchCompleted = true;
+        return { stdout: '', stderr: '', exit_code: 0, status: 'done' };
+      },
+    };
+    const allow = allowlistLib.defaultAllowlist();
+    const loop = daemon.runLoop({
+      projectRoot: projects[0], session, allowlist: allow, log: () => {}, pollIntervalMs: 30,
+    });
+    await new Promise((r) => setTimeout(r, 300));
+    await loop.stop();
+    assert.ok(dispatchStarted, 'dispatch started');
+    assert.ok(dispatchCompleted, 'dispatch completed despite mid-dispatch removal');
+  });
+});
