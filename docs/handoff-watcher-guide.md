@@ -290,6 +290,48 @@ restart. Removing a project that has an in-flight dispatch does NOT abort
 the dispatch — it completes and writes its done record; subsequent ticks
 skip the removed path.
 
+### Cross-shell support
+
+The daemon dispatches commands through the user's interactive shell. v1.2
+supports four shells:
+
+| Shell | Status | Notes |
+|---|---|---|
+| bash | First-class | Default; tested; preserved byte-identical from v1.1 |
+| zsh | First-class | Routes through bash wrapper (zsh is bash-compatible for our sentinel pattern) |
+| fish 3.0+ | Supported | Native fish syntax wrapper (`set VAR (cmd)`, `$status`) |
+| pwsh 7+ | Supported | PowerShell Core; native pwsh syntax (`$LASTEXITCODE`, `*>`) |
+| nushell | Deferred | Not in v1.2 (low usage; revisit in v1.3+) |
+| Windows powershell.exe (5.x) | Best-effort | Routes through pwsh wrapper; not in CI matrix |
+
+Auto-detection: the daemon reads `$SHELL` at startup; basename determines
+the wrapper. Override with `devflow-watch start --shell fish` (or `pwsh`
+etc.).
+
+Unsupported shells throw `UnsupportedShell` at session construction time.
+The CLI prints the error and exits with guidance to set `$SHELL` to a
+supported value.
+
+The sentinel-fenced output protocol is identical across all shells:
+
+```
+__DFW_BEGIN_<id>__
+<stdout content>
+__DFW_DELIM_<id>__
+<stderr content>
+__DFW_END_<id>__:<exit_code>
+```
+
+The parser in `lib/watcher-shell.cjs` is shell-agnostic — only the
+wrapper's `wrapCommand` differs per shell.
+
+**Fish 3.0+ requirement:** The wrapper uses `function fish_prompt; end`
+syntax; fish < 3.0 will fail with shell-side syntax errors captured in
+the done record's stderr.
+
+**pwsh availability:** Not pre-installed on macOS or Linux. Install via
+`brew install --cask powershell` (macOS) or distro package manager (Linux).
+
 ## PTY support (v1.2+)
 
 The daemon allocates a real pseudo-terminal (PTY) for the user's shell when

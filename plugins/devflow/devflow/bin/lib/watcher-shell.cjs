@@ -55,6 +55,8 @@
 const { spawn } = require('child_process');
 const { EventEmitter } = require('events');
 
+const { getWrapper, UnsupportedShell } = require('./wrappers/index.cjs');
+
 let _ptyModule = null;
 function _loadPTY() {
   if (_ptyModule) return _ptyModule;
@@ -80,6 +82,9 @@ class ShellSession extends EventEmitter {
   constructor({ shell, env, cwd, interactive } = {}) {
     super();
     this.shell = shell || process.env.SHELL || 'bash';
+    // TRD 20-05: route shell to wrapper module. Throws UnsupportedShell for
+    // unknown shells — callers (e.g. runForeground) can catch + emit guidance.
+    this._wrapper = getWrapper(this.shell);
     this.env = env || process.env;
     this.cwd = cwd || process.cwd();
     // interactive=true (default) loads user rc files for the daemon's prod
@@ -149,11 +154,14 @@ class ShellSession extends EventEmitter {
   async spawn() {
     if (this.proc) throw new Error('already spawned');
 
+    // TRD 20-05: per-shell args + init lines from the wrapper module.
+    const shellArgs = this._wrapper.shellArgs(this.interactive);
+
     if (this.interactive) {
       // PTY path — real pseudo-terminal via node-pty
       const pty = _loadPTY();
       try {
-        this.proc = pty.spawn(this.shell, ['-i'], {
+        this.proc = pty.spawn(this.shell, shellArgs, {
           name: 'xterm-color',
           cols: 80,
           rows: 24,
@@ -178,32 +186,22 @@ class ShellSession extends EventEmitter {
       // Quiet PS1 / job-control / PROMPT_COMMAND noise. PTY input terminator
       // is \r (carriage return), NOT \n.
       //
-      // CRITICAL: `stty -echo` first. PTYs in cooked mode echo input back
-      // by default — without this, the dispatch buffer contains every input
-      // line interleaved with bash's output. Sentinel matching breaks because
-      // the BEGIN/DELIM/END tokens appear in the echoed `echo BEGIN` lines
-      // BEFORE bash's actual `echo` output produces them. With echo disabled
-      // the buffer contains only program output, identical-shape to pipe mode.
-      this._writeRaw([
-        'stty -echo 2>/dev/null',
-        'set +o monitor 2>/dev/null',
-        "PS1=''",
-        "PS2=''",
-        "PROMPT_COMMAND=''",
-        'unset PROMPT_DIRTRIM',
-        '',
-      ].join('\r'));
-      // Drain any prelude noise (PS1 prompt before clear, login messages, etc.)
-      // so the first dispatch's buffer scan starts clean. Also gives the
-      // `stty -echo` enough time to take effect before the next write —
-      // without this, the first dispatch may still see echoed input.
+      // CRITICAL: `stty -echo` first (in bash/fish wrappers). PTYs in
+      // cooked mode echo input back by default — without this, the dispatch
+      // buffer contains every input line interleaved with shell output and
+      // sentinel matching breaks. With echo disabled the buffer contains
+      // only program output, identical-shape to pipe mode.
+      const initLines = this._wrapper.initLines('pty');
+      this._writeRaw(initLines.concat(['']).join('\r'));
+      // Drain any prelude noise (PS1 prompt before clear, login messages,
+      // etc.) so the first dispatch's buffer scan starts clean. Also gives
+      // `stty -echo` enough time to take effect before the next write.
       await new Promise((r) => setTimeout(r, 100));
       this._stdoutBuf = '';
       this._stderrBuf = '';
     } else {
       // Pipe path — existing v1.1 behavior, byte-identical to pre-PTY release
-      const args = [];  // interactive:false → no -i flag
-      this.proc = spawn(this.shell, args, {
+      this.proc = spawn(this.shell, shellArgs, {
         env: this.env,
         cwd: this.cwd,
         stdio: ['pipe', 'pipe', 'pipe'],
@@ -227,18 +225,11 @@ class ShellSession extends EventEmitter {
       });
       this.proc.on('exit', () => this._onExit());
       this.proc.on('error', () => this._onExit());
-      // Quiet job-control noise on `bash -i` without a TTY, AND clear the
-      // interactive prompt so PS1 doesn't pollute captured stderr. Also
-      // disable PROMPT_COMMAND so any side-effect bash adds doesn't leak.
-      // Send these in a single write so they execute before any dispatch.
-      this._writeRaw([
-        'set +o monitor 2>/dev/null',
-        "PS1=''",
-        "PS2=''",
-        "PROMPT_COMMAND=''",
-        'unset PROMPT_DIRTRIM',
-        '',
-      ].join('\n'));
+      // Quiet job-control noise on `bash -i` without a TTY (or equivalent
+      // for fish/pwsh), AND clear the interactive prompt so PS1 doesn't
+      // pollute captured stderr. Wrappers ship per-shell init lines.
+      const initLines = this._wrapper.initLines('pipe');
+      this._writeRaw(initLines.concat(['']).join(this._wrapper.lineSep));
     }
   }
 
@@ -350,23 +341,11 @@ class ShellSession extends EventEmitter {
       }, timeoutMs);
       this._activeDispatch = d;
 
-      // Route the user command's stdout/stderr through temp files and serialize
-      // back through THIS shell's stdout fenced by BEGIN / DELIM / END sentinels.
-      // This avoids stderr block-buffering issues when bash's own stderr is piped.
-      // Line separator: \r on PTY (PTY input convention), \n on pipe.
-      const wrappedLines = [
-        '__DFW_OUT=$(mktemp 2>/dev/null) __DFW_ERR=$(mktemp 2>/dev/null)',
-        `{ ${cmd} ; } > $__DFW_OUT 2> $__DFW_ERR`,
-        '__DFW_RC=$?',
-        `echo ${begin}`,
-        'cat $__DFW_OUT 2>/dev/null',
-        `echo ${delim}`,
-        'cat $__DFW_ERR 2>/dev/null',
-        `echo ${end}:$__DFW_RC`,
-        'rm -f $__DFW_OUT $__DFW_ERR',
-        '',
-      ];
-      const sep = this._isPTY ? '\r' : '\n';
+      // TRD 20-05: per-shell wrapper generates wrappedLines (sentinel-fenced
+      // protocol; output shape is shell-agnostic). PTY input separator is
+      // always \r (PTY input convention); pipe mode uses wrapper.lineSep.
+      const wrappedLines = this._wrapper.wrapCommand(cmd, id);
+      const sep = this._isPTY ? '\r' : this._wrapper.lineSep;
       this._writeRaw(wrappedLines.join(sep));
       // In case markers already arrived (race-free).
       this._tryComplete();
@@ -491,4 +470,4 @@ function trimAfter(buf, end) {
   return buf.slice(eol + 1);
 }
 
-module.exports = { ShellSession, ShellSessionClosed, splitDispatchOutput };
+module.exports = { ShellSession, ShellSessionClosed, splitDispatchOutput, UnsupportedShell };
