@@ -841,6 +841,23 @@ async function main() {
       break;
     }
 
+    case 'project-hygiene': {
+      const subcommand = args[1];
+      if (subcommand === 'check') {
+        const { cmdProjectHygieneCheck } = require('./lib/project-hygiene.cjs');
+        cmdProjectHygieneCheck(cwd, raw);
+      } else if (subcommand === 'move') {
+        const { cmdProjectHygieneMove } = require('./lib/project-hygiene.cjs');
+        cmdProjectHygieneMove(cwd, args.slice(2), raw);
+      } else if (subcommand === 'archive') {
+        const { cmdProjectHygieneArchive } = require('./lib/project-hygiene.cjs');
+        cmdProjectHygieneArchive(cwd, args.slice(2), raw);
+      } else {
+        error(`Unknown project-hygiene subcommand${subcommand ? ': ' + subcommand : ''}. Available: check, move, archive`);
+      }
+      break;
+    }
+
     case 'dup-detect': {
       cmdDupDetectRoute(cwd, args.slice(1), raw);
       break;
