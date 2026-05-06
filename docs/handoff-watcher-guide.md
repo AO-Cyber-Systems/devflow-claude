@@ -165,6 +165,115 @@ them.
 | `DEVFLOW_SKIP_INTERACTIVE_GATE=1` | Bypass `gate-interactive` hook entirely |
 | `DEVFLOW_SKIP_HANDOFF_RESULTS=1` | Bypass `route-results` hook entirely |
 
+## PTY support (v1.2+)
+
+The daemon allocates a real pseudo-terminal (PTY) for the user's shell when
+running interactively. This closes the gap that v1.1 had with TTY-required
+commands — `gh auth login`, `doctl auth init`, `gcloud auth login`,
+`gpg --decrypt`, and similar tools that fail with "unknown terminal" or hang
+silently when run on plain pipes.
+
+Under the hood: the daemon uses [`node-pty`](https://www.npmjs.com/package/node-pty)
+to allocate the PTY. The sentinel-fenced output protocol is unchanged — PTY
+only swaps the dispatch backend, not the wire format the daemon writes to the
+`.devflow-handoff/done/<id>.json` records.
+
+The pipe-mode dispatch (used by tests and any caller that opts into
+`interactive: false`) is preserved byte-identical. Production daemon defaults
+to PTY; unit tests stay on pipes for speed and to avoid native-binary load
+in CI environments.
+
+Sub-sections:
+
+- [Platform notes](#platform-notes)
+- [Token-passing for prompts](#token-passing-for-prompts)
+
+### Platform notes
+
+`node-pty` is a native Node module with prebuilt binaries published for the
+common platforms. `npm install` should fetch a binary for your platform
+without a build step. If prebuild-install fails, `npm install` falls back to
+compiling from source — which needs the platform's build tools.
+
+| Platform | Status | Build tools needed if prebuilt fails |
+|---|---|---|
+| macOS (x64 + arm64) | First-class | Xcode Command Line Tools (`xcode-select --install`) |
+| Linux (x64 + arm64) | First-class | `build-essential`, `python3` |
+| Windows (x64) | Best-effort | `windows-build-tools`; node-pty ships `winpty-agent` automatically |
+
+If your `devflow-watch start` fails with `Error: Cannot find module 'node-pty'`,
+run `npm install` again — the prebuilt binary fetch may have been skipped on
+the original install. If install genuinely fails (rare on supported
+platforms), file an issue with the npm log.
+
+**macOS / Linux gotcha — spawn-helper executable bit**: node-pty's prebuilt
+download on darwin-arm64 (and occasionally darwin-x64 / linux-x64) does not
+preserve the executable bit on the bundled `spawn-helper` binary. Symptom is
+`Error: posix_spawnp failed.` from `pty.spawn(...)`. The repo's `package.json`
+includes a `postinstall` script that chmods the helper after `npm install`;
+if you ever delete `node_modules` and re-install with `npm install
+--ignore-scripts`, run the chmod manually:
+
+```bash
+chmod +x node_modules/node-pty/prebuilds/$(node -e 'console.log(process.platform+"-"+process.arch)')/spawn-helper
+```
+
+The deny-list (`sudo`, `su -`, `rm -rf /`, fork bombs, `curl|bash`) is
+unchanged under PTY. Even though PTY makes `sudo` *runnable* (it has a real
+TTY now), the deny-list still rejects it because silent privilege elevation
+in a long-running daemon is not a trade-off we want.
+
+### Token-passing for prompts
+
+When a tool the daemon runs prompts for a secret (token, password,
+passphrase), the daemon can answer the prompt automatically using the new
+optional `inputs.secrets[]` field on a pending record. The hook
+(`gate-interactive.js`) doesn't populate this today; it's available for
+clients that write pending records directly via `df-tools handoff create
+--inputs-json '...'`.
+
+Schema:
+
+```json
+{
+  "id": "h-abc123",
+  "cmd": "doctl auth init",
+  "cwd": "/path/to/project",
+  "status": "pending",
+  "created_at": "...",
+  "inputs": {
+    "secrets": [
+      {
+        "prompt_match": "Enter your access token:",
+        "value_source": "env",
+        "value_ref": "DIGITALOCEAN_TOKEN"
+      }
+    ]
+  }
+}
+```
+
+`prompt_match` is a JS RegExp source; the daemon compiles it and scans the
+accumulated PTY buffer for matches. On match, the daemon writes the resolved
+value (followed by carriage-return) to the PTY.
+
+`value_source` enum:
+
+| value_source | v1.2 status | Notes |
+|---|---|---|
+| `env` | shipped | Resolved from `process.env[value_ref]` at dispatch time. Fails if env var unset/empty. |
+| `stash` | slot reserved | In-memory per-handoff stash. Stash-populating CLI deferred to v1.3 — schema accepts the field but the runtime fails the dispatch with a clear error if v1.2 sees `stash` without a populated stash. |
+| `keyring` | rejected | Deferred to v1.3+. Daemon refuses pending records that use this. |
+
+Resolved secret values are redacted (replaced with `***REDACTED***`) in the
+done record's `stdout` and `stderr` fields before persistence. Only values
+≥ 8 characters are redacted to avoid eating legitimate short strings.
+
+If a prompt is matched twice (e.g. tool re-prompts after a wrong answer), the
+daemon writes Ctrl+C to the PTY and emits `status: failed` with stderr
+`duplicate prompt match for "<value_ref>"`. This prevents stuck dispatches
+when the resolved value is wrong.
+
 ## Watcher-off mode (still useful)
 
 If you don't want a daemon running, the seamless-handoff feature still
@@ -212,10 +321,12 @@ handoff.
   (default umask).
 - Logs at `~/.devflow/devflow-watch.log`. Rotate manually if needed.
 
-## Future (v1.2+)
+## Future (v1.3+)
 
-Out of scope for v1.1, on the roadmap:
+Out of scope for v1.2, on the roadmap:
 
+- `stash` value_source backend — populate via `devflow-watch stash add <handoff-id> <key> <value>` CLI (schema slot is reserved in v1.2; runtime rejects it until the populating CLI lands)
+- `keyring` value_source backend — read secrets from the OS keyring (macOS Keychain, Linux Secret Service, Windows Credential Manager)
 - OS desktop notifications when a command starts / completes
 - Auto-launch via launchd / systemd
 - Multi-project watching from a single daemon
