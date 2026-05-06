@@ -88,6 +88,8 @@
  *   verify commits <h1> [h2] ...      Batch verify commit hashes
  *   verify artifacts <job-file>       Check must_haves.artifacts
  *   verify key-links <job-file>       Check must_haves.key_links
+ *   verify trd-pre <objective>        Cheap pre-flight: req coverage, task completeness,
+ *                                       dep cycles, scope counts (pure-logic, no agent spawn)
  *
  * Template Fill:
  *   template fill summary --objective N    Create pre-filled SUMMARY.md
@@ -156,6 +158,7 @@ const {
   cmdVerifySummary, cmdVerifyJobStructure, cmdVerifyObjectiveCompleteness,
   cmdVerifyReferences, cmdVerifyCommits, cmdVerifyArtifacts, cmdVerifyKeyLinks,
 } = require('./lib/verify.cjs');
+const { cmdVerifyTrdPre } = require('./lib/trd-pre-check.cjs');
 const { cmdValidateConsistency, cmdValidateHealth } = require('./lib/validate.cjs');
 const {
   cmdResolveModel, cmdInitExecuteObjective, cmdInitPlanObjective, cmdInitNewProject,
@@ -361,8 +364,10 @@ async function main() {
         cmdVerifyArtifacts(cwd, args[2], raw);
       } else if (subcommand === 'key-links') {
         cmdVerifyKeyLinks(cwd, args[2], raw);
+      } else if (subcommand === 'trd-pre') {
+        cmdVerifyTrdPre(cwd, args[2], raw);
       } else {
-        error('Unknown verify subcommand. Available: job-structure, objective-completeness, references, commits, artifacts, key-links');
+        error('Unknown verify subcommand. Available: job-structure, objective-completeness, references, commits, artifacts, key-links, trd-pre');
       }
       break;
     }
