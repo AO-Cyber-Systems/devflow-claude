@@ -131,125 +131,58 @@ Result: Creates `.planning/quick/NNN-slug/JOB.md`, `.planning/quick/NNN-slug/SUM
 
 ### Roadmap Management
 
-**`/devflow:add-objective <description>`**
-Add new objective to end of current milestone.
+**`/devflow:objective <add|remove>`**
+Manage objectives in the current milestone roadmap.
 
-- Appends to ROADMAP.md
-- Uses next sequential number
-- Updates objective directory structure
+- `add <description>` — Append a new integer objective
+- `remove <number>` — Remove an unstarted objective and renumber
 
-Usage: `/devflow:add-objective "Add admin dashboard"`
-
-**`/devflow:insert-objective <after> <description>`**
-Insert urgent work as decimal objective between existing objectives.
-
-- Creates intermediate objective (e.g., 7.1 between 7 and 8)
-- Useful for discovered work that must happen mid-milestone
-- Maintains objective ordering
-
-Usage: `/devflow:insert-objective 7 "Fix critical auth bug"`
-Result: Creates Objective 7.1
-
-**`/devflow:remove-objective <number>`**
-Remove a future objective and renumber subsequent objectives.
-
-- Deletes objective directory and all references
-- Renumbers all subsequent objectives to close the gap
-- Only works on future (unstarted) objectives
-- Git commit preserves historical record
-
-Usage: `/devflow:remove-objective 17`
-Result: Objective 17 deleted, objectives 18-20 become 17-19
+Usage: `/devflow:objective add "Add admin dashboard"`
+Usage: `/devflow:objective remove 17`
 
 ### Parallel Workstreams
 
-**`/devflow:workstreams setup`**
-Create parallel worktrees for independent objectives.
+**`/devflow:workstreams <setup|status|merge|run>`**
+Parallel feature development via git worktrees.
 
-- Analyzes ROADMAP.md dependency graph for non-linear dependencies
-- Creates git worktree + branch for each independent objective group
-- Provisions `.planning/` context per worktree (filtered state, marker)
-- Each worktree runs normal DevFlow commands in its own Claude session
+- `setup` — Analyze dependency graph, create worktrees and provision `.planning/`
+- `status` — Progress across active workstreams
+- `merge` — Squash-merge completed workstreams, reconcile `.planning/`, advance to join objective
+- `run` — *(v1.2 obj 6)* Run a workstream end-to-end autonomously
 
 Usage: `/devflow:workstreams setup`
-
-**`/devflow:workstreams status`**
-Check progress across all active workstreams.
-
-- Reads each worktree's STATE.md and git branch activity
-- Shows completion status per workstream
-- Indicates when join objective is ready
-
 Usage: `/devflow:workstreams status`
-
-**`/devflow:workstreams merge`**
-Merge completed workstreams back to main.
-
-- Squash-merges each workstream branch
-- Auto-reconciles `.planning/` conflicts
-- Regenerates ROADMAP.md progress and STATE.md
-- Cleans up worktrees and branches
-- Advances to the join objective
-
 Usage: `/devflow:workstreams merge`
 
 ### Milestone Management
 
-**`/devflow:new-milestone <name>`**
-Start a new milestone through unified flow.
+**`/devflow:milestone <new|audit|complete|gaps>`**
+Manage milestones from start to archive.
 
-- Deep questioning to understand what you're building next
-- Optional domain research (spawns 4 parallel researcher agents)
-- Requirements definition with scoping
-- Roadmap creation with objective breakdown
+- `new [name]` — Start the next development cycle (questioning → research → requirements → roadmap)
+- `audit [version]` — Verify a milestone achieved its definition of done
+- `complete <version>` — Archive milestone and tag git release
+- `gaps` — Turn audit gaps into closure objectives
 
-Mirrors `/devflow:new-project` flow for brownfield projects (existing PROJECT.md).
+Usage: `/devflow:milestone new "v2.0 Features"`
+Usage: `/devflow:milestone audit`
+Usage: `/devflow:milestone complete 1.0.0`
+Usage: `/devflow:milestone gaps`
 
-Usage: `/devflow:new-milestone "v2.0 Features"`
+### Status and Session
 
-**`/devflow:complete-milestone <version>`**
-Archive completed milestone and prepare for next version.
+**`/devflow:status [check|pause|resume]`**
+Project status, health, save/resume work.
 
-- Creates MILESTONES.md entry with stats
-- Archives full details to milestones/ directory
-- Creates git tag for the release
-- Prepares workspace for next version
+- *(no arg)* — Visual progress bar + current position + what's next
+- `check` — Validate `.planning/` directory integrity (alias: `--check`)
+- `pause` — Save context for later resumption (alias: `--pause`)
+- `resume` — Restore context from previous session (alias: `--resume`)
 
-Usage: `/devflow:complete-milestone 1.0.0`
-
-### Progress Tracking
-
-**`/devflow:progress`**
-Check project status and intelligently route to next action.
-
-- Shows visual progress bar and completion percentage
-- Summarizes recent work from SUMMARY files
-- Displays current position and what's next
-- Lists key decisions and open issues
-- Offers to execute next job or create it if missing
-- Detects 100% milestone completion
-
-Usage: `/devflow:progress`
-
-### Session Management
-
-**`/devflow:resume-work`**
-Resume work from previous session with full context restoration.
-
-- Reads STATE.md for project context
-- Shows current position and recent progress
-- Offers next actions based on project state
-
-Usage: `/devflow:resume-work`
-
-**`/devflow:pause-work`**
-Create context handoff when pausing work mid-objective.
-
-- Creates .continue-here file with current state
-- Updates STATE.md session continuity section
-- Captures in-progress work context
-
-Usage: `/devflow:pause-work`
+Usage: `/devflow:status`
+Usage: `/devflow:status check`
+Usage: `/devflow:status pause`
+Usage: `/devflow:status resume`
 
 ### Debugging
 
@@ -267,29 +200,16 @@ Usage: `/devflow:debug` (resume active session)
 
 ### Todo Management
 
-**`/devflow:add-todo [description]`**
-Capture idea or task as todo from current conversation.
+**`/devflow:todo <add|list>`**
+Capture todos and view morning standup.
 
-- Extracts context from conversation (or uses provided description)
-- Creates structured todo file in `.planning/todos/pending/`
-- Infers area from file paths for grouping
-- Checks for duplicates before creating
-- Updates STATE.md todo count
+- `add [description]` — Capture idea or task from conversation context (or use provided description); creates structured file in `.planning/todos/pending/`; checks for duplicates
+- `list [area]` — List pending todos, select one to work on; optional area filter; routes to work now / add to objective / brainstorm
 
-Usage: `/devflow:add-todo` (infers from conversation)
-Usage: `/devflow:add-todo Add auth token refresh`
-
-**`/devflow:check-todos [area]`**
-List pending todos and select one to work on.
-
-- Lists all pending todos with title, area, age
-- Optional area filter (e.g., `/devflow:check-todos api`)
-- Loads full context for selected todo
-- Routes to appropriate action (work now, add to objective, brainstorm)
-- Moves todo to done/ when work begins
-
-Usage: `/devflow:check-todos`
-Usage: `/devflow:check-todos api`
+Usage: `/devflow:todo add` (infers from conversation)
+Usage: `/devflow:todo add "Add auth token refresh"`
+Usage: `/devflow:todo list`
+Usage: `/devflow:todo list api`
 
 ### User Acceptance Testing
 
@@ -305,25 +225,7 @@ Usage: `/devflow:verify-work 3`
 
 ### Milestone Auditing
 
-**`/devflow:audit-milestone [version]`**
-Audit milestone completion against original intent.
-
-- Reads all objective VERIFICATION.md files
-- Checks requirements coverage
-- Spawns integration checker for cross-objective wiring
-- Creates MILESTONE-AUDIT.md with gaps and tech debt
-
-Usage: `/devflow:audit-milestone`
-
-**`/devflow:plan-milestone-gaps`**
-Create objectives to close gaps identified by audit.
-
-- Reads MILESTONE-AUDIT.md and groups gaps into objectives
-- Prioritizes by requirement priority (must/should/nice)
-- Adds gap closure objectives to ROADMAP.md
-- Ready for `/devflow:plan-objective` on new objectives
-
-Usage: `/devflow:plan-milestone-gaps`
+See `/devflow:milestone audit` and `/devflow:milestone gaps` in **Milestone Management** above.
 
 ### Configuration
 
@@ -464,15 +366,15 @@ Example config:
 **Resuming work after a break:**
 
 ```
-/devflow:progress  # See where you left off and continue
+/devflow:status  # See where you left off and continue
 ```
 
 **Adding urgent mid-milestone work:**
 
 ```
-/devflow:insert-objective 5 "Critical security fix"
-/devflow:plan-objective 5.1
-/devflow:execute-objective 5.1
+/devflow:objective add "Critical security fix"
+/devflow:plan-objective N          # where N is the newly added objective number
+/devflow:execute-objective N
 ```
 
 **Running independent objectives in parallel:**
@@ -487,18 +389,18 @@ Example config:
 **Completing a milestone:**
 
 ```
-/devflow:complete-milestone 1.0.0
+/devflow:milestone complete 1.0.0
 /clear
-/devflow:new-milestone  # Start next milestone (questioning → research → requirements → roadmap)
+/devflow:milestone new  # Start next milestone (questioning → research → requirements → roadmap)
 ```
 
 **Capturing ideas during work:**
 
 ```
-/devflow:add-todo                    # Capture from conversation context
-/devflow:add-todo Fix modal z-index  # Capture with explicit description
-/devflow:check-todos                 # Review and work on todos
-/devflow:check-todos api             # Filter by area
+/devflow:todo add                    # Capture from conversation context
+/devflow:todo add "Fix modal z-index"  # Capture with explicit description
+/devflow:todo list                   # Review and work on todos
+/devflow:todo list api               # Filter by area
 ```
 
 **Debugging an issue:**
@@ -517,9 +419,9 @@ DevFlow works alongside Claude Code's built-in features:
 **`/loop` — Recurring monitoring:**
 
 ```
-/loop 10m /devflow:progress       # Check project status every 10 minutes
-/loop 5m /devflow:health          # Monitor .planning/ integrity during builds
-/loop 15m /devflow:check-todos    # Periodic todo reminders
+/loop 10m /devflow:status         # Check project status every 10 minutes
+/loop 5m /devflow:status check    # Monitor .planning/ integrity during builds
+/loop 15m /devflow:todo list      # Periodic todo reminders
 ```
 
 Use `/loop` during long `/devflow:execute-objective` runs to track progress without switching context.
@@ -533,5 +435,25 @@ Claude Code's built-in plan mode (`EnterPlanMode`) is used by `/devflow:build` a
 - Read `.planning/PROJECT.md` for project vision
 - Read `.planning/STATE.md` for current context
 - Check `.planning/ROADMAP.md` for objective status
-- Run `/devflow:progress` to check where you're up to
+- Run `/devflow:status` to check where you're up to
+
+## Deprecated Skill Names (will be removed in v3.0)
+
+These old skill names still work but emit a deprecation warning and forward to the consolidated skill.
+
+| Old name | New form |
+|---|---|
+| `/devflow:add-objective` | `/devflow:objective add` |
+| `/devflow:insert-objective` | `/devflow:objective add` *(insert permanently deprecated — decimal objectives dropped in v1.2)* |
+| `/devflow:remove-objective` | `/devflow:objective remove` |
+| `/devflow:new-milestone` | `/devflow:milestone new` |
+| `/devflow:audit-milestone` | `/devflow:milestone audit` |
+| `/devflow:complete-milestone` | `/devflow:milestone complete` |
+| `/devflow:plan-milestone-gaps` | `/devflow:milestone gaps` |
+| `/devflow:add-todo` | `/devflow:todo add` |
+| `/devflow:check-todos` | `/devflow:todo list` |
+| `/devflow:pause-work` | `/devflow:status pause` |
+| `/devflow:resume-work` | `/devflow:status resume` |
+| `/devflow:progress` | `/devflow:status` |
+| `/devflow:health` | `/devflow:status check` |
 </reference>
