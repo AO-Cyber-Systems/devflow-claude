@@ -45,14 +45,11 @@ describe('routeSkill happy path', () => {
     assert.deepStrictEqual(result, expected);
   });
 
-  test('R2: objective insert routes to insert-objective workflow', () => {
+  test('R2: objective insert is no longer a valid subcommand (removed in TRD 12-06)', () => {
+    // 'insert' was removed from SKILL_ROUTES.objective.subcommands per I2 drop.
     const result = routeSkill('objective', ['insert', '5', 'urgent']);
-    assert.deepStrictEqual(result, {
-      skill: 'objective',
-      subcommand: 'insert',
-      args: ['5', 'urgent'],
-      workflow: '~/.claude/devflow/workflows/insert-objective.md',
-    });
+    assert.strictEqual(result.error, 'unknown subcommand', 'insert should be unknown');
+    assert.strictEqual(result.got, 'insert');
   });
 
   test('R3: objective remove routes to remove-objective workflow', () => {
@@ -82,15 +79,15 @@ describe('routeSkill errors', () => {
   test('RE1: missing subcommand returns error with usage', () => {
     const result = routeSkill('objective', []);
     assert.strictEqual(result.error, 'missing subcommand');
-    assert.strictEqual(result.usage, 'objective <add|insert|remove>');
-    assert.deepStrictEqual(result.valid_subcommands, ['add', 'insert', 'remove']);
+    assert.strictEqual(result.usage, 'objective <add|remove>');
+    assert.deepStrictEqual(result.valid_subcommands, ['add', 'remove']);
   });
 
   test('RE2: unknown subcommand returns error', () => {
     const result = routeSkill('objective', ['unknown']);
     assert.strictEqual(result.error, 'unknown subcommand');
     assert.strictEqual(result.got, 'unknown');
-    assert.deepStrictEqual(result.valid_subcommands, ['add', 'insert', 'remove']);
+    assert.deepStrictEqual(result.valid_subcommands, ['add', 'remove']);
   });
 
   test('RE3: unknown skill returns error with valid_skills list', () => {
@@ -115,8 +112,8 @@ describe('routeSkill errors', () => {
 // ─── Group SR: SKILL_ROUTES structure ─────────────────────────────────────────
 
 describe('SKILL_ROUTES structure', () => {
-  test('SR1: SKILL_ROUTES.objective.subcommands is correct', () => {
-    assert.deepStrictEqual(SKILL_ROUTES.objective.subcommands, ['add', 'insert', 'remove']);
+  test('SR1: SKILL_ROUTES.objective.subcommands is ["add","remove"] (insert removed in TRD 12-06)', () => {
+    assert.deepStrictEqual(SKILL_ROUTES.objective.subcommands, ['add', 'remove']);
   });
 
   test('SR2: SKILL_ROUTES.objective.workflow_for("add") returns add-objective.md', () => {
@@ -124,9 +121,9 @@ describe('SKILL_ROUTES structure', () => {
     assert.strictEqual(wf, '~/.claude/devflow/workflows/add-objective.md');
   });
 
-  test('SR3: SKILL_ROUTES.objective.workflow_for("insert") returns insert-objective.md', () => {
+  test('SR3: SKILL_ROUTES.objective.workflow_for("insert") returns null (deprecated in TRD 12-06)', () => {
     const wf = SKILL_ROUTES.objective.workflow_for('insert');
-    assert.strictEqual(wf, '~/.claude/devflow/workflows/insert-objective.md');
+    assert.strictEqual(wf, null, 'insert workflow should return null (no longer valid)');
   });
 
   test('SR4: SKILL_ROUTES only has objective key in this TRD', () => {
@@ -263,16 +260,17 @@ describe('deprecation logger', () => {
       );
       const entry = JSON.parse(writtenCalls[0].data.trim());
       assert.strictEqual(entry.old_name, 'insert-objective');
-      assert.strictEqual(entry.new_form, 'objective insert');
+      assert.strictEqual(entry.new_form, 'objective add'); // redirected to add (insert deprecated)
       assert.strictEqual(entry.project_root, '/my/project');
     } finally {
       _resetMocks();
     }
   });
 
-  test('D5: DEPRECATION_MAP covers all 3 objective-related entries', () => {
+  test('D5: DEPRECATION_MAP covers all 3 objective-related entries (insert → add per TRD 12-06)', () => {
     assert.strictEqual(DEPRECATION_MAP['add-objective'], 'objective add');
-    assert.strictEqual(DEPRECATION_MAP['insert-objective'], 'objective insert');
+    // insert-objective was deprecated in TRD 12-06; redirects to objective add (functional equivalent)
+    assert.strictEqual(DEPRECATION_MAP['insert-objective'], 'objective add');
     assert.strictEqual(DEPRECATION_MAP['remove-objective'], 'objective remove');
   });
 });
@@ -317,7 +315,7 @@ describe('CLI integration', () => {
     assert.ok(Array.isArray(json.skills), 'skills must be an array');
     const objectiveSkill = json.skills.find(s => s.name === 'objective');
     assert.ok(objectiveSkill, 'objective skill must be in list');
-    assert.deepStrictEqual(objectiveSkill.subcommands, ['add', 'insert', 'remove']);
+    assert.deepStrictEqual(objectiveSkill.subcommands, ['add', 'remove']); // insert removed in TRD 12-06
     assert.ok(typeof json.deprecated === 'object', 'deprecated map must exist');
     assert.ok('add-objective' in json.deprecated, 'add-objective must be in deprecated map');
   });

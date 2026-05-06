@@ -567,10 +567,10 @@ This objective covers:
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// objective next-decimal command
+// objective next-decimal command — DEPRECATED (TRD 12-06, I2 survey: 0% usage)
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('objective next-decimal command', () => {
+describe('objective next-decimal command (deprecated)', () => {
   let tmpDir;
 
   beforeEach(() => {
@@ -581,64 +581,14 @@ describe('objective next-decimal command', () => {
     cleanup(tmpDir);
   });
 
-  test('returns X.1 when no decimal objectives exist', () => {
-    fs.mkdirSync(path.join(tmpDir, '.planning', 'objectives', '06-feature'), { recursive: true });
-    fs.mkdirSync(path.join(tmpDir, '.planning', 'objectives', '07-next'), { recursive: true });
-
+  test('returns deprecation error JSON and exits 1', () => {
     const result = runGsdTools('objective next-decimal 06', tmpDir);
-    assert.ok(result.success, `Command failed: ${result.error}`);
-
+    // Should exit non-zero (deprecation error)
+    assert.ok(!result.success, 'deprecated command should exit non-zero');
+    // Output contains deprecation message
     const output = JSON.parse(result.output);
-    assert.strictEqual(output.next, '06.1', 'should return 06.1');
-    assert.deepStrictEqual(output.existing, [], 'no existing decimals');
-  });
-
-  test('increments from existing decimal objectives', () => {
-    fs.mkdirSync(path.join(tmpDir, '.planning', 'objectives', '06-feature'), { recursive: true });
-    fs.mkdirSync(path.join(tmpDir, '.planning', 'objectives', '06.1-hotfix'), { recursive: true });
-    fs.mkdirSync(path.join(tmpDir, '.planning', 'objectives', '06.2-patch'), { recursive: true });
-
-    const result = runGsdTools('objective next-decimal 06', tmpDir);
-    assert.ok(result.success, `Command failed: ${result.error}`);
-
-    const output = JSON.parse(result.output);
-    assert.strictEqual(output.next, '06.3', 'should return 06.3');
-    assert.deepStrictEqual(output.existing, ['06.1', '06.2'], 'lists existing decimals');
-  });
-
-  test('handles gaps in decimal sequence', () => {
-    fs.mkdirSync(path.join(tmpDir, '.planning', 'objectives', '06-feature'), { recursive: true });
-    fs.mkdirSync(path.join(tmpDir, '.planning', 'objectives', '06.1-first'), { recursive: true });
-    fs.mkdirSync(path.join(tmpDir, '.planning', 'objectives', '06.3-third'), { recursive: true });
-
-    const result = runGsdTools('objective next-decimal 06', tmpDir);
-    assert.ok(result.success, `Command failed: ${result.error}`);
-
-    const output = JSON.parse(result.output);
-    // Should take next after highest, not fill gap
-    assert.strictEqual(output.next, '06.4', 'should return 06.4, not fill gap at 06.2');
-  });
-
-  test('handles single-digit objective input', () => {
-    fs.mkdirSync(path.join(tmpDir, '.planning', 'objectives', '06-feature'), { recursive: true });
-
-    const result = runGsdTools('objective next-decimal 6', tmpDir);
-    assert.ok(result.success, `Command failed: ${result.error}`);
-
-    const output = JSON.parse(result.output);
-    assert.strictEqual(output.next, '06.1', 'should normalize to 06.1');
-    assert.strictEqual(output.base_objective, '06', 'base objective should be padded');
-  });
-
-  test('returns error if base objective does not exist', () => {
-    fs.mkdirSync(path.join(tmpDir, '.planning', 'objectives', '01-start'), { recursive: true });
-
-    const result = runGsdTools('objective next-decimal 06', tmpDir);
-    assert.ok(result.success, `Command should succeed: ${result.error}`);
-
-    const output = JSON.parse(result.output);
-    assert.strictEqual(output.found, false, 'base objective not found');
-    assert.strictEqual(output.next, '06.1', 'should still suggest 06.1');
+    assert.ok(output.error.includes('deprecated'), 'error field mentions deprecated');
+    assert.strictEqual(output.removed_in, '12-06', 'removed_in field set to 12-06');
   });
 });
 
@@ -1390,10 +1340,10 @@ describe('objective add command', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// objective insert command
+// objective insert command — DEPRECATED (TRD 12-06, I2 survey: 0% usage)
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('objective insert command', () => {
+describe('objective insert command (deprecated)', () => {
   let tmpDir;
 
   beforeEach(() => {
@@ -1404,120 +1354,19 @@ describe('objective insert command', () => {
     cleanup(tmpDir);
   });
 
-  test('inserts decimal objective after target', () => {
+  test('returns deprecation error JSON and exits 1 (I2 survey: 0% usage)', () => {
     fs.writeFileSync(
       path.join(tmpDir, '.planning', 'ROADMAP.md'),
-      `# Roadmap
-
-### Objective 1: Foundation
-**Goal:** Setup
-
-### Objective 2: API
-**Goal:** Build API
-`
+      `# Roadmap\n### Objective 1: Foundation\n**Goal:** Setup\n`
     );
     fs.mkdirSync(path.join(tmpDir, '.planning', 'objectives', '01-foundation'), { recursive: true });
 
     const result = runGsdTools('objective insert 1 Fix Critical Bug', tmpDir);
-    assert.ok(result.success, `Command failed: ${result.error}`);
-
+    // Should exit non-zero (deprecation error)
+    assert.ok(!result.success, 'deprecated command should exit non-zero');
     const output = JSON.parse(result.output);
-    assert.strictEqual(output.objective_number, '01.1', 'should be 01.1');
-    assert.strictEqual(output.after_objective, '1');
-
-    // Verify directory
-    assert.ok(
-      fs.existsSync(path.join(tmpDir, '.planning', 'objectives', '01.1-fix-critical-bug')),
-      'decimal objective directory should be created'
-    );
-
-    // Verify ROADMAP
-    const roadmap = fs.readFileSync(path.join(tmpDir, '.planning', 'ROADMAP.md'), 'utf-8');
-    assert.ok(roadmap.includes('Objective 01.1: Fix Critical Bug (INSERTED)'), 'roadmap should include inserted objective');
-  });
-
-  test('increments decimal when siblings exist', () => {
-    fs.writeFileSync(
-      path.join(tmpDir, '.planning', 'ROADMAP.md'),
-      `# Roadmap
-
-### Objective 1: Foundation
-**Goal:** Setup
-
-### Objective 2: API
-**Goal:** Build API
-`
-    );
-    fs.mkdirSync(path.join(tmpDir, '.planning', 'objectives', '01-foundation'), { recursive: true });
-    fs.mkdirSync(path.join(tmpDir, '.planning', 'objectives', '01.1-hotfix'), { recursive: true });
-
-    const result = runGsdTools('objective insert 1 Another Fix', tmpDir);
-    assert.ok(result.success, `Command failed: ${result.error}`);
-
-    const output = JSON.parse(result.output);
-    assert.strictEqual(output.objective_number, '01.2', 'should be 01.2');
-  });
-
-  test('rejects missing objective', () => {
-    fs.writeFileSync(
-      path.join(tmpDir, '.planning', 'ROADMAP.md'),
-      `# Roadmap\n### Objective 1: Test\n**Goal:** Test\n`
-    );
-
-    const result = runGsdTools('objective insert 99 Fix Something', tmpDir);
-    assert.ok(!result.success, 'should fail for missing objective');
-    assert.ok(result.error.includes('not found'), 'error mentions not found');
-  });
-
-  test('handles padding mismatch between input and roadmap', () => {
-    fs.writeFileSync(
-      path.join(tmpDir, '.planning', 'ROADMAP.md'),
-      `# Roadmap
-
-## Objective 09.05: Existing Decimal Phase
-**Goal:** Test padding
-
-## Objective 09.1: Next Phase
-**Goal:** Test
-`
-    );
-    fs.mkdirSync(path.join(tmpDir, '.planning', 'objectives', '09.05-existing'), { recursive: true });
-
-    // Pass unpadded "9.05" but roadmap has "09.05"
-    const result = runGsdTools('objective insert 9.05 Padding Test', tmpDir);
-    assert.ok(result.success, `Command failed: ${result.error}`);
-
-    const output = JSON.parse(result.output);
-    assert.strictEqual(output.after_objective, '9.05');
-
-    const roadmap = fs.readFileSync(path.join(tmpDir, '.planning', 'ROADMAP.md'), 'utf-8');
-    assert.ok(roadmap.includes('(INSERTED)'), 'roadmap should include inserted objective');
-  });
-
-  test('handles #### heading depth from multi-milestone roadmaps', () => {
-    fs.writeFileSync(
-      path.join(tmpDir, '.planning', 'ROADMAP.md'),
-      `# Roadmap
-
-### v1.1 Milestone
-
-#### Objective 5: Feature Work
-**Goal:** Build features
-
-#### Objective 6: Polish
-**Goal:** Polish
-`
-    );
-    fs.mkdirSync(path.join(tmpDir, '.planning', 'objectives', '05-feature-work'), { recursive: true });
-
-    const result = runGsdTools('objective insert 5 Hotfix', tmpDir);
-    assert.ok(result.success, `Command failed: ${result.error}`);
-
-    const output = JSON.parse(result.output);
-    assert.strictEqual(output.objective_number, '05.1');
-
-    const roadmap = fs.readFileSync(path.join(tmpDir, '.planning', 'ROADMAP.md'), 'utf-8');
-    assert.ok(roadmap.includes('Objective 05.1: Hotfix (INSERTED)'), 'roadmap should include inserted objective');
+    assert.ok(output.error.includes('deprecated'), 'error field mentions deprecated');
+    assert.strictEqual(output.removed_in, '12-06', 'removed_in field set to 12-06');
   });
 });
 
@@ -1619,7 +1468,10 @@ describe('objective remove command', () => {
     assert.ok(forceResult.success, `Force remove failed: ${forceResult.error}`);
   });
 
-  test('removes decimal objective and renumbers siblings', () => {
+  test('removes decimal objective directory without decimal sibling renumber (I2 drop — TRD 12-06)', () => {
+    // Decimal sibling renumbering was removed in TRD 12-06 (I2 survey: 0% usage).
+    // Removing a decimal objective now just deletes the target directory;
+    // remaining sibling decimals are NOT renumbered.
     fs.writeFileSync(
       path.join(tmpDir, '.planning', 'ROADMAP.md'),
       `# Roadmap\n### Objective 6: Main\n**Goal:** Main\n### Objective 6.1: Fix A\n**Goal:** Fix A\n### Objective 6.2: Fix B\n**Goal:** Fix B\n### Objective 6.3: Fix C\n**Goal:** Fix C\n`
@@ -1633,14 +1485,15 @@ describe('objective remove command', () => {
     const result = runGsdTools('objective remove 6.2', tmpDir);
     assert.ok(result.success, `Command failed: ${result.error}`);
 
-    // 06.3 should become 06.2
+    // 06.2 directory is deleted
     assert.ok(
-      fs.existsSync(path.join(tmpDir, '.planning', 'objectives', '06.2-fix-c')),
-      '06.3 should be renumbered to 06.2'
+      !fs.existsSync(path.join(tmpDir, '.planning', 'objectives', '06.2-fix-b')),
+      '06.2 directory should be deleted'
     );
+    // 06.3 stays as 06.3 (no sibling renumbering anymore)
     assert.ok(
-      !fs.existsSync(path.join(tmpDir, '.planning', 'objectives', '06.3-fix-c')),
-      'old 06.3 should not exist'
+      fs.existsSync(path.join(tmpDir, '.planning', 'objectives', '06.3-fix-c')),
+      '06.3 should remain unchanged (no sibling renumber)'
     );
   });
 

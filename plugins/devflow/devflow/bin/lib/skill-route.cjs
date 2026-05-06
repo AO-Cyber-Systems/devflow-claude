@@ -21,12 +21,12 @@ function _resetMocks() { _runFs = realFs; }
 // Only `objective` populated in TRD 12-01; 12-02/03/04 add the rest.
 
 const SKILL_ROUTES = {
+  // Note: 'insert' subcommand removed in TRD 12-06 (I2 survey: 0% decimal usage across 16 projects).
   objective: {
-    subcommands: ['add', 'insert', 'remove'],
+    subcommands: ['add', 'remove'],
     workflow_for(subcommand) {
       const map = {
         add: '~/.claude/devflow/workflows/add-objective.md',
-        insert: '~/.claude/devflow/workflows/insert-objective.md',
         remove: '~/.claude/devflow/workflows/remove-objective.md',
       };
       return map[subcommand] || null;
@@ -39,7 +39,9 @@ const SKILL_ROUTES = {
 
 const DEPRECATION_MAP = {
   'add-objective': 'objective add',
-  'insert-objective': 'objective insert',
+  // insert-objective: deprecated in TRD 12-06 (decimal objectives dropped, I2 survey: 0% usage).
+  // Redirects to objective add as the functional equivalent for urgent work.
+  'insert-objective': 'objective add',
   'remove-objective': 'objective remove',
 };
 
