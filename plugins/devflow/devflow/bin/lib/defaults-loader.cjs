@@ -107,7 +107,7 @@ const { output } = require('./helpers.cjs');
  * Copies the bundled defaults-table.md to org or project location.
  * scope: 'org' | 'project'
  */
-function scaffoldDefaultsTable({ scope, force = false, cwd = process.cwd(), userHome = null }) {
+function scaffoldDefaultsTable({ scope, force = false, dryRun = false, cwd = process.cwd(), userHome = null }) {
   if (!['org', 'project'].includes(scope)) {
     return { ok: false, error: `Invalid scope: ${scope}. Use --scope=org or --scope=project.` };
   }
@@ -128,6 +128,17 @@ function scaffoldDefaultsTable({ scope, force = false, cwd = process.cwd(), user
     return {
       ok: false,
       error: `${target} already exists. Use --force to overwrite (existing file will be backed up to .bak.<timestamp>).`,
+    };
+  }
+
+  if (dryRun) {
+    const wouldBackup = fs.existsSync(target) && force;
+    return {
+      ok: true,
+      dry_run: true,
+      target_path: target,
+      action: wouldBackup ? 'would_overwrite' : 'would_create',
+      backup: null,
     };
   }
 
@@ -161,16 +172,18 @@ function cmdDefaultsTableInit(cwd, args, raw) {
   const scopeFlag = args.find((a) => a.startsWith('--scope='));
   const scope = scopeFlag ? scopeFlag.split('=')[1] : null;
   const force = args.includes('--force');
+  const dryRun = args.includes('--dry-run');
   const help = args.includes('--help') || args.includes('-h');
 
   if (help) {
     process.stdout.write(
-      'Usage: df-tools defaults-table init --scope=org|project [--force]\n' +
+      'Usage: df-tools defaults-table init --scope=org|project [--force] [--dry-run]\n' +
       '  Scaffold an editable copy of the (kind, work) defaults table.\n' +
       '\n' +
       '  --scope=org      Write to ~/.claude/devflow/defaults-table.md (org-level overrides)\n' +
       '  --scope=project  Write to .planning/defaults-table.md (project-level overrides)\n' +
-      '  --force          Overwrite existing file (backed up to .bak.<timestamp>)\n'
+      '  --force          Overwrite existing file (backed up to .bak.<timestamp>)\n' +
+      '  --dry-run        Report what would happen without writing\n'
     );
     return;
   }
@@ -181,17 +194,18 @@ function cmdDefaultsTableInit(cwd, args, raw) {
     return;
   }
 
-  const result = scaffoldDefaultsTable({ scope, force, cwd });
+  const result = scaffoldDefaultsTable({ scope, force, dryRun, cwd });
   if (!result.ok) {
     output(result, raw, result.error || '');
     process.exit(1);
     return;
   }
 
+  const verb = result.dry_run ? 'Would write' : 'Wrote';
   output(
     result,
     raw,
-    `Wrote ${result.target_path} (action: ${result.action})${result.backup ? ` — backup at ${result.backup}` : ''}`
+    `${verb} ${result.target_path} (action: ${result.action})${result.backup ? ` — backup at ${result.backup}` : ''}`
   );
 }
 

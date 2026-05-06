@@ -321,5 +321,38 @@ describe('scaffoldDefaultsTable + cmdDefaultsTableInit (CLI)', () => {
     }
     assert.match(captured, /Usage:/);
     assert.match(captured, /--scope/);
+    assert.match(captured, /--dry-run/);
+  });
+
+  test('C8: --dry-run reports would_create without writing file', () => {
+    const project = fx.buildTempProjectWithDefaults({});
+    try {
+      const r = loader.scaffoldDefaultsTable({ scope: 'project', dryRun: true, cwd: project.root, userHome: project.userHome });
+      assert.strictEqual(r.ok, true);
+      assert.strictEqual(r.dry_run, true);
+      assert.strictEqual(r.action, 'would_create');
+      // Verify file was NOT created
+      const fs = require('fs');
+      const path = require('path');
+      assert.strictEqual(fs.existsSync(path.join(project.root, '.planning', 'defaults-table.md')), false);
+    } finally { project.cleanup(); }
+  });
+
+  test('C9: --dry-run with existing file + --force reports would_overwrite without writing', () => {
+    const project = fx.buildTempProjectWithDefaults({});
+    try {
+      // Pre-create file
+      const fs = require('fs');
+      const path = require('path');
+      const target = path.join(project.root, '.planning', 'defaults-table.md');
+      fs.writeFileSync(target, 'existing content', 'utf-8');
+
+      const r = loader.scaffoldDefaultsTable({ scope: 'project', force: true, dryRun: true, cwd: project.root, userHome: project.userHome });
+      assert.strictEqual(r.ok, true);
+      assert.strictEqual(r.dry_run, true);
+      assert.strictEqual(r.action, 'would_overwrite');
+      // Verify file was NOT modified
+      assert.strictEqual(fs.readFileSync(target, 'utf-8'), 'existing content');
+    } finally { project.cleanup(); }
   });
 });
