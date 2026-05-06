@@ -288,6 +288,224 @@ function buildPidFileFixture(opts = {}) {
 }
 
 // ---------------------------------------------------------------------------
+// 20-04: Status-line watcher segment
+// ---------------------------------------------------------------------------
+
+// __dirname is .../plugins/devflow/devflow/bin/lib/__fixtures__/
+// statusline.js is at .../plugins/devflow/hooks/statusline.js
+// so we go up 4 levels (__fixtures__ → lib → bin → devflow) and then
+// down into hooks/.
+const STATUSLINE_HOOK_PATH = path.resolve(
+  __dirname, '..', '..', '..', '..', 'hooks', 'statusline.js',
+);
+
+const WATCHER_STATE_SOURCE_PATH = path.resolve(__dirname, '..', 'watcher-state.cjs');
+
+/**
+ * Build a Claude-style statusline input JSON. All fields optional with sane
+ * defaults; pass overrides as needed.
+ *
+ * @param {object} opts
+ * @param {string} [opts.workspace_dir] — data.workspace.current_dir
+ * @param {string} [opts.model_name]    — data.model.display_name
+ * @param {string} [opts.session_id]    — data.session_id
+ * @param {number} [opts.remaining_pct] — data.context_window.remaining_percentage
+ * @returns {string} JSON string suitable for stdin of statusline.js
+ */
+function buildStatuslineInput(opts = {}) {
+  const payload = {
+    model: { display_name: opts.model_name || 'Sonnet 4.5' },
+    workspace: { current_dir: opts.workspace_dir || '/tmp/sl-test-project' },
+    session_id: opts.session_id || 'sl-test-session',
+    context_window: {
+      remaining_percentage:
+        opts.remaining_pct == null ? 70 : opts.remaining_pct,
+    },
+  };
+  return JSON.stringify(payload);
+}
+
+/**
+ * Build a complete env for spawning statusline.js as a subprocess. Sets up:
+ * - tmpHome with optional .devflow/devflow-watch.pid (alive vs stale vs absent)
+ * - tmpHome/.claude/devflow/bin/lib/watcher-state.cjs (copy from real source)
+ *   so statusline.js can require it without depending on plugin sync state
+ * - projectDir/.planning/config.json with the requested daemon block
+ * - projectDir's per-project .devflow-handoff/pending/<id>.json fixtures
+ *   matching the requested counts in pendingByProject
+ *
+ * Pass `daemonAlive: true` to use the test-runner's own PID (always live)
+ * or `daemonAlive: false` to write a clearly-dead high-range PID (999999).
+ * Pass `daemonAlive: 'absent'` to skip writing the PID file entirely.
+ * Pass `installWatcherStateLib: false` to simulate devflow-not-synced edge case.
+ *
+ * @param {object} opts
+ * @param {string} opts.tmpHome              — directory to act as $HOME
+ * @param {string} opts.projectDir           — directory to act as workspace
+ * @param {boolean|'absent'} [opts.daemonAlive=true]  — PID liveness shape
+ * @param {string[]} [opts.watching=[]]      — project paths in PID watching: []
+ * @param {object} [opts.pendingByProject={}] — { [projRoot]: count }
+ * @param {object|null} [opts.configContent=null] — full config.json content
+ *   (when null, no config file is written)
+ * @param {boolean} [opts.installWatcherStateLib=true] — copy watcher-state.cjs
+ *   into tmpHome/.claude/devflow/bin/lib/
+ * @param {boolean} [opts.malformedConfig=false] — write garbage instead of JSON
+ * @param {boolean} [opts.malformedPidFile=false] — write garbage instead of JSON
+ * @returns {object} {home, projectDir, env, cleanup}
+ */
+function buildStatuslineEnv(opts = {}) {
+  const {
+    tmpHome,
+    projectDir,
+    daemonAlive = true,
+    watching = [],
+    pendingByProject = {},
+    configContent = null,
+    installWatcherStateLib = true,
+    malformedConfig = false,
+    malformedPidFile = false,
+  } = opts;
+
+  if (!tmpHome) throw new Error('buildStatuslineEnv: tmpHome required');
+  if (!projectDir) throw new Error('buildStatuslineEnv: projectDir required');
+
+  // Ensure base dirs exist.
+  fs.mkdirSync(tmpHome, { recursive: true });
+  fs.mkdirSync(projectDir, { recursive: true });
+
+  // 1. Install watcher-state.cjs at synced runtime path (mirrors plugin sync).
+  if (installWatcherStateLib) {
+    const libDir = path.join(tmpHome, '.claude', 'devflow', 'bin', 'lib');
+    fs.mkdirSync(libDir, { recursive: true });
+    fs.copyFileSync(
+      WATCHER_STATE_SOURCE_PATH,
+      path.join(libDir, 'watcher-state.cjs'),
+    );
+  }
+
+  // 2. Write PID file (alive / dead / absent).
+  if (daemonAlive !== 'absent') {
+    const pidFile = path.join(tmpHome, '.devflow', 'devflow-watch.pid');
+    fs.mkdirSync(path.dirname(pidFile), { recursive: true });
+    if (malformedPidFile) {
+      fs.writeFileSync(pidFile, '{not valid json');
+    } else {
+      const pid = daemonAlive === true ? process.pid : 999999;
+      const payload = {
+        pid,
+        version: '0.1.0',
+        shell: 'bash',
+        watching,
+        started_at: new Date().toISOString(),
+      };
+      fs.writeFileSync(pidFile, JSON.stringify(payload, null, 2) + '\n');
+    }
+  }
+
+  // 3. Write project-local .planning/config.json.
+  if (configContent !== null) {
+    const planningDir = path.join(projectDir, '.planning');
+    fs.mkdirSync(planningDir, { recursive: true });
+    const configPath = path.join(planningDir, 'config.json');
+    if (malformedConfig) {
+      fs.writeFileSync(configPath, '{not valid json');
+    } else {
+      fs.writeFileSync(configPath, JSON.stringify(configContent, null, 2));
+    }
+  }
+
+  // 4. Populate per-project pending dirs with fixture records.
+  for (const [projRoot, count] of Object.entries(pendingByProject)) {
+    if (count === 'EACCES_MARKER') {
+      // Special sentinel: create dir but make it unreadable for F-2 test.
+      // We can't reliably chmod 0 on macOS+root contexts; use a non-dir
+      // file at the expected dir path instead — readdirSync throws ENOTDIR
+      // which is also an exception statusline must swallow.
+      fs.mkdirSync(path.join(projRoot, '.devflow-handoff'), { recursive: true });
+      fs.writeFileSync(
+        path.join(projRoot, '.devflow-handoff', 'pending'),
+        'not-a-directory',
+      );
+      continue;
+    }
+    if (count === 'MISSING') continue; // intentionally don't create dir
+    const pendDir = path.join(projRoot, '.devflow-handoff', 'pending');
+    fs.mkdirSync(pendDir, { recursive: true });
+    for (let i = 0; i < count; i++) {
+      const id = `sl-pend-${path.basename(projRoot)}-${i}`;
+      const rec = {
+        id,
+        cmd: `echo pending-${i}`,
+        cwd: projRoot,
+        created_at: new Date(Date.now() + i).toISOString(),
+        status: 'pending',
+      };
+      fs.writeFileSync(path.join(pendDir, `${id}.json`), JSON.stringify(rec, null, 2));
+    }
+  }
+
+  // 5. Build subprocess env (override HOME so statusline reads from tmpHome).
+  const env = {
+    ...process.env,
+    HOME: tmpHome,
+    // Drop DEVFLOW_HANDOFF_PID_FILE override so watcher-state uses HOME-based
+    // path resolution (tests sometimes run with this env var set).
+  };
+  delete env.DEVFLOW_HANDOFF_PID_FILE;
+
+  return {
+    home: tmpHome,
+    projectDir,
+    env,
+    cleanup() {
+      // Caller is expected to rmSync the parent tmp dir; this is a no-op
+      // placeholder for symmetry with other fixture builders.
+    },
+  };
+}
+
+/**
+ * Run statusline.js as a subprocess with the given JSON stdin and env.
+ * Returns { stdout, stderr, status, signal }.
+ *
+ * @param {object} opts
+ * @param {string} opts.input — JSON string to pipe to stdin
+ * @param {object} opts.env   — env vars (must include HOME override)
+ * @param {string} [opts.cwd] — subprocess cwd (default: tmpdir)
+ */
+function runStatuslineSubprocess(opts = {}) {
+  const { input, env, cwd = os.tmpdir() } = opts;
+  if (!fs.existsSync(STATUSLINE_HOOK_PATH)) {
+    throw new Error(`statusline.js not found at ${STATUSLINE_HOOK_PATH}`);
+  }
+  const result = spawnSync(process.execPath, [STATUSLINE_HOOK_PATH], {
+    input,
+    encoding: 'utf8',
+    env,
+    cwd,
+    timeout: 5000,
+  });
+  return {
+    stdout: result.stdout || '',
+    stderr: result.stderr || '',
+    status: result.status,
+    signal: result.signal,
+  };
+}
+
+/**
+ * Strip ANSI escape codes from a string. Used for assertion convenience —
+ * tests assert against visible substrings (e.g. `⏸ 3 pending`) rather than
+ * against full ANSI sequences.
+ */
+function stripAnsi(s) {
+  if (typeof s !== 'string') return '';
+  // Matches CSI + SGR sequences — the only ANSI we emit in statusline.
+  // eslint-disable-next-line no-control-regex
+  return s.replace(/\x1b\[[0-9;]*m/g, '');
+}
+
+// ---------------------------------------------------------------------------
 // 20-05: Cross-shell
 // ---------------------------------------------------------------------------
 
@@ -322,6 +540,12 @@ module.exports = {
   // 20-03
   buildMultiProjectFixture,
   buildPidFileFixture,
+  // 20-04
+  buildStatuslineInput,
+  buildStatuslineEnv,
+  runStatuslineSubprocess,
+  stripAnsi,
+  STATUSLINE_HOOK_PATH,
   // 20-05
   shellAvailable,
 };
