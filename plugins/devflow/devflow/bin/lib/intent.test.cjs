@@ -889,3 +889,211 @@ describe('new fields — back-compat', () => {
     assert.ok(Array.isArray(result.constraints), 'top-level constraints must be array');
   });
 });
+
+// =============================================================================
+// TRD 21-05 — cell_provenance (per-cell defaults-table tier origin)
+// =============================================================================
+//
+// describe('cell_provenance', P group):
+//   P1: bundled-only environment → all 10 fields per cell report 'bundled_table'
+//   P2: org override on (api, feature, tdd) → cell_provenance.tdd = 'org_table'; other 9 fields = 'bundled_table'
+//   P3: project override on (api, feature, depth) → cell_provenance.depth = 'project_table'; other 9 fields = 'bundled_table'
+//   P4: project + org overrides on different fields → each field reports its supplying tier
+//   P5: TRD frontmatter type:tdd overrides effective value → provenance.tdd = 'trd_override' BUT cell_provenance.tdd still reports the table tier
+//   P6: OBJECTIVE.md overrides.tdd → provenance.tdd = 'objective_override' BUT cell_provenance.tdd still reports table tier
+//   P7: explicit tablePath (test-only path) → cell_provenance for all fields = 'table_explicit'
+//   P8: cell_provenance always has all ALL_FIELDS keys (10 entries)
+
+describe('cell_provenance (TRD 21-05)', () => {
+  const fxDefaults = require('./__fixtures__/defaults-table-fixtures.cjs');
+  let project;
+  afterEach(() => {
+    if (project) { try { project.cleanup(); } catch (_) {} }
+    project = null;
+    intent._resetCache();
+  });
+
+  test('P1: bundled-only environment → all 10 fields per cell report bundled_table', () => {
+    project = fixtures.buildProject({
+      projectFrontmatter: { kind: 'api' },
+      objectives: [{ id: '01-foo', work: 'feature' }],
+    });
+    const result = intent.resolve({
+      projectRoot: project.root,
+      objectiveId: '01-foo',
+      userHome: '/nonexistent',
+    });
+    assert.ok(result.cell_provenance, 'cell_provenance must be present');
+    // No org/project files exist → all entries should be bundled_table
+    for (const f of ['tdd', 'depth', 'model_profile', 'verification', 'security_isolation', 'back_compat', 'tdd_default', 'test_list_first', 'fixture_strategy', 'outside_in']) {
+      assert.strictEqual(result.cell_provenance[f], 'bundled_table', `cell_provenance.${f} should be bundled_table`);
+    }
+  });
+
+  test('P2: org override on (api, feature, tdd) → cell_provenance.tdd = org_table', () => {
+    project = fixtures.buildProject({
+      projectFrontmatter: { kind: 'api' },
+      objectives: [{ id: '01-foo', work: 'feature' }],
+    });
+    // Write an org-tier defaults table override
+    const userHome = path.join(project.root, '.user-home-stub');
+    fs.mkdirSync(path.join(userHome, '.claude', 'devflow'), { recursive: true });
+    fs.writeFileSync(
+      path.join(userHome, '.claude', 'devflow', 'defaults-table.md'),
+      fxDefaults.buildPartialDefaultsTable({ cells: { 'api.feature': { tdd: 'org-override-tdd' } } }),
+      'utf-8'
+    );
+
+    const result = intent.resolve({
+      projectRoot: project.root,
+      objectiveId: '01-foo',
+      userHome,
+    });
+
+    assert.strictEqual(result.cell_provenance.tdd, 'org_table');
+    // Other fields should still be bundled_table
+    for (const f of ['depth', 'model_profile', 'verification']) {
+      assert.strictEqual(result.cell_provenance[f], 'bundled_table', `${f} should be bundled_table`);
+    }
+  });
+
+  test('P3: project override on (api, feature, depth) → cell_provenance.depth = project_table', () => {
+    project = fixtures.buildProject({
+      projectFrontmatter: { kind: 'api' },
+      objectives: [{ id: '01-foo', work: 'feature' }],
+    });
+    fs.writeFileSync(
+      path.join(project.root, '.planning', 'defaults-table.md'),
+      fxDefaults.buildPartialDefaultsTable({ cells: { 'api.feature': { depth: 'project-depth-override' } } }),
+      'utf-8'
+    );
+
+    const result = intent.resolve({
+      projectRoot: project.root,
+      objectiveId: '01-foo',
+      userHome: '/nonexistent',
+    });
+
+    assert.strictEqual(result.cell_provenance.depth, 'project_table');
+    assert.strictEqual(result.cell_provenance.tdd, 'bundled_table');
+  });
+
+  test('P4: project + org overrides on different fields → each reports its tier', () => {
+    project = fixtures.buildProject({
+      projectFrontmatter: { kind: 'api' },
+      objectives: [{ id: '01-foo', work: 'feature' }],
+    });
+    const userHome = path.join(project.root, '.user-home-stub');
+    fs.mkdirSync(path.join(userHome, '.claude', 'devflow'), { recursive: true });
+    fs.writeFileSync(
+      path.join(userHome, '.claude', 'devflow', 'defaults-table.md'),
+      fxDefaults.buildPartialDefaultsTable({ cells: { 'api.feature': { tdd: 'org-tdd' } } }),
+      'utf-8'
+    );
+    fs.writeFileSync(
+      path.join(project.root, '.planning', 'defaults-table.md'),
+      fxDefaults.buildPartialDefaultsTable({ cells: { 'api.feature': { depth: 'project-depth' } } }),
+      'utf-8'
+    );
+
+    const result = intent.resolve({
+      projectRoot: project.root,
+      objectiveId: '01-foo',
+      userHome,
+    });
+
+    assert.strictEqual(result.cell_provenance.tdd, 'org_table');
+    assert.strictEqual(result.cell_provenance.depth, 'project_table');
+    assert.strictEqual(result.cell_provenance.model_profile, 'bundled_table');
+  });
+
+  test('P5: TRD type:tdd overrides effective tdd value but cell_provenance.tdd still reports table tier', () => {
+    project = fixtures.buildProject({
+      projectFrontmatter: { kind: 'api' },
+      objectives: [{ id: '01-foo', work: 'feature' }],
+    });
+    // Project-tier override of tdd
+    fs.writeFileSync(
+      path.join(project.root, '.planning', 'defaults-table.md'),
+      fxDefaults.buildPartialDefaultsTable({ cells: { 'api.feature': { tdd: 'project-tdd' } } }),
+      'utf-8'
+    );
+
+    // TRD frontmatter that triggers type:tdd override path
+    const trdPath = path.join(project.root, '.planning', 'objectives', '01-foo', '01-01-TRD.md');
+    fs.writeFileSync(trdPath, fixtures.trdMd({ type: 'tdd' }), 'utf-8');
+
+    const result = intent.resolve({
+      projectRoot: project.root,
+      objectiveId: '01-foo',
+      trdPath,
+      userHome: '/nonexistent',
+    });
+
+    // Effective provenance shows TRD override
+    assert.strictEqual(result.provenance.tdd, 'trd_override');
+    // But cell_provenance still reports the table tier that WOULD have supplied the value
+    assert.strictEqual(result.cell_provenance.tdd, 'project_table');
+  });
+
+  test('P6: OBJECTIVE.md overrides.tdd → provenance trd_override-style but cell_provenance still reports tier', () => {
+    project = fixtures.buildProject({
+      projectFrontmatter: { kind: 'api' },
+      objectives: [{ id: '01-foo', work: 'feature', overrides: { tdd: 'obj-override-tdd' } }],
+    });
+
+    const result = intent.resolve({
+      projectRoot: project.root,
+      objectiveId: '01-foo',
+      userHome: '/nonexistent',
+    });
+
+    assert.strictEqual(result.provenance.tdd, 'objective_override');
+    // cell_provenance should still report the table tier (bundled, since no overrides)
+    assert.strictEqual(result.cell_provenance.tdd, 'bundled_table');
+  });
+
+  test('P7: explicit tablePath (test path) → cell_provenance for all fields = table_explicit', () => {
+    project = fixtures.buildProject({
+      projectFrontmatter: { kind: 'api' },
+      objectives: [{ id: '01-foo', work: 'feature' }],
+    });
+    // Write a fixture single-file table outside the bundled path
+    const tmpDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'df-tabexpl-'));
+    const tablePath = path.join(tmpDir, 'fixture-table.md');
+    fs.writeFileSync(tablePath, fxDefaults.buildPartialDefaultsTable({
+      cells: { 'api.feature': { tdd: 'fx', depth: 'fx', model_profile: 'fx', verification: 'fx', security_isolation: 'fx', back_compat: 'fx', tdd_default: 'fx', test_list_first: 'fx', fixture_strategy: 'fx', outside_in: 'true' } },
+    }), 'utf-8');
+
+    try {
+      const result = intent.resolve({
+        projectRoot: project.root,
+        objectiveId: '01-foo',
+        userHome: '/nonexistent',
+        tablePath,
+      });
+      for (const f of ['tdd', 'depth', 'model_profile', 'verification', 'security_isolation', 'back_compat', 'tdd_default', 'test_list_first', 'fixture_strategy', 'outside_in']) {
+        assert.strictEqual(result.cell_provenance[f], 'table_explicit', `${f} should be table_explicit`);
+      }
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  test('P8: cell_provenance always has all 10 ALL_FIELDS keys', () => {
+    project = fixtures.buildProject({
+      projectFrontmatter: { kind: 'api' },
+      objectives: [{ id: '01-foo', work: 'feature' }],
+    });
+    const result = intent.resolve({
+      projectRoot: project.root,
+      objectiveId: '01-foo',
+      userHome: '/nonexistent',
+    });
+    const expectedFields = ['tdd', 'depth', 'model_profile', 'verification', 'security_isolation', 'back_compat', 'tdd_default', 'test_list_first', 'fixture_strategy', 'outside_in'];
+    for (const f of expectedFields) {
+      assert.ok(f in result.cell_provenance, `cell_provenance missing field: ${f}`);
+    }
+    assert.strictEqual(Object.keys(result.cell_provenance).length, expectedFields.length);
+  });
+});
