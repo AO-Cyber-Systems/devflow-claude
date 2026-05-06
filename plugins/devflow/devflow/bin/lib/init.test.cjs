@@ -337,3 +337,281 @@ test('I5: existing fields preserved — planner_model and objective_dir still pr
     );
   } finally { p.cleanup(); }
 });
+
+// ─── Group 22A: TRD 22-01 — --branch flag + missing-state error ───────────────
+//
+// TEST LIST (TDD Playbook habit 2 — documented before test code written):
+//
+// 22A1  — _resolveBranch([])                                        → { mode: 'working_tree', branch: null }
+// 22A2  — _resolveBranch(['--branch', 'current'])                   → { mode: 'working_tree', branch: null }   (alias)
+// 22A3  — _resolveBranch(['--branch', 'HEAD'])                      → { mode: 'working_tree', branch: null }   (alias, G3)
+// 22A4  — _resolveBranch(['--branch', 'feature/foo']) + mock ok     → { mode: 'git_show', branch: 'feature/foo' }
+// 22A5  — _resolveBranch(['--branch', 'does-not-exist']) + mock !ok → process.exit(1) with stderr "does not exist"
+// 22A6  — _readStateBranch(cwd, working_tree) → reads STATE.md from cwd (back-compat)
+// 22A7  — _readStateBranch(cwd, working_tree) missing STATE.md      → process.exit(1) with stderr "STATE.md not found"
+// 22A8  — _readStateBranch(cwd, git_show) + mock ok                 → returns STATE.md content from mock
+// 22A9  — _readStateBranch(cwd, git_show) + mock !ok                → process.exit(1) with stderr "STATE.md not found on branch"
+// 22A10 — runInit('init plan-objective 1', cwd_with_state)          → { objective_found: true } (working_tree default)
+// 22A11 — runInit('init plan-objective 1 --branch=current', cwd)    → identical shape to 22A10 (alias parity)
+// 22A12 — runInit('init plan-objective 1 --branch=does-not-exist')  → exits non-zero with stderr "does not exist"
+// 22A13 — runInit('init execute-objective 1 --branch=current')      → ok (sanity 1 of 4)
+// 22A14 — runInit('init verify-work 1 --branch=current')            → ok (sanity 2 of 4)
+// 22A15 — runInit('init objective-op 1 --branch=current')           → ok (sanity 3 of 4)
+// 22A16 — runInit('init progress --branch=current')                 → ok (sanity 4 of 4 — non-objective-scoped)
+// 22A17 — _buildBranchMismatchNote('master', { mode: 'git_show', branch: 'feature/x' }) → contains 'master' and 'feature/x'
+// 22A18 — _buildBranchMismatchNote('master', { mode: 'working_tree', branch: null })   → null
+// 22A19 — _buildBranchMismatchNote('master', { mode: 'git_show', branch: 'master' })   → null (same)
+//
+// Notes:
+// - 22A1-22A9 + 22A17-22A19 are unit tests via direct require() — fast, hermetic.
+// - 22A10-22A16 are subprocess tests via runInit (working_tree mode only — no git mocks).
+// - 22A12 (does-not-exist) hits real git on the test fixture; in a fixture without a git
+//   repo, 'rev-parse --verify' fails naturally → expected error message.
+
+const initMod = require('./init.cjs');
+const {
+  _resolveBranch,
+  _readStateBranch,
+  _buildBranchMismatchNote,
+  _setRunGit,
+  _resetGitMock,
+} = initMod;
+
+/**
+ * Build a project fixture WITH STATE.md (extends buildProject for new
+ * strict-missing-state behavior introduced by TRD 22-01).
+ */
+function buildProjectWithState() {
+  const p = buildProject();
+  fs.writeFileSync(path.join(p.cwd, '.planning', 'STATE.md'), '# State\n\n**Current Objective:** 01\n');
+  return p;
+}
+
+/**
+ * Build a project fixture WITHOUT STATE.md (for missing-state error tests).
+ */
+function buildProjectWithoutState() {
+  // Same as buildProject — that helper already does NOT write STATE.md
+  return buildProject();
+}
+
+test('22A1 — _resolveBranch([]) returns working_tree default', () => {
+  assert.ok(_resolveBranch, '_resolveBranch must be exported from init.cjs');
+  const r = _resolveBranch([], '/tmp');
+  assert.deepStrictEqual(r, { mode: 'working_tree', branch: null });
+});
+
+test("22A2 — _resolveBranch(['--branch','current']) returns working_tree (alias)", () => {
+  const r = _resolveBranch(['--branch', 'current'], '/tmp');
+  assert.deepStrictEqual(r, { mode: 'working_tree', branch: null });
+});
+
+test("22A3 — _resolveBranch(['--branch','HEAD']) returns working_tree (alias, G3)", () => {
+  const r = _resolveBranch(['--branch', 'HEAD'], '/tmp');
+  assert.deepStrictEqual(r, { mode: 'working_tree', branch: null });
+});
+
+test("22A4 — _resolveBranch(['--branch','feature/foo']) + mock ok returns git_show", () => {
+  _setRunGit((args) => {
+    if (args[0] === 'rev-parse' && args.includes('feature/foo')) {
+      return { ok: true, status: 0, stdout: 'abc1234\n', stderr: '' };
+    }
+    return { ok: false, status: 128, stdout: '', stderr: 'unknown call' };
+  });
+  try {
+    const r = _resolveBranch(['--branch', 'feature/foo'], '/tmp');
+    assert.deepStrictEqual(r, { mode: 'git_show', branch: 'feature/foo' });
+  } finally { _resetGitMock(); }
+});
+
+test("22A5 — _resolveBranch(['--branch','does-not-exist']) + mock !ok exits 1 with hint", () => {
+  // Verify via subprocess (the in-process path calls error() which exits)
+  const p = buildProjectWithState();
+  try {
+    let threw = false;
+    let stderr = '';
+    try {
+      execSync(`node "${DF_TOOLS}" init plan-objective 1 --branch=does-not-exist-${Date.now()}`, {
+        cwd: p.cwd,
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+    } catch (e) {
+      threw = true;
+      stderr = e.stderr || '';
+    }
+    assert.ok(threw, 'expected non-zero exit for missing branch');
+    assert.ok(/does not exist/i.test(stderr), `expected stderr to mention "does not exist", got: ${stderr}`);
+  } finally { p.cleanup(); }
+});
+
+test('22A6 — _readStateBranch(cwd, working_tree) reads STATE.md (back-compat)', () => {
+  assert.ok(_readStateBranch, '_readStateBranch must be exported');
+  const p = buildProjectWithState();
+  try {
+    const content = _readStateBranch(p.cwd, { mode: 'working_tree', branch: null });
+    assert.ok(content.includes('Current Objective'), `expected STATE.md content, got: ${content}`);
+  } finally { p.cleanup(); }
+});
+
+test('22A7 — _readStateBranch(cwd, working_tree) missing STATE.md exits 1 with hint', () => {
+  // Subprocess to capture process.exit(1)
+  const p = buildProjectWithoutState();
+  try {
+    let threw = false;
+    let stderr = '';
+    try {
+      execSync(`node "${DF_TOOLS}" init plan-objective 1 --include state`, {
+        cwd: p.cwd,
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+    } catch (e) {
+      threw = true;
+      stderr = e.stderr || '';
+    }
+    assert.ok(threw, 'expected non-zero exit when STATE.md missing and --include state');
+    assert.ok(/STATE\.md not found/i.test(stderr), `expected stderr to mention "STATE.md not found", got: ${stderr}`);
+    assert.ok(/--branch/.test(stderr), `expected stderr to mention "--branch" hint, got: ${stderr}`);
+  } finally { p.cleanup(); }
+});
+
+test('22A8 — _readStateBranch(cwd, git_show) + mock ok returns content', () => {
+  const fakeContent = '# State on feature/x\n\n**Current Objective:** 99\n';
+  _setRunGit((args) => {
+    if (args[0] === 'show' && args[1] && args[1].includes('feature/x:.planning/STATE.md')) {
+      return { ok: true, status: 0, stdout: fakeContent, stderr: '' };
+    }
+    return { ok: false, status: 128, stdout: '', stderr: 'unknown call' };
+  });
+  try {
+    const content = _readStateBranch('/tmp', { mode: 'git_show', branch: 'feature/x' });
+    assert.strictEqual(content, fakeContent);
+  } finally { _resetGitMock(); }
+});
+
+test('22A9 — _readStateBranch(cwd, git_show) + mock !ok exits 1 with branch in message', () => {
+  // Need subprocess because error() calls process.exit. Use --branch with a real branch
+  // from the host repo so resolveBranch passes, then test that the error path triggers
+  // when STATE.md is missing on that branch.
+  // Simpler: use direct in-process call with mock — but error() exits the test process.
+  // We'll wrap the test to assert via try/catch on a child_process spawn that exercises
+  // the error exit path. Use a fixture where rev-parse mock succeeds but show fails —
+  // but we cannot inject mocks across processes. Alternative: test the error path via
+  // a temporary fork that intercepts process.exit. For simplicity: the in-process unit
+  // test is gated by replacing process.exit/process.stderr.write to capture vs. exit.
+  const realExit = process.exit;
+  const realErrWrite = process.stderr.write.bind(process.stderr);
+  let exitCode = null;
+  let stderrBuf = '';
+  process.exit = (code) => { exitCode = code; throw new Error('__test_exit__'); };
+  process.stderr.write = (s) => { stderrBuf += s; return true; };
+  _setRunGit((args) => {
+    if (args[0] === 'show') {
+      return { ok: false, status: 128, stdout: '', stderr: 'fatal: path does not exist' };
+    }
+    return { ok: false, status: 128, stdout: '', stderr: 'unknown' };
+  });
+  try {
+    try {
+      _readStateBranch('/tmp', { mode: 'git_show', branch: 'feature/x' });
+    } catch (e) {
+      if (e.message !== '__test_exit__') throw e;
+    }
+    assert.strictEqual(exitCode, 1, 'expected process.exit(1)');
+    assert.ok(/STATE\.md not found on branch feature\/x/.test(stderrBuf),
+      `expected branch in error message, got: ${stderrBuf}`);
+  } finally {
+    _resetGitMock();
+    process.exit = realExit;
+    process.stderr.write = realErrWrite;
+  }
+});
+
+test('22A10 — runInit("init plan-objective 1", cwd_with_state) returns objective_found:true', () => {
+  const p = buildProjectWithState();
+  try {
+    const json = runInit('init plan-objective 1', p.cwd);
+    assert.strictEqual(json.objective_found, true, `expected objective_found:true, got: ${JSON.stringify(json.objective_found)}`);
+  } finally { p.cleanup(); }
+});
+
+test('22A11 — runInit("init plan-objective 1 --branch=current") matches default', () => {
+  const p = buildProjectWithState();
+  try {
+    const jsonDefault = runInit('init plan-objective 1', p.cwd);
+    const jsonAlias = runInit('init plan-objective 1 --branch=current', p.cwd);
+    assert.strictEqual(jsonAlias.objective_found, jsonDefault.objective_found, 'objective_found parity');
+    assert.strictEqual(jsonAlias.objective_dir, jsonDefault.objective_dir, 'objective_dir parity');
+  } finally { p.cleanup(); }
+});
+
+test('22A12 — runInit("init plan-objective 1 --branch=does-not-exist") exits non-zero', () => {
+  const p = buildProjectWithState();
+  try {
+    let threw = false;
+    let stderr = '';
+    try {
+      execSync(`node "${DF_TOOLS}" init plan-objective 1 --branch=does-not-exist-${Date.now()}`, {
+        cwd: p.cwd,
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+    } catch (e) {
+      threw = true;
+      stderr = e.stderr || '';
+    }
+    assert.ok(threw, 'expected non-zero exit');
+    assert.ok(/does not exist/i.test(stderr), `expected "does not exist" in stderr, got: ${stderr}`);
+  } finally { p.cleanup(); }
+});
+
+test('22A13 — runInit("init execute-objective 1 --branch=current") works (sanity 1/4)', () => {
+  const p = buildProjectWithState();
+  try {
+    const json = runInit('init execute-objective 1 --branch=current', p.cwd);
+    assert.ok(json, 'expected JSON result');
+  } finally { p.cleanup(); }
+});
+
+test('22A14 — runInit("init verify-work 1 --branch=current") works (sanity 2/4)', () => {
+  const p = buildProjectWithState();
+  try {
+    const json = runInit('init verify-work 1 --branch=current', p.cwd);
+    assert.ok(json, 'expected JSON result');
+  } finally { p.cleanup(); }
+});
+
+test('22A15 — runInit("init objective-op 1 --branch=current") works (sanity 3/4)', () => {
+  const p = buildProjectWithState();
+  try {
+    const json = runInit('init objective-op 1 --branch=current', p.cwd);
+    assert.ok(json, 'expected JSON result');
+  } finally { p.cleanup(); }
+});
+
+test('22A16 — runInit("init progress --branch=current") works (sanity 4/4)', () => {
+  const p = buildProjectWithState();
+  try {
+    const json = runInit('init progress --branch=current', p.cwd);
+    assert.ok(json, 'expected JSON result');
+  } finally { p.cleanup(); }
+});
+
+test('22A17 — _buildBranchMismatchNote different branches returns informational note', () => {
+  assert.ok(_buildBranchMismatchNote, '_buildBranchMismatchNote must be exported');
+  const note = _buildBranchMismatchNote('master', { mode: 'git_show', branch: 'feature/x' });
+  assert.ok(typeof note === 'string', `expected string note, got: ${JSON.stringify(note)}`);
+  assert.ok(note.includes('master'), `expected current branch in note, got: ${note}`);
+  assert.ok(note.includes('feature/x'), `expected requested branch in note, got: ${note}`);
+});
+
+test('22A18 — _buildBranchMismatchNote in working_tree mode returns null', () => {
+  const note = _buildBranchMismatchNote('master', { mode: 'working_tree', branch: null });
+  assert.strictEqual(note, null);
+});
+
+test('22A19 — _buildBranchMismatchNote when branches equal returns null', () => {
+  const note = _buildBranchMismatchNote('master', { mode: 'git_show', branch: 'master' });
+  assert.strictEqual(note, null);
+});
