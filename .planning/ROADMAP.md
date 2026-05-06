@@ -564,6 +564,10 @@ Dependency order:
 *Phase 1 — Token efficiency (priority):*
 
 1. **Phase E — Agent-spawn audit** — diagnose general-purpose vs dedicated agent invocations across recent sessions; identify shelf-ware specialized agents; produce remediation table for Phases F/G/H. **Tracks: devflow-claude#30**
+   - **Status:** Planned 2026-05-04 (objective 10 / branch `feature/v1.2-obj-1-agent-audit`)
+   - **TRDs:** 2 plans
+     - [ ] 10-01-audit-and-remediate-TRD.md — Apply 14 switches across 6 workflow files; audit table in 10-RESEARCH.md
+     - [ ] 10-02-convention-doc-TRD.md — Write `docs/agent-spawning-convention.md` codifying the rule
 2. **Phase D — Fix /devflow:build → df-verifier wiring** — quick wiring fix (currently 0/22 verifier spawns from /devflow:build); unblocks Phase F. **Tracks: devflow-claude#29**
 3. **Phase G+I — Skill consolidation 28→14 + drop low-leverage** — `/devflow:objective <add|insert|remove>`, `/devflow:milestone <new|audit|complete|gaps>`, `/devflow:status [--pause|--resume|--check]`, etc. Drops features identified as low-leverage by Phase E. **Tracks: devflow-claude#32 + #34**
 4. **Phase H — Prompt extraction to references/templates** — move duplicated agent-prompt content (debugging methodology, goal-backward methodology, TRD spec) to shared references. ~25-55k tokens saved per `/devflow:build`. **Tracks: devflow-claude#33**
