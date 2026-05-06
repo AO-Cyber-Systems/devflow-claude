@@ -49,12 +49,27 @@ function createTmp() {
 }
 
 function removeTmp(dir) {
-  // Restore permissions before removing (for Test 20)
+  // Restore permissions before removing (for Test 20 — chmod 0o000 blocks rmSync)
   try {
-    const entries = fs.readdirSync(dir, { recursive: true });
-    for (const entry of entries) {
-      try { fs.chmodSync(path.join(dir, entry), 0o755); } catch {}
+    // Walk looking for locked directories and restore them
+    function restorePerms(p) {
+      let entries;
+      try {
+        entries = fs.readdirSync(p, { withFileTypes: true });
+      } catch {
+        // Directory may be unreadable — try to chmod it first
+        try { fs.chmodSync(p, 0o755); } catch {}
+        try { entries = fs.readdirSync(p, { withFileTypes: true }); } catch { return; }
+      }
+      for (const e of entries) {
+        const full = path.join(p, e.name);
+        if (e.isDirectory()) {
+          try { fs.chmodSync(full, 0o755); } catch {}
+          restorePerms(full);
+        }
+      }
     }
+    restorePerms(dir);
   } catch {}
   fs.rmSync(dir, { recursive: true, force: true });
 }

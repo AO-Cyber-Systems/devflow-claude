@@ -165,6 +165,7 @@ const {
 } = require('./lib/verify.cjs');
 const { cmdVerifyTrdPre } = require('./lib/trd-pre-check.cjs');
 const { cmdDetectNovelDomain } = require('./lib/novel-domain.cjs');
+const { cmdDetectBrownfieldMap } = require('./lib/brownfield-detector.cjs');
 const { cmdValidateConsistency, cmdValidateHealth } = require('./lib/validate.cjs');
 const {
   cmdResolveModel, cmdInitExecuteObjective, cmdInitPlanObjective, cmdInitNewProject,
@@ -383,8 +384,11 @@ async function main() {
       if (subcommand === 'novel-domain') {
         // detect novel-domain <objective> [--raw]
         cmdDetectNovelDomain(cwd, args[2], raw);
+      } else if (subcommand === 'brownfield-map') {
+        // detect brownfield-map [<cwd>] [--raw]
+        cmdDetectBrownfieldMap(cwd, args[2], raw);
       } else {
-        error('Unknown detect subcommand. Available: novel-domain');
+        error('Unknown detect subcommand. Available: novel-domain, brownfield-map');
       }
       break;
     }
