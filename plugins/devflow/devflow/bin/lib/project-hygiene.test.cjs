@@ -228,3 +228,258 @@ describe('cmdProjectHygieneCheck (subprocess)', () => {
     } finally { fx.cleanup(); }
   });
 });
+
+// ─── 22-03 moveObjective tests ──────────────────────────────────────────────
+
+function buildTargetRepo() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'df-target-'));
+  fs.mkdirSync(path.join(dir, '.planning', 'objectives'), { recursive: true });
+  return { dir, cleanup: () => fs.rmSync(dir, { recursive: true, force: true }) };
+}
+
+function writeObjectiveContent(srcDir, files) {
+  for (const [rel, content] of Object.entries(files)) {
+    const full = path.join(srcDir, rel);
+    fs.mkdirSync(path.dirname(full), { recursive: true });
+    fs.writeFileSync(full, content);
+  }
+}
+
+describe('moveObjective', () => {
+  test('22C1 — successful move returns ok with file/byte counts', () => {
+    const src = buildHygieneFixture({
+      objectives: { '05-foo': { kind: 'plugin', work: 'feature' } },
+    });
+    const dst = buildTargetRepo();
+    try {
+      writeObjectiveContent(path.join(src.dir, '.planning', 'objectives', '05-foo'), {
+        'CONTEXT.md': '# Context\n',
+        'sub/note.md': 'note\n',
+      });
+      const r = ph.moveObjective({ cwd: src.dir, objectiveId: '05-foo', targetRepoPath: dst.dir });
+      assert.strictEqual(r.ok, true);
+      assert.strictEqual(r.source_removed, true);
+      assert.ok(r.files_copied >= 3);
+      assert.ok(r.bytes_copied > 0);
+      assert.ok(Array.isArray(r.next_steps) && r.next_steps.length === 2);
+    } finally { src.cleanup(); dst.cleanup(); }
+  });
+
+  test('22C2 — after move source gone, target has same content', () => {
+    const src = buildHygieneFixture({ objectives: { '05-foo': { kind: 'plugin' } } });
+    const dst = buildTargetRepo();
+    try {
+      const srcObj = path.join(src.dir, '.planning', 'objectives', '05-foo');
+      writeObjectiveContent(srcObj, { 'CONTEXT.md': 'hello\n' });
+      const r = ph.moveObjective({ cwd: src.dir, objectiveId: '05-foo', targetRepoPath: dst.dir });
+      assert.strictEqual(r.ok, true);
+      assert.strictEqual(fs.existsSync(srcObj), false);
+      const movedFile = path.join(dst.dir, '.planning', 'objectives', '05-foo', 'CONTEXT.md');
+      assert.strictEqual(fs.readFileSync(movedFile, 'utf-8'), 'hello\n');
+    } finally { src.cleanup(); dst.cleanup(); }
+  });
+
+  test('22C3 — target dir already exists refuses, source preserved', () => {
+    const src = buildHygieneFixture({ objectives: { '05-foo': { kind: 'plugin' } } });
+    const dst = buildTargetRepo();
+    try {
+      fs.mkdirSync(path.join(dst.dir, '.planning', 'objectives', '05-foo'), { recursive: true });
+      const r = ph.moveObjective({ cwd: src.dir, objectiveId: '05-foo', targetRepoPath: dst.dir });
+      assert.strictEqual(r.ok, false);
+      assert.match(r.error, /destination already exists/);
+      assert.ok(fs.existsSync(path.join(src.dir, '.planning', 'objectives', '05-foo')));
+    } finally { src.cleanup(); dst.cleanup(); }
+  });
+
+  test('22C4 — target lacking .planning/objectives/ refuses', () => {
+    const src = buildHygieneFixture({ objectives: { '05-foo': { kind: 'plugin' } } });
+    const bad = fs.mkdtempSync(path.join(os.tmpdir(), 'df-bad-target-'));
+    try {
+      const r = ph.moveObjective({ cwd: src.dir, objectiveId: '05-foo', targetRepoPath: bad });
+      assert.strictEqual(r.ok, false);
+      assert.match(r.error, /devflow project/i);
+    } finally { src.cleanup(); fs.rmSync(bad, { recursive: true, force: true }); }
+  });
+
+  test('22C5 — non-existent objective returns not found', () => {
+    const src = buildHygieneFixture({ objectives: { '05-foo': { kind: 'plugin' } } });
+    const dst = buildTargetRepo();
+    try {
+      const r = ph.moveObjective({ cwd: src.dir, objectiveId: '99-nope', targetRepoPath: dst.dir });
+      assert.strictEqual(r.ok, false);
+      assert.match(r.error, /not found/);
+    } finally { src.cleanup(); dst.cleanup(); }
+  });
+
+  test('22C7 — verify failure rolls back dest, source preserved', () => {
+    const src = buildHygieneFixture({ objectives: { '05-foo': { kind: 'plugin' } } });
+    const dst = buildTargetRepo();
+    try {
+      writeObjectiveContent(path.join(src.dir, '.planning', 'objectives', '05-foo'), {
+        'CONTEXT.md': 'hi\n',
+      });
+      let call = 0;
+      ph._setWalkStats(() => {
+        call++;
+        return call === 1 ? { files: 999, bytes: 999 } : { files: 1, bytes: 3 };
+      });
+      const r = ph.moveObjective({ cwd: src.dir, objectiveId: '05-foo', targetRepoPath: dst.dir });
+      ph._resetWalkStats();
+      assert.strictEqual(r.ok, false);
+      assert.match(r.error, /verify failed/);
+      assert.strictEqual(r.source_removed, false);
+      assert.ok(fs.existsSync(path.join(src.dir, '.planning', 'objectives', '05-foo')));
+      assert.strictEqual(fs.existsSync(path.join(dst.dir, '.planning', 'objectives', '05-foo')), false);
+    } finally { src.cleanup(); dst.cleanup(); ph._resetWalkStats(); }
+  });
+
+  test('22C10 — _walkStats empty dir returns zeros', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'df-walk-'));
+    try {
+      assert.deepStrictEqual(ph._walkStats(dir), { files: 0, bytes: 0 });
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  test('22C11 — _walkStats counts files + bytes', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'df-walk-'));
+    try {
+      fs.writeFileSync(path.join(dir, 'a.txt'), 'abc');
+      fs.writeFileSync(path.join(dir, 'b.txt'), 'defgh');
+      assert.deepStrictEqual(ph._walkStats(dir), { files: 2, bytes: 8 });
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  test('22C12 — _walkStats traverses nested dirs', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'df-walk-'));
+    try {
+      fs.mkdirSync(path.join(dir, 'sub'));
+      fs.writeFileSync(path.join(dir, 'sub', 'x.txt'), 'xyz');
+      assert.deepStrictEqual(ph._walkStats(dir), { files: 1, bytes: 3 });
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  test('22C13 — _walkStats includes dotfiles', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'df-walk-'));
+    try {
+      fs.writeFileSync(path.join(dir, '.gitkeep'), '');
+      fs.writeFileSync(path.join(dir, 'visible.txt'), 'v');
+      assert.deepStrictEqual(ph._walkStats(dir), { files: 2, bytes: 1 });
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  test('22C14 — _walkStats missing path returns zeros', () => {
+    assert.deepStrictEqual(ph._walkStats('/nonexistent/path/zzz'), { files: 0, bytes: 0 });
+  });
+});
+
+describe('cmdProjectHygieneMove (subprocess)', () => {
+  const dfTools = path.resolve(__dirname, '..', 'df-tools.cjs');
+
+  test('22C16 — move with no args errors', () => {
+    const src = buildHygieneFixture({ objectives: {} });
+    try {
+      assert.throws(
+        () => execSync(`node ${dfTools} project-hygiene move`, { cwd: src.dir, encoding: 'utf-8', stdio: 'pipe' }),
+        /objective-id required/
+      );
+    } finally { src.cleanup(); }
+  });
+
+  test('22C17 — move with no --to errors', () => {
+    const src = buildHygieneFixture({ objectives: { '05-foo': { kind: 'plugin' } } });
+    try {
+      assert.throws(
+        () => execSync(`node ${dfTools} project-hygiene move 05-foo`, { cwd: src.dir, encoding: 'utf-8', stdio: 'pipe' }),
+        /--to/
+      );
+    } finally { src.cleanup(); }
+  });
+});
+
+// ─── 22-04 archive tests ────────────────────────────────────────────────────
+
+describe('detectArchiveCandidates', () => {
+  test('22D1 — archived flag flags candidate', () => {
+    const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'df-ws-'));
+    try {
+      const repoDir = path.join(ws, 'old-repo');
+      fs.mkdirSync(path.join(repoDir, '.planning'), { recursive: true });
+      fs.writeFileSync(path.join(repoDir, '.planning', 'PROJECT.md'),
+        '---\ngithub_repo: org/old-repo\narchived: true\n---\n# old\n');
+      const r = ph.detectArchiveCandidates({ workspaceDir: ws });
+      assert.strictEqual(r.candidates.length, 1);
+      assert.strictEqual(r.candidates[0].archived_flag, true);
+      assert.strictEqual(r.candidates[0].name, 'old-repo');
+    } finally { fs.rmSync(ws, { recursive: true, force: true }); }
+  });
+
+  test('22D2 — active project not flagged', () => {
+    const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'df-ws-'));
+    try {
+      const repoDir = path.join(ws, 'live-repo');
+      fs.mkdirSync(path.join(repoDir, '.planning'), { recursive: true });
+      fs.writeFileSync(path.join(repoDir, '.planning', 'PROJECT.md'),
+        '---\ngithub_repo: org/live-repo\n---\n# live\n');
+      const r = ph.detectArchiveCandidates({ workspaceDir: ws });
+      // No archived flag, no git history (returns null timestamp = not stale)
+      assert.strictEqual(r.candidates.length, 0);
+    } finally { fs.rmSync(ws, { recursive: true, force: true }); }
+  });
+
+  test('22D3 — workspace missing returns error', () => {
+    const r = ph.detectArchiveCandidates({ workspaceDir: '/nonexistent/zzz' });
+    assert.strictEqual(r.errors.length, 1);
+  });
+});
+
+describe('applyArchive', () => {
+  test('22D4 — applies archive moves .planning to archived-projects/', () => {
+    const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'df-ws-'));
+    try {
+      const repoDir = path.join(ws, 'old-repo');
+      fs.mkdirSync(path.join(repoDir, '.planning', 'objectives'), { recursive: true });
+      fs.writeFileSync(path.join(repoDir, '.planning', 'PROJECT.md'),
+        '---\ngithub_repo: org/old-repo\narchived: true\n---\n# old\n');
+      const r = ph.applyArchive({ workspaceDir: ws, name: 'old-repo' });
+      assert.strictEqual(r.ok, true);
+      assert.strictEqual(fs.existsSync(path.join(repoDir, '.planning')), false);
+      assert.strictEqual(fs.existsSync(path.join(ws, 'archived-projects', 'old-repo', '.planning')), true);
+      assert.strictEqual(r.gh_archive_command, 'gh repo archive org/old-repo');
+    } finally { fs.rmSync(ws, { recursive: true, force: true }); }
+  });
+
+  test('22D5 — refuses self-archive', () => {
+    const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'df-self-archive-'));
+    try {
+      const wsName = path.basename(ws);
+      const r = ph.applyArchive({ workspaceDir: ws, name: wsName });
+      assert.strictEqual(r.ok, false);
+      assert.match(r.error, /self-archive/);
+    } finally { fs.rmSync(ws, { recursive: true, force: true }); }
+  });
+
+  test('22D6 — repo without .planning errors', () => {
+    const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'df-ws-'));
+    try {
+      fs.mkdirSync(path.join(ws, 'no-planning'));
+      const r = ph.applyArchive({ workspaceDir: ws, name: 'no-planning' });
+      assert.strictEqual(r.ok, false);
+      assert.match(r.error, /no \.planning/);
+    } finally { fs.rmSync(ws, { recursive: true, force: true }); }
+  });
+
+  test('22D7 — refuses if archive destination exists', () => {
+    const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'df-ws-'));
+    try {
+      const repoDir = path.join(ws, 'old-repo');
+      fs.mkdirSync(path.join(repoDir, '.planning'), { recursive: true });
+      fs.writeFileSync(path.join(repoDir, '.planning', 'PROJECT.md'),
+        '---\ngithub_repo: org/old\narchived: true\n---\n# x\n');
+      fs.mkdirSync(path.join(ws, 'archived-projects', 'old-repo', '.planning'), { recursive: true });
+      const r = ph.applyArchive({ workspaceDir: ws, name: 'old-repo' });
+      assert.strictEqual(r.ok, false);
+      assert.match(r.error, /already exists/);
+    } finally { fs.rmSync(ws, { recursive: true, force: true }); }
+  });
+});
+
