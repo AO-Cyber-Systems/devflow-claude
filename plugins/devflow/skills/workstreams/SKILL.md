@@ -2,8 +2,9 @@
 name: workstreams
 description: |
   Run independent objectives in parallel using git worktrees, then merge results back.
+  Subcommand-style: /devflow:workstreams setup | status | merge | run
   Advanced parallel execution — use only when explicitly requested.
-argument-hint: "setup | status | merge"
+argument-hint: "<setup|status|merge|run> [args...]"
 disable-model-invocation: true
 allowed-tools:
   - Read
@@ -15,17 +16,21 @@ allowed-tools:
   - Task
   - AskUserQuestion
 ---
-<objective>
-Manage parallel feature development using git worktrees. Independent objectives execute simultaneously in separate worktrees, each with their own Claude session.
 
-Routes by first argument:
+<objective>
+Manage parallel feature development using git worktrees. Routes by first argument:
 - `setup` — Analyze deps, create worktrees, provision .planning/
 - `status` — Check progress across all active workstreams
 - `merge` — Squash-merge completed workstreams, reconcile state
+- `run` — (stub; v1.2 obj 6 implementation) Run an active workstream end-to-end
 </objective>
 
 <execution_context>
 @~/.claude/devflow/references/ui-brand.md
+@~/.claude/devflow/workflows/workstreams-setup.md
+@~/.claude/devflow/workflows/workstreams-status.md
+@~/.claude/devflow/workflows/workstreams-merge.md
+@~/.claude/devflow/workflows/workstreams-run.md
 </execution_context>
 
 <context>
@@ -37,22 +42,17 @@ Subcommand: $ARGUMENTS
 </context>
 
 <process>
-Parse $ARGUMENTS to determine subcommand.
+**1. Resolve subcommand and workflow:**
 
-**If `setup`:**
-Follow @~/.claude/devflow/workflows/workstreams-setup.md
-
-**If `status`:**
-Follow @~/.claude/devflow/workflows/workstreams-status.md
-
-**If `merge`:**
-Follow @~/.claude/devflow/workflows/workstreams-merge.md
-
-**If no argument or unrecognized:**
-Display usage:
+```bash
+ROUTE_JSON=$(node ~/.claude/devflow/bin/df-tools.cjs skill-route workstreams $ARGUMENTS --raw)
 ```
-/devflow:workstreams setup   — Create parallel worktrees for independent objectives
-/devflow:workstreams status  — Check progress across active workstreams
-/devflow:workstreams merge   — Merge completed workstreams back to main
-```
+
+Parse JSON. If `error`, display `usage` and stop.
+
+**2. Follow resolved workflow** based on `subcommand`:
+- `setup` → workstreams-setup.md with residual args
+- `status` → workstreams-status.md
+- `merge` → workstreams-merge.md
+- `run` → workstreams-run.md (stub — informs user, exits cleanly)
 </process>
