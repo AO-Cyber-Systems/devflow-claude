@@ -180,3 +180,71 @@ describe('CONSOLIDATED_SKILLS', () => {
     assert.equal(status.subcommands[0], null, 'status.subcommands[0] must be null (default invoke)');
   });
 });
+
+// ─── classifySession (17-03 extension) ───────────────────────────────────────
+
+describe('classifySession (17-03 extension)', () => {
+  test('case 19: planningDir=null, hasGitDir=true, isSubstantive=false → skip (substantive gate)', () => {
+    const input = buildClassifyInput({ planningDir: null, hasGitDir: true, isSubstantive: false });
+    assert.equal(classifySession(input), 'skip');
+  });
+
+  test('case 20: planningDir=null, hasGitDir=true, isSubstantive=true, previouslyDeclined=true → skip (decline gate)', () => {
+    const input = buildClassifyInput({ planningDir: null, hasGitDir: true, isSubstantive: true, previouslyDeclined: true });
+    assert.equal(classifySession(input), 'skip');
+  });
+
+  test('case 21: planningDir=null, hasGitDir=true, isSubstantive=true, previouslyDeclined=false → init-offer', () => {
+    const input = buildClassifyInput({ planningDir: null, hasGitDir: true, isSubstantive: true, previouslyDeclined: false });
+    assert.equal(classifySession(input), 'init-offer');
+  });
+
+  test('case 22: hasDeclineMarker=true wins over isSubstantive (legacy 15-01 marker still respected)', () => {
+    const input = buildClassifyInput({ planningDir: '/tmp/p', hasGitDir: true, hasDeclineMarker: true, isSubstantive: true });
+    assert.equal(classifySession(input), 'skip');
+  });
+
+  test('case 23: SCENARIOS.initOfferSubstantive → init-offer', () => {
+    assert.equal(classifySession(SCENARIOS.initOfferSubstantive()), 'init-offer');
+  });
+
+  test('case 24: SCENARIOS.initOfferNotSubstantive → skip', () => {
+    assert.equal(classifySession(SCENARIOS.initOfferNotSubstantive()), 'skip');
+  });
+
+  test('case 25: SCENARIOS.initOfferDeclined → skip', () => {
+    assert.equal(classifySession(SCENARIOS.initOfferDeclined()), 'skip');
+  });
+
+  test('case 26: existing 15-01 ambient SCENARIO still returns ambient (back-compat)', () => {
+    assert.equal(classifySession(SCENARIOS.ambient()), 'ambient');
+  });
+
+  test('case 27: existing 15-01 initOffer SCENARIO with default isSubstantive=true still returns init-offer (back-compat)', () => {
+    assert.equal(classifySession(SCENARIOS.initOffer()), 'init-offer');
+  });
+});
+
+describe('renderRoutingPreamble (17-03 extension)', () => {
+  test('case 28: mode auto-init returns non-empty AUTO_INIT_PREAMBLE', () => {
+    const result = renderRoutingPreamble({ mode: 'auto-init' });
+    assert.ok(result.length > 0, 'must be non-empty');
+    assert.ok(result.includes('AUTO-INIT ACTIVE'), 'must contain AUTO-INIT ACTIVE');
+  });
+
+  test('case 29: AUTO_INIT_PREAMBLE mentions /devflow:new-project --auto', () => {
+    const result = renderRoutingPreamble({ mode: 'auto-init' });
+    assert.ok(result.includes('/devflow:new-project --auto'), 'must mention /devflow:new-project --auto');
+  });
+
+  test('case 30: AUTO_INIT_PREAMBLE mentions auto_init_substantive_projects config key', () => {
+    const result = renderRoutingPreamble({ mode: 'auto-init' });
+    assert.ok(result.includes('auto_init_substantive_projects'), 'must mention auto_init_substantive_projects');
+  });
+
+  test('case 31: INIT_OFFER_PREAMBLE updated mentions /devflow:new-project --auto and df-tools project-decline', () => {
+    const result = renderRoutingPreamble({ mode: 'init-offer' });
+    assert.ok(result.includes('/devflow:new-project --auto'), 'must mention /devflow:new-project --auto');
+    assert.ok(result.includes('df-tools project-decline'), 'must mention df-tools project-decline');
+  });
+});
