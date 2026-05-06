@@ -2739,3 +2739,30 @@ describe('build.md workflow asserts (Phase D verifier wiring)', () => {
       'trampoline prompt must still invoke /devflow:execute-objective');
   });
 });
+
+// =============================================================================
+// Phase F config defaults + F4 acceptance (objective 14-phase-f-default-on-safety)
+// =============================================================================
+
+describe('Phase F config defaults + F4 acceptance', () => {
+  test('templates/config.json defaults job_checker_enabled to true', () => {
+    const cfgPath = path.join(__dirname, '..', 'templates', 'config.json');
+    const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf-8'));
+    // Source-of-truth surface: top-level job_checker_enabled OR workflow.job_check
+    const value = cfg.job_checker_enabled ?? (cfg.workflow && cfg.workflow.job_check);
+    assert.strictEqual(value, true,
+      'Fresh-project template must default job_checker_enabled (or workflow.job_check) to true per issue #31 F1');
+  });
+
+  test('F4 acceptance: build.md § 8 still spawns dedicated verifier', () => {
+    const buildPath = path.join(__dirname, '..', 'workflows', 'build.md');
+    const buildMd = fs.readFileSync(buildPath, 'utf-8');
+    assert.ok(/subagent_type="verifier"/.test(buildMd),
+      'F4 regressed: build.md must still spawn verifier (Phase D wiring)');
+    assert.ok(/model="\{verifier_model\}"/.test(buildMd),
+      'F4 regressed: verifier spawn must use {verifier_model}');
+    // F4 also requires the spawn to be in § 8
+    assert.ok(/## 8\. Auto-Verify \+ Complete/.test(buildMd),
+      'F4 regressed: § 8 header missing');
+  });
+});

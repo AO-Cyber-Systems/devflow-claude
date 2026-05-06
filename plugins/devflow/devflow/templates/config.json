@@ -1,6 +1,7 @@
 {
   "mode": "yolo",
   "depth": "standard",
+  "job_checker_enabled": true,
   "workflow": {
     "research": true,
     "job_check": true,
