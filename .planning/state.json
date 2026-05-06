@@ -2,7 +2,7 @@
   "current_objective": null,
   "current_job": 0,
   "total_jobs": 0,
-  "progress_pct": 99,
+  "progress_pct": 96,
   "status": "ready_for_verification",
   "last_activity": "2026-05-06",
   "metrics": {
@@ -274,6 +274,86 @@
     {
       "objective": "15",
       "summary": "Audit log: append-only JSONL at ~/.claude/devflow/audit.log; DEVFLOW_AUDIT_LOG_PATH override for test isolation; route-recommendation marker read from .planning/.route-recommendation",
+      "rationale": null
+    },
+    {
+      "objective": "16-phase-b-micro-skill",
+      "summary": "Cutoff numbers for /devflow:quick are advisory (<5 files, <200 LOC, no new abstractions) — exact wording from issue #27, preserved for 16-04 classifier consistency",
+      "rationale": null
+    },
+    {
+      "objective": "16-phase-b-micro-skill",
+      "summary": "quick triggers drop tiny/quick-fix/can-you-just — those route to /devflow:micro; workflow.md process steps are unchanged",
+      "rationale": null
+    },
+    {
+      "objective": "16-phase-b-micro-skill",
+      "summary": "16-04: Trivial-noun whitelist approach for micro INTENT_MAP entry prevents collision with build/debug/quick",
+      "rationale": null
+    },
+    {
+      "objective": "16-phase-b-micro-skill",
+      "summary": "16-04: classifier.cjs case 9 inverted to 4-assertion gate proving Phase B shipped state",
+      "rationale": null
+    },
+    {
+      "objective": "16",
+      "summary": "gitRunner injection in commitMicro avoids coupling to cmdCommit's loadConfig/isGitIgnored checks that fail in test tmpdir fixtures",
+      "rationale": null
+    },
+    {
+      "objective": "16",
+      "summary": ".micro-description sidecar for cross-invocation description persistence (skill-active marker has no description field by design)",
+      "rationale": null
+    },
+    {
+      "objective": "16",
+      "summary": "No Task tool in SKILL.md allowed-tools: micro's value is single-context execution; agent spawn excluded to enforce no-ceremony promise",
+      "rationale": null
+    },
+    {
+      "objective": "17-phase-c-auto-init",
+      "summary": "Time injected as ISO string param in decline-tracker for deterministic test assertions",
+      "rationale": null
+    },
+    {
+      "objective": "17-phase-c-auto-init",
+      "summary": "clearDecline writes {} when last entry removed (avoids TOCTOU race vs file delete)",
+      "rationale": null
+    },
+    {
+      "objective": "17-phase-c-auto-init",
+      "summary": "global-config: forward-compat merge uses {...DEFAULT_CONFIG, ...parsed} — user values win; unknown v1.3+ keys survive unchanged",
+      "rationale": null
+    },
+    {
+      "objective": "17-phase-c-auto-init",
+      "summary": "global-config shouldAutoInit uses strict === true, not truthy — guards against string 'true' from hand-edited config",
+      "rationale": null
+    },
+    {
+      "objective": "17-phase-c-auto-init",
+      "summary": "Non-scratch tmpdir via ~/.devflow-test-fixtures/ for Phase C fixtures: macOS os.tmpdir() returns /var/folders/ (scratch prefix) — all non-scratch fixtures must use homedir-relative path",
+      "rationale": null
+    },
+    {
+      "objective": "17-phase-c-auto-init",
+      "summary": "Backdated git commits in fixtures: GIT_AUTHOR_DATE/GIT_COMMITTER_DATE must be on 'git commit' command, not 'git add' — env vars only apply to the process they prefix",
+      "rationale": null
+    },
+    {
+      "objective": "17-phase-c-auto-init",
+      "summary": "isSubstantive=true default preserves 15-01 back-compat without test modification",
+      "rationale": null
+    },
+    {
+      "objective": "17-phase-c-auto-init",
+      "summary": "Mode promotion post-classifySession: hook promotes init-offer to auto-init keeping classifier pure",
+      "rationale": null
+    },
+    {
+      "objective": "18-v1-1-polish-bundle",
+      "summary": "sync-roadmap runs before gh sync and before final commit in update_roadmap — ensures ROADMAP drift captured in same atomic commit",
       "rationale": null
     }
   ],
