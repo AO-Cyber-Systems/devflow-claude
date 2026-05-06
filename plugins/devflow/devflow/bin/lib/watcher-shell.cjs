@@ -93,6 +93,57 @@ class ShellSession extends EventEmitter {
     this._stdoutBuf = '';
     this._stderrBuf = '';
     this._activeDispatch = null; // { id, beginRx, endRx, resolve, timeout }
+    // TRD 19-02: external data listeners for token-passing prompt detection.
+    // Daemon attaches a detector that scans the data stream for prompt
+    // regexes and writes resolved secrets back to the shell. Both PTY mode
+    // (single onData stream) and pipe mode (stdout + stderr) feed listeners.
+    this._extDataListeners = [];
+  }
+
+  /**
+   * Attach an external data listener — called for every chunk emitted by
+   * the underlying proc (PTY mode: combined stream; pipe mode: stdout AND
+   * stderr). Used by the daemon to detect interactive prompts in the
+   * accumulated buffer and inject resolved secrets via injectInput().
+   *
+   * @param {(chunk: string) => void} fn
+   */
+  attachDataListener(fn) {
+    if (typeof fn === 'function') this._extDataListeners.push(fn);
+  }
+
+  /**
+   * Detach a previously-attached data listener. No-op if not present.
+   *
+   * @param {(chunk: string) => void} fn
+   */
+  detachDataListener(fn) {
+    this._extDataListeners = this._extDataListeners.filter((x) => x !== fn);
+  }
+
+  /**
+   * Inject input back into the shell session — used by the prompt detector
+   * to write resolved secrets + carriage-return when a prompt regex matches.
+   * Routes through PTY proc.write or pipe proc.stdin.write per active mode.
+   *
+   * Silently no-ops if the session is closed or not yet spawned. (Detector
+   * may race ahead of close events; quiet failure is preferable to throw.)
+   *
+   * @param {string} s
+   */
+  injectInput(s) {
+    if (this._closed || !this.proc) return;
+    if (this._isPTY) this.proc.write(s);
+    else this.proc.stdin.write(s);
+  }
+
+  _emitExtData(chunk) {
+    if (this._extDataListeners.length === 0) return;
+    // Snapshot listeners before iterating: a listener may detach itself.
+    const listeners = this._extDataListeners.slice();
+    for (const fn of listeners) {
+      try { fn(chunk); } catch { /* listener errors must not break dispatch */ }
+    }
   }
 
   async spawn() {
@@ -117,6 +168,10 @@ class ShellSession extends EventEmitter {
       // temp-file redirection inside the wrapped command separates them again.
       this.proc.onData((chunk) => {
         this._stdoutBuf += chunk;
+        // TRD 19-02: feed external listeners (e.g. prompt detector) BEFORE
+        // _tryComplete so the detector can inject a secret in time for the
+        // running command to consume it before the END sentinel arrives.
+        this._emitExtData(chunk);
         this._tryComplete();
       });
       this.proc.onExit(() => this._onExit());
@@ -158,10 +213,16 @@ class ShellSession extends EventEmitter {
       this.proc.stderr.setEncoding('utf8');
       this.proc.stdout.on('data', (chunk) => {
         this._stdoutBuf += chunk;
+        // TRD 19-02: feed external listeners (e.g. prompt detector) BEFORE
+        // _tryComplete. Pipe-mode emits both streams; prompts CAN come on
+        // stderr (e.g. `read -p prompt: var 1>&2`) so stderr listeners get
+        // chunks too.
+        this._emitExtData(chunk);
         this._tryComplete();
       });
       this.proc.stderr.on('data', (chunk) => {
         this._stderrBuf += chunk;
+        this._emitExtData(chunk);
         this._tryComplete();
       });
       this.proc.on('exit', () => this._onExit());
