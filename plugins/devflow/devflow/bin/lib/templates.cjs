@@ -11,44 +11,22 @@ function cmdTemplateSelect(cwd, jobPath, raw) {
     error('job-path required');
   }
 
+  // Phase I4: Canonicalized to single template (TRD 12-06).
+  // Heuristic-based selection (minimal/standard/complex) removed.
+  // Future: respect config.json `summary_verbosity` flag (reserved field, not yet wired).
   try {
     const fullPath = path.join(cwd, jobPath);
-    const content = fs.readFileSync(fullPath, 'utf-8');
-
-    // Simple heuristics
-    const taskMatch = content.match(/###\s*Task\s*\d+/g) || [];
-    const taskCount = taskMatch.length;
-
-    const decisionMatch = content.match(/decision/gi) || [];
-    const hasDecisions = decisionMatch.length > 0;
-
-    // Count file mentions
-    const fileMentions = new Set();
-    const filePattern = /`([^`]+\.[a-zA-Z]+)`/g;
-    let m;
-    while ((m = filePattern.exec(content)) !== null) {
-      if (m[1].includes('/') && !m[1].startsWith('http')) {
-        fileMentions.add(m[1]);
-      }
-    }
-    const fileCount = fileMentions.size;
-
-    let template = 'templates/summary-standard.md';
-    let type = 'standard';
-
-    if (taskCount <= 2 && fileCount <= 3 && !hasDecisions) {
-      template = 'templates/summary-minimal.md';
-      type = 'minimal';
-    } else if (hasDecisions || fileCount > 6 || taskCount > 5) {
-      template = 'templates/summary-complex.md';
-      type = 'complex';
-    }
-
-    const result = { template, type, taskCount, fileCount, hasDecisions };
-    output(result, raw, template);
+    // Read file to validate it exists (surface error if not)
+    fs.readFileSync(fullPath, 'utf-8');
+    const result = {
+      template: 'templates/summary.md',
+      type: 'standard',
+      canonicalized_by: 'TRD 12-06',
+    };
+    output(result, raw, 'templates/summary.md');
   } catch (e) {
-    // Fallback to standard
-    output({ template: 'templates/summary-standard.md', type: 'standard', error: e.message }, raw, 'templates/summary-standard.md');
+    // Fallback to canonical on any error
+    output({ template: 'templates/summary.md', type: 'standard', canonicalized_by: 'TRD 12-06', error: e.message }, raw, 'templates/summary.md');
   }
 }
 
