@@ -781,6 +781,17 @@ async function main() {
       break;
     }
 
+    case 'defaults-table': {
+      const subcommand = args[1];
+      if (subcommand === 'init') {
+        const { cmdDefaultsTableInit } = require('./lib/defaults-loader.cjs');
+        cmdDefaultsTableInit(cwd, args.slice(2), raw);
+      } else {
+        error('Unknown defaults-table subcommand. Available: init');
+      }
+      break;
+    }
+
     case 'gh': {
       const subcommand = args[1];
       if (subcommand === 'status') {

@@ -98,9 +98,108 @@ function loadMergedDefaultsTable({ projectRoot = null, userHome = null } = {}) {
   return result;
 }
 
+// ─── CLI scaffold: defaults-table init ──────────────────────────────────────
+
+const { output } = require('./helpers.cjs');
+
+/**
+ * scaffoldDefaultsTable({ scope, force, cwd, userHome }) → { ok, target_path, action, error?, backup? }
+ * Copies the bundled defaults-table.md to org or project location.
+ * scope: 'org' | 'project'
+ */
+function scaffoldDefaultsTable({ scope, force = false, cwd = process.cwd(), userHome = null }) {
+  if (!['org', 'project'].includes(scope)) {
+    return { ok: false, error: `Invalid scope: ${scope}. Use --scope=org or --scope=project.` };
+  }
+
+  let target;
+  if (scope === 'org') {
+    const home = userHome || process.env.HOME || require('os').homedir();
+    target = path.join(home, '.claude', 'devflow', 'defaults-table.md');
+  } else {
+    const planningDir = path.join(cwd, '.planning');
+    if (!fs.existsSync(planningDir)) {
+      return { ok: false, error: `No .planning/ directory found in ${cwd}. Run \`df-tools init new-project\` first or run from a project root.` };
+    }
+    target = path.join(planningDir, 'defaults-table.md');
+  }
+
+  if (fs.existsSync(target) && !force) {
+    return {
+      ok: false,
+      error: `${target} already exists. Use --force to overwrite (existing file will be backed up to .bak.<timestamp>).`,
+    };
+  }
+
+  // Backup existing if --force
+  let backupPath = null;
+  if (fs.existsSync(target) && force) {
+    const ts = new Date().toISOString().replace(/[:.]/g, '-');
+    backupPath = `${target}.bak.${ts}`;
+    fs.copyFileSync(target, backupPath);
+  }
+
+  // Ensure parent dir exists
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+
+  // Copy bundled to target
+  fs.copyFileSync(BUNDLED_PATH, target);
+
+  return {
+    ok: true,
+    target_path: target,
+    action: backupPath ? 'overwritten' : 'created',
+    backup: backupPath,
+  };
+}
+
+/**
+ * cmdDefaultsTableInit(cwd, args, raw) — CLI entry point.
+ * Usage: df-tools defaults-table init --scope=org|project [--force]
+ */
+function cmdDefaultsTableInit(cwd, args, raw) {
+  const scopeFlag = args.find((a) => a.startsWith('--scope='));
+  const scope = scopeFlag ? scopeFlag.split('=')[1] : null;
+  const force = args.includes('--force');
+  const help = args.includes('--help') || args.includes('-h');
+
+  if (help) {
+    process.stdout.write(
+      'Usage: df-tools defaults-table init --scope=org|project [--force]\n' +
+      '  Scaffold an editable copy of the (kind, work) defaults table.\n' +
+      '\n' +
+      '  --scope=org      Write to ~/.claude/devflow/defaults-table.md (org-level overrides)\n' +
+      '  --scope=project  Write to .planning/defaults-table.md (project-level overrides)\n' +
+      '  --force          Overwrite existing file (backed up to .bak.<timestamp>)\n'
+    );
+    return;
+  }
+
+  if (!scope) {
+    output({ ok: false, error: 'Missing required flag: --scope=org or --scope=project' }, raw, '');
+    process.exit(1);
+    return;
+  }
+
+  const result = scaffoldDefaultsTable({ scope, force, cwd });
+  if (!result.ok) {
+    output(result, raw, result.error || '');
+    process.exit(1);
+    return;
+  }
+
+  output(
+    result,
+    raw,
+    `Wrote ${result.target_path} (action: ${result.action})${result.backup ? ` — backup at ${result.backup}` : ''}`
+  );
+}
+
 module.exports = {
   loadMergedDefaultsTable,
   mergeDefaultsTables,
+  scaffoldDefaultsTable,
+  cmdDefaultsTableInit,
   _resetCache,
   BUNDLED_PATH,
 };
