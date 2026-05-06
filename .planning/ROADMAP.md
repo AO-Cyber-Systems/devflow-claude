@@ -639,7 +639,15 @@ Dependency order:
 
 *Phase 4 — Handoff watcher polish:*
 
-10. **PTY support for handoff watcher** — `node-pty` integration in `watcher-shell.cjs`; closes TTY-interactive auth gap (`doctl auth init`, `gh auth login`, `sudo`, `gpg --decrypt`).
+10. **PTY support for handoff watcher** — `node-pty` integration in `watcher-shell.cjs`; closes TTY-interactive auth gap (`doctl auth init`, `gh auth login`, `gpg --decrypt`). Adds token-passing schema (`inputs.secrets[]`) so the daemon answers prompts from env / stash. Deny-list (`sudo`, `su -`) preserved.
+   - **Status:** Planned 2026-05-04 (objective 19 / branch `feature/v1.2-obj-10-pty-watcher`)
+   - **Requirements:** [PTY-BACKEND, TOKEN-PASSING, GATE-PTY-MESSAGE, DOC-PTY-CAVEATS, E2E-MOCK-AUTH]
+   - **TRDs:** 5 plans across 3 waves
+     - [ ] 19-01-pty-backend-TRD.md — Replace child_process.spawn with node-pty in watcher-shell.cjs interactive:true path; preserve interactive:false for tests (Wave 1, tdd) — PTY-BACKEND
+     - [ ] 19-04-doc-update-TRD.md — Update docs/handoff-watcher-guide.md with PTY caveats + platform install notes (macOS/Linux/Windows) + token-passing schema (Wave 1, standard) — DOC-PTY-CAVEATS
+     - [ ] 19-02-token-passing-TRD.md — Extend pending record schema with inputs.secrets[]; wire processOnce with prompt-detection + secret-resolution + redaction (Wave 2, tdd) — TOKEN-PASSING
+     - [ ] 19-03-gate-interactive-update-TRD.md — Update gate-interactive.js buildDenyReason watcher-live branch to mention PTY-backed daemon (Wave 2, tdd) — GATE-PTY-MESSAGE
+     - [ ] 19-05-mock-auth-e2e-TRD.md — Mock gh + doctl auth servers + cassettes; e2e tests for PTY-path auth flows without real credentials (Wave 3, tdd) — E2E-MOCK-AUTH
 11. **Daemon polish bundle** — status-line indicator + auto-launch (launchd/systemd) + OS notifications + cross-shell support (fish/nushell/PowerShell) + multi-project watching.
 12. **Bidirectional GH sync + configurable kind/work defaults table** — inbound GH state → objective frontmatter (webhook or periodic poll); org-level `~/.claude/devflow/defaults-table.md` override.
 
