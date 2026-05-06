@@ -1,0 +1,22 @@
+{
+  "_hand_built": true,
+  "_captured_at": "2026-05-06T00:00:00.000Z",
+  "_note": "Hand-built minimal cassette for handoff-e2e PTY-path mock auth tests (TRD 19-05). Re-record from real `doctl auth init` flow against api.digitalocean.com when convenient (set HANDOFF_INTEGRATION=1). doctl validates the token via GET /v2/account; cassette returns 200 + minimal account body on a success path.",
+  "entries": [
+    {
+      "method": "GET",
+      "path": "^/v2/account",
+      "status": 200,
+      "headers": { "Content-Type": "application/json" },
+      "body": {
+        "account": {
+          "uuid": "fake-uuid-handoff-e2e-test-only",
+          "email": "test@example.com",
+          "status": "active",
+          "droplet_limit": 25,
+          "email_verified": true
+        }
+      }
+    }
+  ]
+}

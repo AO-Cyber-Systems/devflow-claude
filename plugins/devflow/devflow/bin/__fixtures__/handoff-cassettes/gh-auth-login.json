@@ -1,0 +1,42 @@
+{
+  "_hand_built": true,
+  "_captured_at": "2026-05-06T00:00:00.000Z",
+  "_note": "Hand-built minimal cassette for handoff-e2e PTY-path mock auth tests (TRD 19-05). Re-record from real `gh auth login --device` flow against api.github.com when convenient (set HANDOFF_INTEGRATION=1). Format follows obj 1 TRD 01-06 cassette pattern: flat JSON with method+path-keyed entries.",
+  "entries": [
+    {
+      "method": "POST",
+      "path": "^/login/device/code",
+      "status": 200,
+      "headers": { "Content-Type": "application/json" },
+      "body": {
+        "device_code": "fake-device-code-handoff-e2e-test-only",
+        "user_code": "ABCD-1234",
+        "verification_uri": "https://github.com/login/device",
+        "expires_in": 900,
+        "interval": 5
+      }
+    },
+    {
+      "method": "POST",
+      "path": "^/login/oauth/access_token",
+      "status": 200,
+      "headers": { "Content-Type": "application/json" },
+      "body": {
+        "access_token": "gho_handoff_e2e_fake_token_for_testing_only_1234567890",
+        "token_type": "bearer",
+        "scope": "repo,read:org,gist"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "^/user$",
+      "status": 200,
+      "headers": { "Content-Type": "application/json" },
+      "body": {
+        "login": "test-user",
+        "id": 12345,
+        "type": "User"
+      }
+    }
+  ]
+}
