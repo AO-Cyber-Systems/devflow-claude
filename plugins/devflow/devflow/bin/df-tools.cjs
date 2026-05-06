@@ -211,6 +211,7 @@ const {
 } = require('./lib/trd-tdd.cjs');
 const { cmdMicro } = require('./lib/micro.cjs');
 const { cmdProjectDecline, cmdProjectAccept } = require('./lib/decline-tracker.cjs');
+const { cmdGlobalConfig } = require('./lib/global-config.cjs');
 
 // ─── CLI Router ───────────────────────────────────────────────────────────────
 
@@ -915,6 +916,13 @@ async function main() {
       // df-tools micro commit [--files <path>...]
       // df-tools micro abort
       cmdMicro(cwd, args.slice(1), raw);
+      break;
+    }
+
+    case 'global-config': {
+      // df-tools global-config get <key>
+      // df-tools global-config set <key> <value>
+      cmdGlobalConfig(cwd, args.slice(1), raw);
       break;
     }
 
