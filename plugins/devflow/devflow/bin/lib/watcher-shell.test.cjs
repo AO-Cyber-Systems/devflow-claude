@@ -92,8 +92,11 @@ describe('watcher-shell — timeout', () => {
 });
 
 describe('watcher-shell — lifecycle', () => {
+  // Force interactive:false so these tests stay pipe-mode (matching pre-PTY
+  // behavior). The class default flipped to PTY for the production daemon;
+  // pipe-mode lifecycle tests must opt in explicitly.
   test('dispatch after kill rejects with ShellSessionClosed', async () => {
-    const s = new ShellSession({ shell: SHELL });
+    const s = new ShellSession({ shell: SHELL, interactive: false });
     await s.spawn();
     await s.kill();
     await assert.rejects(
@@ -103,7 +106,7 @@ describe('watcher-shell — lifecycle', () => {
   });
 
   test('isAlive returns true after spawn, false after kill', async () => {
-    const s = new ShellSession({ shell: SHELL });
+    const s = new ShellSession({ shell: SHELL, interactive: false });
     await s.spawn();
     assert.equal(s.isAlive(), true);
     await s.kill();
