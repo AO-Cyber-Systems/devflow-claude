@@ -2,9 +2,9 @@
   "current_objective": null,
   "current_job": 0,
   "total_jobs": 0,
-  "progress_pct": 98,
+  "progress_pct": 96,
   "status": "ready_for_verification",
-  "last_activity": "2026-05-05",
+  "last_activity": "2026-05-06",
   "metrics": {
     "jobs_completed": 0,
     "jobs_failed": 0,
@@ -94,6 +94,11 @@
     {
       "objective": "08",
       "summary": "SKILL_PATH path math corrected: 3 ups from lib/ (not 4) to reach plugins/devflow/skills/; used ../../../skills/tui/SKILL.md",
+      "rationale": null
+    },
+    {
+      "objective": "10-phase-e-agent-audit",
+      "summary": "subagent_type=general-purpose is correct ONLY for workflow invocations (Task prompt='Run /devflow:<skill> ...'); all agent-class work must use a dedicated df-* agent",
       "rationale": null
     }
   ],
