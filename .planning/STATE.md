@@ -21,7 +21,7 @@
 **Objective complete:** 12 — Skill consolidation (verified 2026-05-06, 1471/1496 tests pass, all 7 TRDs done, Phase A handoff snapshot committed)
 **Objective in progress:** 13 — Phase H prompt extraction (TRD 01 complete 2026-05-06, 1471/1471 tests pass, 6 new reference/template files created, 3 TRDs remaining)
 **Branch:** `feature/v1.2-obj-4-prompt-extraction`
-**Status:** Objective 13 TRD 01 complete — TRDs 02/03/04 pending
+**Status:** Objective complete — ready for verification
 
 ## Branch State (post-merge)
 
