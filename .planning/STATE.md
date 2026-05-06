@@ -20,8 +20,9 @@
 **Objective complete:** 8 — Program-aware TUI viewer (verified 2026-05-05, 1356/1356 tests pass, all 10 SC met, 3 TRDs done, SC-6 + SC-9 + SC-10 closed)
 **Objective complete:** 12 — Skill consolidation (verified 2026-05-06, 1471/1496 tests pass, all 7 TRDs done, Phase A handoff snapshot committed)
 **Objective complete:** 13 — Phase H prompt extraction (verified 2026-05-06, 1471/1471 tests pass, all 4 TRDs done, 2000 lines cut from 7 agents, ~7002 tokens gross cut, 20 @-references verified 0 dangling)
-**Branch:** `feature/v1.2-obj-4-prompt-extraction`
-**Status:** Objective complete — ready for verification
+**Objective in progress:** 19 — PTY handoff watcher (Wave 1 of 3 complete: TRDs 19-01 + 19-04. 1864/1866 pass + 2 pre-existing failures, +12 PTY tests added. Waves 2 + 3 pending.)
+**Branch:** `feature/v1.2-obj-10-pty-watcher`
+**Status:** Wave 1 complete — Waves 2 + 3 pending
 
 ## Branch State (post-merge)
 
@@ -161,6 +162,11 @@
 - **help.md main catalog uses only 5 consolidated skill forms; 13 old names isolated to deprecation appendix table**
 - **Phase A handoff JSON snapshot committed in 12-RESEARCH.md for v1.2 obj 6 classify-session.js to bootstrap routing table**
 - **Token savings proxy measurement: description-field delta −130 tokens; full ≥1500 target deferred to Phase A empirical verification**
+- **TRD 19-01 complete (2026-05-06)** — Dual-mode `ShellSession`: PTY (interactive:true via node-pty 1.1.0) + pipe (interactive:false unchanged). 12 new PTY-mode tests + 11 pre-existing pipe tests; total 23 in watcher-shell.test.cjs all pass. Total project: 1864/1866 tests pass (2 pre-existing failures unrelated). 5 auto-fixed deviations (chmod spawn-helper, stty -echo, \r\n→\n normalize, destroy() in dispatch-timeout, lifecycle tests pinned to interactive:false). REFACTOR pass skipped per TRD optional clause. Commits: bf290ba (test: RED), 310fdb4 (feat: GREEN). Wave 1 partial.
+- **TRD 19-04 complete (2026-05-06)** — `docs/handoff-watcher-guide.md` grew from 224 to 334 lines with new `## PTY support (v1.2+)` top-level section + `### Platform notes` (macOS/Linux/Windows table + spawn-helper chmod gotcha) + `### Token-passing for prompts` (`inputs.secrets[]` schema + `value_source` enum). All 9 pre-existing sections preserved verbatim. `## Future` retitled to v1.3+. Commit: 88fe5b5. Wave 1 complete.
+- **node-pty 1.1.0 spawn-helper chmod gotcha (TRD 19-01)** — Real-world install issue on darwin-arm64: prebuild-install download doesn't preserve +x on `node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper`, causing `posix_spawnp failed.`. Fixed via `postinstall` script in `package.json` that chmods the helper for all common prebuild targets (darwin-arm64, darwin-x64, linux-x64, linux-arm64). Documented in handoff-watcher-guide.md with manual chmod fallback for `--ignore-scripts` installs.
+- **PTY echo handling (TRD 19-01)** — TRD's claim "echoed input is harmless prefix garbage" was incorrect. PTY cooked-mode echoes literal `__DFW_BEGIN_<id>__` from the `echo BEGIN` line BEFORE bash's actual output, breaking `splitDispatchOutput` forward-scan. Fix: `stty -echo 2>/dev/null` first in PTY init prelude + 100ms drain so subsequent dispatches see only program output (transport-agnostic shape). PTY mode also normalizes \r\n→\n in stdout/stderr for consumer-visible byte-identical results.
+- **PTY destroy() required in BOTH kill() and dispatch-timeout (TRD 19-01)** — `kill()` early-returns on `_closed`. Dispatch timeout sets `_closed = true` without calling `destroy()`. Subsequent `withPTYSession` finally-block `kill()` returned early, leaking socket FD and hanging the test runner subprocess. Fix: dispatch-timeout setTimeout handler also calls `proc.destroy()` on PTY mode.
 
 ## Blockers / Concerns
 
@@ -168,6 +174,6 @@
 
 ## Session Continuity
 
-Last session: 2026-05-06 — TRD 14-02 (novel-domain-detection) complete. 1527/1528 tests pass (1 pre-existing E2E1 failure). 3 commits: 0a6bdbf (test:), 2fb605b (feat:), dd88372 (feat:).
+Last session: 2026-05-06 — Objective 19 Wave 1 complete: TRDs 19-01 (PTY backend) + 19-04 (doc update). 1864/1866 tests pass (2 pre-existing failures unrelated). 3 commits: bf290ba (test: RED), 310fdb4 (feat: GREEN), 88fe5b5 (docs:).
 Resume file: `.planning/SESSION_PICKUP.md`
-Stopped at: Completed 14-02-novel-domain-detection-TRD.md
+Stopped at: Completed 19-01-pty-backend-TRD.md + 19-04-doc-update-TRD.md (Wave 1). Waves 2 + 3 of objective 19 still pending.

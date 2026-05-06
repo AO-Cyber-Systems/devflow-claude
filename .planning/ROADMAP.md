@@ -643,8 +643,8 @@ Dependency order:
    - **Status:** Planned 2026-05-04 (objective 19 / branch `feature/v1.2-obj-10-pty-watcher`)
    - **Requirements:** [PTY-BACKEND, TOKEN-PASSING, GATE-PTY-MESSAGE, DOC-PTY-CAVEATS, E2E-MOCK-AUTH]
    - **TRDs:** 5 plans across 3 waves
-     - [ ] 19-01-pty-backend-TRD.md — Replace child_process.spawn with node-pty in watcher-shell.cjs interactive:true path; preserve interactive:false for tests (Wave 1, tdd) — PTY-BACKEND
-     - [ ] 19-04-doc-update-TRD.md — Update docs/handoff-watcher-guide.md with PTY caveats + platform install notes (macOS/Linux/Windows) + token-passing schema (Wave 1, standard) — DOC-PTY-CAVEATS
+     - [x] 19-01-pty-backend-TRD.md — Replace child_process.spawn with node-pty in watcher-shell.cjs interactive:true path; preserve interactive:false for tests (Wave 1, tdd) — PTY-BACKEND — DONE 2026-05-06, 1864/1866 tests pass (+12 PTY tests), commits bf290ba + 310fdb4
+     - [x] 19-04-doc-update-TRD.md — Update docs/handoff-watcher-guide.md with PTY caveats + platform install notes (macOS/Linux/Windows) + token-passing schema (Wave 1, standard) — DOC-PTY-CAVEATS — DONE 2026-05-06, 224→334 lines, commit 88fe5b5
      - [ ] 19-02-token-passing-TRD.md — Extend pending record schema with inputs.secrets[]; wire processOnce with prompt-detection + secret-resolution + redaction (Wave 2, tdd) — TOKEN-PASSING
      - [ ] 19-03-gate-interactive-update-TRD.md — Update gate-interactive.js buildDenyReason watcher-live branch to mention PTY-backed daemon (Wave 2, tdd) — GATE-PTY-MESSAGE
      - [ ] 19-05-mock-auth-e2e-TRD.md — Mock gh + doctl auth servers + cassettes; e2e tests for PTY-path auth flows without real credentials (Wave 3, tdd) — E2E-MOCK-AUTH
