@@ -2842,3 +2842,47 @@ describe('changelog command', () => {
     assert.strictEqual(json.present, true);
   });
 });
+
+// =============================================================================
+// Workflow markdown static asserts (Phase D — issue #29)
+// =============================================================================
+
+describe('build.md workflow asserts (Phase D verifier wiring)', () => {
+  const buildMdPath = path.join(__dirname, '..', 'workflows', 'build.md');
+
+  test('build.md exists and is readable', () => {
+    assert.ok(fs.existsSync(buildMdPath),
+      `build.md not found at ${buildMdPath}`);
+    const buildMd = fs.readFileSync(buildMdPath, 'utf8');
+    assert.ok(buildMd.length > 0, 'build.md is empty');
+  });
+
+  test('build.md § 8 spawns dedicated verifier subagent (issue #29)', () => {
+    const buildMd = fs.readFileSync(buildMdPath, 'utf8');
+
+    // Section 8 header still present
+    assert.match(buildMd, /## 8\. Auto-Verify \+ Complete/,
+      'build.md must retain § 8 Auto-Verify + Complete section');
+
+    // Verifier subagent spawn present
+    assert.match(buildMd, /subagent_type="verifier"/,
+      'build.md must spawn dedicated verifier agent (Phase D fix for #29)');
+
+    // Verifier model parameter passes profile through
+    assert.match(buildMd, /model="\{verifier_model\}"/,
+      'verifier spawn must use {verifier_model} from § 1 Initialize parse');
+  });
+
+  test('build.md preserves trampoline (Phase E DOCUMENT case)', () => {
+    const buildMd = fs.readFileSync(buildMdPath, 'utf8');
+
+    // Trampoline still present — Phase E preserved this as legitimate
+    // workflow-invocation general-purpose use
+    assert.match(buildMd, /subagent_type="general-purpose"/,
+      'build.md must preserve general-purpose trampoline at execute-objective invocation (Phase E DOCUMENT case)');
+
+    // Trampoline prompt shape still matches
+    assert.match(buildMd, /Run \/devflow:execute-objective/,
+      'trampoline prompt must still invoke /devflow:execute-objective');
+  });
+});
