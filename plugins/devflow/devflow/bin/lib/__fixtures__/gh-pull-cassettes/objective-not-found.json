@@ -1,0 +1,9 @@
+{
+  "args": ["issue", "view", "99999", "--repo", "AO-Cyber-Systems/devflow-claude", "--json", "state,labels,assignees,milestone,updatedAt"],
+  "response": {
+    "ok": false,
+    "status": 1,
+    "stdout": "",
+    "stderr": "Could not resolve to an Issue with the number of 99999"
+  }
+}

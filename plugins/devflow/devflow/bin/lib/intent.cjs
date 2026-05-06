@@ -21,19 +21,40 @@ const VALID_WORKS = ['feature', 'port', 'refactor', 'foundation', 'bugfix', 'pro
 
 const DEFAULTS_TABLE_PATH = path.join(__dirname, '../../references/defaults-table.md');
 
+// Module-scoped resolve context. Set by resolve() before calling loadDefaultsTable
+// so the 3-tier loader (TRD 21-04) can see projectRoot + userHome without changing
+// the loadDefaultsTable signature (callers like loadConstraints stay back-compat).
+let _currentResolveCtx = { projectRoot: null, userHome: null };
+
 let _cachedTable = null;
 function loadDefaultsTable(tablePath = DEFAULTS_TABLE_PATH) {
-  if (_cachedTable && tablePath === DEFAULTS_TABLE_PATH) return _cachedTable;
-
-  const content = fs.readFileSync(tablePath, 'utf-8');
-  const match = content.match(/```yaml\n([\s\S]*?)\n```/);
-  if (!match) {
-    throw new Error(`defaults-table.md missing yaml block (path: ${tablePath})`);
+  // Test-only path: explicit single-file tablePath (not the bundled default).
+  // Preserves back-compat with existing intent.test.cjs that passes a fixture path.
+  if (tablePath !== null && tablePath !== undefined && tablePath !== DEFAULTS_TABLE_PATH) {
+    const content = fs.readFileSync(tablePath, 'utf-8');
+    const match = content.match(/```yaml\n([\s\S]*?)\n```/);
+    if (!match) {
+      throw new Error(`defaults-table.md missing yaml block (path: ${tablePath})`);
+    }
+    return parseDefaultsYaml(match[1]);
   }
-  const yaml = match[1];
-  const table = parseDefaultsYaml(yaml);
-  if (tablePath === DEFAULTS_TABLE_PATH) _cachedTable = table;
-  return table;
+
+  // Production path: 3-tier resolution via defaults-loader.cjs (TRD 21-04).
+  // Cache here is bypassed in favor of defaults-loader's per-(projectRoot, userHome)
+  // cache; intent._resetCache() cascades to defaultsLoader._resetCache().
+  if (_cachedTable && _currentResolveCtx.projectRoot === null && _currentResolveCtx.userHome === null) {
+    return _cachedTable;
+  }
+
+  const defaultsLoader = require('./defaults-loader.cjs');
+  const merged = defaultsLoader.loadMergedDefaultsTable({
+    projectRoot: _currentResolveCtx.projectRoot,
+    userHome: _currentResolveCtx.userHome,
+  });
+  if (_currentResolveCtx.projectRoot === null && _currentResolveCtx.userHome === null) {
+    _cachedTable = merged.table;
+  }
+  return merged.table;
 }
 
 // Minimal YAML parser tuned for the defaults table's known structure.
@@ -208,6 +229,10 @@ function resolve({ projectRoot, objectiveId, trdPath, userHome, tablePath } = {}
   if (!projectRoot) {
     throw new Error('resolve: projectRoot is required');
   }
+
+  // Set ctx for 3-tier loader (consumed inside loadDefaultsTable when tablePath
+  // is not an explicit single-file override). Reset after use to avoid stale state.
+  _currentResolveCtx = { projectRoot, userHome: userHome || null };
 
   // Read sources in order
   const projectFm = readProjectMd(projectRoot);
@@ -420,6 +445,15 @@ function resolve({ projectRoot, objectiveId, trdPath, userHome, tablePath } = {}
     provenance[field] = normalizeProvenance(sources[field]);
   }
 
+  // TRD 21-05: per-cell defaults-table tier origin (orthogonal to overrides)
+  const cellProvenance = computeCellProvenance({
+    kind,
+    work,
+    projectRoot,
+    userHome: userHome || null,
+    tablePath,
+  });
+
   return {
     kind,
     work,
@@ -428,10 +462,58 @@ function resolve({ projectRoot, objectiveId, trdPath, userHome, tablePath } = {}
     config,
     sources,
     provenance,
+    cell_provenance: cellProvenance,
     constraints,
     directives: directives._sources || [],
     warnings,
   };
+}
+
+// ─── TRD 21-05: cell_provenance — per-cell defaults-table tier origin ───────
+//
+// Reports which TIER (project_table / org_table / bundled_table) supplied each
+// (kind, work, field) cell — independent of override layers above.
+//
+// Vocabulary:
+//   'project_table'   — project tier (.planning/defaults-table.md) supplied this cell
+//   'org_table'       — org tier (~/.claude/devflow/defaults-table.md) supplied this cell
+//   'bundled_table'   — bundled fallback (references/defaults-table.md) supplied this cell
+//   'table_explicit'  — test path with explicit tablePath (single-file mode)
+//   'unknown'         — defensive fallback (key missing from loader provenance)
+//
+// Reading provenance + cell_provenance together:
+//   provenance.tdd === 'trd_override' AND cell_provenance.tdd === 'project_table'
+//   → "Your TRD overrode the value, but if it hadn't, your project's
+//      defaults-table would have supplied it (overriding org and bundled)."
+function computeCellProvenance({ kind, work, projectRoot, userHome, tablePath }) {
+  const ALL_FIELDS = ['tdd', 'depth', 'model_profile', 'verification',
+    'security_isolation', 'back_compat', 'tdd_default', 'test_list_first',
+    'fixture_strategy', 'outside_in'];
+
+  // Test-only path: explicit single-file tablePath
+  if (tablePath !== null && tablePath !== undefined && tablePath !== DEFAULTS_TABLE_PATH) {
+    const out = {};
+    for (const field of ALL_FIELDS) out[field] = 'table_explicit';
+    return out;
+  }
+
+  // Production path: 3-tier loader provenance
+  let merged;
+  try {
+    const defaultsLoader = require('./defaults-loader.cjs');
+    merged = defaultsLoader.loadMergedDefaultsTable({ projectRoot, userHome });
+  } catch (_) {
+    const out = {};
+    for (const field of ALL_FIELDS) out[field] = 'unknown';
+    return out;
+  }
+
+  const out = {};
+  for (const field of ALL_FIELDS) {
+    const key = `${kind}.${work}.${field}`;
+    out[field] = merged.provenance[key] || 'unknown';
+  }
+  return out;
 }
 
 // Maps freeform source strings (from result.sources) to normalized enum values.
@@ -453,9 +535,16 @@ function normalizeProvenance(sourceString) {
   return 'unknown';
 }
 
-// Reset cache — for tests
+// Reset cache — for tests. Cascades to defaults-loader to avoid stale-tier state.
 function _resetCache() {
   _cachedTable = null;
+  _currentResolveCtx = { projectRoot: null, userHome: null };
+  try {
+    const defaultsLoader = require('./defaults-loader.cjs');
+    defaultsLoader._resetCache();
+  } catch (_) {
+    // defaults-loader may not be loadable in some test contexts; ignore
+  }
 }
 
 module.exports = {

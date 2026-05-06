@@ -1,0 +1,9 @@
+{
+  "args": ["issue", "view", "12", "--repo", "AO-Cyber-Systems/devflow-claude", "--json", "state,labels,assignees,milestone,updatedAt"],
+  "response": {
+    "ok": true,
+    "status": 0,
+    "stdout": "{\"state\":\"OPEN\",\"labels\":[{\"name\":\"devflow:objective\",\"color\":\"0e8a16\"},{\"name\":\"devflow:in-progress\",\"color\":\"fbca04\"}],\"assignees\":[{\"login\":\"markemerson\"}],\"milestone\":null,\"updatedAt\":\"2026-05-05T18:00:00Z\"}",
+    "stderr": ""
+  }
+}

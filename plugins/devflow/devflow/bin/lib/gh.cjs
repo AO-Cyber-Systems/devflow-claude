@@ -25,6 +25,7 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 const { output } = require('./helpers.cjs');
 const { extractFrontmatter } = require('./frontmatter.cjs');
+const { recordSync, hashFrontmatter } = require('./sync-state.cjs');
 
 const MAPPING_REL = path.join('.planning', '.gh-mapping.json');
 
@@ -628,7 +629,7 @@ function ghStatus(cwd) {
   if (which.status !== 0) {
     return { enabled: false, reason: 'gh CLI not installed (https://cli.github.com)' };
   }
-  const auth = runGh(['auth', 'status']);
+  const auth = _runGh(['auth', 'status']);
   if (!auth.ok) {
     return { enabled: false, reason: 'gh not authenticated — run `gh auth login`' };
   }
@@ -730,7 +731,7 @@ function cmdGhSyncObjectives(cwd, raw) {
 
   // Ensure milestone exists (best-effort — gh has no `milestone create`, use API)
   if (!mapping.milestone_id) {
-    const create = runGh(['api', `repos/${repo}/milestones`, '-f', `title=${milestoneTitle}`, '-f', `description=DevFlow milestone for ${projectName}`]);
+    const create = _runGh(['api', `repos/${repo}/milestones`, '-f', `title=${milestoneTitle}`, '-f', `description=DevFlow milestone for ${projectName}`]);
     if (create.ok) {
       try {
         const json = JSON.parse(create.stdout);
@@ -739,7 +740,7 @@ function cmdGhSyncObjectives(cwd, raw) {
       } catch {}
     } else if (/already_exists/i.test(create.stderr)) {
       // Look up existing milestone
-      const list = runGh(['api', `repos/${repo}/milestones?state=all`]);
+      const list = _runGh(['api', `repos/${repo}/milestones?state=all`]);
       if (list.ok) {
         try {
           const arr = JSON.parse(list.stdout);
@@ -756,7 +757,7 @@ function cmdGhSyncObjectives(cwd, raw) {
   }
 
   // Ensure label exists
-  runGh(['label', 'create', baseLabel, '--repo', repo, '--color', '0e8a16', '--description', 'DevFlow objective tracking']);
+  _runGh(['label', 'create', baseLabel, '--repo', repo, '--color', '0e8a16', '--description', 'DevFlow objective tracking']);
 
   for (const obj of objectives) {
     const existingIssue = mapping.objectives[obj.number];
@@ -764,7 +765,7 @@ function cmdGhSyncObjectives(cwd, raw) {
     const body = formatIssueBody(obj, projectName);
 
     if (existingIssue) {
-      const edit = runGh([
+      const edit = _runGh([
         'issue', 'edit', String(existingIssue),
         '--repo', repo,
         '--title', title,
@@ -782,7 +783,7 @@ function cmdGhSyncObjectives(cwd, raw) {
         // gh issue create takes --milestone by title, not number
         args.push('--milestone', milestoneTitle);
       }
-      const create = runGh(args);
+      const create = _runGh(args);
       if (create.ok) {
         const m = create.stdout.match(/\/issues\/(\d+)/);
         if (m) {
@@ -796,7 +797,57 @@ function cmdGhSyncObjectives(cwd, raw) {
   }
 
   writeMapping(cwd, mapping);
+
+  // TRD 21-02: record sync state for each successfully synced objective so that
+  // subsequent `gh pull` calls have a baseline to detect drift against.
+  for (const item of result.objectives) {
+    if (item.action !== 'created' && item.action !== 'updated') continue;
+    const objDir = _findObjectiveDir(cwd, item.number);
+    if (!objDir) continue;
+    const objPath = path.join(cwd, '.planning', 'objectives', objDir, 'OBJECTIVE.md');
+    if (!fs.existsSync(objPath)) continue;
+    let diskFm;
+    try {
+      diskFm = extractFrontmatter(fs.readFileSync(objPath, 'utf-8')) || {};
+    } catch (_) {
+      continue;
+    }
+    const issueRef = `${repo}#${item.issue}`;
+    const nowIso = new Date().toISOString();
+    try {
+      recordSync(cwd, item.number, {
+        issue_ref: issueRef,
+        etag: null,
+        gh_updated_at: nowIso, // approximate; we just wrote
+        label_set: [baseLabel], // we just applied this label
+        assignees: [],          // push doesn't set assignees
+        milestone: milestoneTitle,
+        status: 'open',         // push creates as open
+        last_synced_at: nowIso,
+        last_synced_disk_hash: hashFrontmatter(diskFm),
+      });
+    } catch (_) {
+      // best-effort: do not fail the push if sync state can't be written
+    }
+  }
+
   output(result, raw, '');
+}
+
+// Best-effort: list .planning/objectives/, find dir whose name starts with the
+// (zero-padded) objective number. Falls back to non-padded prefix or exact match.
+function _findObjectiveDir(cwd, objectiveNumber) {
+  const objDir = path.join(cwd, '.planning', 'objectives');
+  if (!fs.existsSync(objDir)) return null;
+  const padded = String(objectiveNumber).padStart(2, '0');
+  const numStr = String(objectiveNumber);
+  let entries;
+  try { entries = fs.readdirSync(objDir); } catch (_) { return null; }
+  for (const entry of entries) {
+    if (entry === padded || entry === numStr) return entry;
+    if (entry.startsWith(padded + '-') || entry.startsWith(numStr + '-')) return entry;
+  }
+  return null;
 }
 
 function cmdGhComment(cwd, issueOrObjective, body, raw) {
