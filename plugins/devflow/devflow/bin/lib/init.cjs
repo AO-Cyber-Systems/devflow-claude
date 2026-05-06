@@ -32,6 +32,77 @@ function _awarenessLoadable() {
   }
 }
 
+/**
+ * Read .planning/.check-todos-cache.json (cache-only; never spawn fresh fetch).
+ *
+ * Returns:
+ *   { line: '📋 N todos in Now lane (run /devflow:check-todos)', warning: null }
+ *   when cache exists and the `now` lane has ≥1 entry.
+ *   { line: null, warning: null } when cache absent or `now` empty/not-an-array.
+ *   { line: null, warning: '<msg>' } on read/parse error.
+ *
+ * The cache `now` top-level array is written by the post-aggregate check-todos
+ * pipeline. If the user has not yet run /devflow:check-todos the field will be
+ * absent; the helper degrades gracefully to null (no preview line emitted).
+ *
+ * @param {string} cwd - working directory
+ * @returns {{ line: string|null, warning: string|null }}
+ */
+function _buildCheckTodosPreview(cwd) {
+  const cachePath = path.join(cwd, '.planning', '.check-todos-cache.json');
+  if (!fs.existsSync(cachePath)) return { line: null, warning: null };
+  let parsed;
+  try {
+    parsed = JSON.parse(fs.readFileSync(cachePath, 'utf-8'));
+  } catch (e) {
+    return { line: null, warning: `check-todos-cache parse error: ${e.message}` };
+  }
+  const nowEntries = Array.isArray(parsed.now) ? parsed.now : null;
+  if (!nowEntries || nowEntries.length === 0) return { line: null, warning: null };
+  return {
+    line: `📋 ${nowEntries.length} todos in Now lane (run /devflow:check-todos)`,
+    warning: null,
+  };
+}
+
+/**
+ * Read .planning/.awareness-cache.json (cache-only). Filters out the current branch.
+ *
+ * Returns:
+ *   { line: '⚠ N other branches active (run df-tools awareness show)', warning: null }
+ *   when cache exists and ≥1 peer branch (excluding current) is present.
+ *   { line: null, warning: null } when cache absent, peer.branches missing, or all branches filtered.
+ *   { line: null, warning: '<msg>' } on read/parse error.
+ *
+ * @param {string} cwd - working directory
+ * @returns {{ line: string|null, warning: string|null }}
+ */
+function _buildAwarenessPreview(cwd) {
+  const cachePath = path.join(cwd, '.planning', '.awareness-cache.json');
+  if (!fs.existsSync(cachePath)) return { line: null, warning: null };
+  let parsed;
+  try {
+    parsed = JSON.parse(fs.readFileSync(cachePath, 'utf-8'));
+  } catch (e) {
+    return { line: null, warning: `awareness-cache parse error: ${e.message}` };
+  }
+  const branches =
+    parsed && parsed.peer && Array.isArray(parsed.peer.branches)
+      ? parsed.peer.branches
+      : null;
+  if (!branches) return { line: null, warning: null };
+  const currentBranch = (parsed.peer && parsed.peer.current_branch) || null;
+  const otherBranches = branches.filter(b => {
+    const name = typeof b === 'string' ? b : (b && b.branch);
+    return name && name !== currentBranch;
+  });
+  if (otherBranches.length === 0) return { line: null, warning: null };
+  return {
+    line: `⚠ ${otherBranches.length} other branches active (run df-tools awareness show)`,
+    warning: null,
+  };
+}
+
 function resolveModelInternal(cwd, agentType) {
   const config = loadConfig(cwd);
 
@@ -155,6 +226,15 @@ function cmdInitExecuteObjective(cwd, objective, includes, raw) {
   // init.cjs only sets it. Falls back to false if awareness.cjs is unavailable/broken.
   result.awareness_refresh = _awarenessLoadable();
 
+  // TRD 18-03: emit one-line previews from cached data (cache-only, no subprocess spawn)
+  const ctPreviewExec = _buildCheckTodosPreview(cwd);
+  const awPreviewExec = _buildAwarenessPreview(cwd);
+  result.check_todos_preview = ctPreviewExec.line;
+  result.awareness_preview = awPreviewExec.line;
+  result.advisories_warnings = [];
+  if (ctPreviewExec.warning) result.advisories_warnings.push(ctPreviewExec.warning);
+  if (awPreviewExec.warning) result.advisories_warnings.push(awPreviewExec.warning);
+
   // Self-healing bootstrap: ensure PROJECT.md has org + github_repo fields.
   // If anything was added, the result.bootstrap object communicates what changed
   // so the calling skill can surface it to the user (no auto-commit; user folds
@@ -261,6 +341,15 @@ function cmdInitPlanObjective(cwd, objective, includes, raw) {
   // before spawning the planner agent. The skill is responsible for consuming this flag;
   // init.cjs only sets it. Falls back to false if awareness.cjs is unavailable/broken.
   result.awareness_refresh = _awarenessLoadable();
+
+  // TRD 18-03: emit one-line previews from cached data (cache-only, no subprocess spawn)
+  const ctPreviewPlan = _buildCheckTodosPreview(cwd);
+  const awPreviewPlan = _buildAwarenessPreview(cwd);
+  result.check_todos_preview = ctPreviewPlan.line;
+  result.awareness_preview = awPreviewPlan.line;
+  result.advisories_warnings = [];
+  if (ctPreviewPlan.warning) result.advisories_warnings.push(ctPreviewPlan.warning);
+  if (awPreviewPlan.warning) result.advisories_warnings.push(awPreviewPlan.warning);
 
   // Self-healing bootstrap: ensure PROJECT.md has org + github_repo fields.
   // See cmdInitExecuteObjective for the same pattern.
@@ -829,4 +918,7 @@ module.exports = {
   cmdInitMapCodebase,
   cmdInitSecurityAudit,
   cmdInitProgress,
+  // TRD 18-03: exported for unit testing (underscore-prefix = test-only, not public API)
+  _buildCheckTodosPreview,
+  _buildAwarenessPreview,
 };
