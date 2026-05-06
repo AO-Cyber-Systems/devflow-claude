@@ -218,3 +218,101 @@ describe('watcher-state — makeDoneRecord / markConsumed / listUnconsumed', () 
     assert.equal(got[0].id, 'h-g');
   });
 });
+
+// ===========================================================================
+// TRD 20-03 Group W — addWatchedProject / removeWatchedProject
+// ===========================================================================
+
+describe('watcher-state — Group W: multi-project mutations (TRD 20-03)', () => {
+  let h;
+  beforeEach(() => { h = tmpHome(); });
+  afterEach(() => { h.cleanup(); });
+
+  test('W-1 addWatchedProject appends path.resolve(path) to existing watching:[]', () => {
+    lib.writePidFile({ pid: 1, version: '0.1.0', shell: 'bash', watching: ['/a'] });
+    const next = lib.addWatchedProject('/b');
+    assert.deepEqual(next.watching, ['/a', '/b']);
+    // Verify on-disk state matches
+    const onDisk = lib.readPidFile();
+    assert.deepEqual(onDisk.watching, ['/a', '/b']);
+  });
+
+  test('W-2 addWatchedProject is no-op when path already present (no duplicate)', () => {
+    lib.writePidFile({ pid: 1, version: '0.1.0', shell: 'bash', watching: ['/a', '/b'] });
+    const next = lib.addWatchedProject('/a');
+    assert.deepEqual(next.watching, ['/a', '/b'], 'no duplicate');
+  });
+
+  test('W-3 addWatchedProject throws ENOPIDFILE when daemon not running', () => {
+    assert.throws(
+      () => lib.addWatchedProject('/a'),
+      (e) => e.code === 'ENOPIDFILE',
+    );
+  });
+
+  test('W-4 addWatchedProject writes via tmp+rename (no .tmp persists)', () => {
+    lib.writePidFile({ pid: 1, version: '0.1.0', shell: 'bash', watching: [] });
+    lib.addWatchedProject('/a');
+    const tmpPidFile = lib.pidFilePath() + '.tmp';
+    assert.ok(!fs.existsSync(tmpPidFile), 'tmp file cleaned up after rename');
+  });
+
+  test('W-5 removeWatchedProject removes path from watching:[]', () => {
+    lib.writePidFile({ pid: 1, version: '0.1.0', shell: 'bash', watching: ['/a', '/b'] });
+    const next = lib.removeWatchedProject('/a');
+    assert.deepEqual(next.watching, ['/b']);
+  });
+
+  test('W-6 removeWatchedProject is idempotent (no-op when path absent)', () => {
+    lib.writePidFile({ pid: 1, version: '0.1.0', shell: 'bash', watching: ['/a'] });
+    const next = lib.removeWatchedProject('/c');
+    assert.deepEqual(next.watching, ['/a'], 'unchanged');
+  });
+
+  test('W-7 removeWatchedProject preserves other watching:[] entries', () => {
+    lib.writePidFile({ pid: 1, version: '0.1.0', shell: 'bash', watching: ['/a', '/b', '/c'] });
+    lib.removeWatchedProject('/b');
+    const onDisk = lib.readPidFile();
+    assert.deepEqual(onDisk.watching, ['/a', '/c']);
+  });
+
+  test('W-8 mutations preserve all other PID file fields', () => {
+    const original = lib.writePidFile({
+      pid: 1234, version: '0.5.0', shell: 'fish', watching: ['/a'],
+    });
+    lib.addWatchedProject('/b');
+    const after = lib.readPidFile();
+    assert.equal(after.pid, 1234, 'pid preserved');
+    assert.equal(after.version, '0.5.0', 'version preserved');
+    assert.equal(after.shell, 'fish', 'shell preserved');
+    assert.equal(after.started_at, original.started_at, 'started_at preserved');
+  });
+
+  test('W-9 single-project PID file unchanged shape (back-compat verified)', () => {
+    lib.writePidFile({ pid: 1, version: '0.1.0', shell: 'bash', watching: ['/single'] });
+    const onDisk = lib.readPidFile();
+    assert.deepEqual(onDisk.watching, ['/single'], 'single-project shape preserved');
+  });
+});
+
+// ===========================================================================
+// TRD 20-03 Group EX — Export surface
+// ===========================================================================
+
+describe('watcher-state — Group EX: export surface (TRD 20-03)', () => {
+  test('EX-1 module.exports adds addWatchedProject + removeWatchedProject (10-entry surface)', () => {
+    const keys = Object.keys(lib).sort();
+    assert.deepStrictEqual(keys, [
+      'addWatchedProject',
+      'isWatcherLive',
+      'listUnconsumed',
+      'makeDoneRecord',
+      'markConsumed',
+      'pidFilePath',
+      'readPidFile',
+      'removePidFile',
+      'removeWatchedProject',
+      'writePidFile',
+    ]);
+  });
+});

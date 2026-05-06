@@ -67,6 +67,22 @@ devflow-watch status
 devflow-watch logs [--tail N]
   Read the last N lines of ~/.devflow/devflow-watch.log (default 100).
 
+devflow-watch add-project <path>
+  Add <path> to the running daemon's watching list. Mutates the live PID
+  file atomically. Hard-fails (exit 2) if the daemon is not running.
+
+devflow-watch remove-project <path>
+  Remove <path> from the watching list. Idempotent (no-op if not watched).
+  In-flight dispatches for the removed project complete; subsequent ticks
+  skip it.
+
+devflow-watch install-service [--project <path>]
+  Install daemon as user-domain background service (launchd on macOS,
+  systemd-user on Linux). Atomic + idempotent.
+
+devflow-watch uninstall-service
+  Stop, disable, and remove the user-domain service. Idempotent.
+
 devflow-watch version
   Print "devflow-watch <version>".
 ```
@@ -201,6 +217,78 @@ local terminal mid-session and want notifications resumed).
 
 macOS notifications are silent in fullscreen mode and Do Not Disturb. This
 is a system-level setting, not a daemon limitation.
+
+### Auto-launch (launchd / systemd)
+
+The daemon can register as a user-domain background service that survives
+logout and starts automatically on login. Disabled by default; opt in with
+the install-service subcommand:
+
+```bash
+# macOS / Linux: install + start
+devflow-watch install-service [--project <path>]
+
+# Stop + uninstall
+devflow-watch uninstall-service
+
+# Combined: uninstall during stop
+devflow-watch stop --uninstall-service
+```
+
+Service file locations (user domain only — no privilege elevation):
+
+| Platform | Path |
+|---|---|
+| macOS | `~/Library/LaunchAgents/com.aocyber.devflow-watch.plist` |
+| Linux | `~/.config/systemd/user/devflow-watch.service` |
+| Windows | unsupported in v1.2 (deferred to v1.3+) |
+
+The service file references the absolute path of the running `devflow-watch.cjs`
+binary at install time. If you move the install (e.g. plugin update with a
+different path), re-run `install-service`.
+
+**Linux headless / SSH note:** `systemctl --user` requires lingering for the
+service to run when no user session is active. Enable once per machine:
+
+```bash
+loginctl enable-linger $USER
+```
+
+`install-service` does NOT run this for you — it requires sudo and is a
+machine-wide setting; document only.
+
+**macOS note:** `launchctl load` is deprecated in 10.10+ in favor of
+`launchctl bootstrap gui/$(id -u)`. v1.2 uses `launchctl load` for
+backward compat with macOS 10.13+. v1.3+ may switch to bootstrap.
+
+### Multi-project watching
+
+A single daemon can watch multiple project checkout directories
+concurrently. The PID file's `watching: []` array holds all watched paths.
+
+```bash
+# Start watching multiple projects from the get-go (comma-separated)
+devflow-watch start --project /path/to/p1,/path/to/p2,/path/to/p3
+
+# Add a project to a running daemon
+devflow-watch add-project /path/to/p4
+
+# Remove a project from a running daemon (in-flight dispatch completes)
+devflow-watch remove-project /path/to/p1
+
+# `status` shows all watched projects + per-project pending/done counts
+devflow-watch status
+```
+
+Dispatch model: round-robin across watched projects, one command at a time
+(serial across all projects, not concurrent). `daemon.multi_project: true`
+in `.planning/config.json` is informational; the multi-project capability
+always works at runtime.
+
+Adding a project the daemon doesn't yet know about does NOT require a
+restart. Removing a project that has an in-flight dispatch does NOT abort
+the dispatch — it completes and writes its done record; subsequent ticks
+skip the removed path.
 
 ## PTY support (v1.2+)
 
