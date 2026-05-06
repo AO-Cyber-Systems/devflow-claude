@@ -20,6 +20,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 const { extractFrontmatter } = require('./frontmatter.cjs');
+const { readSyncState, recordSync, hashFrontmatter, getLastSync } = require('./sync-state.cjs');
 
 // Local emitter — bypasses helpers.output() because that helper always exits 0
 // and inverts raw semantics (raw=true→prose). cmdGhPull contract: raw=true→JSON,
@@ -251,16 +252,6 @@ function serializeYamlValue(v) {
 
 // ─── cmdGhPull (CLI orchestrator) ────────────────────────────────────────────
 
-function _readSyncStateRaw(cwd) {
-  const p = path.join(cwd, '.planning', '.gh-sync-state.json');
-  if (!fs.existsSync(p)) return { version: 1, objectives: {} };
-  try {
-    return JSON.parse(fs.readFileSync(p, 'utf-8'));
-  } catch (_) {
-    return { version: 1, objectives: {} };
-  }
-}
-
 /**
  * cmdGhPull(cwd, args, raw) — CLI entry point.
  * Usage: df-tools gh pull <objective> [--apply] [--raw]
@@ -338,9 +329,8 @@ function cmdGhPull(cwd, args, raw) {
   }
   const disk_fm = extractFrontmatter(fs.readFileSync(objPath, 'utf-8')) || {};
 
-  // Read last sync state
-  const syncState = _readSyncStateRaw(cwd);
-  const last_sync_state = syncState.objectives[objectiveId] || null;
+  // Read last sync state via sync-state.cjs (TRD 21-02)
+  const last_sync_state = getLastSync(cwd, objectiveId);
 
   const drift = detectDrift({ disk_fm, gh_state: ghIssue, last_sync_state });
 
@@ -376,6 +366,23 @@ function cmdGhPull(cwd, args, raw) {
       _emit({ ok: false, error: applyResult.error }, applyResult.error + '\n', raw, 1);
       return;
     }
+
+    // After successful disk write, record the new sync state (TRD 21-02 wiring).
+    // Hash MUST be computed AFTER applyDrift so disk_fm reflects the post-write state.
+    const ghNorm = normalizeGhIssue(ghIssue);
+    const updatedDiskFm = extractFrontmatter(fs.readFileSync(objPath, 'utf-8')) || {};
+    recordSync(cwd, objectiveId, {
+      issue_ref: issueRef,
+      etag: null,
+      gh_updated_at: ghIssue.updatedAt,
+      label_set: ghNorm.labels,
+      assignees: ghNorm.assignees,
+      milestone: ghNorm.milestone,
+      status: ghNorm.status,
+      last_synced_at: new Date().toISOString(),
+      last_synced_disk_hash: hashFrontmatter(updatedDiskFm),
+    });
+
     _emit(
       { ok: true, drift: true, applied: applyResult.applied },
       `Applied ${Object.keys(applyResult.applied).length} field changes to OBJECTIVE.md.\n`,

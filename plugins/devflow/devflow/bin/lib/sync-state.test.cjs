@@ -272,3 +272,179 @@ describe('getLastSync (G1-G2)', () => {
     }
   });
 });
+
+// ─── Integration with gh-pull / gh.cjs (W group) ──────────────────────────────
+
+describe('integration: cmdGhPull --apply records sync state (W1, W3)', () => {
+  const ghPull = require('./gh-pull.cjs');
+  const ghPullFx = require('./__fixtures__/gh-pull-fixtures.cjs');
+
+  function captureRun(fn) {
+    const origStdout = process.stdout.write.bind(process.stdout);
+    const origStderr = process.stderr.write.bind(process.stderr);
+    const origExit = process.exit;
+    let stdout = '', stderr = '', exitCode = null;
+    process.stdout.write = (chunk) => { stdout += chunk; return true; };
+    process.stderr.write = (chunk) => { stderr += chunk; return true; };
+    process.exit = (code) => { exitCode = code; throw new Error('__exit__'); };
+    try {
+      try { fn(); } catch (e) { if (e.message !== '__exit__') throw e; }
+    } finally {
+      process.stdout.write = origStdout;
+      process.stderr.write = origStderr;
+      process.exit = origExit;
+    }
+    return { stdout, stderr, exitCode };
+  }
+
+  test('W1: cmdGhPull --apply success path writes a recordSync entry', () => {
+    const project = ghPullFx.buildTempProject({
+      objectiveId: '21-bidirectional-gh-sync',
+      frontmatter: { status: 'in_progress', labels: ['devflow:objective'] },
+      mapping: { milestone_id: 0, objectives: { '21-bidirectional-gh-sync': { issue_id: 11, state_comment_id: null } } },
+      projectFm: { github_repo: 'AO-Cyber-Systems/devflow-claude' },
+    });
+    try {
+      // Pre-seed sync state so applyDrift's "no prior sync" guard is satisfied
+      ss.recordSync(project.root, project.objectiveId, fx.buildSyncStateRecord({
+        gh_updated_at: '2026-05-01T00:00:00Z',
+        label_set: ['devflow:objective'],
+        last_synced_disk_hash: 'sha256:initial',
+      }));
+
+      const cassette = ghPullFx.loadCassette('objective-closed-on-gh');
+      ghPull._setRunGh((args) => {
+        if (args[0] === 'auth' && args[1] === 'status') {
+          return { ok: true, status: 0, stdout: "  - Token scopes: 'repo'", stderr: '' };
+        }
+        if (args[0] === 'issue' && args[1] === 'view') return cassette.response;
+        return { ok: false, status: 1, stdout: '', stderr: 'unexpected' };
+      });
+
+      captureRun(() => ghPull.cmdGhPull(project.root, ['21-bidirectional-gh-sync', '--apply'], false));
+      ghPull._setRunGh(null);
+
+      // After apply, sync state should have been written with cassette's updatedAt
+      const cassetteIssue = JSON.parse(cassette.response.stdout);
+      const last = ss.getLastSync(project.root, '21-bidirectional-gh-sync');
+      assert.ok(last, 'sync state recorded for objective');
+      assert.strictEqual(last.gh_updated_at, cassetteIssue.updatedAt);
+      assert.strictEqual(last.status, cassetteIssue.state === 'CLOSED' ? 'done' : 'open');
+      assert.match(last.last_synced_disk_hash, /^sha256:[a-f0-9]{64}$/);
+      // Hash should be updated post-apply (NOT 'sha256:initial' from pre-seed)
+      assert.notStrictEqual(last.last_synced_disk_hash, 'sha256:initial');
+    } finally {
+      project.cleanup();
+    }
+  });
+
+  test('W3: cmdGhPull no-drift path does NOT write a recordSync entry', () => {
+    const project = ghPullFx.buildTempProject({
+      objectiveId: '21-bidirectional-gh-sync',
+      frontmatter: { status: 'open', labels: ['devflow:objective'] },
+      mapping: { milestone_id: 0, objectives: { '21-bidirectional-gh-sync': { issue_id: 10, state_comment_id: null } } },
+      projectFm: { github_repo: 'AO-Cyber-Systems/devflow-claude' },
+    });
+    try {
+      // Pre-seed sync state matching cassette's updatedAt — no drift expected
+      const before = fx.buildSyncStateRecord({
+        gh_updated_at: '2026-05-01T00:00:00Z', // matches cassette
+        label_set: ['devflow:objective'],
+        last_synced_disk_hash: 'sha256:before',
+      });
+      ss.recordSync(project.root, project.objectiveId, before);
+      const filePath = path.join(project.root, '.planning', '.gh-sync-state.json');
+      const beforeMtime = fs.statSync(filePath).mtimeMs;
+      const beforeContent = fs.readFileSync(filePath, 'utf-8');
+
+      const cassette = ghPullFx.loadCassette('objective-open-no-drift');
+      ghPull._setRunGh((args) => {
+        if (args[0] === 'auth' && args[1] === 'status') {
+          return { ok: true, status: 0, stdout: "  - Token scopes: 'repo'", stderr: '' };
+        }
+        if (args[0] === 'issue' && args[1] === 'view') return cassette.response;
+        return { ok: false, status: 1, stdout: '', stderr: 'unexpected' };
+      });
+
+      captureRun(() => ghPull.cmdGhPull(project.root, ['21-bidirectional-gh-sync'], false));
+      ghPull._setRunGh(null);
+
+      // Sync state file content should be byte-identical (no recordSync call)
+      const afterContent = fs.readFileSync(filePath, 'utf-8');
+      assert.strictEqual(afterContent, beforeContent, 'sync state untouched on no-drift');
+      // Last record content unchanged
+      const last = ss.getLastSync(project.root, project.objectiveId);
+      assert.strictEqual(last.last_synced_disk_hash, 'sha256:before');
+    } finally {
+      project.cleanup();
+    }
+  });
+});
+
+describe('integration: cmdGhSyncObjectives (push) records sync state (W2)', () => {
+  // gh.cjs uses module-level _runGh; we mock it via the existing _setRunGh seam.
+  test('W2: cmdGhSyncObjectives push success writes recordSync entry per objective', () => {
+    const gh = require('./gh.cjs');
+
+    // Build temp project: PROJECT.md, ROADMAP.md, OBJECTIVE.md, .planning/config.json
+    const fs = require('fs');
+    const path = require('path');
+    const os = require('os');
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'df-syncstate-push-'));
+    try {
+      fs.mkdirSync(path.join(root, '.planning', 'objectives', '01-test-objective'), { recursive: true });
+      fs.writeFileSync(path.join(root, '.planning', 'PROJECT.md'),
+        '---\nname: TestProj\nversion: v1.0\n---\n\n# Project\n', 'utf-8');
+      fs.writeFileSync(path.join(root, '.planning', 'ROADMAP.md'),
+        '# Roadmap\n\n## Objectives\n\n### Objective 1: Test Objective\n\n**Goal:** do a thing.\n', 'utf-8');
+      fs.writeFileSync(path.join(root, '.planning', 'objectives', '01-test-objective', 'OBJECTIVE.md'),
+        '---\nstatus: open\nkind: plugin\nwork: feature\n---\n\n# Test Objective\n', 'utf-8');
+      fs.writeFileSync(path.join(root, '.planning', 'config.json'), JSON.stringify({
+        github: { enabled: true, repo: 'TestOrg/TestRepo', labels: { objective: 'devflow:objective' }, milestone_prefix: 'v' },
+      }), 'utf-8');
+
+      // Mock runGh: auth ok with project scopes, milestone+label create succeed,
+      // and issue create returns a synthetic URL with #42.
+      gh._setRunGh((args) => {
+        if (args[0] === 'auth' && args[1] === 'status') {
+          return { ok: true, status: 0, stdout: "Token scopes: 'project', 'repo'", stderr: '' };
+        }
+        if (args[0] === 'api' && args[1] && args[1].includes('milestones')) {
+          // Successful milestone creation
+          return { ok: true, status: 0, stdout: JSON.stringify({ number: 1, title: 'v1.0' }), stderr: '' };
+        }
+        if (args[0] === 'label' && args[1] === 'create') {
+          return { ok: true, status: 0, stdout: '', stderr: '' };
+        }
+        if (args[0] === 'issue' && args[1] === 'create') {
+          return { ok: true, status: 0, stdout: 'https://github.com/TestOrg/TestRepo/issues/42', stderr: '' };
+        }
+        return { ok: false, status: 1, stdout: '', stderr: `unexpected: ${args.join(' ')}` };
+      });
+
+      // Capture stdout AND process.exit (helpers.output calls process.exit which would
+      // otherwise terminate the test runner before subsequent tests can register).
+      const origStdout = process.stdout.write.bind(process.stdout);
+      const origExit = process.exit;
+      process.stdout.write = () => true;
+      process.exit = (code) => { throw new Error(`__exit_${code}__`); };
+      try {
+        try { gh.cmdGhSyncObjectives(root, true); }
+        catch (e) { if (!/^__exit_/.test(e.message)) throw e; }
+      } finally {
+        process.stdout.write = origStdout;
+        process.exit = origExit;
+        gh._setRunGh(null);
+      }
+
+      // Sync state should have an entry for objective '1' with issue 42
+      const last = ss.getLastSync(root, '1');
+      assert.ok(last, 'sync state recorded for objective 1');
+      assert.strictEqual(last.issue_ref, 'TestOrg/TestRepo#42');
+      assert.deepStrictEqual(last.label_set, ['devflow:objective']);
+      assert.match(last.last_synced_disk_hash, /^sha256:[a-f0-9]{64}$/);
+    } finally {
+      try { fs.rmSync(root, { recursive: true, force: true }); } catch (_) {}
+    }
+  });
+});
