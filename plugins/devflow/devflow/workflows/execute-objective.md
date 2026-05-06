@@ -639,6 +639,29 @@ The CLI handles:
 
 Extract from result: `next_objective`, `next_objective_name`, `is_last_objective`.
 
+**Auto-reconcile ROADMAP drift (TRD 18-02):**
+
+Before the final commit, reconcile any ROADMAP ↔ disk drift so the commit captures the corrected state in one atomic move. Non-blocking — failure produces a warning but does not abort completion.
+
+```bash
+node ~/.claude/devflow/bin/df-tools.cjs sync-roadmap 2>/dev/null || {
+  echo "Note: sync-roadmap reconcile skipped (CLI failed); continuing without ROADMAP drift correction."
+}
+```
+
+**Auto-push to GitHub (TRD 18-02):**
+
+Push state to the linked GitHub issue when the objective has one. Skipped silently when OBJECTIVE.md is absent or has no `github_issue` field. Auth failures emit a warning with remediation but don't abort.
+
+```bash
+OBJECTIVE_MD=".planning/objectives/${OBJECTIVE_DIR}/OBJECTIVE.md"
+if [[ -f "$OBJECTIVE_MD" ]] && grep -qE '^github_issue:' "$OBJECTIVE_MD" 2>/dev/null; then
+  node ~/.claude/devflow/bin/df-tools.cjs gh sync "${OBJECTIVE_NUMBER}" 2>/dev/null || {
+    echo "Note: gh sync skipped for objective ${OBJECTIVE_NUMBER} (CLI failed; check 'gh auth status' if persistent); continuing."
+  }
+fi
+```
+
 ```bash
 node ~/.claude/devflow/bin/df-tools.cjs commit "docs(objective-{X}): complete objective execution" --files .planning/ROADMAP.md .planning/STATE.md .planning/REQUIREMENTS.md .planning/objectives/{objective_dir}/*-VERIFICATION.md
 ```
