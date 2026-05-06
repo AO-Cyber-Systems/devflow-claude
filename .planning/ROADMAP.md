@@ -589,7 +589,15 @@ Dependency order:
      - [ ] 13-02-edit-agents-group-a-TRD.md — Edit planner + job-checker + debugger + objective-researcher + verifier to externalize inline content (Wave 2, standard) — PHASE-H2-PLANNER, PHASE-H2-JOB-CHECKER, PHASE-H2-DEBUGGER, PHASE-H2-OBJECTIVE-RESEARCHER, PHASE-H2-VERIFIER-STUB, PHASE-H3-VERIFIER-TEMPLATE
      - [ ] 13-03-edit-agents-group-b-TRD.md — Edit project-researcher + codebase-mapper to externalize inline templates (Wave 2, standard) — PHASE-H2-PROJECT-RESEARCHER, PHASE-H3-PROJECT-RESEARCHER, PHASE-H3-CODEBASE-MAPPER
      - [ ] 13-04-token-savings-and-verify-TRD.md — Compute line-count delta + token-savings estimate + back-compat verification (1471 tests pass, @-ref resolvability) (Wave 3, standard) — PHASE-H-MEASUREMENT, PHASE-H-BACKCOMPAT
-5. **Phase F — Default-on safety nets** — mandatory df-verifier invocation + route-intent enforcement; closes the routing→verification loop. Depends on D + E. **Tracks: devflow-claude#31**
+5. **Phase F — Default-on safety nets** — flip currently opt-in safety features to default-on under Plan B's ambient model: cheap CLI pre-checker, novel-domain auto-research trigger, brownfield map detector, and confidence-scoring removal in favor of per-task caution flag. F4 (verifier always-on) already satisfied by Phase D. Depends on D + E. **Tracks: devflow-claude#31**
+   - **Status:** Planned 2026-05-04 (objective 14 / branch `feature/v1.2-obj-5-default-on-safety`)
+   - **Requirements:** [F1, F1-CONFIG, F2, F3, F4, F5]
+   - **TRDs:** 5 plans across 3 waves
+     - [ ] 14-01-cheap-trd-pre-checker-TRD.md — `df-tools verify trd-pre <objective>` cheap-CLI checker covering req coverage, task completeness, dep cycles, scope sanity (Wave 1, tdd) — F1
+     - [ ] 14-04-config-defaults-flip-TRD.md — Flip `templates/config.json` job_checker_enabled default + F4 acceptance regression test (Wave 1, standard) — F1-CONFIG, F4
+     - [ ] 14-02-novel-domain-detection-TRD.md — `df-tools detect novel-domain` (NEW_DEP/MISSING_PATTERNS/COMPARISON_KEYWORD signals) + planner auto-trigger (Wave 2, tdd) — F2
+     - [ ] 14-03-brownfield-map-detector-TRD.md — `df-tools detect brownfield-map` helper (Phase A wires the SessionStart hook) (Wave 3, tdd) — F3
+     - [ ] 14-05-confidence-scoring-removal-TRD.md — Drop confidence frontmatter; add per-task caution attribute; back-compat for in-flight TRDs (Wave 3, standard) — F5
 
 *Phase 2 — Ambient mode (adoption):*
 

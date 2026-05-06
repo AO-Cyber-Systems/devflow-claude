@@ -42,15 +42,11 @@ When verification finds gaps after execution:
 4. If still failing: try once more (max 2 cycles)
 5. If still failing after 2 cycles: STOP for human input
 
-## Confidence-Based Model Overrides
+## Per-Task Caution Attribute (F5)
 
-TRD confidence level affects execution model selection:
+Tasks may declare `caution="pause-before-destructive"` — executor pauses before destructive operations within that task. There is no TRD-level confidence flag and no confidence-based model selection. Model is determined by profile + objective settings.
 
-| Confidence | Executor Model | Behavior |
-|---|---|---|
-| `high` | Profile default | Standard execution |
-| `medium` | Profile default | Extra verification at task boundaries |
-| `low` | Upgrade to opus | Pause before destructive ops, extra verification |
+**Back-compat:** Legacy TRDs with `confidence: high|medium|low` in frontmatter parse without error; the field is ignored at execution time.
 
 ## TDD Enforcement
 

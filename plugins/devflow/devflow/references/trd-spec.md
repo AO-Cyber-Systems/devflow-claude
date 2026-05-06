@@ -11,7 +11,6 @@ The structure, frontmatter, and field semantics for TRD.md files. Referenced by 
 objective: XX-name
 trd: NN
 type: standard
-confidence: high              # high | medium | low
 wave: N                       # Execution wave (1, 2, 3...)
 depends_on: []                # Plan IDs this TRD requires
 files_modified: []            # Files this TRD touches
@@ -120,7 +119,6 @@ After completion, create `.planning/objectives/XX-name/{objective}-{trd}-SUMMARY
 | `objective` | Yes | Objective identifier (e.g., `01-foundation`) |
 | `trd` | Yes | TRD number within objective |
 | `type` | Yes | `standard` or `tdd` |
-| `confidence` | Yes | `high`, `medium`, or `low` — affects execution behavior |
 | `wave` | Yes | Execution wave number |
 | `depends_on` | Yes | Plan IDs this TRD requires |
 | `files_modified` | Yes | Files this TRD touches |
@@ -132,15 +130,18 @@ After completion, create `.planning/objectives/XX-name/{objective}-{trd}-SUMMARY
 
 Wave numbers are pre-computed during planning. Execute-objective reads `wave` directly from frontmatter.
 
-## Confidence Scoring
+## Per-Task Caution
 
-| Level | Meaning | Execution Behavior |
-|---|---|---|
-| `high` | Research complete, patterns clear | Standard execution |
-| `medium` | Some unknowns, reasonable assumptions | Extra verification at each task |
-| `low` | Significant unknowns, exploratory | Quality-tier model, pause before destructive ops |
+Tasks may declare a caution attribute: `<task type="auto" caution="pause-before-destructive">`.
 
-Set confidence based on: research completeness, codebase familiarity, library maturity.
+| Caution value | Behavior |
+|---|---|
+| `pause-before-destructive` | Pause before file deletions, schema drops, force pushes, mass-rewrites. Surface what will be destroyed; require confirmation. |
+| (absent) | Standard execution. No caution behavior. |
+
+Other values are warned and treated as absent. There is no TRD-level confidence flag — caution is per-task and opt-in.
+
+**Back-compat:** TRDs may still carry a `confidence:` frontmatter field from in-flight planning. Ignore it — do not error, do not branch on it.
 
 ## Context Section Rules
 

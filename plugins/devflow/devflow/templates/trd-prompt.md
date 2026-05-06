@@ -19,7 +19,6 @@ trd: NN
 type: standard                # standard | tdd
 wave: N                       # Execution wave (1, 2, 3...). Pre-computed at plan time.
 depends_on: []                # TRD IDs this task requires (e.g., ["01-01"]).
-confidence: high              # high | medium | low — based on research completeness
 files_modified: []            # Files this TRD modifies.
 autonomous: true              # false if TRD has checkpoints requiring user interaction
 requirements: []              # REQUIRED — Requirement IDs from ROADMAP. MUST NOT be empty.
@@ -169,7 +168,6 @@ After completion, create `.planning/objectives/XX-name/{objective}-{trd}-SUMMARY
 | Examples | None | `<codebase_examples>` with real patterns |
 | Anti-patterns | None | `<anti_patterns>` per-TRD |
 | Recovery | None | `<recovery>` per task + `<error_recovery>` |
-| Confidence | None | `confidence: high\|medium\|low` |
 | TDD tasks | `tdd="true"` attribute | `type="tdd"` with structured RED/GREEN |
 | Evidence | Optional | Required per-task verification |
 
@@ -182,16 +180,6 @@ Old JOB.md files continue to work. The system detects file suffix:
 
 ---
 
-## Confidence Scoring
-
-| Level | Meaning | Execution Behavior |
-|---|---|---|
-| `high` | Research complete, patterns clear | Standard execution |
-| `medium` | Some unknowns, reasonable assumptions | Extra verification at each task |
-| `low` | Significant unknowns, exploratory | Quality-tier model, pause before destructive ops |
-
----
-
 ## Frontmatter Fields
 
 | Field | Required | Purpose |
@@ -201,7 +189,6 @@ Old JOB.md files continue to work. The system detects file suffix:
 | `type` | Yes | `standard` or `tdd` |
 | `wave` | Yes | Execution wave number (1, 2, 3...) |
 | `depends_on` | Yes | Array of TRD IDs this task requires |
-| `confidence` | Yes | `high`, `medium`, or `low` |
 | `files_modified` | Yes | Files this TRD touches |
 | `autonomous` | Yes | `true` if no checkpoints, `false` if has checkpoints |
 | `requirements` | Yes | **MUST** list requirement IDs from ROADMAP |

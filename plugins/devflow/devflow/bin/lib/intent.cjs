@@ -354,9 +354,11 @@ function resolve({ projectRoot, objectiveId, trdPath, userHome, tablePath } = {}
       config.tdd = 'standard';
       sources.tdd = 'TRD frontmatter type:standard';
     }
-    if (trdFm.confidence) {
-      config.confidence = trdFm.confidence;
-      sources.confidence = 'TRD frontmatter';
+    // F5: confidence scoring removed (issue #31). Per-task `caution` attribute replaces TRD-level confidence.
+    // Back-compat: parse the field if present, but do NOT surface it in resolved config.
+    // Old TRDs with `confidence:` continue to load without error; the value is ignored.
+    if (trdFm.confidence !== undefined) {
+      // intentionally ignored — see Phase F (issue #31 F5)
     }
 
     // New structured fields — apply TRD frontmatter overrides for the 5+1 new fields

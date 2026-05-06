@@ -5,7 +5,7 @@
 //   - df-tools intent resolve subcommand end-to-end
 //   - 42-cell defaults table completeness check
 //   - Full stacked precedence chain
-//   - TRD type:standard + confidence passthrough
+//   - TRD type:standard (confidence passthrough removed — F5)
 //   - Error paths through the CLI surface
 
 const { test, describe, beforeEach, afterEach } = require('node:test');
@@ -335,10 +335,10 @@ describe('precedence chain — fully stacked', () => {
 });
 
 // ---------------------------------------------------------------------------
-// TRD-level fields: type:standard and confidence
+// TRD-level fields: type:standard (F5: confidence removed)
 // ---------------------------------------------------------------------------
 
-describe('TRD frontmatter — type:standard and confidence', () => {
+describe('TRD frontmatter — type:standard (F5: confidence removed)', () => {
   let project;
   afterEach(() => {
     if (project) project.cleanup();
@@ -366,7 +366,9 @@ describe('TRD frontmatter — type:standard and confidence', () => {
     assert.match(result.sources.tdd, /TRD frontmatter type:standard/);
   });
 
-  test('TRD confidence is passed through', () => {
+  test('F5 back-compat: TRD confidence field is parsed but NOT surfaced in resolved config', () => {
+    // F5: confidence scoring removed. Field still parses without error (back-compat),
+    // but result.config.confidence and result.sources.confidence must be absent.
     project = fixtures.buildProject({
       projectFrontmatter: { kind: 'api' },
       objectives: [{ id: '01-foo', work: 'feature' }],
@@ -375,6 +377,7 @@ describe('TRD frontmatter — type:standard and confidence', () => {
     const trdPath = path.join(project.root, '.planning', 'objectives', '01-foo', '01-01-TRD.md');
     fs.writeFileSync(trdPath, fixtures.trdMd({ confidence: 'high' }), 'utf-8');
 
+    // Must not throw — back-compat parse path preserved
     const result = intent.resolve({
       projectRoot: project.root,
       objectiveId: '01-foo',
@@ -382,8 +385,9 @@ describe('TRD frontmatter — type:standard and confidence', () => {
       userHome: '/nonexistent',
     });
 
-    assert.strictEqual(result.config.confidence, 'high');
-    assert.match(result.sources.confidence, /TRD frontmatter/);
+    // confidence is intentionally NOT surfaced in resolved config
+    assert.strictEqual(result.config.confidence, undefined, 'F5: confidence must not appear in resolved config');
+    assert.strictEqual(result.sources.confidence, undefined, 'F5: confidence must not appear in sources');
   });
 
   test('TRD type:tdd preserves "skip" → "strict" promotion', () => {

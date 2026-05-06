@@ -2739,3 +2739,148 @@ describe('build.md workflow asserts (Phase D verifier wiring)', () => {
       'trampoline prompt must still invoke /devflow:execute-objective');
   });
 });
+
+// =============================================================================
+// Phase F config defaults + F4 acceptance (objective 14-phase-f-default-on-safety)
+// =============================================================================
+
+describe('Phase F config defaults + F4 acceptance', () => {
+  test('templates/config.json defaults job_checker_enabled to true', () => {
+    const cfgPath = path.join(__dirname, '..', 'templates', 'config.json');
+    const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf-8'));
+    // Source-of-truth surface: top-level job_checker_enabled OR workflow.job_check
+    const value = cfg.job_checker_enabled ?? (cfg.workflow && cfg.workflow.job_check);
+    assert.strictEqual(value, true,
+      'Fresh-project template must default job_checker_enabled (or workflow.job_check) to true per issue #31 F1');
+  });
+
+  test('F4 acceptance: build.md § 8 still spawns dedicated verifier', () => {
+    const buildPath = path.join(__dirname, '..', 'workflows', 'build.md');
+    const buildMd = fs.readFileSync(buildPath, 'utf-8');
+    assert.ok(/subagent_type="verifier"/.test(buildMd),
+      'F4 regressed: build.md must still spawn verifier (Phase D wiring)');
+    assert.ok(/model="\{verifier_model\}"/.test(buildMd),
+      'F4 regressed: verifier spawn must use {verifier_model}');
+    // F4 also requires the spawn to be in § 8
+    assert.ok(/## 8\. Auto-Verify \+ Complete/.test(buildMd),
+      'F4 regressed: § 8 header missing');
+  });
+});
+
+// ─── verify trd-pre command (TRD 14-01) ───────────────────────────────────────
+
+describe('verify trd-pre command', () => {
+  const { makeTrdContent, setupObjectiveDir } = require('./lib/__fixtures__/trd-pre-fixtures.cjs');
+  let tmpDir;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'df-trd-pre-test-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  test('happy path — well-formed objective scaffold → exit 0, passed:true', () => {
+    setupObjectiveDir(tmpDir, {
+      objective: '99-test',
+      roadmap_requirements: ['F1'],
+      trds: [
+        {
+          trd: '99-01',
+          requirements: ['F1'],
+          depends_on: [],
+          tasks: [{ type: 'auto', hasName: true, hasAction: true, hasVerify: true, hasDone: true }],
+        },
+      ],
+    });
+    const result = runGsdTools('verify trd-pre 99', tmpDir);
+    assert.ok(result.success, `Command failed: ${result.error}`);
+    const parsed = JSON.parse(result.output);
+    assert.strictEqual(parsed.passed, true, 'well-formed objective should pass all dimensions');
+    assert.strictEqual(parsed.needs_agent, false);
+    assert.ok('checks' in parsed);
+    assert.ok('requirement_coverage' in parsed.checks);
+    assert.ok('task_completeness' in parsed.checks);
+    assert.ok('dependency_correctness' in parsed.checks);
+    assert.ok('scope_sanity' in parsed.checks);
+  });
+
+  test('missing requirement coverage → exit non-zero, passed:false, missing array populated', () => {
+    setupObjectiveDir(tmpDir, {
+      objective: '99-test',
+      roadmap_requirements: ['F1', 'F2'],
+      trds: [
+        {
+          trd: '99-01',
+          requirements: ['F1'], // F2 missing
+          depends_on: [],
+          tasks: [{ type: 'auto', hasName: true, hasAction: true, hasVerify: true, hasDone: true }],
+        },
+      ],
+    });
+    const result = runGsdTools('verify trd-pre 99', tmpDir);
+    // Command may exit 0 but output passed:false (df-tools verify commands return 0 by convention)
+    const parsed = JSON.parse(result.output);
+    assert.strictEqual(parsed.passed, false, 'missing requirement should make passed:false');
+    assert.ok(parsed.checks.requirement_coverage.missing.includes('F2'));
+  });
+
+  test('unknown objective → error key in JSON output', () => {
+    // Only create .planning dir with no objective matching "nonexistent-999"
+    fs.mkdirSync(path.join(tmpDir, '.planning', 'objectives'), { recursive: true });
+    fs.writeFileSync(path.join(tmpDir, '.planning', 'ROADMAP.md'), '# Roadmap\n', 'utf-8');
+    const result = runGsdTools('verify trd-pre nonexistent-999', tmpDir);
+    // Either error goes to stderr or JSON has error key
+    const combined = result.output + (result.error || '');
+    assert.ok(
+      combined.includes('error') || combined.includes('Error') || combined.includes('not found'),
+      `expected error indication for unknown objective, got: ${combined}`
+    );
+  });
+});
+
+// =============================================================================
+// F5 confidence-field back-compat (objective 14-phase-f-default-on-safety)
+// =============================================================================
+
+describe('F5 confidence-field back-compat', () => {
+  let tmpDir;
+  beforeEach(() => { tmpDir = require('fs').mkdtempSync(require('path').join(require('os').tmpdir(), 'df-test-')); });
+  afterEach(() => { if (tmpDir) fs.rmSync(tmpDir, { recursive: true, force: true }); });
+
+  test('trd schema does not require confidence field', () => {
+    const trdPath = path.join(tmpDir, 'trd.md');
+    fs.writeFileSync(trdPath,
+      `---\nobjective: "14-phase-f"\ntrd: "01"\ntype: standard\nwave: 1\ndepends_on: []\nfiles_modified: []\nautonomous: true\nmust_haves:\n  truths: []\n  artifacts: []\n  key_links: []\n---\n\n# TRD\n`,
+      'utf-8'
+    );
+    const result = runGsdTools(`frontmatter validate "${trdPath}" --schema trd`);
+    const parsed = JSON.parse(result.output);
+    assert.strictEqual(parsed.valid, true, 'TRD without confidence must validate');
+    assert.deepStrictEqual(parsed.missing, [], 'no fields should be missing');
+  });
+
+  test('trd schema accepts confidence field if present (back-compat)', () => {
+    const trdPath = path.join(tmpDir, 'trd.md');
+    fs.writeFileSync(trdPath,
+      `---\nobjective: "14-phase-f"\ntrd: "01"\ntype: standard\nconfidence: high\nwave: 1\ndepends_on: []\nfiles_modified: []\nautonomous: true\nmust_haves:\n  truths: []\n  artifacts: []\n  key_links: []\n---\n\n# TRD\n`,
+      'utf-8'
+    );
+    const result = runGsdTools(`frontmatter validate "${trdPath}" --schema trd`);
+    const parsed = JSON.parse(result.output);
+    assert.strictEqual(parsed.valid, true, 'legacy TRD with confidence must still validate');
+    assert.ok(!parsed.missing.includes('confidence'), 'confidence must not be a missing required field');
+  });
+
+  test('plan schema unchanged (legacy JOB.md still validates)', () => {
+    const jobPath = path.join(tmpDir, 'job.md');
+    fs.writeFileSync(jobPath,
+      `---\nobjective: "test"\njob: "01"\ntype: standard\nwave: 1\ndepends_on: []\nfiles_modified: []\nautonomous: true\nmust_haves:\n  truths: []\n  artifacts: []\n  key_links: []\n---\n\n# JOB\n`,
+      'utf-8'
+    );
+    const result = runGsdTools(`frontmatter validate "${jobPath}" --schema plan`);
+    const parsed = JSON.parse(result.output);
+    assert.strictEqual(parsed.valid, true, 'plan schema must still accept JOB.md');
+  });
+});

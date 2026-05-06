@@ -848,6 +848,27 @@ Read existing TRD.md or DISCOVERY.md in objective directory.
 </step>
 
 <step name="mandatory_discovery">
+**Step 0 — Auto-trigger research on novel domains (F2):**
+
+If `--skip-research` flag is NOT set AND init JSON `has_research` is `false`:
+
+```bash
+NOVEL=$(node ~/.claude/devflow/bin/df-tools.cjs detect novel-domain "$OBJECTIVE" --raw)
+NOVEL_FIRED=$(echo "$NOVEL" | jq -r '.novel')
+if [[ "$NOVEL_FIRED" == "true" ]]; then
+  # Surface what fired
+  echo "$NOVEL" | jq '.signals'
+  # Auto-spawn objective-researcher before continuing discovery
+  # (Use the researcher_model from init JSON.)
+fi
+```
+
+If `novel:true` and research has not run: spawn `objective-researcher` via the standard Task(...) pattern with `subagent_type="objective-researcher"` and `model="${researcher_model}"`. Pass the signals block as part of the prompt so the researcher knows what triggered it. Wait for completion before proceeding to the existing Level 0-3 logic.
+
+If `novel:false` OR `--skip-research` was passed OR `has_research:true` already: skip auto-spawn, proceed normally.
+
+---
+
 Apply discovery level protocol (see discovery_levels section).
 </step>
 
@@ -1017,7 +1038,7 @@ Returns JSON: `{ valid, missing, present, schema }`
 **If `valid=false`:** Fix missing required fields before proceeding.
 
 Required TRD frontmatter fields:
-- `objective`, `trd`, `type`, `confidence`, `wave`, `depends_on`, `files_modified`, `autonomous`, `must_haves`
+- `objective`, `trd`, `type`, `wave`, `depends_on`, `files_modified`, `autonomous`, `must_haves`
 
 Also validate TRD structure:
 
@@ -1135,7 +1156,7 @@ Objective planning complete when:
 - [ ] Dependency graph built (needs/creates for each task)
 - [ ] Tasks grouped into plans by wave, not by sequence
 - [ ] TRD file(s) exist with XML structure
-- [ ] Each TRD: depends_on, files_modified, autonomous, confidence, must_haves in frontmatter
+- [ ] Each TRD: depends_on, files_modified, autonomous, must_haves in frontmatter
 - [ ] Each TRD: user_setup declared if external services involved
 - [ ] Each TRD: Objective, embedded_context, tasks, verification, success criteria, output
 - [ ] Each TRD: validation_gates populated with runnable commands from STACK.md (when available)

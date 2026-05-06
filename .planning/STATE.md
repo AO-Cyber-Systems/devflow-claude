@@ -21,7 +21,7 @@
 **Objective complete:** 12 — Skill consolidation (verified 2026-05-06, 1471/1496 tests pass, all 7 TRDs done, Phase A handoff snapshot committed)
 **Objective complete:** 13 — Phase H prompt extraction (verified 2026-05-06, 1471/1471 tests pass, all 4 TRDs done, 2000 lines cut from 7 agents, ~7002 tokens gross cut, 20 @-references verified 0 dangling)
 **Branch:** `feature/v1.2-obj-4-prompt-extraction`
-**Status:** Objective 13 COMPLETE — all 4 TRDs done, quality gate met (cumulative 25k+ tokens at 6+ builds)
+**Status:** Objective complete — ready for verification
 
 ## Branch State (post-merge)
 
@@ -168,6 +168,6 @@
 
 ## Session Continuity
 
-Last session: 2026-05-06 — TRD 12-07 (docs-and-routing-prep) complete. 1471/1496 tests pass (1 pre-existing E2E1 failure). Objective 12 DONE — all 7 TRDs complete.
+Last session: 2026-05-06 — TRD 14-02 (novel-domain-detection) complete. 1527/1528 tests pass (1 pre-existing E2E1 failure). 3 commits: 0a6bdbf (test:), 2fb605b (feat:), dd88372 (feat:).
 Resume file: `.planning/SESSION_PICKUP.md`
-Stopped at: Completed 12-07-docs-and-routing-prep-TRD.md (obj 12 final TRD)
+Stopped at: Completed 14-02-novel-domain-detection-TRD.md
