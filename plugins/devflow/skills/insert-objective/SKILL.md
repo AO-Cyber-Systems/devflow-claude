@@ -1,36 +1,35 @@
 ---
 name: insert-objective
 description: |
-  Insert urgent work between existing objectives without disrupting the roadmap order.
-  Creates a numbered sub-objective (e.g., 5.1 between 5 and 6) — use only when explicitly requested.
+  DEPRECATED — use `/devflow:objective insert` instead. Will be removed in v3.0.
+  This redirect logs a deprecation entry and forwards to the consolidated skill.
 argument-hint: <after> <description>
 disable-model-invocation: true
 allowed-tools:
-  - Read
-  - Write
   - Bash
+  - SlashCommand
 ---
 
 <objective>
-Insert a decimal objective for urgent work discovered mid-milestone that must be completed between existing integer objectives.
-
-Uses decimal numbering (72.1, 72.2, etc.) to preserve the logical sequence of planned objectives while accommodating urgent insertions.
-
-Purpose: Handle urgent work discovered during execution without renumbering entire roadmap.
+DEPRECATED redirect. Forwards to `/devflow:objective insert`.
 </objective>
 
-<execution_context>
-@~/.claude/devflow/workflows/insert-objective.md
-</execution_context>
-
-<context>
-Arguments: $ARGUMENTS (format: <after-phase-number> <description>)
-
-@.planning/ROADMAP.md
-@.planning/STATE.md
-</context>
-
 <process>
-Execute the insert-objective workflow from @~/.claude/devflow/workflows/insert-objective.md end-to-end.
-Preserve all validation gates (argument parsing, objective verification, decimal calculation, roadmap updates).
+**1. Log deprecation:**
+
+```bash
+node ~/.claude/devflow/bin/df-tools.cjs deprecation log insert-objective --raw > /dev/null
+```
+
+**2. Display deprecation notice to user:**
+
+```
+/devflow:insert-objective is DEPRECATED.
+    Use /devflow:objective insert instead.
+    This shim will be removed in v3.0.
+```
+
+**3. Forward to consolidated skill:**
+
+Invoke `/devflow:objective insert $ARGUMENTS` and let it run.
 </process>
