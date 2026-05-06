@@ -1,0 +1,9 @@
+{
+  "args": ["issue", "view", "11", "--repo", "AO-Cyber-Systems/devflow-claude", "--json", "state,labels,assignees,milestone,updatedAt"],
+  "response": {
+    "ok": true,
+    "status": 0,
+    "stdout": "{\"state\":\"CLOSED\",\"labels\":[{\"name\":\"devflow:objective\",\"color\":\"0e8a16\"}],\"assignees\":[],\"milestone\":null,\"updatedAt\":\"2026-05-05T12:00:00Z\"}",
+    "stderr": ""
+  }
+}
