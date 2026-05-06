@@ -2,7 +2,7 @@
   "current_objective": null,
   "current_job": 0,
   "total_jobs": 0,
-  "progress_pct": 89,
+  "progress_pct": 91,
   "status": "ready_for_verification",
   "last_activity": "2026-05-06",
   "metrics": {
@@ -149,6 +149,16 @@
     {
       "objective": "12",
       "summary": "All 4 SKILL files (consolidated + 3 redirects) committed in single atomic commit to prevent routing gaps",
+      "rationale": null
+    },
+    {
+      "objective": "12",
+      "summary": "I2 survey returned drop (0% decimal usage / 16 projects / 120 objectives); decimal handling removed from objective.cjs, insert deprecated",
+      "rationale": null
+    },
+    {
+      "objective": "12",
+      "summary": "I4: summary template canonicalized to templates/summary.md; 3 variant files deleted; cmdTemplateSelect simplified",
       "rationale": null
     }
   ],
