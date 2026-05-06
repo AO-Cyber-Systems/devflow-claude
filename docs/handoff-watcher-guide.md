@@ -290,6 +290,40 @@ restart. Removing a project that has an in-flight dispatch does NOT abort
 the dispatch — it completes and writes its done record; subsequent ticks
 skip the removed path.
 
+### Status-line indicator
+
+When `daemon.status_line: true` in `.planning/config.json` AND the daemon
+is running, the Claude Code statusline shows a watcher segment between the
+project name and the context bar:
+
+| Visual | Meaning |
+|---|---|
+| (nothing) | Daemon not running OR flag off OR config missing |
+| `▶ watcher` (green) | Daemon alive, no pending work |
+| `⏸ N pending` (yellow) | Daemon alive, N records queued (summed across all watched projects) |
+
+The indicator is opt-in (`status_line: false` is the default). When enabled,
+the statusline reads the daemon's PID file (`~/.devflow/devflow-watch.pid`)
+and sums pending counts across the multi-project `watching: []` array
+(see "Multi-project watching" above).
+
+```json
+{
+  "daemon": {
+    "status_line": true
+  }
+}
+```
+
+The indicator updates on every Claude Code render (typically each user
+turn or model thinking transition). Hidden costs: one PID file read +
+one `readdirSync` per watched project per render. Sub-millisecond even
+for 10+ projects.
+
+Statusline NEVER crashes on watcher state errors — malformed PID files,
+missing project paths, or devflow not yet synced all degrade gracefully
+to no segment.
+
 ### Cross-shell support
 
 The daemon dispatches commands through the user's interactive shell. v1.2

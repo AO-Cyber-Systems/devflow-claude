@@ -65,6 +65,7 @@
     "notify_on_complete": true,
     "auto_launch": false,
     "multi_project": false,
-    "cross_shell": []
+    "cross_shell": [],
+    "status_line": false
   }
 }
