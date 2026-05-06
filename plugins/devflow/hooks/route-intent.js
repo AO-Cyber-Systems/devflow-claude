@@ -35,6 +35,13 @@ function findPlanningDir(start) {
 // No bare-verb matches -- prevents Q&A prompts from firing.
 
 const INTENT_MAP = [
+  // MICRO: imperative + article + trivial-noun (typo / line / semicolon / import / comment / whitespace / property name)
+  // Routes ONLY trivial single-token changes; "small change" stays with quick.
+  {
+    rx: /\b(?:fix|correct|update|change|rename)\s+(?:the|this|that|a|an)\s+(?:typo|spelling|misspelling|comment|whitespace|indent(?:ation)?|semicolon|import|line|prop(?:erty)?\s+name|variable\s+name|function\s+name|filename)\b/i,
+    skill: '/devflow:micro',
+    label: 'micro',
+  },
   // BUILD: imperative + article + noun
   {
     rx: /\b(?:build|implement|ship|make|create|add)\s+(?:the|a|an|this|that|some)\s+\w+/i,

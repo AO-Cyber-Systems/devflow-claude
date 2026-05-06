@@ -280,6 +280,25 @@ const FIRE_FIXTURES = [
     label: 'investigate + the + failure',
     why_fires: 'matches debug rule with failure noun',
   },
+  // ─── B4: micro fixtures (3) ───
+  {
+    prompt: 'Fix the typo in the README',
+    expected_skill: '/devflow:micro',
+    label: 'fix + the + typo',
+    why_fires: 'matches micro rule: fix + the + typo (trivial-noun whitelist)',
+  },
+  {
+    prompt: 'Rename the prop name from foo to bar',
+    expected_skill: '/devflow:micro',
+    label: 'rename + the + prop name',
+    why_fires: 'matches micro rule: rename + the + prop name',
+  },
+  {
+    prompt: 'Update the import in the worker module',
+    expected_skill: '/devflow:micro',
+    label: 'update + the + import',
+    why_fires: 'matches micro rule: update + the + import (trivial-noun whitelist)',
+  },
 ];
 
 // ─── A2: route-intent.js no-fire fixtures (5) ────────────────────────────────
@@ -311,6 +330,12 @@ const NO_FIRE_FIXTURES = [
     prompt: 'What does fix mean here?',
     label: 'meta-question about a verb',
     why_no_fire: 'fix appears but inside a meta-question, no object',
+  },
+  // ─── B4: micro no-fire (1) — prevent micro from eating quick territory ───
+  {
+    prompt: 'Tackle this small change in the auth flow',
+    label: 'small change (quick territory)',
+    why_no_fire: 'no trivial-noun match (small change is not in micro whitelist)',
   },
 ];
 
