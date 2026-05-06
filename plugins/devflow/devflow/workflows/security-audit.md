@@ -87,7 +87,7 @@ Continue to spawn_agents.
 <step name="spawn_agents">
 Spawn parallel security-auditor agents based on focus filter.
 
-Use Task tool with `subagent_type="general-purpose"`, `model="{auditor_model}"`, and `run_in_background=true` for parallel execution.
+Use Task tool with `subagent_type="security-auditor"`, `model="{auditor_model}"`, and `run_in_background=true` for parallel execution.
 
 **IMPORTANT:** Each agent prompt must include:
 - The agent definition to follow (reference `@~/.claude/agents/security-auditor.md`)
@@ -99,7 +99,7 @@ Use Task tool with `subagent_type="general-purpose"`, `model="{auditor_model}"`,
 
 Task tool parameters:
 ```
-subagent_type: "general-purpose"
+subagent_type: "security-auditor"
 model: "{auditor_model}"
 run_in_background: true
 description: "Audit secrets and code"
@@ -122,7 +122,7 @@ Write findings to `.security-audit-tmp/secrets-and-code.md` using the format spe
 
 Task tool parameters:
 ```
-subagent_type: "general-purpose"
+subagent_type: "security-auditor"
 model: "{auditor_model}"
 run_in_background: true
 description: "Audit auth and access"
@@ -145,7 +145,7 @@ Write findings to `.security-audit-tmp/auth-and-access.md` using the format spec
 
 Task tool parameters:
 ```
-subagent_type: "general-purpose"
+subagent_type: "security-auditor"
 model: "{auditor_model}"
 run_in_background: true
 description: "Audit config and deps"

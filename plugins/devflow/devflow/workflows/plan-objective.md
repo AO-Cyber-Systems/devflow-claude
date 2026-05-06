@@ -200,7 +200,7 @@ Write to: {objective_dir}/{padded_objective}-RESEARCH.md
 ```
 Task(
   prompt="First, read ~/.claude/agents/objective-researcher.md for your role and instructions.\n\n" + research_prompt,
-  subagent_type="general-purpose",
+  subagent_type="objective-researcher",
   model="{researcher_model}",
   description="Research Objective {objective}"
 )
@@ -495,7 +495,7 @@ Output consumed by /devflow:execute-objective. Plans need:
 ```
 Task(
   prompt="First, read ~/.claude/agents/planner.md for your role and instructions.\n\n" + filled_prompt,
-  subagent_type="general-purpose",
+  subagent_type="planner",
   model="{planner_model}",
   description="Plan Objective {objective}"
 )
@@ -627,7 +627,7 @@ Return what changed.
 ```
 Task(
   prompt="First, read ~/.claude/agents/planner.md for your role and instructions.\n\n" + revision_prompt,
-  subagent_type="general-purpose",
+  subagent_type="planner",
   model="{planner_model}",
   description="Revise Objective {objective} plans"
 )

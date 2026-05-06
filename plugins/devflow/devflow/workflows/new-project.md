@@ -569,7 +569,7 @@ Your STACK.md feeds into roadmap creation. Be prescriptive:
 Write to: .planning/research/STACK.md
 Use template: ~/.claude/devflow/templates/research-project/STACK.md
 </output>
-", subagent_type="general-purpose", model="{researcher_model}", description="Stack research")
+", subagent_type="project-researcher", model="{researcher_model}", description="Stack research")
 
 Task(prompt="First, read ~/.claude/agents/project-researcher.md for your role and instructions.
 
@@ -609,7 +609,7 @@ Your FEATURES.md feeds into requirements definition. Categorize clearly:
 Write to: .planning/research/FEATURES.md
 Use template: ~/.claude/devflow/templates/research-project/FEATURES.md
 </output>
-", subagent_type="general-purpose", model="{researcher_model}", description="Features research")
+", subagent_type="project-researcher", model="{researcher_model}", description="Features research")
 
 Task(prompt="First, read ~/.claude/agents/project-researcher.md for your role and instructions.
 
@@ -649,7 +649,7 @@ Your ARCHITECTURE.md informs objective structure in roadmap. Include:
 Write to: .planning/research/ARCHITECTURE.md
 Use template: ~/.claude/devflow/templates/research-project/ARCHITECTURE.md
 </output>
-", subagent_type="general-purpose", model="{researcher_model}", description="Architecture research")
+", subagent_type="project-researcher", model="{researcher_model}", description="Architecture research")
 
 Task(prompt="First, read ~/.claude/agents/project-researcher.md for your role and instructions.
 
@@ -689,7 +689,7 @@ Your PITFALLS.md prevents mistakes in roadmap/planning. For each pitfall:
 Write to: .planning/research/PITFALLS.md
 Use template: ~/.claude/devflow/templates/research-project/PITFALLS.md
 </output>
-", subagent_type="general-purpose", model="{researcher_model}", description="Pitfalls research")
+", subagent_type="project-researcher", model="{researcher_model}", description="Pitfalls research")
 ```
 
 After all 4 agents complete:
