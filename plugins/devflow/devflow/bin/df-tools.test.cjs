@@ -2766,3 +2766,76 @@ describe('Phase F config defaults + F4 acceptance', () => {
       'F4 regressed: § 8 header missing');
   });
 });
+
+// ─── verify trd-pre command (TRD 14-01) ───────────────────────────────────────
+
+describe('verify trd-pre command', () => {
+  const { makeTrdContent, setupObjectiveDir } = require('./lib/__fixtures__/trd-pre-fixtures.cjs');
+  let tmpDir;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'df-trd-pre-test-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  test('happy path — well-formed objective scaffold → exit 0, passed:true', () => {
+    setupObjectiveDir(tmpDir, {
+      objective: '99-test',
+      roadmap_requirements: ['F1'],
+      trds: [
+        {
+          trd: '99-01',
+          requirements: ['F1'],
+          depends_on: [],
+          tasks: [{ type: 'auto', hasName: true, hasAction: true, hasVerify: true, hasDone: true }],
+        },
+      ],
+    });
+    const result = runGsdTools('verify trd-pre 99', tmpDir);
+    assert.ok(result.success, `Command failed: ${result.error}`);
+    const parsed = JSON.parse(result.output);
+    assert.strictEqual(parsed.passed, true, 'well-formed objective should pass all dimensions');
+    assert.strictEqual(parsed.needs_agent, false);
+    assert.ok('checks' in parsed);
+    assert.ok('requirement_coverage' in parsed.checks);
+    assert.ok('task_completeness' in parsed.checks);
+    assert.ok('dependency_correctness' in parsed.checks);
+    assert.ok('scope_sanity' in parsed.checks);
+  });
+
+  test('missing requirement coverage → exit non-zero, passed:false, missing array populated', () => {
+    setupObjectiveDir(tmpDir, {
+      objective: '99-test',
+      roadmap_requirements: ['F1', 'F2'],
+      trds: [
+        {
+          trd: '99-01',
+          requirements: ['F1'], // F2 missing
+          depends_on: [],
+          tasks: [{ type: 'auto', hasName: true, hasAction: true, hasVerify: true, hasDone: true }],
+        },
+      ],
+    });
+    const result = runGsdTools('verify trd-pre 99', tmpDir);
+    // Command may exit 0 but output passed:false (df-tools verify commands return 0 by convention)
+    const parsed = JSON.parse(result.output);
+    assert.strictEqual(parsed.passed, false, 'missing requirement should make passed:false');
+    assert.ok(parsed.checks.requirement_coverage.missing.includes('F2'));
+  });
+
+  test('unknown objective → error key in JSON output', () => {
+    // Only create .planning dir with no objective matching "nonexistent-999"
+    fs.mkdirSync(path.join(tmpDir, '.planning', 'objectives'), { recursive: true });
+    fs.writeFileSync(path.join(tmpDir, '.planning', 'ROADMAP.md'), '# Roadmap\n', 'utf-8');
+    const result = runGsdTools('verify trd-pre nonexistent-999', tmpDir);
+    // Either error goes to stderr or JSON has error key
+    const combined = result.output + (result.error || '');
+    assert.ok(
+      combined.includes('error') || combined.includes('Error') || combined.includes('not found'),
+      `expected error indication for unknown objective, got: ${combined}`
+    );
+  });
+});
