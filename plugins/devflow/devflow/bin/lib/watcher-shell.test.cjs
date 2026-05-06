@@ -418,3 +418,76 @@ describe('watcher-shell — data-listener API (TRD 19-02)', () => {
     assert.equal(s.isAlive(), false);
   });
 });
+
+// ===========================================================================
+// TRD 20-05 Group W — Cross-shell wrapper integration
+// ===========================================================================
+
+const { spawnSync: spawnSyncW } = require('child_process');
+function shellAvailableW(name, probeArgs = ['-c', 'echo __DFW_PROBE__']) {
+  try {
+    const r = spawnSyncW(name, probeArgs, { encoding: 'utf8', timeout: 3000 });
+    return r.status === 0 && r.stdout && r.stdout.includes('__DFW_PROBE__');
+  } catch { return false; }
+}
+const fishAvailableW = shellAvailableW('fish');
+const pwshAvailableW = shellAvailableW('pwsh') || shellAvailableW('powershell');
+
+describe('watcher-shell — Group W: cross-shell integration (TRD 20-05)', () => {
+  test('W-1 ShellSession({shell:"/bin/bash"}) byte-identical to current behavior', async () => {
+    const session = new ShellSession({ shell: '/bin/bash', interactive: false });
+    await session.spawn();
+    try {
+      const r = await session.dispatch('w-1', 'echo bash-ok');
+      assert.equal(r.exit_code, 0);
+      assert.equal(r.stdout, 'bash-ok\n');
+    } finally {
+      try { await session.kill(); } catch {}
+    }
+  });
+
+  test('W-2 ShellSession({shell:"/bin/csh"}) constructor throws UnsupportedShell', () => {
+    assert.throws(
+      () => new ShellSession({ shell: '/bin/csh', interactive: false }),
+      (e) => e.name === 'UnsupportedShell' || /unsupported shell/i.test(e.message),
+    );
+  });
+
+  test('W-3 ShellSession({shell:"fish"}).dispatch() works end-to-end',
+    { skip: !fishAvailableW }, async () => {
+    const session = new ShellSession({ shell: 'fish', interactive: false });
+    await session.spawn();
+    try {
+      const r = await session.dispatch('w-3', 'echo fish-ok');
+      assert.equal(r.exit_code, 0);
+      assert.match(r.stdout, /fish-ok/);
+    } finally {
+      try { await session.kill(); } catch {}
+    }
+  });
+
+  test('W-4 ShellSession({shell:"pwsh"}).dispatch() works end-to-end',
+    { skip: !pwshAvailableW }, async () => {
+    const cmd = shellAvailableW('pwsh') ? 'pwsh' : 'powershell';
+    const session = new ShellSession({ shell: cmd, interactive: false });
+    await session.spawn();
+    try {
+      const r = await session.dispatch('w-4', 'Write-Output pwsh-ok');
+      assert.equal(r.exit_code, 0);
+      assert.match(r.stdout, /pwsh-ok/);
+    } finally {
+      try { await session.kill(); } catch {}
+    }
+  });
+
+  test('W-5 splitDispatchOutput parses bash/fish/pwsh output identically (sentinel-based parser shell-agnostic)', () => {
+    const { splitDispatchOutput } = require('./watcher-shell.cjs');
+    const begin = '__DFW_BEGIN_w-5__';
+    const delim = '__DFW_DELIM_w-5__';
+    const end = '__DFW_END_w-5__';
+    const buf = `${begin}\nhello\n${delim}\n${end}:0\n`;
+    const r = splitDispatchOutput(buf, begin, delim, end);
+    assert.equal(r.stdout, 'hello\n');
+    assert.equal(r.stderr, '');
+  });
+});
