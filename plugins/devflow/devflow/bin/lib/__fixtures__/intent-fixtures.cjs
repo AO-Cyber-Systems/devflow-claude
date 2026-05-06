@@ -214,6 +214,106 @@ These six habits target each failure mode. They cost ~15-20% more planning time 
 `;
 }
 
+// ─── A2: route-intent.js fire fixtures (10) ──────────────────────────────────
+// Hand-built fixture list — per TDD Playbook habit 4. No LLM-generated data.
+// Each entry: { prompt, expected_skill, label, why_fires }
+// Prompts are LOCKED per 15-RESEARCH.md / 15-02-TRD.md codebase_examples.
+
+const FIRE_FIXTURES = [
+  {
+    prompt: 'Fix the login bug',
+    expected_skill: '/devflow:debug',
+    label: 'imperative + bug noun',
+    why_fires: 'matches debug rule: fix + the + bug',
+  },
+  {
+    prompt: 'Build the dashboard feature',
+    expected_skill: '/devflow:build',
+    label: 'imperative + article + noun',
+    why_fires: 'matches build rule: build + the + dashboard',
+  },
+  {
+    prompt: 'Plan the next objective',
+    expected_skill: '/devflow:plan-objective',
+    label: 'plan + the + objective',
+    why_fires: 'matches plan rule',
+  },
+  {
+    prompt: 'Verify the work I just shipped',
+    expected_skill: '/devflow:verify-work',
+    label: 'verify + work',
+    why_fires: 'matches verify rule',
+  },
+  {
+    prompt: "What's our progress?",
+    expected_skill: '/devflow:status',
+    label: 'what is our progress',
+    why_fires: 'matches status rule (specific possessive phrase)',
+  },
+  {
+    prompt: 'Resume the work',
+    expected_skill: '/devflow:status resume',
+    label: 'resume + work',
+    why_fires: 'matches resume rule (consolidated /devflow:status resume)',
+  },
+  {
+    prompt: 'Pause the work for tonight',
+    expected_skill: '/devflow:status pause',
+    label: 'pause + work',
+    why_fires: 'matches pause rule (consolidated /devflow:status pause)',
+  },
+  {
+    prompt: 'Debug the crash in the worker',
+    expected_skill: '/devflow:debug',
+    label: 'debug + the + crash',
+    why_fires: 'matches debug rule with crash noun',
+  },
+  {
+    prompt: 'Add an objective for the new auth flow',
+    expected_skill: '/devflow:objective add',
+    label: 'add + an + objective',
+    why_fires: 'matches objective-add rule (consolidated)',
+  },
+  {
+    prompt: 'Investigate the failure in CI',
+    expected_skill: '/devflow:debug',
+    label: 'investigate + the + failure',
+    why_fires: 'matches debug rule with failure noun',
+  },
+];
+
+// ─── A2: route-intent.js no-fire fixtures (5) ────────────────────────────────
+// These prompts must NOT trigger any intent match.
+// Each entry: { prompt, label, why_no_fire }
+
+const NO_FIRE_FIXTURES = [
+  {
+    prompt: "What's the bug in the login code?",
+    label: 'Q&A about a bug',
+    why_no_fire: "starts with What's — interrogative, not imperative",
+  },
+  {
+    prompt: 'Why is this failing?',
+    label: 'Q&A about failure',
+    why_no_fire: 'starts with Why — interrogative',
+  },
+  {
+    prompt: 'Can you explain how the auth flow works?',
+    label: 'explanation request',
+    why_no_fire: 'no imperative verb against a project noun',
+  },
+  {
+    prompt: 'Continue reading the spec',
+    label: 'continue + reading (not work)',
+    why_no_fire: 'continue is not followed by "the work"',
+  },
+  {
+    prompt: 'What does fix mean here?',
+    label: 'meta-question about a verb',
+    why_no_fire: 'fix appears but inside a meta-question, no object',
+  },
+];
+
 module.exports = {
   projectMd,
   objectiveMd,
@@ -222,4 +322,6 @@ module.exports = {
   buildProject,
   buildMatrixProject,
   realCLAUDEMd,
+  FIRE_FIXTURES,
+  NO_FIRE_FIXTURES,
 };
