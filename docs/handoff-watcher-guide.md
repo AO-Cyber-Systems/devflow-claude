@@ -67,6 +67,22 @@ devflow-watch status
 devflow-watch logs [--tail N]
   Read the last N lines of ~/.devflow/devflow-watch.log (default 100).
 
+devflow-watch add-project <path>
+  Add <path> to the running daemon's watching list. Mutates the live PID
+  file atomically. Hard-fails (exit 2) if the daemon is not running.
+
+devflow-watch remove-project <path>
+  Remove <path> from the watching list. Idempotent (no-op if not watched).
+  In-flight dispatches for the removed project complete; subsequent ticks
+  skip it.
+
+devflow-watch install-service [--project <path>]
+  Install daemon as user-domain background service (launchd on macOS,
+  systemd-user on Linux). Atomic + idempotent.
+
+devflow-watch uninstall-service
+  Stop, disable, and remove the user-domain service. Idempotent.
+
 devflow-watch version
   Print "devflow-watch <version>".
 ```
@@ -164,6 +180,191 @@ them.
 | `DEVFLOW_HANDOFF_RESULT_TTL_MS` | route-results TTL for done records (default 1h) |
 | `DEVFLOW_SKIP_INTERACTIVE_GATE=1` | Bypass `gate-interactive` hook entirely |
 | `DEVFLOW_SKIP_HANDOFF_RESULTS=1` | Bypass `route-results` hook entirely |
+| `NOTIFIER_DISABLE=1` | Disable OS notifications regardless of `daemon.notifications` config |
+
+### OS notifications
+
+The daemon can dispatch OS desktop notifications when it picks up a handoff
+(`dispatch-start`) and when it completes one (`dispatch-complete`). Disabled
+by default; opt in via `.planning/config.json`:
+
+```json
+{
+  "daemon": {
+    "notifications": true,
+    "notify_on_start": true,
+    "notify_on_complete": true
+  }
+}
+```
+
+Notification dispatch uses system binaries — no extra npm dependencies:
+
+| Platform | Tool | Install if missing |
+|---|---|---|
+| macOS | `osascript` | First-class (system-shipped) |
+| Linux | `notify-send` | `apt install libnotify-bin` / `dnf install libnotify` |
+| Windows | unsupported in v1.2 | Deferred to v1.3+ |
+
+If the platform's binary is not on PATH, the daemon logs a warning ONCE per
+session and disables notifications for the remainder of the session. Set
+`NOTIFIER_DISABLE=1` in the daemon's environment to disable notifications
+entirely without editing config.
+
+`notify-send` on headless / SSH sessions without `$DISPLAY` may fail with
+DBus errors — these are logged per-occurrence (the user may switch to a
+local terminal mid-session and want notifications resumed).
+
+macOS notifications are silent in fullscreen mode and Do Not Disturb. This
+is a system-level setting, not a daemon limitation.
+
+### Auto-launch (launchd / systemd)
+
+The daemon can register as a user-domain background service that survives
+logout and starts automatically on login. Disabled by default; opt in with
+the install-service subcommand:
+
+```bash
+# macOS / Linux: install + start
+devflow-watch install-service [--project <path>]
+
+# Stop + uninstall
+devflow-watch uninstall-service
+
+# Combined: uninstall during stop
+devflow-watch stop --uninstall-service
+```
+
+Service file locations (user domain only — no privilege elevation):
+
+| Platform | Path |
+|---|---|
+| macOS | `~/Library/LaunchAgents/com.aocyber.devflow-watch.plist` |
+| Linux | `~/.config/systemd/user/devflow-watch.service` |
+| Windows | unsupported in v1.2 (deferred to v1.3+) |
+
+The service file references the absolute path of the running `devflow-watch.cjs`
+binary at install time. If you move the install (e.g. plugin update with a
+different path), re-run `install-service`.
+
+**Linux headless / SSH note:** `systemctl --user` requires lingering for the
+service to run when no user session is active. Enable once per machine:
+
+```bash
+loginctl enable-linger $USER
+```
+
+`install-service` does NOT run this for you — it requires sudo and is a
+machine-wide setting; document only.
+
+**macOS note:** `launchctl load` is deprecated in 10.10+ in favor of
+`launchctl bootstrap gui/$(id -u)`. v1.2 uses `launchctl load` for
+backward compat with macOS 10.13+. v1.3+ may switch to bootstrap.
+
+### Multi-project watching
+
+A single daemon can watch multiple project checkout directories
+concurrently. The PID file's `watching: []` array holds all watched paths.
+
+```bash
+# Start watching multiple projects from the get-go (comma-separated)
+devflow-watch start --project /path/to/p1,/path/to/p2,/path/to/p3
+
+# Add a project to a running daemon
+devflow-watch add-project /path/to/p4
+
+# Remove a project from a running daemon (in-flight dispatch completes)
+devflow-watch remove-project /path/to/p1
+
+# `status` shows all watched projects + per-project pending/done counts
+devflow-watch status
+```
+
+Dispatch model: round-robin across watched projects, one command at a time
+(serial across all projects, not concurrent). `daemon.multi_project: true`
+in `.planning/config.json` is informational; the multi-project capability
+always works at runtime.
+
+Adding a project the daemon doesn't yet know about does NOT require a
+restart. Removing a project that has an in-flight dispatch does NOT abort
+the dispatch — it completes and writes its done record; subsequent ticks
+skip the removed path.
+
+### Status-line indicator
+
+When `daemon.status_line: true` in `.planning/config.json` AND the daemon
+is running, the Claude Code statusline shows a watcher segment between the
+project name and the context bar:
+
+| Visual | Meaning |
+|---|---|
+| (nothing) | Daemon not running OR flag off OR config missing |
+| `▶ watcher` (green) | Daemon alive, no pending work |
+| `⏸ N pending` (yellow) | Daemon alive, N records queued (summed across all watched projects) |
+
+The indicator is opt-in (`status_line: false` is the default). When enabled,
+the statusline reads the daemon's PID file (`~/.devflow/devflow-watch.pid`)
+and sums pending counts across the multi-project `watching: []` array
+(see "Multi-project watching" above).
+
+```json
+{
+  "daemon": {
+    "status_line": true
+  }
+}
+```
+
+The indicator updates on every Claude Code render (typically each user
+turn or model thinking transition). Hidden costs: one PID file read +
+one `readdirSync` per watched project per render. Sub-millisecond even
+for 10+ projects.
+
+Statusline NEVER crashes on watcher state errors — malformed PID files,
+missing project paths, or devflow not yet synced all degrade gracefully
+to no segment.
+
+### Cross-shell support
+
+The daemon dispatches commands through the user's interactive shell. v1.2
+supports four shells:
+
+| Shell | Status | Notes |
+|---|---|---|
+| bash | First-class | Default; tested; preserved byte-identical from v1.1 |
+| zsh | First-class | Routes through bash wrapper (zsh is bash-compatible for our sentinel pattern) |
+| fish 3.0+ | Supported | Native fish syntax wrapper (`set VAR (cmd)`, `$status`) |
+| pwsh 7+ | Supported | PowerShell Core; native pwsh syntax (`$LASTEXITCODE`, `*>`) |
+| nushell | Deferred | Not in v1.2 (low usage; revisit in v1.3+) |
+| Windows powershell.exe (5.x) | Best-effort | Routes through pwsh wrapper; not in CI matrix |
+
+Auto-detection: the daemon reads `$SHELL` at startup; basename determines
+the wrapper. Override with `devflow-watch start --shell fish` (or `pwsh`
+etc.).
+
+Unsupported shells throw `UnsupportedShell` at session construction time.
+The CLI prints the error and exits with guidance to set `$SHELL` to a
+supported value.
+
+The sentinel-fenced output protocol is identical across all shells:
+
+```
+__DFW_BEGIN_<id>__
+<stdout content>
+__DFW_DELIM_<id>__
+<stderr content>
+__DFW_END_<id>__:<exit_code>
+```
+
+The parser in `lib/watcher-shell.cjs` is shell-agnostic — only the
+wrapper's `wrapCommand` differs per shell.
+
+**Fish 3.0+ requirement:** The wrapper uses `function fish_prompt; end`
+syntax; fish < 3.0 will fail with shell-side syntax errors captured in
+the done record's stderr.
+
+**pwsh availability:** Not pre-installed on macOS or Linux. Install via
+`brew install --cask powershell` (macOS) or distro package manager (Linux).
 
 ## PTY support (v1.2+)
 

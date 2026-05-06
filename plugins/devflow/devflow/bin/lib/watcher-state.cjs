@@ -139,6 +139,64 @@ function listUnconsumed(doneDir) {
   return recs;
 }
 
+/**
+ * TRD 20-03: Add a project path to the live PID file's watching: [] array.
+ * Atomic via tmp+rename. Idempotent (no-op if already present). Throws
+ * `ENOPIDFILE` when the daemon isn't running so callers can guide the user.
+ *
+ * Path is normalized via path.resolve so relative paths from the CLI work.
+ *
+ * @param {string} projectPath
+ * @returns {object} the new PID-file payload
+ */
+function addWatchedProject(projectPath) {
+  const file = pidFilePath();
+  const current = readPidFile();
+  if (!current) {
+    const err = new Error('no PID file — daemon not running');
+    err.code = 'ENOPIDFILE';
+    throw err;
+  }
+  const watching = Array.isArray(current.watching) ? [...current.watching] : [];
+  const norm = path.resolve(projectPath);
+  if (!watching.includes(norm)) watching.push(norm);
+  const next = { ...current, watching };
+  const tmp = file + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(next, null, 2) + '\n');
+  fs.renameSync(tmp, file);
+  return next;
+}
+
+/**
+ * TRD 20-03: Remove a project path from watching: []. Atomic via tmp+rename.
+ * Idempotent — when the path is not in the array, returns the current
+ * payload unchanged (no rewrite). Throws `ENOPIDFILE` when the daemon
+ * isn't running (mirrors addWatchedProject for symmetric error handling;
+ * CLI maps this to a friendly "not running" message and exits 0).
+ *
+ * @param {string} projectPath
+ * @returns {object} the (possibly unchanged) PID-file payload
+ */
+function removeWatchedProject(projectPath) {
+  const file = pidFilePath();
+  const current = readPidFile();
+  if (!current) {
+    const err = new Error('no PID file — daemon not running');
+    err.code = 'ENOPIDFILE';
+    throw err;
+  }
+  const watching = Array.isArray(current.watching) ? [...current.watching] : [];
+  const norm = path.resolve(projectPath);
+  const idx = watching.indexOf(norm);
+  if (idx === -1) return current; // idempotent — no-op
+  watching.splice(idx, 1);
+  const next = { ...current, watching };
+  const tmp = file + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(next, null, 2) + '\n');
+  fs.renameSync(tmp, file);
+  return next;
+}
+
 module.exports = {
   pidFilePath,
   writePidFile,
@@ -148,4 +206,6 @@ module.exports = {
   makeDoneRecord,
   markConsumed,
   listUnconsumed,
+  addWatchedProject,
+  removeWatchedProject,
 };

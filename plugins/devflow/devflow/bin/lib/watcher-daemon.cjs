@@ -208,6 +208,12 @@ async function processOnce(pending, deps) {
   const { session, allowlist: allow, projectRoot, log, timeoutMs, stashGetter } = deps;
   const startedAt = new Date().toISOString();
   const logFn = log || (() => {});
+  // TRD 20-01: optional notifier hook. Both flags default ON (caller opts
+  // OUT by passing `false`). Missing notifier = no-op path, byte-identical
+  // to v1.1+obj19 behavior.
+  const notifier = deps.notifier || null;
+  const notifyOnStart = deps.notify_on_start !== false;
+  const notifyOnComplete = deps.notify_on_complete !== false;
 
   // Validate against allowlist
   const validation = allowlist.validateCommand(pending.cmd, allow);
@@ -271,6 +277,18 @@ async function processOnce(pending, deps) {
     session.attachDataListener(detector);
   }
 
+  // TRD 20-01: dispatch-start notification (if notifier injected).
+  // Notifier errors must NEVER block dispatch — wrap in try/catch.
+  if (notifier && notifyOnStart) {
+    try {
+      await notifier.notify({
+        title: 'DevFlow Watch',
+        body: `dispatching ${pending.id}: ${pending.cmd}`,
+        log: logFn,
+      });
+    } catch { /* notifier errors must not block dispatch */ }
+  }
+
   // Log the COMMAND, never the resolved secret values. Audit-grep for
   // "dispatching " in ~/.devflow/devflow-watch.log should show only cmd lines.
   logFn('info', `dispatching ${pending.id}: ${pending.cmd}`);
@@ -315,6 +333,19 @@ async function processOnce(pending, deps) {
   writeDoneRecord(projectRoot, done);
   removePendingRecord(pending);
   logFn('info', `completed ${pending.id} status=${done.status} exit=${done.exit_code}`);
+
+  // TRD 20-01: dispatch-complete notification (if notifier injected).
+  // Same guard: notifier errors must not propagate (done record is
+  // already persisted; dispatch logically succeeded).
+  if (notifier && notifyOnComplete) {
+    try {
+      await notifier.notify({
+        title: 'DevFlow Watch',
+        body: `completed ${pending.id} status=${done.status} exit=${done.exit_code}`,
+        log: logFn,
+      });
+    } catch { /* notifier errors must not block done record */ }
+  }
   return done;
 }
 
@@ -338,6 +369,11 @@ function runLoop(opts) {
     log = () => {},
     pollIntervalMs = POLL_INTERVAL_MS,
     timeoutMs,
+    // TRD 20-01: optional notifier hook. When undefined, processOnce sees
+    // deps.notifier=null and runs byte-identical to v1.1+obj19.
+    notifier,
+    notify_on_start,
+    notify_on_complete,
   } = opts;
 
   let stopped = false;
@@ -346,16 +382,32 @@ function runLoop(opts) {
   async function tick() {
     if (stopped) return;
     if (inFlight) return; // serial dispatch — one command at a time
-    const pending = readPending(projectRoot);
-    if (pending.length === 0) return;
-    const next = pending[0];
-    inFlight = processOnce(next, {
-      session, allowlist: allow, projectRoot, log, timeoutMs,
-    }).catch((e) => {
-      log('error', `processOnce threw: ${e && e.message ? e.message : String(e)}`);
-    }).finally(() => {
-      inFlight = null;
-    });
+    // TRD 20-03: re-read watching:[] from PID file each tick. Empty / missing
+    // PID file falls back to opts.projectRoot (back-compat for unit tests
+    // that construct runLoop directly without a PID file).
+    const pidInfo = state.readPidFile();
+    const watching = (pidInfo && Array.isArray(pidInfo.watching) && pidInfo.watching.length > 0)
+      ? pidInfo.watching
+      : [projectRoot];
+    for (const projRoot of watching) {
+      const pending = readPending(projRoot);
+      if (pending.length === 0) continue;
+      const next = pending[0];
+      const deps = {
+        session, allowlist: allow, projectRoot: projRoot, log, timeoutMs,
+      };
+      if (notifier) {
+        deps.notifier = notifier;
+        deps.notify_on_start = notify_on_start;
+        deps.notify_on_complete = notify_on_complete;
+      }
+      inFlight = processOnce(next, deps).catch((e) => {
+        log('error', `processOnce threw: ${e && e.message ? e.message : String(e)}`);
+      }).finally(() => {
+        inFlight = null;
+      });
+      return; // serial: only one project's command per tick
+    }
   }
 
   const interval = setInterval(tick, pollIntervalMs);

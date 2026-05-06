@@ -78,12 +78,53 @@ process.stdin.on('end', () => {
       } catch (e) {}
     }
 
+    // 20-04: Watcher status segment (opt-in via daemon.status_line config flag).
+    // Reads project-local .planning/config.json, queries the daemon's PID file
+    // through the synced watcher-state lib, sums per-project pending counts.
+    // Renders ▶ watcher (green idle) or ⏸ N pending (yellow active) or hides
+    // entirely. Wrapped in try/catch — statusline must NEVER crash on watcher
+    // state errors (devflow not synced, malformed PID file, missing project
+    // paths, etc.).
+    let watcherStatus = '';
+    try {
+      const cwdLocal = data.workspace?.current_dir || process.cwd();
+      const cwdConfig = path.join(cwdLocal, '.planning', 'config.json');
+      if (fs.existsSync(cwdConfig)) {
+        const cfg = JSON.parse(fs.readFileSync(cwdConfig, 'utf8'));
+        if (cfg.daemon && cfg.daemon.status_line === true) {
+          const stateLibPath = path.join(homeDir, '.claude', 'devflow', 'bin', 'lib', 'watcher-state.cjs');
+          if (fs.existsSync(stateLibPath)) {
+            const stateLib = require(stateLibPath);
+            if (stateLib.isWatcherLive()) {
+              const info = stateLib.readPidFile();
+              const watching = (info && Array.isArray(info.watching)) ? info.watching : [];
+              let pendingCount = 0;
+              for (const projRoot of watching) {
+                try {
+                  const pendDir = path.join(projRoot, '.devflow-handoff', 'pending');
+                  if (fs.existsSync(pendDir)) {
+                    pendingCount += fs.readdirSync(pendDir).filter(f => f.endsWith('.json')).length;
+                  }
+                } catch { /* per-project errors swallowed; others still counted */ }
+              }
+              watcherStatus = pendingCount > 0
+                ? `\x1b[33m⏸ ${pendingCount} pending\x1b[0m`
+                : `\x1b[32m▶ watcher\x1b[0m`;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      // statusline must NEVER crash on watcher state errors
+    }
+
     // Output
     const dirname = path.basename(dir);
+    const wsBlock = watcherStatus ? ` │ ${watcherStatus}` : '';
     if (task) {
-      process.stdout.write(`${dfUpdate}\x1b[2m${model}\x1b[0m │ \x1b[1m${task}\x1b[0m │ \x1b[2m${dirname}\x1b[0m${ctx}`);
+      process.stdout.write(`${dfUpdate}\x1b[2m${model}\x1b[0m │ \x1b[1m${task}\x1b[0m │ \x1b[2m${dirname}\x1b[0m${wsBlock}${ctx}`);
     } else {
-      process.stdout.write(`${dfUpdate}\x1b[2m${model}\x1b[0m │ \x1b[2m${dirname}\x1b[0m${ctx}`);
+      process.stdout.write(`${dfUpdate}\x1b[2m${model}\x1b[0m │ \x1b[2m${dirname}\x1b[0m${wsBlock}${ctx}`);
     }
   } catch (e) {
     // Silent fail - don't break statusline on parse errors

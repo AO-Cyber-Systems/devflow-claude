@@ -58,5 +58,14 @@
     "org_project_id": "PVT_kwDODwqLrc4BRsOP",
     "sibling_repos": [],
     "eden_libs_path": null
+  },
+  "daemon": {
+    "notifications": false,
+    "notify_on_start": true,
+    "notify_on_complete": true,
+    "auto_launch": false,
+    "multi_project": false,
+    "cross_shell": [],
+    "status_line": false
   }
 }

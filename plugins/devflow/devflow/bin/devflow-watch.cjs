@@ -78,6 +78,7 @@ function parseFlags(argv) {
 function cmdStatus() {
   const info = state.readPidFile();
   const live = state.isWatcherLive();
+  const watching = (info && Array.isArray(info.watching)) ? info.watching : [];
   const result = {
     running: live,
     pid: info && live ? info.pid : null,
@@ -86,27 +87,34 @@ function cmdStatus() {
     uptime_ms: info && live && info.started_at
       ? Date.now() - new Date(info.started_at).getTime()
       : null,
-    project: info && Array.isArray(info.watching) && info.watching.length > 0
-      ? info.watching[0]
-      : null,
+    // TRD 20-03: multi-project surface
+    projects: watching,                              // plural — new
+    project: watching[0] || null,                    // back-compat singular
     shell: info ? info.shell : null,
+    pending_counts: {},                              // per-project map — new
+    done_counts: {},                                 // new
   };
 
-  if (result.project) {
+  // Per-project pending/done counts
+  for (const p of watching) {
     try {
-      const pendingDir = path.join(result.project, '.devflow-handoff', 'pending');
-      const doneDir = path.join(result.project, '.devflow-handoff', 'done');
-      result.pending_count = fs.existsSync(pendingDir)
-        ? fs.readdirSync(pendingDir).filter(f => f.endsWith('.json')).length
+      const pendingDir = path.join(p, '.devflow-handoff', 'pending');
+      const doneDir = path.join(p, '.devflow-handoff', 'done');
+      result.pending_counts[p] = fs.existsSync(pendingDir)
+        ? fs.readdirSync(pendingDir).filter((f) => f.endsWith('.json')).length
         : 0;
-      result.done_count = fs.existsSync(doneDir)
-        ? fs.readdirSync(doneDir).filter(f => f.endsWith('.json')).length
+      result.done_counts[p] = fs.existsSync(doneDir)
+        ? fs.readdirSync(doneDir).filter((f) => f.endsWith('.json')).length
         : 0;
     } catch {
-      result.pending_count = 0;
-      result.done_count = 0;
+      result.pending_counts[p] = 0;
+      result.done_counts[p] = 0;
     }
   }
+
+  // Back-compat scalar sums
+  result.pending_count = Object.values(result.pending_counts).reduce((a, b) => a + b, 0);
+  result.done_count = Object.values(result.done_counts).reduce((a, b) => a + b, 0);
 
   const { allowlist } = allowlistLib.loadAllowlist();
   result.allowlist_size = allowlist.length;
@@ -189,6 +197,12 @@ async function cmdStop() {
 // ---------------------------------------------------------------------------
 
 function cmdStart(flags) {
+  // TRD 20-02: chain --install-service flag → install + return (launchd
+  // /systemd handles the actual start via the installed service file).
+  if (flags['install-service']) {
+    return cmdInstallService(flags);
+  }
+
   // Refuse if already running
   if (state.isWatcherLive()) {
     const info = state.readPidFile();
@@ -200,19 +214,33 @@ function cmdStart(flags) {
     state.removePidFile();
   }
 
-  const projectRoot = path.resolve(flags.project || process.cwd());
+  // TRD 20-03: parse --project as comma-list (single value still works).
+  const projectArg = flags.project || process.cwd();
+  const projects = String(projectArg)
+    .split(',')
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .map((p) => path.resolve(p));
+  if (projects.length === 0) projects.push(path.resolve(process.cwd()));
+  for (const p of projects) {
+    if (!fs.existsSync(p)) {
+      printErr(`devflow-watch: warning: project path not found: ${p} (will be polled when created)`);
+    }
+  }
   const shell = flags.shell || process.env.SHELL || 'bash';
 
   if (flags.foreground) {
-    return runForeground({ projectRoot, shell });
+    return runForeground({ projects, shell });
   }
-  return startDetached({ projectRoot, shell });
+  return startDetached({ projects, shell });
 }
 
-function startDetached({ projectRoot, shell }) {
-  // Spawn ourselves with --foreground in a detached child.
+function startDetached({ projects, shell }) {
+  // Spawn ourselves with --foreground in a detached child. Pass projects as
+  // comma-list to match the input format.
+  const projectArg = projects.join(',');
   const child = spawn(process.execPath, [__filename, 'start',
-    '--project', projectRoot,
+    '--project', projectArg,
     '--shell', shell,
     '--foreground',
   ], {
@@ -228,7 +256,7 @@ function startDetached({ projectRoot, shell }) {
       if (state.isWatcherLive()) {
         clearInterval(interval);
         const info = state.readPidFile();
-        printOut(`devflow-watch: started (pid ${info.pid}, project ${projectRoot})`);
+        printOut(`devflow-watch: started (pid ${info.pid}, projects ${projectArg})`);
         resolve(0);
         return;
       }
@@ -241,7 +269,10 @@ function startDetached({ projectRoot, shell }) {
   });
 }
 
-function runForeground({ projectRoot, shell }) {
+function runForeground({ projects, shell }) {
+  // 20-03: primary projectRoot for logs/cwd/config-load is projects[0];
+  // the daemon iterates ALL projects via watching:[] in PID file.
+  const projectRoot = projects[0];
   // Lazy require so the start CLI doesn't pay the import cost when launching detached.
   const daemon = require('./lib/watcher-daemon.cjs');
   const { ShellSession } = require('./lib/watcher-shell.cjs');
@@ -255,15 +286,15 @@ function runForeground({ projectRoot, shell }) {
     try { fs.writeSync(logFd, line); } catch {}
   }
 
-  // Write PID file
+  // Write PID file with multi-project watching: []
   state.writePidFile({
     pid: process.pid,
     version: VERSION,
     shell,
-    watching: [projectRoot],
+    watching: projects,
   });
-  log('info', `started pid=${process.pid} project=${projectRoot} shell=${shell}`);
-  printOut(`devflow-watch: started (pid ${process.pid}, project ${projectRoot})`);
+  log('info', `started pid=${process.pid} projects=${projects.join(',')} shell=${shell}`);
+  printOut(`devflow-watch: started (pid ${process.pid}, projects ${projects.join(',')})`);
 
   const { allowlist, userPatterns, degraded } = allowlistLib.loadAllowlist();
   if (degraded) log('warn', 'user allow file present but malformed; ignoring');
@@ -290,8 +321,34 @@ function runForeground({ projectRoot, shell }) {
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));
 
+  // TRD 20-01: opt-in OS notifications via .planning/config.json
+  //   daemon: { notifications, notify_on_start, notify_on_complete }
+  // Disabled by default. Construction errors fall back to no-notifier
+  // (deps.notifier=null) — daemon stays functional even if config is
+  // malformed.
+  let notifier = null;
+  let notify_on_start = true;
+  let notify_on_complete = true;
+  try {
+    const configPath = path.join(projectRoot, '.planning', 'config.json');
+    if (fs.existsSync(configPath)) {
+      const cfg = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      if (cfg && cfg.daemon && cfg.daemon.notifications === true) {
+        notifier = require('./lib/notifier.cjs');
+        if (cfg.daemon.notify_on_start === false) notify_on_start = false;
+        if (cfg.daemon.notify_on_complete === false) notify_on_complete = false;
+        log('info', `notifications enabled (start=${notify_on_start}, complete=${notify_on_complete})`);
+      }
+    }
+  } catch (e) {
+    log('warn', `notifications config load failed: ${e.message}; continuing without notifications`);
+  }
+
   return session.spawn().then(() => {
-    loop = daemon.runLoop({ projectRoot, session, allowlist, log });
+    loop = daemon.runLoop({
+      projectRoot, session, allowlist, log,
+      notifier, notify_on_start, notify_on_complete,
+    });
     // Keep process alive — runLoop's setInterval is the heartbeat.
     return new Promise(() => {});
   }).catch((e) => {
@@ -299,6 +356,97 @@ function runForeground({ projectRoot, shell }) {
     state.removePidFile();
     process.exit(3);
   });
+}
+
+// ---------------------------------------------------------------------------
+// install-service / uninstall-service (TRD 20-02)
+// ---------------------------------------------------------------------------
+
+async function cmdInstallService(flags) {
+  const installer = require('./lib/service-installer.cjs');
+  const platform = process.platform;
+  if (platform !== 'darwin' && platform !== 'linux') {
+    printErr(`devflow-watch: install-service unsupported platform: ${platform} (v1.2 supports darwin + linux)`);
+    return 1;
+  }
+  const projectRoot = path.resolve(flags.project || process.cwd());
+  const devflowWatchPath = path.resolve(__filename);
+  try {
+    const { servicePath } = await installer.installService({
+      platform, projectRoot, devflowWatchPath,
+    });
+    printOut(`devflow-watch: service installed at ${servicePath}`);
+    return 0;
+  } catch (e) {
+    printErr(`devflow-watch: install failed: ${e && e.message ? e.message : String(e)}`);
+    return 3;
+  }
+}
+
+async function cmdUninstallService() {
+  const installer = require('./lib/service-installer.cjs');
+  const platform = process.platform;
+  if (platform !== 'darwin' && platform !== 'linux') {
+    printErr(`devflow-watch: uninstall-service unsupported platform: ${platform}`);
+    return 1;
+  }
+  try {
+    const { servicePath } = await installer.uninstallService({ platform });
+    printOut(`devflow-watch: service uninstalled (was at ${servicePath})`);
+    return 0;
+  } catch (e) {
+    printErr(`devflow-watch: uninstall failed: ${e && e.message ? e.message : String(e)}`);
+    return 3;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// add-project / remove-project (TRD 20-03)
+// ---------------------------------------------------------------------------
+
+function cmdAddProject(flags) {
+  const projectPath = flags._[1];
+  if (!projectPath) {
+    printErr('Usage: devflow-watch add-project <path>');
+    return 1;
+  }
+  if (!state.isWatcherLive()) {
+    printErr(`devflow-watch: daemon not running. Start it first: devflow-watch start --project ${projectPath}`);
+    return 2;
+  }
+  try {
+    const next = state.addWatchedProject(projectPath);
+    printOut(`devflow-watch: added ${path.resolve(projectPath)} (now watching ${next.watching.length} project(s))`);
+    return 0;
+  } catch (e) {
+    printErr(`devflow-watch: add-project failed: ${e && e.message ? e.message : String(e)}`);
+    return 3;
+  }
+}
+
+function cmdRemoveProject(flags) {
+  const projectPath = flags._[1];
+  if (!projectPath) {
+    printErr('Usage: devflow-watch remove-project <path>');
+    return 1;
+  }
+  // Idempotent: even if no PID file, treat as success.
+  if (!state.readPidFile()) {
+    printOut('devflow-watch: not running (no-op)');
+    return 0;
+  }
+  try {
+    const next = state.removeWatchedProject(projectPath);
+    printOut(`devflow-watch: removed ${path.resolve(projectPath)} (now watching ${next.watching.length} project(s))`);
+    return 0;
+  } catch (e) {
+    if (e && e.code === 'ENOPIDFILE') {
+      printOut('devflow-watch: not running (no-op)');
+      return 0;
+    }
+    printErr(`devflow-watch: remove-project failed: ${e && e.message ? e.message : String(e)}`);
+    return 3;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -310,15 +458,27 @@ async function main(argv) {
   const sub = flags._[0];
 
   if (sub === 'start') return cmdStart(flags);
-  if (sub === 'stop') return cmdStop();
+  if (sub === 'stop') {
+    const code = await cmdStop();
+    if (flags['uninstall-service']) {
+      // Chain: stop first, then uninstall (TRD 20-02 convenience flag).
+      const u = await cmdUninstallService();
+      return u !== 0 ? u : code;
+    }
+    return code;
+  }
   if (sub === 'status') return cmdStatus();
   if (sub === 'logs') return cmdLogs(flags);
+  if (sub === 'install-service') return cmdInstallService(flags);
+  if (sub === 'uninstall-service') return cmdUninstallService();
+  if (sub === 'add-project') return cmdAddProject(flags);
+  if (sub === 'remove-project') return cmdRemoveProject(flags);
   if (sub === 'version' || flags.version === true) {
     printOut(`devflow-watch ${VERSION}`);
     return 0;
   }
 
-  printErr('Usage: devflow-watch <start|stop|status|logs|version> [flags]');
+  printErr('Usage: devflow-watch <start|stop|status|logs|add-project|remove-project|install-service|uninstall-service|version> [flags]');
   return 1;
 }
 
