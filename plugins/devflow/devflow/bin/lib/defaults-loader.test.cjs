@@ -225,3 +225,101 @@ describe('loadMergedDefaultsTable (resolver)', () => {
     } finally { project.cleanup(); }
   });
 });
+
+describe('scaffoldDefaultsTable + cmdDefaultsTableInit (CLI)', () => {
+  test('C1: scaffold scope=org → writes <home>/.claude/devflow/defaults-table.md = bundled content', () => {
+    const project = fx.buildTempProjectWithDefaults({});
+    try {
+      const r = loader.scaffoldDefaultsTable({ scope: 'org', cwd: project.root, userHome: project.userHome });
+      assert.strictEqual(r.ok, true);
+      const target = path.join(project.userHome, '.claude', 'devflow', 'defaults-table.md');
+      assert.strictEqual(r.target_path, target);
+      assert.ok(fs.existsSync(target));
+      // Content should match bundled
+      const written = fs.readFileSync(target, 'utf-8');
+      const bundled = fs.readFileSync(loader.BUNDLED_PATH, 'utf-8');
+      assert.strictEqual(written, bundled);
+      assert.strictEqual(r.action, 'created');
+    } finally { project.cleanup(); }
+  });
+
+  test('C2: scaffold scope=project → writes <root>/.planning/defaults-table.md = bundled content', () => {
+    const project = fx.buildTempProjectWithDefaults({});
+    try {
+      const r = loader.scaffoldDefaultsTable({ scope: 'project', cwd: project.root, userHome: project.userHome });
+      assert.strictEqual(r.ok, true);
+      const target = path.join(project.root, '.planning', 'defaults-table.md');
+      assert.strictEqual(r.target_path, target);
+      assert.ok(fs.existsSync(target));
+      const written = fs.readFileSync(target, 'utf-8');
+      const bundled = fs.readFileSync(loader.BUNDLED_PATH, 'utf-8');
+      assert.strictEqual(written, bundled);
+    } finally { project.cleanup(); }
+  });
+
+  test('C3: scaffold scope=org when target exists → ok=false, refuse without --force', () => {
+    const project = fx.buildTempProjectWithDefaults({
+      orgTable: '# pre-existing org table\n',
+    });
+    try {
+      const r = loader.scaffoldDefaultsTable({ scope: 'org', cwd: project.root, userHome: project.userHome });
+      assert.strictEqual(r.ok, false);
+      assert.match(r.error, /already exists.*--force/);
+    } finally { project.cleanup(); }
+  });
+
+  test('C4: scaffold scope=org --force when target exists → backup + overwrite', () => {
+    const project = fx.buildTempProjectWithDefaults({
+      orgTable: fx.buildPartialDefaultsTable({ cells: { 'api.feature': { tdd: 'pre-existing-marker' } } }),
+    });
+    try {
+      const r = loader.scaffoldDefaultsTable({ scope: 'org', force: true, cwd: project.root, userHome: project.userHome });
+      assert.strictEqual(r.ok, true);
+      assert.strictEqual(r.action, 'overwritten');
+      assert.ok(r.backup, 'backup path should be returned');
+      assert.ok(fs.existsSync(r.backup), 'backup file should exist');
+      // Backup contains pre-existing marker
+      assert.match(fs.readFileSync(r.backup, 'utf-8'), /pre-existing-marker/);
+      // Target now contains bundled content (which has constraints block)
+      const targetContent = fs.readFileSync(r.target_path, 'utf-8');
+      assert.match(targetContent, /constraints:/);
+    } finally { project.cleanup(); }
+  });
+
+  test('C5: scaffold scope=project when no .planning/ → ok=false', () => {
+    // Create a tmp dir WITHOUT .planning
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'df-noplanning-'));
+    const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'df-userhome-'));
+    try {
+      const r = loader.scaffoldDefaultsTable({ scope: 'project', cwd: tmpRoot, userHome: tmpHome });
+      assert.strictEqual(r.ok, false);
+      assert.match(r.error, /No \.planning\/ directory/);
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+      fs.rmSync(tmpHome, { recursive: true, force: true });
+    }
+  });
+
+  test('C6: scaffold scope=foo → ok=false, invalid scope', () => {
+    const project = fx.buildTempProjectWithDefaults({});
+    try {
+      const r = loader.scaffoldDefaultsTable({ scope: 'foo', cwd: project.root, userHome: project.userHome });
+      assert.strictEqual(r.ok, false);
+      assert.match(r.error, /Invalid scope/);
+    } finally { project.cleanup(); }
+  });
+
+  test('C7: cmdDefaultsTableInit --help → prints usage, no throw', () => {
+    // Capture stdout via process.stdout.write spy
+    const originalWrite = process.stdout.write.bind(process.stdout);
+    let captured = '';
+    process.stdout.write = (chunk) => { captured += chunk; return true; };
+    try {
+      loader.cmdDefaultsTableInit(process.cwd(), ['--help'], false);
+    } finally {
+      process.stdout.write = originalWrite;
+    }
+    assert.match(captured, /Usage:/);
+    assert.match(captured, /--scope/);
+  });
+});
