@@ -1038,7 +1038,7 @@ Returns JSON: `{ valid, missing, present, schema }`
 **If `valid=false`:** Fix missing required fields before proceeding.
 
 Required TRD frontmatter fields:
-- `objective`, `trd`, `type`, `confidence`, `wave`, `depends_on`, `files_modified`, `autonomous`, `must_haves`
+- `objective`, `trd`, `type`, `wave`, `depends_on`, `files_modified`, `autonomous`, `must_haves`
 
 Also validate TRD structure:
 
@@ -1156,7 +1156,7 @@ Objective planning complete when:
 - [ ] Dependency graph built (needs/creates for each task)
 - [ ] Tasks grouped into plans by wave, not by sequence
 - [ ] TRD file(s) exist with XML structure
-- [ ] Each TRD: depends_on, files_modified, autonomous, confidence, must_haves in frontmatter
+- [ ] Each TRD: depends_on, files_modified, autonomous, must_haves in frontmatter
 - [ ] Each TRD: user_setup declared if external services involved
 - [ ] Each TRD: Objective, embedded_context, tasks, verification, success criteria, output
 - [ ] Each TRD: validation_gates populated with runnable commands from STACK.md (when available)

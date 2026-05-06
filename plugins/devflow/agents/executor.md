@@ -36,7 +36,7 @@ If .planning/ missing: Error — project not initialized.
 <step name="load_plan">
 Read the TRD file (or legacy JOB file) provided in your prompt context.
 
-Parse: frontmatter (objective, trd, type, autonomous, wave, depends_on, confidence), objective, context (@-references), tasks with types, verification/success criteria, output spec.
+Parse: frontmatter (objective, trd, type, autonomous, wave, depends_on), objective, context (@-references), tasks with types, verification/success criteria, output spec.
 
 **If TRD references CONTEXT.md:** Honor user's vision throughout execution.
 </step>
@@ -61,13 +61,18 @@ grep -n "type=\"checkpoint" [trd-path]
 </step>
 
 <step name="execute_tasks">
-**Confidence-based execution (from TRD frontmatter):**
+**Per-task caution attribute (F5):**
 
-| Confidence | Behavior |
+Tasks may declare a caution flag: `<task type="auto" caution="pause-before-destructive">`.
+
+| Caution value | Behavior |
 |---|---|
-| `high` | Standard execution |
-| `medium` | Extra verification at each task boundary, log verification results |
-| `low` | Pause before destructive operations (file deletions, schema changes), extra verification, consider reading additional context |
+| `pause-before-destructive` | Pause before file deletions, schema drops, force pushes, mass-rewrites. Surface what will be destroyed; require confirmation. |
+| (absent) | Standard execution. No caution behavior. |
+
+Other values are warned and treated as absent. There is no TRD-level confidence flag — caution is per-task and opt-in.
+
+**Back-compat:** TRDs may still carry a `confidence:` frontmatter field from in-flight planning. Ignore it — do not error, do not branch on it.
 
 **Progress tracking (if available):**
 
