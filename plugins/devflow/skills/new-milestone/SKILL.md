@@ -1,54 +1,35 @@
 ---
 name: new-milestone
 description: |
-  Start the next development cycle — define what you're building next, research the domain, and create a fresh roadmap.
-  Use after completing a milestone to begin the next version.
-argument-hint: "[milestone name, e.g., 'v1.1 Notifications']"
+  DEPRECATED — use `/devflow:milestone new` instead. Will be removed in v3.0.
+  This redirect logs a deprecation entry and forwards to the consolidated skill.
+argument-hint: "[milestone name]"
 disable-model-invocation: true
 allowed-tools:
-  - Read
-  - Write
   - Bash
-  - Task
-  - AskUserQuestion
+  - SlashCommand
 ---
+
 <objective>
-Start a new milestone: questioning → research (optional) → requirements → roadmap.
-
-Brownfield equivalent of new-project. Project exists, PROJECT.md has history. Gathers "what's next", updates PROJECT.md, then runs requirements → roadmap cycle.
-
-**Creates/Updates:**
-- `.planning/PROJECT.md` — updated with new milestone goals
-- `.planning/research/` — domain research (optional, NEW features only)
-- `.planning/REQUIREMENTS.md` — scoped requirements for this milestone
-- `.planning/ROADMAP.md` — objective structure (continues numbering)
-- `.planning/STATE.md` — reset for new milestone
-
-**After:** `/devflow:plan-objective [N]` to start execution.
+DEPRECATED redirect. Forwards to `/devflow:milestone new`.
 </objective>
 
-<execution_context>
-@~/.claude/devflow/workflows/new-milestone.md
-@~/.claude/devflow/references/questioning.md
-@~/.claude/devflow/references/ui-brand.md
-@~/.claude/devflow/templates/project.md
-@~/.claude/devflow/templates/requirements.md
-</execution_context>
-
-<context>
-Milestone name: $ARGUMENTS (optional - will prompt if not provided)
-
-**Load project context:**
-@.planning/PROJECT.md
-@.planning/STATE.md
-@.planning/MILESTONES.md
-@.planning/config.json
-
-**Load milestone context (if exists, from /discuss-milestone):**
-@.planning/MILESTONE-CONTEXT.md
-</context>
-
 <process>
-Execute the new-milestone workflow from @~/.claude/devflow/workflows/new-milestone.md end-to-end.
-Preserve all workflow gates (validation, questioning, research, requirements, roadmap approval, commits).
+**1. Log deprecation:**
+
+```bash
+node ~/.claude/devflow/bin/df-tools.cjs deprecation log new-milestone --raw > /dev/null
+```
+
+**2. Display deprecation notice to user:**
+
+```
+/devflow:new-milestone is DEPRECATED.
+    Use /devflow:milestone new instead.
+    This shim will be removed in v3.0.
+```
+
+**3. Forward to consolidated skill:**
+
+Invoke `/devflow:milestone new $ARGUMENTS` and let it run.
 </process>

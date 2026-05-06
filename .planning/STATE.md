@@ -18,8 +18,9 @@
 **Objective complete:** 5 — Initiative context layer (verified 2026-05-05, 1097/1097 tests pass, all 10 SC met, 5 TRDs done)
 **Objective complete:** 6 — Unified check-todos morning-standup view (verified 2026-05-05, 1290/1291 tests pass, all 10 SC met, 4 TRDs done, SC-6 through SC-10 closed)
 **Objective complete:** 8 — Program-aware TUI viewer (verified 2026-05-05, 1356/1356 tests pass, all 10 SC met, 3 TRDs done, SC-6 + SC-9 + SC-10 closed)
-**Branch:** `feature/v1.1-obj-8-tui`
-**Status:** Objective complete — ready for verification
+**Objective complete:** 12 — Skill consolidation (verified 2026-05-06, 1471/1496 tests pass, all 7 TRDs done, Phase A handoff snapshot committed)
+**Branch:** `feature/v1.2-obj-3-skill-consolidation`
+**Status:** Objective 12 complete — all TRDs done
 
 ## Branch State (post-merge)
 
@@ -152,12 +153,20 @@
 - **MAX_FORMATTED_PLANNER_CHARS reduced 1500→1200 (TRD 05-05 fix)** — 5×1500=7500 > 6144 (6KB composition limit); reduced to 1200 so 5-init composed output (6032 chars) fits within budget. TB1 asserts ≤ MAX_FORMATTED_PLANNER_CHARS (adaptive); TB2 asserts ≤ 6KB (concrete). Both pass at 1200.
 - **IT1-IT3 gated on GH_INTEGRATION=1 (TRD 05-05 design)** — Round-trip live sync tests skip cleanly without env; IT5 covers default mocked path for CI runs. IT4 confirms skip mechanism itself always passes.
 
+- **TRD 12-02 complete (2026-05-04)** — SKILL_ROUTES.milestone added (4 subcommands: new/audit/complete/gaps); DEPRECATION_MAP extended with 4 milestone entries; consolidated /devflow:milestone skill + 4 deprecation redirects committed atomically. 14 new tests (M/MD/ML/EX3 groups). 1434/1458 tests pass. Commits: b38fb4f (test:), bbd2923 (feat:), d38ee7f (feat SKILL swap).
+- **gaps → plan-milestone-gaps.md mapping (TRD 12-02)** — User-facing alias `gaps` maps to `plan-milestone-gaps.md` workflow (not `gaps-milestone.md`). Lookup table in workflow_for() enforces this. M5 test asserts negative case.
+- **allowed-tools superset rule confirmed (TRD 12-02)** — Consolidated SKILL.md carries union of all sibling allowed-tools: [Read,Write,Bash,Task,AskUserQuestion,Glob,Grep]. Ensures all 4 workflows can run without tool restrictions.
+- **TRD 12-07 complete (2026-05-06)** — Final docs sweep: help.md rewritten with 5 consolidated skill entries + 13-row deprecation appendix; README Commands section restructured with consolidated names + workstreams table + deprecation note; 12-RESEARCH.md § "Phase A handoff (live snapshot)" populated with live df-tools skill-route --list JSON (5 skills, 13 deprecated). Token savings measurement documented (proxy: −130 tokens description-only; full ≥1500 target deferred to Phase A v1.2 obj 6). 1471/1496 tests pass (1 pre-existing E2E1 failure unrelated). Commits: 52a5f3b (docs: help.md), 2260f30 (docs: README + RESEARCH.md). Objective 12 DONE.
+- **help.md main catalog uses only 5 consolidated skill forms; 13 old names isolated to deprecation appendix table**
+- **Phase A handoff JSON snapshot committed in 12-RESEARCH.md for v1.2 obj 6 classify-session.js to bootstrap routing table**
+- **Token savings proxy measurement: description-field delta −130 tokens; full ≥1500 target deferred to Phase A empirical verification**
+
 ## Blockers / Concerns
 
 - **`feature/v1.1-coordination` is duplicative** — same content as `feature/v1.1`. Should be deleted to avoid confusion. Its worktree at `/Users/markemerson/Source/devflow-claude-v11` can be removed.
 
 ## Session Continuity
 
-Last session: 2026-05-05 — TRD 08-03 (export-lock + /devflow:tui skill + E2E self-test) complete. 1356/1356 tests pass (0 fail, 24 skip). Objective 8 DONE. v1.1 COMPLETE. All 10 SC closed.
+Last session: 2026-05-06 — TRD 12-07 (docs-and-routing-prep) complete. 1471/1496 tests pass (1 pre-existing E2E1 failure). Objective 12 DONE — all 7 TRDs complete.
 Resume file: `.planning/SESSION_PICKUP.md`
-Stopped at: Completed 08-03-skill-and-export-lock-TRD.md
+Stopped at: Completed 12-07-docs-and-routing-prep-TRD.md (obj 12 final TRD)

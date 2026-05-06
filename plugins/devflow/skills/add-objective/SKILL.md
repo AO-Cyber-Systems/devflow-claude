@@ -1,42 +1,35 @@
 ---
 name: add-objective
 description: |
-  Add a new objective to the end of the current milestone roadmap.
-  Structural change to the roadmap — use only when explicitly requested.
+  DEPRECATED — use `/devflow:objective add` instead. Will be removed in v3.0.
+  This redirect logs a deprecation entry and forwards to the consolidated skill.
 argument-hint: <description>
 disable-model-invocation: true
 allowed-tools:
-  - Read
-  - Write
   - Bash
+  - SlashCommand
 ---
 
 <objective>
-Add a new integer objective to the end of the current milestone in the roadmap.
-
-Routes to the add-objective workflow which handles:
-- Objective number calculation (next sequential integer)
-- Directory creation with slug generation
-- Roadmap structure updates
-- STATE.md roadmap evolution tracking
+DEPRECATED redirect. Forwards to `/devflow:objective add`.
 </objective>
 
-<execution_context>
-@.planning/ROADMAP.md
-@.planning/STATE.md
-@~/.claude/devflow/workflows/add-objective.md
-</execution_context>
-
 <process>
-**Follow the add-objective workflow** from `@~/.claude/devflow/workflows/add-objective.md`.
+**1. Log deprecation:**
 
-The workflow handles all logic including:
-1. Argument parsing and validation
-2. Roadmap existence checking
-3. Current milestone identification
-4. Next objective number calculation (ignoring decimals)
-5. Slug generation from description
-6. Objective directory creation
-7. Roadmap entry insertion
-8. STATE.md updates
+```bash
+node ~/.claude/devflow/bin/df-tools.cjs deprecation log add-objective --raw > /dev/null
+```
+
+**2. Display deprecation notice to user:**
+
+```
+/devflow:add-objective is DEPRECATED.
+    Use /devflow:objective add instead.
+    This shim will be removed in v3.0.
+```
+
+**3. Forward to consolidated skill:**
+
+Invoke `/devflow:objective add $ARGUMENTS` and let it run.
 </process>

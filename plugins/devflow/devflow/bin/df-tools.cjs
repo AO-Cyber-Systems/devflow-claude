@@ -181,6 +181,7 @@ const { cmdInitiativesRoute } = require('./lib/initiatives-cli.cjs');
 const { cmdCheckTodosRoute } = require('./lib/check-todos-cli.cjs');
 const { cmdSyncRoadmapRoute } = require('./lib/roadmap-reconcile-cli.cjs');
 const { cmdTuiRoute } = require('./lib/tui-cli.cjs');
+const { cmdSurveyDecimalObjectives } = require('./lib/decimal-survey.cjs');
 const {
   cmdGenerateSlug, cmdCurrentTimestamp, cmdListTodos, cmdVerifyPathExists,
   cmdHistoryDigest, cmdObjectiveJobIndex, cmdSummaryExtract, cmdWebsearch,
@@ -189,6 +190,9 @@ const {
 const {
   cmdHandoffCreate, cmdHandoffComplete, cmdHandoffList, cmdHandoffGet,
 } = require('./lib/handoff.cjs');
+const {
+  cmdTrdTddInspect,
+} = require('./lib/trd-tdd.cjs');
 
 // ─── CLI Router ───────────────────────────────────────────────────────────────
 
@@ -795,6 +799,60 @@ async function main() {
 
     case 'sync-roadmap': {
       cmdSyncRoadmapRoute(cwd, args.slice(1), raw);
+      break;
+    }
+
+    case 'skill-route': {
+      const { cmdSkillRoute, cmdSkillRouteList } = require('./lib/skill-route.cjs');
+      const srArgs = args.slice(1);
+      const srRaw = srArgs.includes('--raw');
+      const srFiltered = srArgs.filter(a => a !== '--raw');
+      if (srFiltered[0] === '--list') {
+        cmdSkillRouteList(cwd, srRaw);
+      } else {
+        cmdSkillRoute(cwd, srFiltered, srRaw);
+      }
+      break;
+    }
+
+    case 'deprecation': {
+      const { cmdDeprecationLog } = require('./lib/skill-route.cjs');
+      const depSub = args[1];
+      const depRaw = args.includes('--raw');
+      if (depSub === 'log') {
+        const result = cmdDeprecationLog(cwd, args[2], depRaw);
+        if (result.error) {
+          process.stderr.write(JSON.stringify(result, null, 2));
+          process.exit(1);
+        }
+        process.stdout.write(JSON.stringify(result, null, 2));
+        process.exit(0);
+      } else {
+        error('Usage: df-tools deprecation log <old-name>');
+      }
+      break;
+    }
+
+    case 'survey': {
+      const sub = args[1];
+      const surveyArgs = args.slice(2);
+      const surveyRaw = surveyArgs.includes('--raw');
+      const filteredSurveyArgs = surveyArgs.filter(a => a !== '--raw');
+      if (sub === 'decimal-objectives') {
+        cmdSurveyDecimalObjectives(cwd, filteredSurveyArgs, surveyRaw);
+      } else {
+        error('Usage: df-tools survey decimal-objectives [--root <path>]');
+      }
+      break;
+    }
+
+    case 'trd-tdd': {
+      const sub = args[1];
+      if (sub === 'inspect') {
+        cmdTrdTddInspect(cwd, args[2], raw);
+      } else {
+        error('Usage: df-tools trd-tdd inspect <trd-path>');
+      }
       break;
     }
 

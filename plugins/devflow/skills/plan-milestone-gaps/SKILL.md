@@ -1,43 +1,34 @@
 ---
 name: plan-milestone-gaps
 description: |
-  Turn gaps found by milestone audit into new objectives that close them.
-  Runs after audit-milestone to create fix objectives in the roadmap.
+  DEPRECATED — use `/devflow:milestone gaps` instead. Will be removed in v3.0.
+  This redirect logs a deprecation entry and forwards to the consolidated skill.
 disable-model-invocation: true
 allowed-tools:
-  - Read
-  - Write
   - Bash
-  - Glob
-  - Grep
-  - AskUserQuestion
+  - SlashCommand
 ---
+
 <objective>
-Create all objectives necessary to close gaps identified by `/devflow:audit-milestone`.
-
-Reads MILESTONE-AUDIT.md, groups gaps into logical objectives, creates objective entries in ROADMAP.md, and offers to plan each objective.
-
-One command creates all fix objectives — no manual `/devflow:add-objective` per gap.
+DEPRECATED redirect. Forwards to `/devflow:milestone gaps`.
 </objective>
 
-<execution_context>
-@~/.claude/devflow/workflows/plan-milestone-gaps.md
-</execution_context>
-
-<context>
-**Audit results:**
-Glob: .planning/v*-MILESTONE-AUDIT.md (use most recent)
-
-**Original intent (for prioritization):**
-@.planning/PROJECT.md
-@.planning/REQUIREMENTS.md
-
-**Current state:**
-@.planning/ROADMAP.md
-@.planning/STATE.md
-</context>
-
 <process>
-Execute the job-milestone-gaps workflow from @~/.claude/devflow/workflows/plan-milestone-gaps.md end-to-end.
-Preserve all workflow gates (audit loading, prioritization, objective grouping, user confirmation, roadmap updates).
+**1. Log deprecation:**
+
+```bash
+node ~/.claude/devflow/bin/df-tools.cjs deprecation log plan-milestone-gaps --raw > /dev/null
+```
+
+**2. Display deprecation notice to user:**
+
+```
+/devflow:plan-milestone-gaps is DEPRECATED.
+    Use /devflow:milestone gaps instead.
+    This shim will be removed in v3.0.
+```
+
+**3. Forward to consolidated skill:**
+
+Invoke `/devflow:milestone gaps $ARGUMENTS` and let it run.
 </process>

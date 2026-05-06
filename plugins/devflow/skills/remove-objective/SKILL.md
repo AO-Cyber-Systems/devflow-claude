@@ -1,35 +1,35 @@
 ---
 name: remove-objective
 description: |
-  Remove a future objective from the roadmap and renumber everything after it.
-  Permanent deletion — use only for unstarted objectives when explicitly requested.
+  DEPRECATED — use `/devflow:objective remove` instead. Will be removed in v3.0.
+  This redirect logs a deprecation entry and forwards to the consolidated skill.
 argument-hint: <phase-number>
 disable-model-invocation: true
 allowed-tools:
-  - Read
-  - Write
   - Bash
-  - Glob
+  - SlashCommand
 ---
-<objective>
-Remove an unstarted future objective from the roadmap and renumber all subsequent objectives to maintain a clean, linear sequence.
 
-Purpose: Clean removal of work you've decided not to do, without polluting context with cancelled/deferred markers.
-Output: Objective deleted, all subsequent objectives renumbered, git commit as historical record.
+<objective>
+DEPRECATED redirect. Forwards to `/devflow:objective remove`.
 </objective>
 
-<execution_context>
-@~/.claude/devflow/workflows/remove-objective.md
-</execution_context>
-
-<context>
-Objective: $ARGUMENTS
-
-@.planning/ROADMAP.md
-@.planning/STATE.md
-</context>
-
 <process>
-Execute the remove-objective workflow from @~/.claude/devflow/workflows/remove-objective.md end-to-end.
-Preserve all validation gates (future objective check, work check), renumbering logic, and commit.
+**1. Log deprecation:**
+
+```bash
+node ~/.claude/devflow/bin/df-tools.cjs deprecation log remove-objective --raw > /dev/null
+```
+
+**2. Display deprecation notice to user:**
+
+```
+/devflow:remove-objective is DEPRECATED.
+    Use /devflow:objective remove instead.
+    This shim will be removed in v3.0.
+```
+
+**3. Forward to consolidated skill:**
+
+Invoke `/devflow:objective remove $ARGUMENTS` and let it run.
 </process>

@@ -1796,7 +1796,7 @@ describe('check-todos: Group E2E — self-test + integration (TRD 06-04)', () =>
     assert.strictEqual(result.cached, false, 'Expected cached=false under --refresh');
   });
 
-  it('E2E3: skill exists check — SKILL.md present with correct frontmatter + df-tools invocation', () => {
+  it('E2E3: skill exists check — SKILL.md present with correct frontmatter + deprecation redirect (TRD 12-03)', () => {
     const fs = require('fs');
     const path = require('path');
     const repoRoot = process.cwd();
@@ -1805,6 +1805,9 @@ describe('check-todos: Group E2E — self-test + integration (TRD 06-04)', () =>
     assert.ok(fs.existsSync(skillPath), `SKILL.md must exist at ${skillPath}`);
     const content = fs.readFileSync(skillPath, 'utf-8');
     assert.match(content, /^name: check-todos/m, 'frontmatter must have name: check-todos');
-    assert.match(content, /df-tools check-todos/, 'skill body must invoke df-tools check-todos');
+    // TRD 12-03: check-todos is now a deprecation redirect to /devflow:todo list
+    // The skill logs deprecation via df-tools deprecation log and forwards to /devflow:todo list
+    assert.match(content, /DEPRECATED/, 'skill body must include DEPRECATED notice');
+    assert.match(content, /deprecation log check-todos/, 'skill body must invoke df-tools deprecation log check-todos');
   });
 });

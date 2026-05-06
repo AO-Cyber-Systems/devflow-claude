@@ -289,15 +289,35 @@ Planning objective <id>
 
 **Step 3 — Map resolved fields to TRD shape.** The defaults table's structured fields drive both TRD `type` and TRD body sections:
 
-**TRD type selection:**
+**TRD type selection and task-level TDD flag emission:**
 - `result.config.tdd_default === "skip"` AND no playbook detected → `type: standard` (with `<!-- TDD-EXCEPTION: prototype/spike or explicit-skip work -->` comment)
-- All other values → `type: tdd`
+- All other values → `type: standard`; mark each testable task with `tdd="true"` attribute (task-level flag)
+
+**Task-level `tdd="true"` emission rule (preferred — v1.2+):**
+
+For each task in the TRD where TDD applies (business logic, API endpoints, data transformations, validation rules, algorithms, state machines), emit the `tdd="true"` attribute on the task element:
+
+```xml
+<task type="auto" tdd="true">
+  <name>Add validateEmail function</name>
+  <files>src/lib/email.cjs, src/lib/email.test.cjs</files>
+  <action>...</action>
+  <verify>...</verify>
+  <done>...</done>
+</task>
+```
+
+Non-testable tasks (UI layout/styling, configuration, glue code, one-off scripts, simple CRUD) get no `tdd` attribute.
+
+**Why task-level (replaces dedicated `type: tdd` TRDs):** A single TRD can mix testable + non-testable tasks. No more forced TRD splits. Test-pairing rule still applies (every source file with logic has a paired test file).
+
+**Back-compat:** Existing TRDs with `type: tdd` (in-flight objs 10, 11) continue to work — executor treats `type: tdd` as "all tasks default `tdd="true"` unless explicit `tdd="false"`". New TRDs SHOULD prefer task-level flag.
 
 **TRD section emission (per resolved field):**
-- `result.config.test_list_first === "required"` → emit a `## Test list` section in the TRD body, listing behavior cases (happy + edge + failure) BEFORE any test code prescription. Required for every type:tdd TRD by the user's CLAUDE.md TDD Playbook habit 2.
+- `result.config.test_list_first === "required"` → emit a `## Test list` section in the TRD body, listing behavior cases (happy + edge + failure) BEFORE any test code prescription. Required for every TRD with `tdd="true"` tasks, per the user's CLAUDE.md TDD Playbook habit 2.
 - `result.config.fixture_strategy ∈ {"generators", "cassettes"}` → emit a fixture-builder task as Task 1 of the TRD, ahead of the first RED test task. The task instruction must specify hand-built factory functions (no LLM-generated test data, per the `no_llm_test_data` constraint). If `fixture_strategy === "cassettes"`, flag in the task description: "Use recorded cassettes — see existing pattern in tests/cassettes if present."
 - `result.config.security_isolation === "multi_tenant_required"` → inject the wrong-tenant assertion entry from `result.config.verification_commands` into the TRD's `verification_commands` frontmatter (and reference it in the `<verification>` section). This is hard-enforced, not advisory.
-- `result.config.outside_in === true` → order TRDs from outermost layer to innermost (system → integration → unit). For type:tdd TRDs, order test cases within the `## Test list` from outermost to innermost as well. Consult `testing-strategy.md` platform routing section for the outermost layer entry point per stack.
+- `result.config.outside_in === true` → order TRDs from outermost layer to innermost (system → integration → unit). For tasks with `tdd="true"`, order test cases within the `## Test list` from outermost to innermost as well. Consult `testing-strategy.md` platform routing section for the outermost layer entry point per stack.
 - `result.config.back_compat ∈ {"api_parity", "ui_parity", "library_parity", "io_parity", "contract_parity", "behavioral"}` → emit a behavioral parity checklist section in the TRD listing source-behavior cases the new implementation must reproduce. Reference the contract-list-first approach (read source code + tests as documentation, not transplantable fixtures).
 - `result.config.back_compat === "visual_parity"` → emit a parity-target comment in the TRD; skip the actual visual-diff verification step until tooling lands (per the (ui-lib, *) cells' aspirational tagging).
 
@@ -316,7 +336,7 @@ When a constraint is opted out via TRD frontmatter, it is dropped from `result.c
 
 **Why this replaces the old heuristic:** The previous "Can you write `expect(fn(input)).toBe(output)`?" question silently chose `type: tdd` vs `type: standard` without surfacing reasoning, and ignored project/user-level intent (kind, work, CLAUDE.md playbooks). The new resolution is deterministic, transparent, and overridable at four levels; structured fields drive section emission and verification routing automatically — no more silent TDD detection heuristic, no more freeform-only playbook absorption. See `docs/PROPOSAL-kind-and-work.md` for the full rationale.
 
-**Why TDD gets own TRD:** TDD requires RED→GREEN→REFACTOR cycles consuming 40-50% context. Embedding in multi-task TRDs degrades quality. (Unchanged from prior behavior.)
+**Precedence reminder:** Executor resolves the effective TDD flag via `df-tools trd-tdd inspect <trd-path>`. Precedence: task `tdd="true"` → TRUE; task `tdd="false"` → FALSE; task absent + TRD `type: tdd` → TRUE (back-compat); default → FALSE. See `references/tdd.md` for the full precedence table.
 
 ## User Setup Detection
 

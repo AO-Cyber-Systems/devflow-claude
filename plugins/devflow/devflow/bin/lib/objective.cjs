@@ -169,73 +169,16 @@ function cmdFindObjective(cwd, objective, raw) {
   }
 }
 
+// cmdObjectiveNextDecimal — DEPRECATED in v1.2 (TRD 12-06, I2 survey: 0% usage across 16 projects).
+// Decimal objectives were never used in practice. Use `objective add` to append integer objectives.
 function cmdObjectiveNextDecimal(cwd, baseObjective, raw) {
-  const objectivesDir = path.join(cwd, '.planning', 'objectives');
-  const normalized = normalizeObjectiveName(baseObjective);
-
-  // Check if objectives directory exists
-  if (!fs.existsSync(objectivesDir)) {
-    output(
-      {
-        found: false,
-        base_objective: normalized,
-        next: `${normalized}.1`,
-        existing: [],
-      },
-      raw,
-      `${normalized}.1`
-    );
-    return;
-  }
-
-  try {
-    const entries = fs.readdirSync(objectivesDir, { withFileTypes: true });
-    const dirs = entries.filter(e => e.isDirectory()).map(e => e.name);
-
-    // Check if base objective exists
-    const baseExists = dirs.some(d => d.startsWith(normalized + '-') || d === normalized);
-
-    // Find existing decimal objectives for this base
-    const decimalPattern = new RegExp(`^${normalized}\\.(\\d+)`);
-    const existingDecimals = [];
-
-    for (const dir of dirs) {
-      const match = dir.match(decimalPattern);
-      if (match) {
-        existingDecimals.push(`${normalized}.${match[1]}`);
-      }
-    }
-
-    // Sort numerically
-    existingDecimals.sort((a, b) => {
-      const aNum = parseFloat(a);
-      const bNum = parseFloat(b);
-      return aNum - bNum;
-    });
-
-    // Calculate next decimal
-    let nextDecimal;
-    if (existingDecimals.length === 0) {
-      nextDecimal = `${normalized}.1`;
-    } else {
-      const lastDecimal = existingDecimals[existingDecimals.length - 1];
-      const lastNum = parseInt(lastDecimal.split('.')[1], 10);
-      nextDecimal = `${normalized}.${lastNum + 1}`;
-    }
-
-    output(
-      {
-        found: baseExists,
-        base_objective: normalized,
-        next: nextDecimal,
-        existing: existingDecimals,
-      },
-      raw,
-      nextDecimal
-    );
-  } catch (e) {
-    error('Failed to calculate next decimal objective: ' + e.message);
-  }
+  const deprecationResult = {
+    error: 'decimal-objective commands were deprecated in v1.2; use df-tools objective add to append instead',
+    removed_in: '12-06',
+    recommendation: 'Use `df-tools objective add <description>` to append a new integer objective.',
+  };
+  process.stdout.write(JSON.stringify(deprecationResult, null, 2) + '\n');
+  process.exit(1);
 }
 
 function cmdObjectivesList(cwd, options, raw) {
@@ -374,85 +317,16 @@ function cmdObjectiveAdd(cwd, description, raw) {
   output(result, raw, paddedNum);
 }
 
+// cmdObjectiveInsert — DEPRECATED in v1.2 (TRD 12-06, I2 survey: 0% usage across 16 projects).
+// Decimal objectives were never used in practice. Use `objective add` to append integer objectives.
 function cmdObjectiveInsert(cwd, afterObjective, description, raw) {
-  if (!afterObjective || !description) {
-    error('after-objective and description required for objective insert');
-  }
-
-  const roadmapPath = path.join(cwd, '.planning', 'ROADMAP.md');
-  if (!fs.existsSync(roadmapPath)) {
-    error('ROADMAP.md not found');
-  }
-
-  const content = fs.readFileSync(roadmapPath, 'utf-8');
-  const slug = generateSlugInternal(description);
-
-  // Normalize input then strip leading zeros for flexible matching
-  const normalizedAfter = normalizeObjectiveName(afterObjective);
-  const unpadded = normalizedAfter.replace(/^0+/, '');
-  const afterObjectiveEscaped = unpadded.replace(/\./g, '\\.');
-  const targetPattern = new RegExp(`#{2,4}\\s*Objective\\s+0*${afterObjectiveEscaped}:`, 'i');
-  if (!targetPattern.test(content)) {
-    error(`Objective ${afterObjective} not found in ROADMAP.md`);
-  }
-
-  // Calculate next decimal using existing logic
-  const objectivesDir = path.join(cwd, '.planning', 'objectives');
-  const normalizedBase = normalizeObjectiveName(afterObjective);
-  let existingDecimals = [];
-
-  try {
-    const entries = fs.readdirSync(objectivesDir, { withFileTypes: true });
-    const dirs = entries.filter(e => e.isDirectory()).map(e => e.name);
-    const decimalPattern = new RegExp(`^${normalizedBase}\\.(\\d+)`);
-    for (const dir of dirs) {
-      const dm = dir.match(decimalPattern);
-      if (dm) existingDecimals.push(parseInt(dm[1], 10));
-    }
-  } catch {}
-
-  const nextDecimal = existingDecimals.length === 0 ? 1 : Math.max(...existingDecimals) + 1;
-  const decimalObjective = `${normalizedBase}.${nextDecimal}`;
-  const dirName = `${decimalObjective}-${slug}`;
-  const dirPath = path.join(cwd, '.planning', 'objectives', dirName);
-
-  // Create directory with .gitkeep so git tracks empty folders
-  fs.mkdirSync(dirPath, { recursive: true });
-  fs.writeFileSync(path.join(dirPath, '.gitkeep'), '');
-
-  // Build objective entry
-  const objectiveEntry = `\n### Objective ${decimalObjective}: ${description} (INSERTED)\n\n**Goal:** [Urgent work - to be planned]\n**Depends on:** Objective ${afterObjective}\n**Jobs:** 0 jobs\n\nJobs:\n- [ ] TBD (run /df:plan-objective ${decimalObjective} to break down)\n`;
-
-  // Insert after the target objective section
-  const headerPattern = new RegExp(`(#{2,4}\\s*Objective\\s+0*${afterObjectiveEscaped}:[^\\n]*\\n)`, 'i');
-  const headerMatch = content.match(headerPattern);
-  if (!headerMatch) {
-    error(`Could not find Objective ${afterObjective} header`);
-  }
-
-  const headerIdx = content.indexOf(headerMatch[0]);
-  const afterHeader = content.slice(headerIdx + headerMatch[0].length);
-  const nextObjectiveMatch = afterHeader.match(/\n#{2,4}\s+Objective\s+\d/i);
-
-  let insertIdx;
-  if (nextObjectiveMatch) {
-    insertIdx = headerIdx + headerMatch[0].length + nextObjectiveMatch.index;
-  } else {
-    insertIdx = content.length;
-  }
-
-  const updatedContent = content.slice(0, insertIdx) + objectiveEntry + content.slice(insertIdx);
-  fs.writeFileSync(roadmapPath, updatedContent, 'utf-8');
-
-  const result = {
-    objective_number: decimalObjective,
-    after_objective: afterObjective,
-    name: description,
-    slug,
-    directory: `.planning/objectives/${dirName}`,
+  const deprecationResult = {
+    error: 'decimal-objective insertion was deprecated in v1.2; use df-tools objective add to append instead',
+    removed_in: '12-06',
+    recommendation: 'Use `df-tools objective add <description>` to append a new integer objective.',
   };
-
-  output(result, raw, decimalObjective);
+  process.stdout.write(JSON.stringify(deprecationResult, null, 2) + '\n');
+  process.exit(1);
 }
 
 function cmdObjectiveRemove(cwd, targetObjective, options, raw) {
@@ -496,59 +370,11 @@ function cmdObjectiveRemove(cwd, targetObjective, options, raw) {
   }
 
   // Renumber subsequent objectives
+  // Note: decimal-objective renumbering removed in TRD 12-06 (I2 survey: 0% usage).
   const renamedDirs = [];
   const renamedFiles = [];
 
-  if (isDecimal) {
-    // Decimal removal: renumber sibling decimals (e.g., removing 06.2 → 06.3 becomes 06.2)
-    const baseParts = normalized.split('.');
-    const baseInt = baseParts[0];
-    const removedDecimal = parseInt(baseParts[1], 10);
-
-    try {
-      const entries = fs.readdirSync(objectivesDir, { withFileTypes: true });
-      const dirs = entries.filter(e => e.isDirectory()).map(e => e.name).sort();
-
-      // Find sibling decimals with higher numbers
-      const decPattern = new RegExp(`^${baseInt}\\.(\\d+)-(.+)$`);
-      const toRename = [];
-      for (const dir of dirs) {
-        const dm = dir.match(decPattern);
-        if (dm && parseInt(dm[1], 10) > removedDecimal) {
-          toRename.push({ dir, oldDecimal: parseInt(dm[1], 10), slug: dm[2] });
-        }
-      }
-
-      // Sort descending to avoid conflicts
-      toRename.sort((a, b) => b.oldDecimal - a.oldDecimal);
-
-      for (const item of toRename) {
-        const newDecimal = item.oldDecimal - 1;
-        const oldObjectiveId = `${baseInt}.${item.oldDecimal}`;
-        const newObjectiveId = `${baseInt}.${newDecimal}`;
-        const newDirName = `${baseInt}.${newDecimal}-${item.slug}`;
-
-        // Rename directory
-        fs.renameSync(path.join(objectivesDir, item.dir), path.join(objectivesDir, newDirName));
-        renamedDirs.push({ from: item.dir, to: newDirName });
-
-        // Rename files inside
-        const dirFiles = fs.readdirSync(path.join(objectivesDir, newDirName));
-        for (const f of dirFiles) {
-          // Files may have objective prefix like "06.2-01-JOB.md"
-          if (f.includes(oldObjectiveId)) {
-            const newFileName = f.replace(oldObjectiveId, newObjectiveId);
-            fs.renameSync(
-              path.join(objectivesDir, newDirName, f),
-              path.join(objectivesDir, newDirName, newFileName)
-            );
-            renamedFiles.push({ from: f, to: newFileName });
-          }
-        }
-      }
-    } catch {}
-
-  } else {
+  if (!isDecimal) {
     // Integer removal: renumber all subsequent integer objectives
     const removedInt = parseInt(normalized, 10);
 

@@ -2,7 +2,7 @@
   "current_objective": null,
   "current_job": 0,
   "total_jobs": 0,
-  "progress_pct": 98,
+  "progress_pct": 95,
   "status": "ready_for_verification",
   "last_activity": "2026-05-06",
   "metrics": {
@@ -109,6 +109,76 @@
     {
       "objective": "10-phase-e-agent-audit",
       "summary": "Convention established: general-purpose is correct ONLY for Task(prompt='Run /devflow:...') workflow-invocation trampolines; all other spawns use dedicated df-* agents",
+      "rationale": null
+    },
+    {
+      "objective": "11",
+      "summary": "Placed verifier Task spawn at top of build.md § 8 (before display branches) as backstop for guaranteed VERIFICATION.md production, mirroring execute-objective.md:512-524 pattern exactly",
+      "rationale": null
+    },
+    {
+      "objective": "11",
+      "summary": "Preserved general-purpose trampoline at build.md:167 per Phase E DOCUMENT case preservation decision",
+      "rationale": null
+    },
+    {
+      "objective": "12",
+      "summary": "Task-level tdd attribute (tdd=\"true\") preferred over TRD-level type:tdd; resolveEffectiveTddFlag: task attr wins, type:tdd back-compat, default false",
+      "rationale": null
+    },
+    {
+      "objective": "12",
+      "summary": "output() helper always exits 0 — use process.stdout.write + process.exit(1) directly for error paths needing non-zero exit",
+      "rationale": null
+    },
+    {
+      "objective": "12",
+      "summary": "routeSkill is PURE — returns object, no fs/exit/console; CLI wrappers handle side effects",
+      "rationale": null
+    },
+    {
+      "objective": "12",
+      "summary": "Argument validation (null skill/args) runs BEFORE skill lookup to prevent spurious unknown-skill errors",
+      "rationale": null
+    },
+    {
+      "objective": "12",
+      "summary": "Export-lock banner (8-entry surface LOCKED by TRD 12-01); EX1 test enforces atomically",
+      "rationale": null
+    },
+    {
+      "objective": "12",
+      "summary": "All 4 SKILL files (consolidated + 3 redirects) committed in single atomic commit to prevent routing gaps",
+      "rationale": null
+    },
+    {
+      "objective": "12",
+      "summary": "I2 survey returned drop (0% decimal usage / 16 projects / 120 objectives); decimal handling removed from objective.cjs, insert deprecated",
+      "rationale": null
+    },
+    {
+      "objective": "12",
+      "summary": "I4: summary template canonicalized to templates/summary.md; 3 variant files deleted; cmdTemplateSelect simplified",
+      "rationale": null
+    },
+    {
+      "objective": "12-skill-consolidation",
+      "summary": "gaps subcommand maps to plan-milestone-gaps.md — user-facing alias is cleaner but workflow filename is plan-milestone-gaps",
+      "rationale": null
+    },
+    {
+      "objective": "12",
+      "summary": "Default subcommand via null in subcommands[]: status with no arg → progress.md (not error)",
+      "rationale": null
+    },
+    {
+      "objective": "12",
+      "summary": "_normalizeStatusSubcommand is private (not exported); export-lock stays at 8 entries",
+      "rationale": null
+    },
+    {
+      "objective": "12",
+      "summary": "resume-work skill maps to resume-project.md workflow (not resume-work.md)",
       "rationale": null
     }
   ],
