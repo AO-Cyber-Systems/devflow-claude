@@ -508,22 +508,31 @@ You're never locked in. The system adapts.
 |---------|--------------|
 | `/devflow:map-codebase` | Analyze existing codebase before new-project |
 
-### Objective Management
+### Roadmap & Milestone Management
 
 | Command | What it does |
 |---------|--------------|
-| `/devflow:add-objective` | Append objective to roadmap |
-| `/devflow:insert-objective [N]` | Insert urgent work between objectives |
-| `/devflow:remove-objective [N]` | Remove future objective, renumber |
+| `/devflow:objective <add\|remove>` | Add or remove objectives in current milestone roadmap |
+| `/devflow:milestone <new\|audit\|complete\|gaps>` | Manage milestones from start to archive |
 | `/devflow:list-objective-assumptions [N]` | See Claude's intended approach before planning |
-| `/devflow:plan-milestone-gaps` | Create objectives to close gaps from audit |
 
-### Session
+### Parallel Workstreams
 
 | Command | What it does |
 |---------|--------------|
-| `/devflow:pause-work` | Create handoff when stopping mid-objective |
-| `/devflow:resume-work` | Restore from last session |
+| `/devflow:workstreams <setup\|status\|merge\|run>` | Parallel feature development via git worktrees |
+
+### Status & Session
+
+| Command | What it does |
+|---------|--------------|
+| `/devflow:status [check\|pause\|resume]` | Project status, health, save/resume work |
+
+### Todo Management
+
+| Command | What it does |
+|---------|--------------|
+| `/devflow:todo <add\|list>` | Capture ideas for later / morning standup view |
 
 ### Utilities
 
@@ -531,11 +540,10 @@ You're never locked in. The system adapts.
 |---------|--------------|
 | `/devflow:settings` | Configure model profile and workflow agents |
 | `/devflow:set-profile <profile>` | Switch model profile (quality/balanced/budget) |
-| `/devflow:add-todo [desc]` | Capture idea for later |
-| `/devflow:check-todos` | List pending todos |
 | `/devflow:debug [desc]` | Systematic debugging with persistent state |
 | `/devflow:quick [--full]` | Execute ad-hoc task with DevFlow guarantees (`--full` adds job-checking and verification) |
-| `/devflow:health [--repair]` | Validate `.planning/` directory integrity, auto-repair with `--repair` |
+
+> **13 legacy skill names** (`/devflow:add-objective`, `/devflow:progress`, `/devflow:health`, `/devflow:pause-work`, `/devflow:resume-work`, `/devflow:add-todo`, `/devflow:check-todos`, and 6 milestone/objective variants) still work as deprecation redirects. Run `/devflow:help` for the full deprecation map.
 
 ---
 
