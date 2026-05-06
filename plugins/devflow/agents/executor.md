@@ -300,12 +300,25 @@ If spawned as continuation agent (`<completed_tasks>` in prompt):
 </continuation_handling>
 
 <tdd_execution>
-When executing task with `type="tdd"` (TRD-level) or `tdd="true"` (legacy):
+**Resolution:** Before executing a task, resolve its effective TDD flag using `df-tools trd-tdd inspect`:
 
-**1. Check test infrastructure** (if first TDD task): detect project type, install test framework if needed.
+```bash
+TDD_INFO=$(node ~/.claude/devflow/bin/df-tools.cjs trd-tdd inspect "$TRD_PATH" --raw)
+# JSON: { frontmatter, tasks: [{name, type, tdd_attr, tdd_effective}, ...] }
+```
+
+For each task, `tdd_effective: true` triggers RED→GREEN→REFACTOR. `tdd_effective: false` runs as a standard task.
+
+**Effective-flag rules (handled by `df-tools trd-tdd inspect`):**
+- Task `tdd="true"` → effective TRUE
+- Task `tdd="false"` → effective FALSE
+- Task absent + TRD `type: tdd` → effective TRUE (back-compat for in-flight TRDs)
+- Task absent + TRD `type: standard` → effective FALSE
+
+**1. Check test infrastructure** (if first TDD task in this TRD): detect project type, install test framework if needed.
 
 **2. RED phase — Write failing test:**
-- Read `<behavior>` or `<test>` element
+- Read `<behavior>` or `<test>` element (or `<action>` for task-level pattern)
 - Create test file, write failing tests
 - Run test command — MUST fail (exit code != 0)
 - **Capture evidence:**
@@ -318,7 +331,6 @@ When executing task with `type="tdd"` (TRD-level) or `tdd="true"` (legacy):
 - Commit: `test({objective}-{trd}): add failing test for [feature]`
 
 **3. GREEN phase — Make test pass:**
-- Read `<implementation>` or `<action>` element
 - Write minimal code to pass
 - Run test command — MUST pass (exit code == 0)
 - **Capture evidence:**

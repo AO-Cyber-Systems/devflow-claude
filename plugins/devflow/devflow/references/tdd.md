@@ -116,7 +116,7 @@ Abusing TDD exceptions is itself an anti-pattern tracked in SUMMARY.md.
 <when_to_use_tdd>
 ## When TDD Improves Quality
 
-**TDD candidates (create a TDD TRD):**
+**TDD candidates (mark task with `tdd="true"`):**
 - Business logic with defined inputs/outputs
 - API endpoints with request/response contracts
 - Data transformations, parsing, formatting
@@ -125,7 +125,7 @@ Abusing TDD exceptions is itself an anti-pattern tracked in SUMMARY.md.
 - State machines and workflows
 - Utility functions with clear specifications
 
-**Skip TDD (use standard TRD with `type="auto"` tasks):**
+**Skip TDD (plain task, no `tdd` attribute):**
 - UI layout, styling, visual components
 - Configuration changes
 - Glue code connecting existing components
@@ -134,9 +134,54 @@ Abusing TDD exceptions is itself an anti-pattern tracked in SUMMARY.md.
 - Exploratory prototyping
 
 **Heuristic:** Can you write `expect(fn(input)).toBe(output)` before writing `fn`?
-→ Yes: Create a TDD TRD
-→ No: Use standard TRD, add tests after if needed
+→ Yes: Add `tdd="true"` to the task (Form A preferred, see `<forms>` section)
+→ No: Plain task, no `tdd` attribute; add tests after if needed
 </when_to_use_tdd>
+
+<forms>
+## Forms (transition window)
+
+DevFlow accepts TWO forms of TDD declaration during the v1.2+ transition:
+
+### Form A — Task-level flag (task-level tdd attribute, PREFERRED, v1.2 obj 3+)
+
+```xml
+<task type="auto" tdd="true">
+  <name>Add validateEmail function</name>
+  <files>src/lib/email.cjs, src/lib/email.test.cjs</files>
+  ...
+</task>
+```
+
+Use this when only SOME tasks in a TRD are testable (mixed TRD). The planner emits `tdd="true"` on each testable task; non-testable tasks (config, glue code, UI layout) get no attribute.
+
+### Form B — TRD-level type (LEGACY, back-compat)
+
+```yaml
+---
+type: tdd
+---
+```
+
+Treats ALL tasks in this TRD as `tdd="true"` unless explicitly `tdd="false"`. Existing TRDs (objs 10, 11) use this form. New TRDs SHOULD prefer Form A.
+
+### Resolution precedence
+
+`df-tools trd-tdd inspect <trd-path>` resolves the effective flag per task:
+
+| Task `tdd` attr | Frontmatter `type` | Effective TDD |
+|---|---|---|
+| `"true"` | (any) | TRUE |
+| `"false"` | (any) | FALSE |
+| absent | `tdd` | TRUE |
+| absent | `standard` | FALSE |
+| absent | (other/absent) | FALSE |
+
+### Iron Law (unchanged)
+
+No production code without a failing test first. RED → GREEN → REFACTOR. Exit-code evidence required at each phase.
+
+</forms>
 
 <tdd_plan_structure>
 ## TDD Plan Structure
