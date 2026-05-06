@@ -569,6 +569,9 @@ Dependency order:
      - [ ] 10-01-audit-and-remediate-TRD.md — Apply 14 switches across 6 workflow files; audit table in 10-RESEARCH.md
      - [ ] 10-02-convention-doc-TRD.md — Write `docs/agent-spawning-convention.md` codifying the rule
 2. **Phase D — Fix /devflow:build → df-verifier wiring** — quick wiring fix (currently 0/22 verifier spawns from /devflow:build); unblocks Phase F. **Tracks: devflow-claude#29**
+   - **Status:** Planned 2026-05-04 (objective 11 / branch `feature/v1.2-obj-2-verifier-fix`)
+   - **TRDs:** 1 plan
+     - [ ] 11-01-diagnose-and-fix-TRD.md — Add explicit verifier spawn to build.md § 8 + regression test in df-tools.test.cjs
 3. **Phase G+I — Skill consolidation 28→14 + drop low-leverage** — `/devflow:objective <add|insert|remove>`, `/devflow:milestone <new|audit|complete|gaps>`, `/devflow:status [--pause|--resume|--check]`, etc. Drops features identified as low-leverage by Phase E. **Tracks: devflow-claude#32 + #34**
 4. **Phase H — Prompt extraction to references/templates** — move duplicated agent-prompt content (debugging methodology, goal-backward methodology, TRD spec) to shared references. ~25-55k tokens saved per `/devflow:build`. **Tracks: devflow-claude#33**
 5. **Phase F — Default-on safety nets** — mandatory df-verifier invocation + route-intent enforcement; closes the routing→verification loop. Depends on D + E. **Tracks: devflow-claude#31**
