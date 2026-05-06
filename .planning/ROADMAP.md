@@ -551,11 +551,79 @@ Dependency order:
 
 ---
 
-## Milestone v1.2 — Handoff Watcher PTY + Coordination-Layer Polish (next)
+## Milestone v1.2 — Token Efficiency + Ambient Mode + Handoff Polish (in flight)
 
-**Goal:** Close the "Claude continues executing" promise for **TTY-interactive auth** (today's v1.1 limitation), plus polish the coordination layer with the items deferred from v1.1.
+**Goal:** Three threads. (1) Cut per-invocation token cost (300-600k → 200-400k target) by consolidating skills, extracting prompts to references, and dropping low-leverage features. (2) Convert routing from advisory to authoritative (0% → 90% obedience target) so DevFlow gets used in the 88% of sessions that currently bypass it. (3) Close the "Claude continues executing" promise for TTY-interactive auth (PTY) + polish the coordination layer.
 
-**Status:** Open. Plan after v1.1 ships and dogfood data accumulates.
+**Status:** In flight 2026-05-05. Sequencing chosen efficiency-first per user directive: efficiency wins compound on every invocation today; adoption gains layer on top later.
+
+**Inputs:** GitHub roadmap issue #25 (Plan B ambient mode, 11 phases #26–#36). v1.1 leveraging-gap audit (4 v1.1 surfaces not yet auto-wired). Existing v1.2 PTY/polish design (preserved below as scope).
+
+**Objective scope (13 objectives, ordered by sequencing):**
+
+*Phase 1 — Token efficiency (priority):*
+
+1. **Phase E — Agent-spawn audit** — diagnose general-purpose vs dedicated agent invocations across recent sessions; identify shelf-ware specialized agents; produce remediation table for Phases F/G/H. **Tracks: devflow-claude#30**
+2. **Phase D — Fix /devflow:build → df-verifier wiring** — quick wiring fix (currently 0/22 verifier spawns from /devflow:build); unblocks Phase F. **Tracks: devflow-claude#29**
+3. **Phase G+I — Skill consolidation 28→14 + drop low-leverage** — `/devflow:objective <add|insert|remove>`, `/devflow:milestone <new|audit|complete|gaps>`, `/devflow:status [--pause|--resume|--check]`, etc. Drops features identified as low-leverage by Phase E. **Tracks: devflow-claude#32 + #34**
+4. **Phase H — Prompt extraction to references/templates** — move duplicated agent-prompt content (debugging methodology, goal-backward methodology, TRD spec) to shared references. ~25-55k tokens saved per `/devflow:build`. **Tracks: devflow-claude#33**
+5. **Phase F — Default-on safety nets** — mandatory df-verifier invocation + route-intent enforcement; closes the routing→verification loop. Depends on D + E. **Tracks: devflow-claude#31**
+
+*Phase 2 — Ambient mode (adoption):*
+
+6. **Phase A — Authoritative routing keystone** — convert `route-intent.js` from advisory to authoritative; new `classify-session.js` SessionStart hook; routing decision table injected as system context. **Tracks: devflow-claude#26**
+7. **Phase B — `/devflow:micro` skill** — sub-30-LOC, single-file changes, ~2k token target; cheap target for ambient routing. Depends on A. **Tracks: devflow-claude#27**
+8. **Phase C — Auto-init detection for non-DevFlow projects** — detect `.planning/` absence; offer init flow. Depends on A. **Tracks: devflow-claude#28**
+
+*Phase 3 — v1.1 leveraging (closes shelf-ware gap):*
+
+9. **v1.1 polish bundle** — OBJECTIVE.md auto-scaffold + backfill objs 1-9; auto-run `df-tools sync-roadmap` and `df-tools gh sync` at objective complete; surface check-todos + awareness in plan/execute init output. Closes the gaps where v1.1 tools require manual invocation.
+
+*Phase 4 — Handoff watcher polish:*
+
+10. **PTY support for handoff watcher** — `node-pty` integration in `watcher-shell.cjs`; closes TTY-interactive auth gap (`doctl auth init`, `gh auth login`, `sudo`, `gpg --decrypt`).
+11. **Daemon polish bundle** — status-line indicator + auto-launch (launchd/systemd) + OS notifications + cross-shell support (fish/nushell/PowerShell) + multi-project watching.
+12. **Bidirectional GH sync + configurable kind/work defaults table** — inbound GH state → objective frontmatter (webhook or periodic poll); org-level `~/.claude/devflow/defaults-table.md` override.
+
+*Phase 5 — Workflow polish:*
+
+13. **Workflow-impediment fixes** — `df-tools init --branch` flag (default current; error on missing rather than walking history); project-hygiene tooling (detect/move misfiled objectives, archive retired repos).
+
+**Dependency graph:**
+
+```
+E (audit) ──┬──> G+I (consolidation) ──> H (prompt extraction)
+            └──> F (safety nets, also needs D)
+
+D (verifier fix) ──> F
+
+A (routing) ──┬──> B (micro)
+              └──> C (auto-init)
+
+PTY → Daemon polish bundle
+(other objectives have no hard inter-deps)
+```
+
+**Out of scope for v1.2** (deferred to v1.3+):
+- Phase J — Claude Code built-in integration (#35) — own milestone-scope work
+- Phase K — Agentic estimation engine (#36) — independent; can land any milestone
+- System-wide service replacement of the daemon (per-process is fine for v1.2 scope)
+- Web/UI dashboard (Hub Flutter app territory)
+- Daemon Go rewrite
+
+**Targets (90 days post-completion, per #25):**
+
+| Metric | Today | Target |
+|---|---|---|
+| DevFlow adoption rate | 12% | ≥75% |
+| Route-intent obedience | 0% | ≥90% |
+| /devflow:build → df-verifier rate | 0% | ≥90% |
+| /devflow:micro invocations/week | 0 | ≥30 |
+| Avg DevFlow session token cost | 300-600k | 200-400k |
+
+---
+
+## Original v1.2 plan — preserved as scope reference (now folded into objectives 10-13 above)
 
 ### Headline objective: PTY support for the handoff watcher
 
