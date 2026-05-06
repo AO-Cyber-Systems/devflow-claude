@@ -611,6 +611,13 @@ Dependency order:
      - [ ] 15-04-skill-active-cli-TRD.md — `df-tools skill-active --start <name> | --end | --status` CLI for skill marker writes/removes (Wave 1, tdd) — A3 (supporting)
      - [ ] 15-05-audit-log-and-completion-TRD.md — `verify-completion.js` Stop-hook audit log emission to ~/.claude/devflow/audit.log (Wave 1, standard) — A4
 7. **Phase B — `/devflow:micro` skill** — sub-30-LOC, single-file changes, ~2k token target; cheap target for ambient routing. Depends on A. **Tracks: devflow-claude#27**
+   - **Status:** Planned 2026-05-04 (objective 16 / branch `feature/v1.2-obj-7-micro-skill`)
+   - **Requirements:** [PHASE-B1, PHASE-B2, PHASE-B3, PHASE-B4]
+   - **TRDs:** 4 plans across 2 waves
+     - [ ] 16-01-micro-cli-TRD.md — `df-tools micro start|commit|abort` CLI with paired test suite (Wave 1, tdd) — PHASE-B2
+     - [ ] 16-03-quick-refactor-TRD.md — Refactor `/devflow:quick` SKILL.md/workflow `<purpose>` to document <5 files, <200 LOC, no new abstractions cutoff; remove trivial-task triggers (Wave 1, standard) — PHASE-B3
+     - [ ] 16-04-classifier-routing-TRD.md — Drop "(in development)" from `classifier.cjs` AMBIENT_PREAMBLE; invert classifier test case 9; add `/devflow:micro` INTENT_MAP entry + 3 fire fixtures + 1 no-fire fixture (Wave 1, standard) — PHASE-B4
+     - [ ] 16-02-micro-skill-TRD.md — `/devflow:micro` SKILL.md (~30 LOC) + workflows/micro.md + STATE.md template note for Quick Tasks shared table (Wave 2, standard) — PHASE-B1
 8. **Phase C — Auto-init detection for non-DevFlow projects** — detect `.planning/` absence; offer init flow. Depends on A. **Tracks: devflow-claude#28**
 
 *Phase 3 — v1.1 leveraging (closes shelf-ware gap):*

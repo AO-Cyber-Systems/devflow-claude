@@ -1,9 +1,9 @@
 ---
 name: quick
 description: |
-  Do a small task quickly with clean git commits and progress tracking, without full project ceremony.
-  Use when the user wants to do something small, quick, or ad-hoc without full objective ceremony.
-  Triggers on: "quickly do", "just do this", "small task", "quick change", "quick fix", "can you just"
+  Small features (single executor, no planner, no verifier) — between micro (1-line) and build (multi-subsystem). Cutoff: <5 files, <200 LOC, no new abstractions.
+  Use when the change is too big for /devflow:micro but doesn't warrant full /devflow:build planning.
+  Triggers on: "small change", "small feature", "5-file change", "isolated bug fix", "do this", "tackle this", "make a quick pass"
 argument-hint: "[--full]"
 allowed-tools:
   - Read
@@ -16,7 +16,15 @@ allowed-tools:
   - AskUserQuestion
 ---
 <objective>
-Execute small, ad-hoc tasks with DevFlow guarantees (atomic commits, STATE.md tracking).
+Execute small features with DevFlow guarantees (atomic commits, STATE.md tracking) at the small-feature tier of the DevFlow ladder.
+
+**Cutoff (advisory, enforced by convention):**
+- <5 files modified
+- <200 LOC changed
+- No new abstractions, no architectural decisions, no new external dependencies
+
+**Smaller? Use `/devflow:micro`** — sub-30-LOC, single-file, ~2k token cost.
+**Larger or multi-subsystem? Use `/devflow:build`** — full plan/execute/verify pipeline.
 
 Quick mode is the same system with a shorter path:
 - Spawns planner (quick mode) + executor(s)

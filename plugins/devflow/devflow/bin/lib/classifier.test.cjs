@@ -99,10 +99,12 @@ describe('renderRoutingPreamble', () => {
     assert.ok(result.includes('/devflow:build'), 'must contain /devflow:build');
   });
 
-  test('case 9: mode ambient contains /devflow:micro AND (in development', () => {
+  test('case 9: mode ambient contains /devflow:micro and NO (in development parenthetical (Phase B shipped)', () => {
     const result = renderRoutingPreamble({ mode: 'ambient' });
     assert.ok(result.includes('/devflow:micro'), 'must contain /devflow:micro');
-    assert.ok(result.includes('(in development'), 'must contain (in development parenthetical — Phase B not yet shipped');
+    assert.ok(!result.includes('(in development'), 'must NOT contain (in development — Phase B has shipped, parenthetical removed');
+    assert.ok(result.includes('Sub-30-LOC'), 'must contain Sub-30-LOC qualifier (cutoff documentation)');
+    assert.ok(result.includes('~2k token floor'), 'must contain ~2k token floor cost reference');
   });
 
   test('case 10: mode ambient contains /devflow:status resume (NOT /devflow:resume-work)', () => {

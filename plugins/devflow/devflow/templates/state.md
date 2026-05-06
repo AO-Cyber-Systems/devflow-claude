@@ -121,6 +121,8 @@ Decisions and performance metrics live in STATE_ARCHIVE.md to keep STATE.md lean
 - Prefix with originating objective
 - Cleared when addressed
 
+**Quick Tasks Completed:** From `/devflow:quick` and `/devflow:micro` — atomic-commit history. Both skills append to the same table. Differentiable by commit prefix: `chore(micro): ...` vs `docs(quick-NN): ...`.
+
 ### Session Continuity
 Enables instant resumption:
 - When was last session

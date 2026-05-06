@@ -41,9 +41,8 @@ function classifySession({ planningDir, hasGitDir, hasDeclineMarker }) {
 /**
  * Routing decision table preamble for ambient mode (DevFlow project with .planning/).
  *
- * LOCKED TEXT — from 15-RESEARCH.md. Update only in a dedicated TRD.
- * Note: /devflow:micro is IN DEVELOPMENT (Phase B, obj 7). Do NOT remove the
- * parenthetical note until Phase B ships.
+ * LOCKED TEXT — from 15-RESEARCH.md (preamble structure) and 16-PHASE-B (micro shipped).
+ * Update only in a dedicated TRD.
  */
 const AMBIENT_PREAMBLE = `DEVFLOW PROJECT DETECTED — ROUTING DIRECTIVE
 
@@ -51,9 +50,8 @@ This project has .planning/ — DevFlow ambient mode is active.
 
 ROUTING DECISION TABLE:
   • Q&A / explanation / exploration       → respond directly, no skill
-  • 1-2 line change, single file          → /devflow:micro (in development —
-                                              for now, route to /devflow:quick)
-  • <5 files, <200 LOC                    → /devflow:quick
+  • Sub-30-LOC, single-file change        → /devflow:micro (~2k token floor)
+  • <5 files, <200 LOC, no new abstractions → /devflow:quick
   • Multi-file feature                    → /devflow:build
   • Bug investigation                     → /devflow:debug
   • Plan an objective                     → /devflow:plan-objective

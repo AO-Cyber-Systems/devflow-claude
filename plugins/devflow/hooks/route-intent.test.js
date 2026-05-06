@@ -55,7 +55,7 @@ describe('INTENT_MAP — exported shape', () => {
     }
   });
 
-  test('INTENT_MAP contains consolidated skills: build, debug, plan-objective, verify-work, status, status resume, status pause, objective add, new-project, research-objective', () => {
+  test('INTENT_MAP contains consolidated skills: build, debug, plan-objective, verify-work, status, status resume, status pause, objective add, new-project, research-objective, micro', () => {
     const skills = new Set(INTENT_MAP.map(e => e.skill));
     const required = [
       '/devflow:build',
@@ -68,6 +68,7 @@ describe('INTENT_MAP — exported shape', () => {
       '/devflow:objective add',
       '/devflow:new-project',
       '/devflow:research-objective',
+      '/devflow:micro',
     ];
     for (const skill of required) {
       assert.ok(skills.has(skill),

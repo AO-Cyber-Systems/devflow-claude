@@ -2,7 +2,11 @@
 status: active
 ---
 <purpose>
-Execute small, ad-hoc tasks with DevFlow guarantees (atomic commits, STATE.md tracking). Quick mode spawns planner (quick mode) + executor(s), tracks tasks in `.planning/quick/`, and updates STATE.md's "Quick Tasks Completed" table.
+Execute small features with DevFlow guarantees (atomic commits, STATE.md tracking) at the small-feature tier of the DevFlow ladder.
+
+**Cutoff (advisory):** <5 files, <200 LOC, no new abstractions. For sub-30-LOC single-file changes, prefer `/devflow:micro` (~2k token floor). For multi-subsystem features, use `/devflow:build`.
+
+Quick mode spawns planner (quick mode) + executor(s), tracks tasks in `.planning/quick/`, and updates STATE.md's "Quick Tasks Completed" table.
 
 With `--full` flag: enables job-checking (max 2 iterations) and post-execution verification for quality guarantees without full milestone ceremony.
 </purpose>
