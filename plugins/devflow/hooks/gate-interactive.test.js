@@ -221,7 +221,11 @@ describe('hook subprocess — daemon-aware deny message (TRD 01-06)', () => {
       assert.equal(result.status, 0);
       const reason = JSON.parse(result.stdout).hookSpecificOutput.permissionDecisionReason;
       assert.match(reason, /queued/);
-      assert.match(reason, /devflow-watch daemon/);
+      // TRD 19-03: wording extended from "devflow-watch daemon" → "devflow-watch
+      // PTY-backed daemon". Loosen the regex so the test asserts the daemon-by-
+      // name contract without pinning the exact phrase (BD-1 in 19-03 pins the
+      // PTY-backed substring as the v1.2+ contract).
+      assert.match(reason, /devflow-watch[^.]*daemon/);
       assert.ok(!/Tell the user verbatim/.test(reason),
         'should NOT instruct user paste when daemon is live');
       assert.ok(!/`! gh auth login`/.test(reason),
