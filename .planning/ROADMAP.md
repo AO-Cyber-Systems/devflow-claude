@@ -649,13 +649,13 @@ Dependency order:
      - [x] 19-03-gate-interactive-update-TRD.md — Update gate-interactive.js buildDenyReason watcher-live branch to mention PTY-backed daemon (Wave 2, tdd) — GATE-PTY-MESSAGE — DONE 2026-05-06, 1907/1909 tests pass (+9 BD-* tests), commits 1313dc7 + 7cf0203
      - [x] 19-05-mock-auth-e2e-TRD.md — Mock gh + doctl auth servers + cassettes; e2e tests for PTY-path auth flows without real credentials (Wave 3, tdd) — E2E-MOCK-AUTH — DONE 2026-05-06, 1911/1940 tests pass (+7 new MA-* tests: 4 mock-server pass, 3 architectural-gap skip with documented reasons for v1.3+), commits e795a87 + 5439e37
 11. **Daemon polish bundle** — status-line indicator + auto-launch (launchd/systemd) + OS notifications + cross-shell support (fish/PowerShell; nushell deferred) + multi-project watching.
-   - **Status:** Planned 2026-05-06 (objective 20 / branch `feature/v1.2-obj-11-daemon-polish`)
-   - **Requirements:** [DAEMON-NOTIFICATIONS, DAEMON-AUTO-LAUNCH, DAEMON-MULTI-PROJECT, DAEMON-STATUS-LINE, DAEMON-CROSS-SHELL]
+   - **Status:** In flight 2026-05-06 (objective 20 / branch `feature/v1.2-obj-11-daemon-polish`). Wave 1 done (4/5 TRDs), pushed to remote. Wave 2 (20-04) pending.
+   - **Requirements:** [DAEMON-NOTIFICATIONS ✅, DAEMON-AUTO-LAUNCH ✅, DAEMON-MULTI-PROJECT ✅, DAEMON-CROSS-SHELL ✅, DAEMON-STATUS-LINE ⏳]
    - **TRDs:** 5 plans across 2 waves
-     - [ ] 20-01-os-notifications-TRD.md — `lib/notifier.cjs` (osascript/notify-send dispatch) + daemon hook on dispatch-start/complete + feature flag (Wave 1, tdd) — DAEMON-NOTIFICATIONS
-     - [ ] 20-02-auto-launch-TRD.md — `lib/service-installer.cjs` (launchd plist + systemd-user unit gen) + `devflow-watch install-service / uninstall-service` CLI (Wave 1, tdd) — DAEMON-AUTO-LAUNCH
-     - [ ] 20-03-multi-project-TRD.md — Daemon iterates `watching: []`; per-project pending dirs; `add-project` / `remove-project` CLI; PID file mutation atomic (Wave 1, tdd) — DAEMON-MULTI-PROJECT
-     - [ ] 20-05-cross-shell-TRD.md — `lib/wrappers/{bash,fish,powershell}.cjs` modules; `getWrapper(shellName)` factory; sentinel parser remains shell-agnostic (Wave 1, tdd) — DAEMON-CROSS-SHELL
+     - [x] 20-01-os-notifications-TRD.md — `lib/notifier.cjs` (osascript/notify-send dispatch) + daemon hook on dispatch-start/complete + feature flag (Wave 1, tdd) — DAEMON-NOTIFICATIONS — DONE 2026-05-06, 14 notifier tests + 7 daemon Group I tests pass, commits 5cb5fe0 + bbb7b64
+     - [x] 20-02-auto-launch-TRD.md — `lib/service-installer.cjs` (launchd plist + systemd-user unit gen) + `devflow-watch install-service / uninstall-service` CLI (Wave 1, tdd) — DAEMON-AUTO-LAUNCH — DONE 2026-05-06, 26 service-installer tests + 5 CLI Group C tests pass, commits 914299c + 192dfc9
+     - [x] 20-03-multi-project-TRD.md — Daemon iterates `watching: []`; per-project pending dirs; `add-project` / `remove-project` CLI; PID file mutation atomic (Wave 1, tdd) — DAEMON-MULTI-PROJECT — DONE 2026-05-06, 9 watcher-state Group W + 8 daemon Group D + 8 CLI Group C tests pass, commits 5cb5fe0 + bbb7b64 + 914299c + 192dfc9
+     - [x] 20-05-cross-shell-TRD.md — `lib/wrappers/{bash,fish,powershell}.cjs` modules; `getWrapper(shellName)` factory; sentinel parser remains shell-agnostic (Wave 1, tdd) — DAEMON-CROSS-SHELL — DONE 2026-05-06, 35 wrapper unit tests pass + 5 fish/pwsh-gated tests skip cleanly + 28 watcher-shell tests byte-identical, commits 39c653d + 22cf3ca
      - [ ] 20-04-status-line-TRD.md — Extend `hooks/statusline.js` with `▶ watcher` / `⏸ N pending` segment behind `daemon.status_line` flag; multi-project aware (Wave 2, tdd, depends on 20-03 PID schema) — DAEMON-STATUS-LINE
 12. **Bidirectional GH sync + configurable kind/work defaults table** — inbound GH state → objective frontmatter (webhook or periodic poll); org-level `~/.claude/devflow/defaults-table.md` override.
 

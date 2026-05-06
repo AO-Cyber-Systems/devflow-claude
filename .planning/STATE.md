@@ -21,8 +21,9 @@
 **Objective complete:** 12 — Skill consolidation (verified 2026-05-06, 1471/1496 tests pass, all 7 TRDs done, Phase A handoff snapshot committed)
 **Objective complete:** 13 — Phase H prompt extraction (verified 2026-05-06, 1471/1471 tests pass, all 4 TRDs done, 2000 lines cut from 7 agents, ~7002 tokens gross cut, 20 @-references verified 0 dangling)
 **Objective complete:** 19 — PTY handoff watcher (verified 2026-05-06, 1911/1940 tests pass + 2 pre-existing failures unchanged + 27 skipped, all 5 TRDs done, +7 new tests in Wave 3 [4 pass + 3 architectural-gap skips]. Architectural findings documented for v1.3+ follow-up.)
-**Branch:** `feature/v1.2-obj-10-pty-watcher`
-**Status:** Objective complete — ready for verification
+**Objective in flight:** 20 — Daemon polish bundle. Wave 1 done (4/5 TRDs): 20-01 OS notifications + 20-02 auto-launch + 20-03 multi-project + 20-05 cross-shell. 20-04 status-line deferred to Wave 2 (depends on 20-03 PID schema landing). 2064/2066 tests pass + 2 pre-existing failures unchanged + 34 skipped (+5 fish/pwsh-gated additions). 8 commits (~+117 new tests passing).
+**Branch:** `feature/v1.2-obj-11-daemon-polish`
+**Status:** Wave 1 pushed to remote — awaiting Wave 2 (20-04 status-line)
 
 ## Branch State (post-merge)
 
