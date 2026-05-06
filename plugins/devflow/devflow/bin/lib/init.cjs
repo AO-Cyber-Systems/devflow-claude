@@ -7,7 +7,7 @@ const { output, error, safeReadFile, generateSlugInternal, pathExistsInternal, M
 const { loadConfig } = require('./config.cjs');
 const { findObjectiveInternal } = require('./objective.cjs');
 const { getMilestoneInfo, getRoadmapObjectiveInternal } = require('./roadmap.cjs');
-const { bootstrapProjectMd } = require('./project-bootstrap.cjs');
+const { bootstrapProjectMd, backfillAllObjectives } = require('./project-bootstrap.cjs');
 
 // ─── Git plumbing (TRD 22-01) ─────────────────────────────────────────────────
 //
@@ -404,6 +404,7 @@ function cmdInitExecuteObjective(cwd, objective, includes, raw, args = []) {
   // so the calling skill can surface it to the user (no auto-commit; user folds
   // the change into their next commit).
   result.bootstrap = bootstrapProjectMd(cwd);
+  result.bootstrap_objectives = backfillAllObjectives(cwd);
 
   output(result, raw);
 }
@@ -524,6 +525,7 @@ function cmdInitPlanObjective(cwd, objective, includes, raw, args = []) {
   // Self-healing bootstrap: ensure PROJECT.md has org + github_repo fields.
   // See cmdInitExecuteObjective for the same pattern.
   result.bootstrap = bootstrapProjectMd(cwd);
+  result.bootstrap_objectives = backfillAllObjectives(cwd);
 
   output(result, raw);
 }

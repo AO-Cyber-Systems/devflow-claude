@@ -219,6 +219,62 @@ test('18I8 — Integration: cmdInitExecuteObjective emits check_todos_preview + 
   }
 });
 
+test('FIX-1: init execute-objective triggers backfillAllObjectives, scaffolding missing OBJECTIVE.md files', () => {
+  const repo = makeFixture({});
+  try {
+    // Build .planning with TWO objective dirs, neither has OBJECTIVE.md
+    fs.mkdirSync(path.join(repo, '.planning', 'objectives', '01-foo'), { recursive: true });
+    fs.mkdirSync(path.join(repo, '.planning', 'objectives', '02-bar'), { recursive: true });
+    fs.writeFileSync(path.join(repo, '.planning', 'config.json'), '{}');
+    fs.writeFileSync(path.join(repo, '.planning', 'ROADMAP.md'),
+      '## Milestone v1.0\n\n### Objective 1: Foo\n**Goal:** Test foo\n\n### Objective 2: Bar\n**Goal:** Test bar\n');
+    fs.writeFileSync(path.join(repo, '.planning', 'PROJECT.md'),
+      '---\ngithub_repo: own/repo\ndefault_work: feature\n---\n# P\n');
+
+    // Pre-condition: neither OBJECTIVE.md exists
+    assert.strictEqual(fs.existsSync(path.join(repo, '.planning', 'objectives', '01-foo', 'OBJECTIVE.md')), false);
+    assert.strictEqual(fs.existsSync(path.join(repo, '.planning', 'objectives', '02-bar', 'OBJECTIVE.md')), false);
+
+    const stdout = execSync(`node "${DF_TOOLS}" init execute-objective 1`, {
+      cwd: repo, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    const json = JSON.parse(stdout.trim());
+
+    // Post-condition: bootstrap_objectives reports the backfill
+    assert.ok('bootstrap_objectives' in json, 'bootstrap_objectives key must be present');
+    assert.ok(json.bootstrap_objectives.applied >= 2, `expected at least 2 applied, got: ${json.bootstrap_objectives.applied}`);
+
+    // Both OBJECTIVE.md files now exist
+    assert.strictEqual(fs.existsSync(path.join(repo, '.planning', 'objectives', '01-foo', 'OBJECTIVE.md')), true);
+    assert.strictEqual(fs.existsSync(path.join(repo, '.planning', 'objectives', '02-bar', 'OBJECTIVE.md')), true);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('FIX-1: init plan-objective triggers backfillAllObjectives same as execute-objective', () => {
+  const repo = makeFixture({});
+  try {
+    fs.mkdirSync(path.join(repo, '.planning', 'objectives', '03-baz'), { recursive: true });
+    fs.writeFileSync(path.join(repo, '.planning', 'config.json'), '{}');
+    fs.writeFileSync(path.join(repo, '.planning', 'ROADMAP.md'), '### Objective 3: Baz\n**Goal:** Test\n');
+    fs.writeFileSync(path.join(repo, '.planning', 'PROJECT.md'),
+      '---\ngithub_repo: own/repo\n---\n# P\n');
+
+    assert.strictEqual(fs.existsSync(path.join(repo, '.planning', 'objectives', '03-baz', 'OBJECTIVE.md')), false);
+
+    const stdout = execSync(`node "${DF_TOOLS}" init plan-objective 3`, {
+      cwd: repo, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    const json = JSON.parse(stdout.trim());
+    assert.ok('bootstrap_objectives' in json);
+    assert.ok(json.bootstrap_objectives.applied >= 1);
+    assert.strictEqual(fs.existsSync(path.join(repo, '.planning', 'objectives', '03-baz', 'OBJECTIVE.md')), true);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
 test('18I9 — Integration: cmdInitPlanObjective emits check_todos_preview + awareness_preview + advisories_warnings', () => {
   const repo = makeFixture({
     awarenessCache: {
