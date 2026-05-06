@@ -848,6 +848,27 @@ Read existing TRD.md or DISCOVERY.md in objective directory.
 </step>
 
 <step name="mandatory_discovery">
+**Step 0 — Auto-trigger research on novel domains (F2):**
+
+If `--skip-research` flag is NOT set AND init JSON `has_research` is `false`:
+
+```bash
+NOVEL=$(node ~/.claude/devflow/bin/df-tools.cjs detect novel-domain "$OBJECTIVE" --raw)
+NOVEL_FIRED=$(echo "$NOVEL" | jq -r '.novel')
+if [[ "$NOVEL_FIRED" == "true" ]]; then
+  # Surface what fired
+  echo "$NOVEL" | jq '.signals'
+  # Auto-spawn objective-researcher before continuing discovery
+  # (Use the researcher_model from init JSON.)
+fi
+```
+
+If `novel:true` and research has not run: spawn `objective-researcher` via the standard Task(...) pattern with `subagent_type="objective-researcher"` and `model="${researcher_model}"`. Pass the signals block as part of the prompt so the researcher knows what triggered it. Wait for completion before proceeding to the existing Level 0-3 logic.
+
+If `novel:false` OR `--skip-research` was passed OR `has_research:true` already: skip auto-spawn, proceed normally.
+
+---
+
 Apply discovery level protocol (see discovery_levels section).
 </step>
 
