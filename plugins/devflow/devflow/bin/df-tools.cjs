@@ -210,6 +210,7 @@ const {
   cmdTrdTddInspect,
 } = require('./lib/trd-tdd.cjs');
 const { cmdMicro } = require('./lib/micro.cjs');
+const { cmdProjectDecline, cmdProjectAccept } = require('./lib/decline-tracker.cjs');
 
 // ─── CLI Router ───────────────────────────────────────────────────────────────
 
@@ -886,6 +887,18 @@ async function main() {
       } else {
         error('Usage: df-tools trd-tdd inspect <trd-path>');
       }
+      break;
+    }
+
+    case 'project-decline': {
+      // df-tools project-decline [<cwd>] [--duration-days N]
+      cmdProjectDecline(cwd, args.slice(1), raw);
+      break;
+    }
+
+    case 'project-accept': {
+      // df-tools project-accept [<cwd>]
+      cmdProjectAccept(cwd, args.slice(1), raw);
       break;
     }
 
