@@ -284,7 +284,7 @@ test('case 21c: dir with .git but no commits → git_age_days null', () => {
   }
   // Create dir with .git/ stub (empty, not initialized via git init — simulates empty repo)
   // Actually we need a real git repo with no commits. git init creates one with no commits.
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ps-emptyrepo-'));
+  const root = fs.mkdtempSync(path.join(os.homedir(), '.devflow-test-fixtures', 'ps-emptyrepo-'));
   try {
     fs.mkdirSync(path.join(root, '.git'));
     // Minimal .git structure to fool has_git check but have no commits

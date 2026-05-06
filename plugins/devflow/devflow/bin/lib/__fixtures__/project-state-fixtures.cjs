@@ -22,6 +22,27 @@ const os = require('os');
 const path = require('path');
 const { execSync } = require('child_process');
 
+// ─── Non-scratch temp dir helper ─────────────────────────────────────────────
+
+/**
+ * Create a temporary directory that is NOT under any scratch prefix.
+ *
+ * PROBLEM: On macOS, os.tmpdir() returns /var/folders/... which IS a scratch prefix.
+ * Fixtures that should NOT be classified as scratch (e.g. brownfield, ambient, no-git)
+ * must use a temp location outside all scratch prefixes: /tmp/, /var/folders/, ~/Downloads/.
+ *
+ * SOLUTION: Use ~/.devflow-test-fixtures/ — guaranteed non-scratch on all platforms.
+ * Callers are responsible for cleanup via fs.rmSync(root, { recursive: true, force: true }).
+ *
+ * @param {string} prefix - name prefix for the temp dir (e.g. 'ps-brownfield-')
+ * @returns {string} absolute path to created temp dir
+ */
+function mkNonScratchTempDir(prefix) {
+  const base = path.join(os.homedir(), '.devflow-test-fixtures');
+  fs.mkdirSync(base, { recursive: true });
+  return fs.mkdtempSync(path.join(base, prefix));
+}
+
 // ─── mkAmbientProject ────────────────────────────────────────────────────────
 
 /**
@@ -38,7 +59,7 @@ const { execSync } = require('child_process');
  * @returns {string} absolute path to temp dir
  */
 function mkAmbientProject() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ps-ambient-'));
+  const root = mkNonScratchTempDir('ps-ambient-');
   fs.mkdirSync(path.join(root, '.planning'));
   fs.mkdirSync(path.join(root, '.git'));
   fs.writeFileSync(path.join(root, 'package.json'), '{"name":"ambient-project","version":"0.0.0"}');
@@ -66,7 +87,7 @@ function mkAmbientProject() {
  * @returns {string} absolute path to temp dir
  */
 function mkBrownfieldSubstantive() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ps-brownfield-'));
+  const root = mkNonScratchTempDir('ps-brownfield-');
 
   // Initialize a real git repo
   execSync('git init', { cwd: root, stdio: 'ignore' });
@@ -80,11 +101,13 @@ function mkBrownfieldSubstantive() {
   }
 
   // Backdated commit: 30 days in the past → git_age_days ≈ 30
+  // IMPORTANT: env vars must be on git commit (not git add). git add doesn't record dates.
+  // Use two separate commands to avoid shell quoting issues with date strings.
   const past = new Date(Date.now() - 30 * 86400 * 1000).toISOString();
-  execSync(
-    `GIT_AUTHOR_DATE='${past}' GIT_COMMITTER_DATE='${past}' git add . && git commit -m "init" -q`,
-    { cwd: root, shell: '/bin/sh', stdio: 'ignore' },
-  );
+  execSync('git add .', { cwd: root, stdio: 'ignore' });
+  execSync(`GIT_AUTHOR_DATE='${past}' GIT_COMMITTER_DATE='${past}' git commit -m "init" -q`, {
+    cwd: root, shell: '/bin/sh', stdio: 'ignore',
+  });
 
   return root;
 }
@@ -124,7 +147,7 @@ function mkScratchDirInTmp() {
  * @returns {string} absolute path to temp dir
  */
 function mkNoGitProject() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ps-nogit-'));
+  const root = mkNonScratchTempDir('ps-nogit-');
   fs.writeFileSync(path.join(root, 'package.json'), '{"name":"no-git-project","version":"0.0.0"}');
   for (let i = 0; i < 5; i++) {
     fs.writeFileSync(path.join(root, `f${i}.js`), `'use strict';\nmodule.exports = ${i};\n`);
@@ -159,7 +182,7 @@ const MANIFESTS = {
  * @returns {string} absolute path to temp dir
  */
 function mkManifestVariant(lang) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), `ps-manifest-${lang}-`));
+  const root = mkNonScratchTempDir(`ps-manifest-${lang}-`);
   const variant = MANIFESTS[lang];
   if (!variant) throw new Error(`Unknown manifest variant: ${lang}`);
   const files = Array.isArray(variant) ? variant : [variant];
@@ -175,7 +198,7 @@ function mkManifestVariant(lang) {
  * @returns {string} absolute path to temp dir
  */
 function mkNoManifest() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'ps-nomanifest-'));
+  return mkNonScratchTempDir('ps-nomanifest-');
 }
 
 // ─── buildSubstantiveInputs ───────────────────────────────────────────────────
