@@ -2,7 +2,7 @@
   "current_objective": null,
   "current_job": 0,
   "total_jobs": 0,
-  "progress_pct": 96,
+  "progress_pct": 98,
   "status": "ready_for_verification",
   "last_activity": "2026-05-06",
   "metrics": {
@@ -99,6 +99,16 @@
     {
       "objective": "10-phase-e-agent-audit",
       "summary": "subagent_type=general-purpose is correct ONLY for workflow invocations (Task prompt='Run /devflow:<skill> ...'); all agent-class work must use a dedicated df-* agent",
+      "rationale": null
+    },
+    {
+      "objective": "10-phase-e-agent-audit",
+      "summary": "Single atomic commit for all 6 workflow files: uniform mechanical subagent_type replacements, no behavioral divergence between files",
+      "rationale": null
+    },
+    {
+      "objective": "10-phase-e-agent-audit",
+      "summary": "Convention established: general-purpose is correct ONLY for Task(prompt='Run /devflow:...') workflow-invocation trampolines; all other spawns use dedicated df-* agents",
       "rationale": null
     }
   ],
