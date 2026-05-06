@@ -19,9 +19,9 @@
 **Objective complete:** 6 — Unified check-todos morning-standup view (verified 2026-05-05, 1290/1291 tests pass, all 10 SC met, 4 TRDs done, SC-6 through SC-10 closed)
 **Objective complete:** 8 — Program-aware TUI viewer (verified 2026-05-05, 1356/1356 tests pass, all 10 SC met, 3 TRDs done, SC-6 + SC-9 + SC-10 closed)
 **Objective complete:** 12 — Skill consolidation (verified 2026-05-06, 1471/1496 tests pass, all 7 TRDs done, Phase A handoff snapshot committed)
-**Objective in progress:** 13 — Phase H prompt extraction (TRD 01 complete 2026-05-06, 1471/1471 tests pass, 6 new reference/template files created, 3 TRDs remaining)
+**Objective in progress:** 13 — Phase H prompt extraction (TRD 01 complete 2026-05-06, TRD 02 complete 2026-05-06, TRD 03 complete 2026-05-06, 1471/1471 tests pass, 5 agent files edited group A, 2 agent files edited group B, 1010 lines cut group A, 1 TRD remaining)
 **Branch:** `feature/v1.2-obj-4-prompt-extraction`
-**Status:** Objective complete — ready for verification
+**Status:** Objective 13 TRDs 01/02/03 complete — TRD 04 pending
 
 ## Branch State (post-merge)
 
