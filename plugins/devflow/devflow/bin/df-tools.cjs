@@ -210,6 +210,9 @@ const {
   cmdTrdTddInspect,
 } = require('./lib/trd-tdd.cjs');
 const { cmdMicro } = require('./lib/micro.cjs');
+const { cmdProjectDecline, cmdProjectAccept } = require('./lib/decline-tracker.cjs');
+const { cmdProjectState } = require('./lib/project-state.cjs');
+const { cmdGlobalConfig } = require('./lib/global-config.cjs');
 
 // ─── CLI Router ───────────────────────────────────────────────────────────────
 
@@ -889,6 +892,24 @@ async function main() {
       break;
     }
 
+    case 'project-state': {
+      // df-tools project-state [<cwd>] [--raw]
+      cmdProjectState(cwd, args[1], raw);
+      break;
+    }
+
+    case 'project-decline': {
+      // df-tools project-decline [<cwd>] [--duration-days N]
+      cmdProjectDecline(cwd, args.slice(1), raw);
+      break;
+    }
+
+    case 'project-accept': {
+      // df-tools project-accept [<cwd>]
+      cmdProjectAccept(cwd, args.slice(1), raw);
+      break;
+    }
+
     case 'skill-active': {
       // df-tools skill-active --start <name>
       // df-tools skill-active --end
@@ -902,6 +923,13 @@ async function main() {
       // df-tools micro commit [--files <path>...]
       // df-tools micro abort
       cmdMicro(cwd, args.slice(1), raw);
+      break;
+    }
+
+    case 'global-config': {
+      // df-tools global-config get <key>
+      // df-tools global-config set <key> <value>
+      cmdGlobalConfig(cwd, args.slice(1), raw);
       break;
     }
 

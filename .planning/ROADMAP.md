@@ -619,6 +619,13 @@ Dependency order:
      - [ ] 16-04-classifier-routing-TRD.md — Drop "(in development)" from `classifier.cjs` AMBIENT_PREAMBLE; invert classifier test case 9; add `/devflow:micro` INTENT_MAP entry + 3 fire fixtures + 1 no-fire fixture (Wave 1, standard) — PHASE-B4
      - [ ] 16-02-micro-skill-TRD.md — `/devflow:micro` SKILL.md (~30 LOC) + workflows/micro.md + STATE.md template note for Quick Tasks shared table (Wave 2, standard) — PHASE-B1
 8. **Phase C — Auto-init detection for non-DevFlow projects** — detect `.planning/` absence; offer init flow. Depends on A. **Tracks: devflow-claude#28**
+   - **Status:** Planned 2026-05-04 (objective 17 / branch `feature/v1.2-obj-8-auto-init`)
+   - **Requirements:** [C1, C2, C3, C4]
+   - **TRDs:** 4 plans across 3 waves
+     - [ ] 17-02-decline-tracker-TRD.md — `df-tools project-decline` / `project-accept` CLI + `lib/decline-tracker.cjs` with 30-day expiry + atomic write to `~/.claude/devflow/declined-projects.json` (Wave 1, tdd) — C3
+     - [ ] 17-04-global-config-TRD.md — `df-tools global-config get|set` CLI + `lib/global-config.cjs` with `auto_init_substantive_projects` key (default off) + `shouldAutoInit()` helper (Wave 1, tdd) — C4
+     - [ ] 17-01-project-state-detector-TRD.md — `df-tools project-state` CLI + `lib/project-state.cjs` with isSubstantive heuristic (git>7d OR >10 files; manifest; not scratch) + 5 acceptance fixtures (Wave 2, tdd) — C1
+     - [ ] 17-03-init-offer-mode-TRD.md — Extend `classifier.cjs` with isSubstantive + previouslyDeclined inputs; new auto-init mode; updated INIT_OFFER_PREAMBLE; classify-session.js wires getProjectState + shouldAutoInit (Wave 3, tdd) — C2
 
 *Phase 3 — v1.1 leveraging (closes shelf-ware gap):*
 

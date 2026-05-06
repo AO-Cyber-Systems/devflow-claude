@@ -25,14 +25,18 @@ const path = require('path');
  * @param {string|null} opts.planningDir
  * @param {boolean}     opts.hasGitDir
  * @param {boolean}     opts.hasDeclineMarker
- * @returns {{ planningDir: string|null, hasGitDir: boolean, hasDeclineMarker: boolean }}
+ * @param {boolean}     opts.isSubstantive       - (17-03) default true → back-compat with 15-01 tests
+ * @param {boolean}     opts.previouslyDeclined  - (17-03) default false → back-compat with 15-01 tests
+ * @returns {{ planningDir: string|null, hasGitDir: boolean, hasDeclineMarker: boolean, isSubstantive: boolean, previouslyDeclined: boolean }}
  */
 function buildClassifyInput({
   planningDir = null,
   hasGitDir = false,
   hasDeclineMarker = false,
+  isSubstantive = true,       // backward-compat default: existing init-offer tests still pass
+  previouslyDeclined = false, // backward-compat default: existing init-offer tests still pass
 } = {}) {
-  return { planningDir, hasGitDir, hasDeclineMarker };
+  return { planningDir, hasGitDir, hasDeclineMarker, isSubstantive, previouslyDeclined };
 }
 
 // ─── Named scenarios (pure, no filesystem) ────────────────────────────────────
@@ -48,6 +52,13 @@ const SCENARIOS = {
   noGitDir: () => buildClassifyInput({ planningDir: null, hasGitDir: false }),
   /** Decline marker: has .planning/ but marker present → 'skip' */
   declineMarker: () => buildClassifyInput({ planningDir: '/tmp/p/.planning', hasGitDir: true, hasDeclineMarker: true }),
+  // ─── 17-03 new scenarios ─────────────────────────────────────────────────────
+  /** Substantive git repo, no planning, not declined → 'init-offer' (17-03) */
+  initOfferSubstantive: () => buildClassifyInput({ planningDir: null, hasGitDir: true, isSubstantive: true, previouslyDeclined: false }),
+  /** Non-substantive git repo → 'skip' even without decline (17-03) */
+  initOfferNotSubstantive: () => buildClassifyInput({ planningDir: null, hasGitDir: true, isSubstantive: false, previouslyDeclined: false }),
+  /** Substantive but previously declined → 'skip' (17-03) */
+  initOfferDeclined: () => buildClassifyInput({ planningDir: null, hasGitDir: true, isSubstantive: true, previouslyDeclined: true }),
 };
 
 // ─── Tmpdir scaffolds (used by classify-session subprocess tests) ─────────────
