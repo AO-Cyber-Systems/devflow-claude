@@ -572,16 +572,16 @@ Dependency order:
    - **Status:** Planned 2026-05-04 (objective 11 / branch `feature/v1.2-obj-2-verifier-fix`)
    - **TRDs:** 1 plan
      - [ ] 11-01-diagnose-and-fix-TRD.md — Add explicit verifier spawn to build.md § 8 + regression test in df-tools.test.cjs
-3. **Phase G+I — Skill consolidation 28→14 + drop low-leverage** — `/devflow:objective <add|insert|remove>`, `/devflow:milestone <new|audit|complete|gaps>`, `/devflow:status [--pause|--resume|--check]`, etc. Drops features identified as low-leverage by Phase E. **Tracks: devflow-claude#32 + #34**
-   - **Status:** Planned 2026-05-04 (objective 12 / branch `feature/v1.2-obj-3-skill-consolidation`)
-   - **TRDs:** 7 plans across 3 waves
-     - [ ] 12-01-skill-route-and-objective-TRD.md — Build df-tools skill-route CLI + consolidated /devflow:objective skill + 3 deprecation redirects (Wave 1, tdd) — PHASE-G1, PHASE-G2, PHASE-A-HANDOFF
-     - [ ] 12-05-i3-tdd-collapse-TRD.md — Collapse type:tdd TRD-level → task-level tdd attribute; planner + executor + tdd.md updated; back-compat preserved (Wave 1, tdd) — PHASE-I3
-     - [ ] 12-06-i2-i4-cleanup-TRD.md — df-tools survey decimal-objectives + I2 disposition; canonicalize summary template (delete 3, keep summary.md) (Wave 1, standard) — PHASE-I2, PHASE-I4
-     - [ ] 12-02-milestone-skill-TRD.md — Consolidated /devflow:milestone <new|audit|complete|gaps> + 4 deprecation redirects (Wave 2, tdd) — PHASE-G1, PHASE-G2
-     - [ ] 12-03-todo-and-status-skills-TRD.md — Consolidated /devflow:todo + /devflow:status (incl. --flag normalization + default subcommand) + 6 deprecation redirects (Wave 2, tdd) — PHASE-G1, PHASE-G2
-     - [ ] 12-04-workstreams-extension-TRD.md — Update /devflow:workstreams to use skill-route + add `run` subcommand stub for v1.2 obj 6 (Wave 2, tdd) — PHASE-G1
-     - [ ] 12-07-docs-and-routing-prep-TRD.md — Rewrite help.md + README skill table + Phase A handoff JSON snapshot (Wave 3, standard) — PHASE-G4, PHASE-A-HANDOFF
+3. **Phase G+I — Skill consolidation 28→14 + drop low-leverage** — `/devflow:objective <add|remove>`, `/devflow:milestone <new|audit|complete|gaps>`, `/devflow:status [check|pause|resume]`, etc. Drops features identified as low-leverage by Phase E. **Tracks: devflow-claude#32 + #34**
+   - **Status:** DONE 2026-05-06 — all 7 TRDs complete, 7/7 SUMMARYs written (objective 12 / branch `feature/v1.2-obj-3-skill-consolidation`)
+   - **TRDs:** 7/7 complete across 3 waves
+     - [x] 12-01-skill-route-and-objective-TRD.md — Build df-tools skill-route CLI + consolidated /devflow:objective skill + 3 deprecation redirects (Wave 1, tdd) — PHASE-G1, PHASE-G2, PHASE-A-HANDOFF — DONE
+     - [x] 12-05-i3-tdd-collapse-TRD.md — Collapse type:tdd TRD-level → task-level tdd attribute; planner + executor + tdd.md updated; back-compat preserved (Wave 1, tdd) — PHASE-I3 — DONE
+     - [x] 12-06-i2-i4-cleanup-TRD.md — df-tools survey decimal-objectives + I2 disposition; canonicalize summary template (delete 3, keep summary.md) (Wave 1, standard) — PHASE-I2, PHASE-I4 — DONE
+     - [x] 12-02-milestone-skill-TRD.md — Consolidated /devflow:milestone <new|audit|complete|gaps> + 4 deprecation redirects (Wave 2, tdd) — PHASE-G1, PHASE-G2 — DONE
+     - [x] 12-03-todo-and-status-skills-TRD.md — Consolidated /devflow:todo + /devflow:status (incl. --flag normalization + default subcommand) + 6 deprecation redirects (Wave 2, tdd) — PHASE-G1, PHASE-G2 — DONE
+     - [x] 12-04-workstreams-extension-TRD.md — Update /devflow:workstreams to use skill-route + add `run` subcommand stub for v1.2 obj 6 (Wave 2, tdd) — PHASE-G1 — DONE
+     - [x] 12-07-docs-and-routing-prep-TRD.md — Rewrite help.md + README skill table + Phase A handoff JSON snapshot (Wave 3, standard) — PHASE-G4, PHASE-A-HANDOFF — DONE 2026-05-06, 1471/1496 tests pass
 4. **Phase H — Prompt extraction to references/templates** — move duplicated agent-prompt content (debugging methodology, goal-backward methodology, TRD spec) to shared references. ~25-55k tokens saved per `/devflow:build`. **Tracks: devflow-claude#33**
 5. **Phase F — Default-on safety nets** — mandatory df-verifier invocation + route-intent enforcement; closes the routing→verification loop. Depends on D + E. **Tracks: devflow-claude#31**
 
