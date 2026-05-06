@@ -55,6 +55,21 @@ const SKILL_ROUTES = {
       return map[subcommand] || null;
     },
   },
+  // Added in TRD 12-04: workstreams subcommand dispatch.
+  // 'run' is a stub locked for v1.2 obj 6 (Phase A — Authoritative routing keystone).
+  // NOTE: No DEPRECATION_MAP entries — there were never sibling workstreams-* skill dirs.
+  workstreams: {
+    subcommands: ['setup', 'status', 'merge', 'run'],
+    workflow_for(subcommand) {
+      const map = {
+        'setup': '~/.claude/devflow/workflows/workstreams-setup.md',
+        'status': '~/.claude/devflow/workflows/workstreams-status.md',
+        'merge': '~/.claude/devflow/workflows/workstreams-merge.md',
+        'run': '~/.claude/devflow/workflows/workstreams-run.md',
+      };
+      return map[subcommand] || null;
+    },
+  },
   // Added in TRD 12-03: todo subcommand dispatch (add | list).
   todo: {
     subcommands: ['add', 'list'],

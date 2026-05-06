@@ -126,9 +126,9 @@ describe('SKILL_ROUTES structure', () => {
     assert.strictEqual(wf, null, 'insert workflow should return null (no longer valid)');
   });
 
-  test('SR4: SKILL_ROUTES has objective, milestone, todo, status keys (TRD 12-01 + 12-02 + 12-03)', () => {
+  test('SR4: SKILL_ROUTES has objective, milestone, workstreams, todo, status keys (TRD 12-01 + 12-02 + 12-04 + 12-03)', () => {
     const keys = Object.keys(SKILL_ROUTES);
-    assert.deepStrictEqual(keys, ['objective', 'milestone', 'todo', 'status'], 'objective (12-01) + milestone (12-02) + todo + status (12-03)');
+    assert.deepStrictEqual(keys, ['objective', 'milestone', 'workstreams', 'todo', 'status'], 'objective (12-01) + milestone (12-02) + workstreams (12-04) + todo + status (12-03)');
   });
 });
 
