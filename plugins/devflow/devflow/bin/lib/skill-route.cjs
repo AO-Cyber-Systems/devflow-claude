@@ -17,6 +17,15 @@ let _runFs = realFs;
 function _setRunFs(fn) { _runFs = (fn != null) ? fn : realFs; }
 function _resetMocks() { _runFs = realFs; }
 
+// ─── Status flag normalizer (TRD 12-03) ──────────────────────────────────────
+// Private — NOT exported. Strips leading '--' for flag-style invocation.
+// e.g. '--check' → 'check', '' → null, null → null
+
+function _normalizeStatusSubcommand(arg) {
+  if (arg == null || arg === '') return null;
+  return arg.startsWith('--') ? arg.slice(2) : arg;
+}
+
 // ─── SKILL_ROUTES ─────────────────────────────────────────────────────────────
 // Only `objective` populated in TRD 12-01; 12-02/03/04 add the rest.
 
@@ -46,6 +55,33 @@ const SKILL_ROUTES = {
       return map[subcommand] || null;
     },
   },
+  // Added in TRD 12-03: todo subcommand dispatch (add | list).
+  todo: {
+    subcommands: ['add', 'list'],
+    workflow_for(subcommand) {
+      const map = {
+        'add': '~/.claude/devflow/workflows/add-todo.md',
+        'list': '~/.claude/devflow/workflows/check-todos.md',
+      };
+      return map[subcommand] || null;
+    },
+  },
+  // Added in TRD 12-03: status subcommand dispatch.
+  // null in subcommands array = default subcommand (no arg → progress.md).
+  // --check/--pause/--resume flag forms normalized via _normalizeStatusSubcommand in routeSkill.
+  // NOTE: 'resume' maps to resume-project.md (NOT resume-work.md).
+  status: {
+    subcommands: [null, 'check', 'pause', 'resume'],
+    workflow_for(subcommand) {
+      if (subcommand == null) return '~/.claude/devflow/workflows/progress.md';
+      const map = {
+        'check': '~/.claude/devflow/workflows/health.md',
+        'pause': '~/.claude/devflow/workflows/pause-work.md',
+        'resume': '~/.claude/devflow/workflows/resume-project.md',
+      };
+      return map[subcommand] || null;
+    },
+  },
 };
 
 // ─── DEPRECATION_MAP ──────────────────────────────────────────────────────────
@@ -62,6 +98,15 @@ const DEPRECATION_MAP = {
   'audit-milestone': 'milestone audit',
   'complete-milestone': 'milestone complete',
   'plan-milestone-gaps': 'milestone gaps',
+  // Added in TRD 12-03: todo siblings replaced by consolidated /devflow:todo.
+  'add-todo': 'todo add',
+  'check-todos': 'todo list',
+  // Added in TRD 12-03: status siblings replaced by consolidated /devflow:status.
+  // 'progress' forwards to 'status' (no subcommand = default).
+  'pause-work': 'status pause',
+  'resume-work': 'status resume',
+  'progress': 'status',
+  'health': 'status check',
 };
 
 // ─── Argument validation ──────────────────────────────────────────────────────
@@ -105,29 +150,40 @@ function routeSkill(skill, args) {
     };
   }
 
-  const [subcommand, ...residual] = args;
+  let [firstArg, ...residual] = args;
 
-  if (!subcommand) {
+  // Status-specific: normalize --flag → flag (e.g. --check → check, '' → null)
+  if (skill === 'status') {
+    firstArg = _normalizeStatusSubcommand(firstArg);
+  }
+
+  // Default-subcommand support: null/undefined firstArg on a skill that supports it
+  if (firstArg == null) {
+    if (route.subcommands.includes(null)) {
+      return { skill, subcommand: null, args: [], workflow: route.workflow_for(null) };
+    }
+    // No default subcommand — require one
+    const validSubs = route.subcommands.filter(s => s != null);
     return {
       error: 'missing subcommand',
-      usage: `${skill} <${route.subcommands.join('|')}>`,
-      valid_subcommands: route.subcommands,
+      usage: `${skill} <${validSubs.join('|')}>`,
+      valid_subcommands: validSubs,
     };
   }
 
-  if (!route.subcommands.includes(subcommand)) {
+  if (!route.subcommands.includes(firstArg)) {
     return {
       error: 'unknown subcommand',
-      got: subcommand,
-      valid_subcommands: route.subcommands,
+      got: firstArg,
+      valid_subcommands: route.subcommands.filter(s => s != null),
     };
   }
 
-  const workflow = route.workflow_for(subcommand);
+  const workflow = route.workflow_for(firstArg);
 
   return {
     skill,
-    subcommand,
+    subcommand: firstArg,
     args: residual,
     workflow,
   };
