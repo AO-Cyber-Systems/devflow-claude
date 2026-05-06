@@ -175,6 +175,38 @@ If `--pause` flag: Execute one wave at a time, pausing between waves.
 
 After execute-objective returns:
 
+**First, spawn dedicated verifier as backstop.**
+
+The execute-objective trampoline (§ 7) delegates verification to execute-objective.md's `verify_objective_goal` step, but that path is unreliable — the trampoline subagent can return without reaching deep workflow steps. To guarantee a `VERIFICATION.md` is produced for every `/devflow:build` run, spawn the dedicated verifier here as well. The verifier agent is idempotent: if execute-objective.md already produced a VERIFICATION.md with `gaps:` section, Step 0 switches to fast re-verification mode; otherwise it runs full initial verification.
+
+```bash
+OBJECTIVE_REQ_IDS=$(node ~/.claude/devflow/bin/df-tools.cjs roadmap get-objective "${OBJECTIVE_NUMBER}" | jq -r '.section' | grep -i "Requirements:" | sed 's/.*Requirements:\*\*\s*//' | sed 's/[\[\]]//g')
+```
+
+```
+Task(
+  prompt="Verify objective ${OBJECTIVE_NUMBER} goal achievement.
+Objective directory: ${objective_dir}
+Objective goal: ${goal from ROADMAP.md}
+Objective requirement IDs: ${OBJECTIVE_REQ_IDS}
+Check must_haves against actual codebase.
+Cross-reference requirement IDs from TRD/JOB frontmatter against REQUIREMENTS.md — every ID MUST be accounted for.
+Create VERIFICATION.md.",
+  subagent_type="verifier",
+  model="{verifier_model}"
+)
+```
+
+Read status:
+```bash
+VERIFICATION_STATUS=$(grep "^status:" "${objective_dir}"/*-VERIFICATION.md | cut -d: -f2 | tr -d ' ')
+```
+
+Branch on `$VERIFICATION_STATUS`:
+- `passed` → continue to "If OBJECTIVE COMPLETE" display below
+- `gaps_found` → continue to "If GAPS FOUND" auto-fix loop below
+- `human_needed` → display human verification items, await user response
+
 **If OBJECTIVE COMPLETE (verification passed):**
 
 Display completion:
