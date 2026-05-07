@@ -1,0 +1,50 @@
+name: Release on tag
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+
+          # Idempotency: skip if release already exists
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "release for $TAG already exists, skipping"
+            exit 0
+          fi
+
+          # Title: annotated tag subject, fall back to tag name
+          TITLE="$(git tag -l --format='%(contents:subject)' "$TAG")"
+          if [ -z "$TITLE" ]; then
+            TITLE="$TAG"
+          fi
+
+          # Body: CHANGELOG section if present, else auto-generate
+          NOTES_FILE="$(mktemp)"
+          if [ -f CHANGELOG.md ]; then
+            awk -v ver="$VERSION" '
+              $0 ~ "^## \\[" ver "\\]" { flag=1; next }
+              flag && /^## \[/ { flag=0 }
+              flag { print }
+            ' CHANGELOG.md > "$NOTES_FILE"
+          fi
+
+          if [ -s "$NOTES_FILE" ]; then
+            gh release create "$TAG" --title "$TITLE" --notes-file "$NOTES_FILE"
+          else
+            gh release create "$TAG" --title "$TITLE" --generate-notes
+          fi
