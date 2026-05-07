@@ -186,6 +186,12 @@
 
 - **`feature/v1.1-coordination` is duplicative** — same content as `feature/v1.1`. Should be deleted to avoid confusion. Its worktree at `/Users/markemerson/Source/devflow-claude-v11` can be removed.
 
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 1 | Add release-on-tag GitHub Actions workflow | 2026-05-07 | 046eb34 | [1-add-release-on-tag-github-actions-workfl](./quick/1-add-release-on-tag-github-actions-workfl/) |
+
 ## Session Continuity
 
 Last session: 2026-05-06 — Objective 20 COMPLETE: all 5 TRDs done across 2 waves. Wave 1: 20-01 OS notifications + 20-02 auto-launch + 20-03 multi-project + 20-05 cross-shell (5cb5fe0, bbb7b64, 914299c, 192dfc9, 39c653d, 22cf3ca, 786b36b — 8 commits). Wave 2: 20-04 status-line watcher segment (1740dfc test:, fb9d2c3 feat: — 2 commits, +25 tests, statusline.test.js created fresh, first-ever statusline test file). 2089 total / 2053 pass / 2 pre-existing failures unchanged / 34 skipped. All 5 daemon polish features shipped behind opt-in feature flags (default OFF — byte-identical existing-user behavior).
