@@ -1055,27 +1055,54 @@ Returns JSON: `{ valid, errors, warnings, task_count, tasks }`
 </step>
 
 <step name="update_roadmap">
-Update ROADMAP.md to finalize objective placeholders:
+Update ROADMAP.md to finalize objective placeholders for the target objective N **only**.
 
-1. Read `.planning/ROADMAP.md`
-2. Find objective entry (`### Objective {N}:`)
-3. Update placeholders:
+**Section boundary rule (CRITICAL — read this before editing).** ROADMAP.md contains multiple `### Objective {N}:` sections. Sections may appear in non-numerical document order, may have heterogeneous TRD-list shapes (some populated, some `TBD` placeholder), and may be separated by zero or many blank lines. **Edits MUST land within the target objective's section bounds.**
 
-**Goal** (only if placeholder):
-- `[To be planned]` → derive from RESEARCH.md > objective description > user preferences
-- If Goal already has real content → leave it
+The target section starts at the line `### Objective {N}:` (use exact match, NOT regex `Objective\s*N` which can match `Objective N+1` for single-digit N when N=1, or match a citation like `Objective 12 had...`).
 
-**Plans** (always update):
-- Update count: `**TRDs:** {N} plans`
+The target section ends at **whichever comes first**:
+- The next line beginning with `### Objective ` (any other objective heading), OR
+- The next line beginning with `## ` (a higher-level heading like `## Future Work`), OR
+- End of file.
 
-**Plan list** (always update):
-```
-TRDs:
-- [ ] {objective}-01-TRD.md — {brief objective}
-- [ ] {objective}-02-TRD.md — {brief objective}
-```
+You **must not** edit any line outside `[start, end)`.
 
-4. Write updated ROADMAP.md
+1. Read `.planning/ROADMAP.md` end-to-end. Identify the target section's line range using the boundary rule above. Cite the start and end line numbers in your reasoning so the boundary is auditable.
+
+2. Within that range, update placeholders:
+
+   **Goal** (only if placeholder):
+   - `[To be planned]` → derive from RESEARCH.md > objective description > user preferences
+   - If Goal already has real content → leave it
+
+   **Plans** (always update):
+   - Update count line: `**TRDs:** {N} plans`
+
+   **Plan list** (always update — replace any existing `TBD` placeholder OR existing list):
+   ```
+   TRDs:
+   - [ ] {objective}-01-TRD.md — {brief objective}
+   - [ ] {objective}-02-TRD.md — {brief objective}
+   ```
+
+3. Write updated ROADMAP.md.
+
+4. **Post-write self-check (CRITICAL — must pass before commit).** After writing, run:
+
+   ```bash
+   git diff .planning/ROADMAP.md | grep -E '^[+-]' | grep -v '^[+-]{3}'
+   ```
+
+   Visually inspect every changed line. **Every `+` and `-` line must fall inside the target objective's section** (between its `### Objective {N}:` heading and the next `### Objective`/`## ` heading).
+
+   If ANY changed line falls outside the target section:
+   - **Do not commit.** The edit went out of bounds.
+   - `git restore .planning/ROADMAP.md` to revert.
+   - Re-read the file, recompute the boundary line range, and retry the edit with stricter scoping.
+   - If the second attempt also crosses bounds, abort planning with `## PLANNING INCONCLUSIVE` and surface the diff to the orchestrator for human resolution rather than committing corrupted ROADMAP state.
+
+   Background: prior versions of this step delegated boundary inference to the LLM with no explicit rule, which occasionally pasted Obj N's TRD bullets into Obj N+1's section when sections appeared out of numerical order or with heterogeneous TRD-list shapes. The boundary rule + post-write check eliminate that failure mode.
 </step>
 
 <step name="git_commit">
