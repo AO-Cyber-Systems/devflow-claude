@@ -191,6 +191,7 @@
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 1 | Add release-on-tag GitHub Actions workflow | 2026-05-07 | 046eb34 | [1-add-release-on-tag-github-actions-workfl](./quick/1-add-release-on-tag-github-actions-workfl/) |
+| 2 | Extend tag gate to verify three-manifest version sync | 2026-05-07 | 455f1bf | [2-extend-tag-gate-to-verify-three-manifest](./quick/2-extend-tag-gate-to-verify-three-manifest/) |
 
 ## Session Continuity
 
