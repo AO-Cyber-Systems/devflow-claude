@@ -6,6 +6,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.1.2] - 2026-05-08
+
+Re-release of the v2.1.1 planner fix with manifest version-sync. The v2.1.1 git tag
+was placed before the three-manifest tag gate (`455f1bf`) was wired in, so the
+release shipped without bumping `package.json`, `plugin.json`, or `marketplace.json`
+— plugin managers continued to see 2.1.0. v2.1.2 carries the same planner fix plus
+the gate that prevents the same slip going forward.
+
+### Fixed
+- **planner**: bound `update_roadmap` edits to target objective's section (#58, 2547065)
+  — section boundary rule plus post-write `git diff` self-check; aborts with
+  PLANNING INCONCLUSIVE on second cross-bound attempt.
+
+### Added
+- **quick-2**: extend tag gate to verify three-manifest version sync (455f1bf)
+  — the gate now denies `git tag vX.Y.Z` unless `package.json`, `plugin.json`,
+  and the `marketplace.json` plugin entry all carry the matching version.
+- **quick-1**: release-on-tag GitHub Actions workflow (046eb34)
+
+### Docs
+- record release-on-tag JOB + SUMMARY + STATE (7bf0314, 02510bb)
+- record tag-gate version-sync SUMMARY + STATE (b92fa2d, 7eaf8ea)
+
 ## [2.1.0] - 2026-05-06
 
 ### Added — v1.2 milestone (PTY watcher, daemon polish, bidirectional GH sync, workflow polish)
