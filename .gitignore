@@ -14,10 +14,6 @@ hooks/dist/
 animation/
 *.gif
 
-# Private plugins (separate repo)
-plugins/eden-ui-flutter/
-plugins/eden-ui-web/
-
 # Internal planning documents
 reports/
 RAILROAD_ARCHITECTURE.md

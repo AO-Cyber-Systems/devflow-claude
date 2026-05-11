@@ -1,0 +1,14 @@
+{
+  "name": "eden-ui-flutter",
+  "description": "Build, review, and visually inspect Flutter UIs using eden-ui-flutter components. Integrates with flutter-skill MCP for live app inspection, accessibility tree analysis, and interactive testing.",
+  "version": "1.0.0",
+  "author": {
+    "name": "AO Cyber Systems",
+    "email": "dev@aocodex.ai"
+  },
+  "homepage": "https://github.com/AO-Cyber-Systems/devflow-claude",
+  "repository": "https://github.com/AO-Cyber-Systems/devflow-claude",
+  "license": "MIT",
+  "keywords": ["flutter", "eden-ui", "design-system", "dart", "mobile", "desktop", "ui-components"],
+  "skills": "./skills/"
+}

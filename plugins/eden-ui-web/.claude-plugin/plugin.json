@@ -1,0 +1,14 @@
+{
+  "name": "eden-ui-web",
+  "description": "Build, review, and visually inspect websites using Hugo, Tailwind CSS, and brand-specific design systems. Includes brand builder skill for defining project design tokens. Ships with dpcco and aocyber brand presets.",
+  "version": "1.0.0",
+  "author": {
+    "name": "AO Cyber Systems",
+    "email": "dev@aocodex.ai"
+  },
+  "homepage": "https://github.com/AO-Cyber-Systems/devflow-claude",
+  "repository": "https://github.com/AO-Cyber-Systems/devflow-claude",
+  "license": "MIT",
+  "keywords": ["web", "hugo", "tailwind", "design-system", "branding", "static-site", "ui-components"],
+  "skills": "./skills/"
+}
