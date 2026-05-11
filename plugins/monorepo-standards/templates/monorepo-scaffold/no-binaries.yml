@@ -1,0 +1,58 @@
+# Configuration for the monorepo-standards `no-binaries` pre-commit hook.
+# Copy to `.devflow/no-binaries.yml` at the repo root to override defaults.
+#
+# Defaults are used when this file is absent. Setting `enabled: false`
+# disables the hook entirely.
+
+enabled: true
+
+# Hard size cap. Files larger than this are blocked regardless of type
+# (including allowed-path images — release big media via gh release).
+max_size_mb: 5
+
+# Extensions that always block (compiled artifacts that should never live
+# in git history).
+deny_extensions:
+  - ".exe"
+  - ".dll"
+  - ".so"
+  - ".dylib"
+  - ".a"
+  - ".o"
+  - ".class"
+  - ".pyc"
+  - ".wasm"
+  - ".bin"
+
+# Extensions exempt from the magic-byte sniff (i.e. binary by nature but
+# OK to track — images, fonts, audio, video, PDFs).
+allowed_extensions:
+  - ".png"
+  - ".jpg"
+  - ".jpeg"
+  - ".gif"
+  - ".webp"
+  - ".svg"
+  - ".ico"
+  - ".pdf"
+  - ".mp3"
+  - ".mp4"
+  - ".mov"
+  - ".wav"
+  - ".ogg"
+  - ".ttf"
+  - ".otf"
+  - ".woff"
+  - ".woff2"
+  - ".eot"
+
+# Glob patterns where binaries are allowed (still subject to max_size_mb).
+# Supports `*`, `?`, `**`.
+allowed_paths:
+  - "assets/**"
+  - "**/assets/**"
+  - "**/fixtures/**"
+  - "**/testdata/**"
+  - "docs/**/*.png"
+  - "docs/**/*.jpg"
+  - "docs/**/*.pdf"

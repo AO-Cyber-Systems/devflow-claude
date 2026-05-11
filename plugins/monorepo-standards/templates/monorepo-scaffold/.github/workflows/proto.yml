@@ -1,0 +1,31 @@
+name: proto
+
+on:
+  pull_request:
+    paths:
+      - 'proto/**'
+      - '.github/workflows/proto.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'proto/**'
+      - '.github/workflows/proto.yml'
+
+defaults:
+  run:
+    working-directory: proto
+
+jobs:
+  buf:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # buf breaking needs history
+      - uses: bufbuild/buf-setup-action@v1
+      - run: buf lint
+      - run: buf format -d --exit-code
+      - name: Detect breaking changes (PRs only)
+        if: github.event_name == 'pull_request'
+        run: buf breaking --against "https://github.com/${{ github.repository }}.git#branch=main,subdir=proto"

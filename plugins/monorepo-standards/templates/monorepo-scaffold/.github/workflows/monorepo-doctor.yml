@@ -1,0 +1,30 @@
+name: monorepo-doctor
+
+on:
+  pull_request:
+    paths:
+      - 'CLAUDE.md'
+      - '**/CLAUDE.md'
+      - '.github/workflows/monorepo-doctor.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'CLAUDE.md'
+      - '**/CLAUDE.md'
+
+jobs:
+  doctor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Fetch monorepo-doctor
+        run: |
+          git clone --depth=1 https://github.com/AO-Cyber-Systems/devflow-claude.git /tmp/devflow-claude
+      - name: Run doctor
+        run: node /tmp/devflow-claude/plugins/monorepo-standards/skills/monorepo-doctor/lib/cli.js --root "$GITHUB_WORKSPACE"

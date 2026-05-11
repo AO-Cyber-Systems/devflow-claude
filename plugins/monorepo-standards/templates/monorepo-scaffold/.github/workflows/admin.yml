@@ -1,0 +1,36 @@
+name: admin
+
+on:
+  pull_request:
+    paths:
+      - 'admin/**'
+      - '.github/workflows/admin.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'admin/**'
+      - '.github/workflows/admin.yml'
+
+defaults:
+  run:
+    working-directory: admin
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: admin/.nvmrc
+          cache: pnpm
+          cache-dependency-path: admin/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm tsc --noEmit
+      - run: pnpm test --run
+      - run: pnpm build
