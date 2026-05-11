@@ -1,0 +1,94 @@
+# --- monorepo-scaffold .gitignore ---
+# Copy to .gitignore at repo root. Append product-specific entries below.
+
+# ---- Editors / OS ---------------------------------------------------
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ---- Secrets --------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.keystore
+
+# ---- DevFlow runtime ------------------------------------------------
+.planning/.skill-active
+.planning/.cache/
+.planning/.migrate-backup-*/
+
+# ---- Go -------------------------------------------------------------
+go/bin/
+go/dist/
+go/vendor/
+go/**/*.test
+go/**/*.out
+go/**/coverage.txt
+go/**/coverage.html
+go/**/profile.cov
+
+# ---- Dart / Flutter -------------------------------------------------
+flutter/.dart_tool/
+flutter/.flutter-plugins
+flutter/.flutter-plugins-dependencies
+flutter/.pub-cache/
+flutter/.pub/
+flutter/build/
+flutter/ios/Pods/
+flutter/ios/.symlinks/
+flutter/ios/Flutter/App.framework/
+flutter/ios/Flutter/Flutter.framework/
+flutter/ios/Flutter/Flutter.podspec
+flutter/android/.gradle/
+flutter/android/local.properties
+flutter/android/key.properties
+flutter/coverage/
+
+# ---- Node / TS (admin/, web/, etc.) ---------------------------------
+**/node_modules/
+**/.next/
+**/.turbo/
+**/dist/
+**/build/
+**/out/
+**/.cache/
+**/coverage/
+**/*.tsbuildinfo
+
+# ---- Proto / buf ----------------------------------------------------
+proto/**/*.pb.go
+proto/**/*.pb.dart
+proto/**/*.pb.ts
+proto/**/gen/
+
+# ---- Native build outputs (never commit) ----------------------------
+*.exe
+*.dll
+*.so
+*.dylib
+*.a
+*.o
+*.class
+*.pyc
+__pycache__/
+*.wasm
+
+# ---- Logs / temp ----------------------------------------------------
+*.log
+tmp/
+temp/
+*.tmp
+
+# ---- Test artifacts -------------------------------------------------
+.nyc_output/
+*.lcov
+junit.xml
+test-results/
+playwright-report/
+playwright/.cache/

@@ -1,0 +1,37 @@
+name: flutter
+
+on:
+  pull_request:
+    paths:
+      - 'flutter/**'
+      - '.github/workflows/flutter.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'flutter/**'
+      - '.github/workflows/flutter.yml'
+
+defaults:
+  run:
+    working-directory: flutter
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter --version
+      - run: flutter pub get
+      - run: dart format --output=none --set-exit-if-changed .
+      - run: flutter analyze
+      - run: flutter test --coverage
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: flutter-coverage
+          path: flutter/coverage/

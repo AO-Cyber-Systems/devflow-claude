@@ -1,0 +1,50 @@
+name: go
+
+on:
+  pull_request:
+    paths:
+      - 'go/**'
+      - 'proto/**'
+      - '.github/workflows/go.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'go/**'
+      - 'proto/**'
+      - '.github/workflows/go.yml'
+
+defaults:
+  run:
+    working-directory: go
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go/go.mod
+          cache: true
+      - run: go mod download
+      - run: go vet ./...
+      - run: go test -race -coverprofile=coverage.out ./...
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: go-coverage
+          path: go/coverage.out
+
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go/go.mod
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          working-directory: go
+          version: latest
