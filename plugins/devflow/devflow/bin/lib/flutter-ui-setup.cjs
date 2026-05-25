@@ -86,7 +86,73 @@ function formatInstallCommand(tool, platform) {
   return `# manual install required: ${tool}`;
 }
 
+// ───── cmdFlutterUISetup (CLI entry point — stub for now) ────────────────────
+
+/**
+ * CLI entry point. Wired from df-tools.cjs `case 'flutter-ui':` arm.
+ *
+ * Behaviour (filled in case-by-case in Task 3):
+ *   - parse flags from `args` (--print-only, --auto, --raw)
+ *   - detect missing tools → build install plan
+ *   - daemon live → dispatchInstalls; daemon down → print + exit 1
+ *   - chain into flutter-ui-bootstrap.checkBootstrapState
+ *   - idempotency short-circuit when all tools present + marker + bootstrap-ready
+ *
+ * @param {string} cwd   — process working directory (target project)
+ * @param {string[]} args — args[2..] from the top-level dispatcher
+ * @param {boolean} raw  — true when --raw was passed at the top level
+ */
+function cmdFlutterUISetup(cwd, args, raw) {
+  // Stub: emits a JSON object containing the install plan derived from the
+  // current PATH + platform. Task 3 layers daemon/bootstrap/idempotency on top.
+  const flags = parseFlags(args || []);
+  const platform = process.platform;
+
+  // Probe PATH entries for the required tools. We compute a per-entry missing
+  // list, then intersect — a tool is "missing" only if absent from every PATH dir.
+  const required = ['jq', 'gh', 'chromedriver'];
+  const pathEntries = (process.env.PATH || '').split(path.delimiter).filter(Boolean);
+  const stillMissing = required.filter((tool) => {
+    for (const dir of pathEntries) {
+      try {
+        if (fs.existsSync(path.join(dir, tool))) return false;
+      } catch { /* permission/etc — treat as miss */ }
+    }
+    return true;
+  });
+
+  const plan = buildInstallPlan({ missing: stillMissing, platform });
+
+  const payload = {
+    status: 'preview',
+    platform,
+    missing: stillMissing,
+    plan,
+    flags,
+  };
+
+  emit(payload, raw);
+  process.exit(0);
+}
+
+function parseFlags(args) {
+  return {
+    print_only: args.includes('--print-only'),
+    auto: args.includes('--auto'),
+    raw: args.includes('--raw'),
+  };
+}
+
+function emit(payload, raw) {
+  if (raw) {
+    process.stdout.write(JSON.stringify(payload));
+  } else {
+    process.stdout.write(JSON.stringify(payload, null, 2) + '\n');
+  }
+}
+
 module.exports = {
   detectMissingTools,
   buildInstallPlan,
+  cmdFlutterUISetup,
 };
