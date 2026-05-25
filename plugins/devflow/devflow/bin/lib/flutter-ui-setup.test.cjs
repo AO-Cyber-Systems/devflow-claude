@@ -246,6 +246,42 @@ test.describe('dispatchInstalls (TRD 10-09 case 5)', () => {
 
 test.describe('cmdFlutterUISetup integration (TRD 10-09 cases 6-10)', () => {
 
+  test('Case 8 — idempotent-already-set-up: tools present + marker + bootstrap skip → status:already-set-up + zero handoff records', () => {
+    const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'flutter-ui-setup-HOME-idem-'));
+    buildFakePidFile(tmpHome, { live: true });
+
+    const tmpPath = buildFakePATH({ jq: true, gh: true, chromedriver: true });
+
+    const projTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'flutter-ui-setup-projparent-idem-'));
+    // Fully set up: pubspec + dirs + marker.
+    const projectRoot = buildBootstrapTarget(projTmp, {
+      pubspecHasIntegrationTest: true,
+      hasIntegrationTestDir: true,
+      hasMaestroDir: true,
+      hasMarker: true,
+    });
+
+    const res = spawnSetup({
+      home: tmpHome,
+      pathDir: tmpPath,
+      cwd: projectRoot,
+      extraArgs: ['--raw'],
+    });
+
+    assert.strictEqual(res.status, 0, `expected exit 0; got ${res.status}. stderr: ${res.stderr}`);
+    const stdout = String(res.stdout);
+    assert.match(stdout, /"status":"already-set-up"/,
+      `expected status:'already-set-up' in stdout; got:\n${stdout}`);
+
+    // Zero handoff records should exist on disk.
+    const pendingDir = path.join(projectRoot, '.devflow-handoff', 'pending');
+    const records = fs.existsSync(pendingDir)
+      ? fs.readdirSync(pendingDir).filter((f) => f.endsWith('.json'))
+      : [];
+    assert.strictEqual(records.length, 0,
+      `expected zero handoff records for already-set-up; found ${records.length}: ${records.join(', ')}`);
+  });
+
   test('Case 7 — bootstrap-chain: all tools present + live daemon + bootstrap-needed → JSON includes bootstrap matching checkBootstrapState', () => {
     const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'flutter-ui-setup-HOME-live-'));
     buildFakePidFile(tmpHome, { live: true });
