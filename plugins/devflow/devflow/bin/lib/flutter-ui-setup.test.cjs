@@ -120,31 +120,36 @@ function buildFakePidFile(tmpHome, opts) {
 
 test.describe('detectMissingTools (TRD 10-09 cases 1-2)', () => {
 
-  test('Case 1 — detector-jq-missing: only jq absent → result includes jq, excludes gh+chromedriver', () => {
-    const pathDir = buildFakePATH({ jq: false, gh: true, chromedriver: true });
+  test('Case 1 — detector-jq-missing: only jq absent → result includes jq, excludes maestro+chromedriver', () => {
+    const pathDir = buildFakePATH({ jq: false, maestro: true, chromedriver: true });
     const missing = detectMissingTools({ pathDir });
     assert.ok(Array.isArray(missing), 'missing must be an array');
     assert.ok(missing.includes('jq'), `expected missing to include 'jq'; got ${JSON.stringify(missing)}`);
-    assert.ok(!missing.includes('gh'), `did not expect 'gh' in missing; got ${JSON.stringify(missing)}`);
+    assert.ok(!missing.includes('maestro'), `did not expect 'maestro' in missing; got ${JSON.stringify(missing)}`);
     assert.ok(!missing.includes('chromedriver'), `did not expect 'chromedriver' in missing; got ${JSON.stringify(missing)}`);
   });
 
   test('Case 2 — detector-all-present: all 3 tools present → empty array', () => {
-    const pathDir = buildFakePATH({ jq: true, gh: true, chromedriver: true });
+    const pathDir = buildFakePATH({ jq: true, maestro: true, chromedriver: true });
     const missing = detectMissingTools({ pathDir });
     assert.deepStrictEqual(missing, []);
+  });
+
+  test('Case 1c — detector-maestro-missing: only maestro absent → result includes maestro', () => {
+    const pathDir = buildFakePATH({ jq: true, maestro: false, chromedriver: true });
+    const missing = detectMissingTools({ pathDir });
+    assert.deepStrictEqual(missing, ['maestro']);
   });
 
 });
 
 test.describe('buildInstallPlan (TRD 10-09 cases 3-4)', () => {
 
-  test("Case 3 — plan-darwin-brew: missing jq+gh on darwin → ['brew install jq', 'brew install gh'] in input order", () => {
-    const plan = buildInstallPlan({ missing: ['jq', 'gh'], platform: 'darwin' });
+  test("Case 3 — plan-darwin-brew: missing jq on darwin → ['brew install jq'] in input order", () => {
+    const plan = buildInstallPlan({ missing: ['jq'], platform: 'darwin' });
     assert.ok(Array.isArray(plan), 'plan must be an array');
-    assert.strictEqual(plan.length, 2);
+    assert.strictEqual(plan.length, 1);
     assert.strictEqual(plan[0], 'brew install jq');
-    assert.strictEqual(plan[1], 'brew install gh');
   });
 
   test("Case 3b — plan-darwin-brew: chromedriver on darwin uses --cask flag", () => {
@@ -153,11 +158,22 @@ test.describe('buildInstallPlan (TRD 10-09 cases 3-4)', () => {
     assert.strictEqual(plan[0], 'brew install --cask chromedriver');
   });
 
-  test("Case 4 — plan-linux-apt: missing jq+gh on linux → 'sudo apt-get install -y <tool>' per item, input order preserved", () => {
-    const plan = buildInstallPlan({ missing: ['jq', 'gh'], platform: 'linux' });
-    assert.strictEqual(plan.length, 2);
+  test("Case 3c — plan-darwin-maestro: maestro on darwin uses curl installer (no brew formula or cask)", () => {
+    const plan = buildInstallPlan({ missing: ['maestro'], platform: 'darwin' });
+    assert.strictEqual(plan.length, 1);
+    assert.strictEqual(plan[0], 'curl -fsSL "https://get.maestro.dev" | bash');
+  });
+
+  test("Case 4 — plan-linux-apt: missing jq on linux → 'sudo apt-get install -y jq', input order preserved", () => {
+    const plan = buildInstallPlan({ missing: ['jq'], platform: 'linux' });
+    assert.strictEqual(plan.length, 1);
     assert.strictEqual(plan[0], 'sudo apt-get install -y jq');
-    assert.strictEqual(plan[1], 'sudo apt-get install -y gh');
+  });
+
+  test("Case 4c — plan-linux-maestro: maestro on linux uses the same curl installer (platform-agnostic)", () => {
+    const plan = buildInstallPlan({ missing: ['maestro'], platform: 'linux' });
+    assert.strictEqual(plan.length, 1);
+    assert.strictEqual(plan[0], 'curl -fsSL "https://get.maestro.dev" | bash');
   });
 
   test("Case 4b — empty missing → empty plan, any platform", () => {
