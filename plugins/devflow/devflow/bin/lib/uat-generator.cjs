@@ -151,6 +151,7 @@ function cmdGenerateUAT(cwd, objectiveArg, raw) {
   }
 
   const { extractFrontmatter } = require('./frontmatter.cjs');
+  const { parseMustHavesArtifacts } = require('./trd-artifacts.cjs');
   const objectivesRoot = path.join(cwd, '.planning', 'objectives');
 
   // Find the objective directory by prefix match
@@ -178,6 +179,12 @@ function cmdGenerateUAT(cwd, objectiveArg, raw) {
       try {
         const content = fs.readFileSync(path.join(objDir, f), 'utf-8');
         const fm = extractFrontmatter(content);
+        // Override flattened-string artifacts with structured entries from the raw-FM scanner.
+        const structuredArtifacts = parseMustHavesArtifacts(content);
+        if (structuredArtifacts.length > 0) {
+          fm.must_haves = fm.must_haves || {};
+          fm.must_haves.artifacts = structuredArtifacts;
+        }
         trds.push(fm);
       } catch {
         // Skip unreadable TRDs gracefully

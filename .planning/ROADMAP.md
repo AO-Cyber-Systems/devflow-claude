@@ -736,15 +736,15 @@ PTY → Daemon polish bundle
 **TRDs:** 9 plans across 4 waves
 
 TRDs:
-- [ ] 10-01-TRD.md — Frontmatter schema extensions + template docs (REQ-10-01)
-- [ ] 10-02-TRD.md — Flutter state-pattern catalog reference doc (REQ-10-02)
-- [ ] 10-03-TRD.md — flutter-ui-scope detector + planner gate (REQ-10-03)
-- [ ] 10-04a-TRD.md — Flutter UI bootstrap detector lib + df-tools verify subcommand (REQ-10-04, REQ-10-07)
-- [ ] 10-04b-TRD.md — Executor gates for Flutter UI TRDs — per-platform integration_test, Maestro mobile, screenshots (REQ-10-04)
-- [ ] 10-05-TRD.md — Verifier state-coverage + contract drift + orphan detection (REQ-10-05)
-- [ ] 10-06-TRD.md — UAT auto-generation from state matrix + per-platform expansion (REQ-10-06)
-- [ ] 10-07-TRD.md — Dogfood end-to-end integration test (REQ-10-03..07)
-- [ ] 10-08-TRD.md — api-contract.cjs SHA pinning helper (REQ-10-08)
+- [x] 10-01-TRD.md — Frontmatter schema extensions + template docs (REQ-10-01)
+- [x] 10-02-TRD.md — Flutter state-pattern catalog reference doc (REQ-10-02)
+- [x] 10-03-TRD.md — flutter-ui-scope detector + planner gate (REQ-10-03)
+- [x] 10-04a-TRD.md — Flutter UI bootstrap detector lib + df-tools verify subcommand (REQ-10-04, REQ-10-07)
+- [x] 10-04b-TRD.md — Executor gates for Flutter UI TRDs — per-platform integration_test, Maestro mobile, screenshots (REQ-10-04)
+- [x] 10-05-TRD.md — Verifier state-coverage + contract drift + orphan detection (REQ-10-05)
+- [x] 10-06-TRD.md — UAT auto-generation from state matrix + per-platform expansion (REQ-10-06)
+- [x] 10-07-TRD.md — Dogfood end-to-end integration test (REQ-10-03..07; caught + fixed cross-TRD parser bug in 10-05/10-06 via shared lib/trd-artifacts.cjs scanner)
+- [x] 10-08-TRD.md — api-contract.cjs SHA pinning helper (REQ-10-08)
 
 ---
 

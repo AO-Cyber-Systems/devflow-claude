@@ -231,6 +231,7 @@ function cmdVerifyFlutterStateCoverage(cwd, trdPath, raw) {
   }
 
   const { extractFrontmatter } = require('./frontmatter.cjs');
+  const { parseMustHavesArtifacts } = require('./trd-artifacts.cjs');
   const trdContent = fs.readFileSync(absTrd, 'utf-8');
   const fm = extractFrontmatter(trdContent);
 
@@ -245,10 +246,9 @@ function cmdVerifyFlutterStateCoverage(cwd, trdPath, raw) {
   const catalog = loadCatalog(catalogPath);
 
   const stateManagement = fm.state_management || 'other';
-  // must_haves.artifacts may be flattened by extractFrontmatter — use raw content scan as fallback
-  const artifacts = (fm.must_haves && Array.isArray(fm.must_haves.artifacts))
-    ? fm.must_haves.artifacts
-    : [];
+  // extractFrontmatter flattens nested block-array items to strings — use the
+  // raw-FM scanner to recover structured {path, states, tests{}} entries.
+  const artifacts = parseMustHavesArtifacts(trdContent);
 
   const perArtifact = [];
   for (const art of artifacts) {
