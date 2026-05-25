@@ -135,53 +135,88 @@ function newHandoffId() {
   return 'h-' + crypto.randomBytes(4).toString('hex');
 }
 
-// ───── cmdFlutterUISetup (CLI entry point — stub for now) ────────────────────
+// ───── cmdFlutterUISetup (CLI entry point) ───────────────────────────────────
 
 /**
  * CLI entry point. Wired from df-tools.cjs `case 'flutter-ui':` arm.
  *
- * Behaviour (filled in case-by-case in Task 3):
- *   - parse flags from `args` (--print-only, --auto, --raw)
- *   - detect missing tools → build install plan
- *   - daemon live → dispatchInstalls; daemon down → print + exit 1
- *   - chain into flutter-ui-bootstrap.checkBootstrapState
- *   - idempotency short-circuit when all tools present + marker + bootstrap-ready
+ * Behaviour:
+ *   - parse flags (--print-only, --auto, --raw)
+ *   - detect missing tools across PATH → build platform-aware install plan
+ *   - daemon live → dispatchInstalls (writes handoff pending records)
+ *   - daemon down (or --print-only) → print commands to stdout AND exit 1
+ *     (signals human action required, except when nothing is missing)
+ *   - chain into flutter-ui-bootstrap.checkBootstrapState after install verify
+ *   - idempotency short-circuit: all tools present + marker + bootstrap-ready
+ *     → exit 0 with status:'already-set-up' and zero handoff records written
  *
  * @param {string} cwd   — process working directory (target project)
  * @param {string[]} args — args[2..] from the top-level dispatcher
  * @param {boolean} raw  — true when --raw was passed at the top level
  */
 function cmdFlutterUISetup(cwd, args, raw) {
-  // Stub: emits a JSON object containing the install plan derived from the
-  // current PATH + platform. Task 3 layers daemon/bootstrap/idempotency on top.
   const flags = parseFlags(args || []);
   const platform = process.platform;
 
-  // Probe PATH entries for the required tools. We compute a per-entry missing
-  // list, then intersect — a tool is "missing" only if absent from every PATH dir.
+  // Detect tools across the WHOLE PATH (not just one dir), so production users
+  // who already have brew-installed binaries on a non-test PATH don't get false
+  // positives. A tool is "missing" only when absent from every PATH entry.
   const required = ['jq', 'gh', 'chromedriver'];
-  const pathEntries = (process.env.PATH || '').split(path.delimiter).filter(Boolean);
-  const stillMissing = required.filter((tool) => {
-    for (const dir of pathEntries) {
-      try {
-        if (fs.existsSync(path.join(dir, tool))) return false;
-      } catch { /* permission/etc — treat as miss */ }
-    }
-    return true;
-  });
-
+  const stillMissing = detectMissingAcrossPath(required);
   const plan = buildInstallPlan({ missing: stillMissing, platform });
 
-  const payload = {
-    status: 'preview',
-    platform,
-    missing: stillMissing,
-    plan,
-    flags,
-  };
+  // ── Daemon detection (lazy require so this module loads cleanly in unit tests
+  //    that never touch the daemon path).
+  const watcherState = require('./watcher-state.cjs');
+  const pidInfo = watcherState.readPidFile();
+  const daemonLive = pidInfo && watcherState.isWatcherLive();
+  if (pidInfo && !daemonLive) {
+    // Stale PID file — advisory + treat as not-running.
+    process.stderr.write(`[advisory] stale devflow-watch PID file at ${watcherState.pidFilePath()}; treating as not-running\n`);
+  }
 
-  emit(payload, raw);
+  // ── Print-only OR daemon-down path: print commands + exit nonzero (1) when
+  //    there is anything to install; exit 0 with status:'ok' otherwise.
+  if (flags.print_only || !daemonLive) {
+    if (raw) {
+      emit({ status: daemonLive ? 'print-only' : 'no-daemon', platform, missing: stillMissing, plan, flags }, raw);
+    } else {
+      // Human-friendly: one command per line. Empty plan → friendly note.
+      if (plan.length === 0) {
+        process.stdout.write('# all required tools already installed\n');
+      } else {
+        for (const cmd of plan) process.stdout.write(cmd + '\n');
+      }
+    }
+    process.exit(plan.length === 0 ? 0 : 1);
+  }
+
+  // ── Daemon-live path: dispatch via handoff records.
+  const pendingDir = path.join(cwd, '.devflow-handoff', 'pending');
+  fs.mkdirSync(pendingDir, { recursive: true });
+  const dispatch = dispatchInstalls(plan, { pendingDir, cwd });
+
+  emit({ status: 'dispatched', platform, missing: stillMissing, plan, flags, dispatch }, raw);
   process.exit(0);
+}
+
+/**
+ * Probe every entry of $PATH for each tool; return tool names absent from ALL
+ * entries (i.e. truly missing). Preserves input order.
+ */
+function detectMissingAcrossPath(required) {
+  const pathEntries = (process.env.PATH || '').split(path.delimiter).filter(Boolean);
+  const missing = [];
+  for (const tool of required) {
+    let found = false;
+    for (const dir of pathEntries) {
+      try {
+        if (fs.existsSync(path.join(dir, tool))) { found = true; break; }
+      } catch { /* permission/etc — treat as miss */ }
+    }
+    if (!found) missing.push(tool);
+  }
+  return missing;
 }
 
 function parseFlags(args) {
