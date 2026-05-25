@@ -23,6 +23,7 @@ const {
   detectMissingTools,
   buildInstallPlan,
   dispatchInstalls,
+  detectFlutterRepo,
   // cmdFlutterUISetup — exercised via subprocess in integration tests below
 } = require('./flutter-ui-setup.cjs');
 
@@ -88,6 +89,36 @@ function buildBootstrapTarget(tmpdir, opts) {
     fs.mkdirSync(path.join(root, '.planning'), { recursive: true });
     fs.writeFileSync(path.join(root, '.planning', '.flutter-ui-bootstrap-done'), '');
   }
+  return root;
+}
+
+/**
+ * Build a directory tree that exercises Flutter-repo detection. Each opt is
+ * independent so tests can build precisely the failure case they need.
+ *
+ *   pubspec        : 'flutter' | 'plain' | 'absent'  — pubspec.yaml shape
+ *   libDir         : boolean                          — create lib/ as a dir
+ *   flutterVersion : string | null                    — environment.flutter constraint (e.g. '>=3.16.0', '>=3.0.0')
+ */
+function buildFlutterRepoFixture(tmpdir, opts) {
+  const o = opts || {};
+  const root = fs.mkdtempSync(path.join(tmpdir, 'flutter-repo-fixture-'));
+  if (o.pubspec === 'flutter') {
+    const versionLine = o.flutterVersion === null
+      ? ''
+      : `environment:\n  sdk: ">=3.2.0 <4.0.0"\n  flutter: "${o.flutterVersion || '>=3.16.0'}"\n`;
+    fs.writeFileSync(
+      path.join(root, 'pubspec.yaml'),
+      `name: test_repo\n${versionLine}dependencies:\n  flutter:\n    sdk: flutter\n`
+    );
+  } else if (o.pubspec === 'plain') {
+    // pubspec exists but has NO flutter SDK dep — dart-only package
+    fs.writeFileSync(
+      path.join(root, 'pubspec.yaml'),
+      'name: pure_dart\nenvironment:\n  sdk: ">=3.2.0 <4.0.0"\ndependencies:\n  http: ^1.0.0\n'
+    );
+  } // 'absent' → no pubspec written
+  if (o.libDir) fs.mkdirSync(path.join(root, 'lib'), { recursive: true });
   return root;
 }
 
@@ -439,6 +470,102 @@ test.describe('cmdFlutterUISetup integration (TRD 10-09 cases 6-10)', () => {
 
 });
 
+test.describe('detectFlutterRepo (TRD 10-09 Case 12 — Flutter-repo guard)', () => {
+
+  const FIX_BASE = fs.mkdtempSync(path.join(os.tmpdir(), 'flutter-repo-fixture-base-'));
+
+  test('Case 12a — no pubspec → isFlutterRepo:false, failure mentions pubspec', () => {
+    const repo = buildFlutterRepoFixture(FIX_BASE, { pubspec: 'absent', libDir: true });
+    const result = detectFlutterRepo({ cwd: repo });
+    assert.strictEqual(result.isFlutterRepo, false);
+    assert.strictEqual(result.checks.pubspec, false);
+    assert.ok(result.failures.some((f) => /pubspec/i.test(f)),
+      `expected a failure mentioning pubspec; got ${JSON.stringify(result.failures)}`);
+  });
+
+  test('Case 12b — pubspec present but no flutter SDK dep → isFlutterRepo:false, failure mentions flutter', () => {
+    const repo = buildFlutterRepoFixture(FIX_BASE, { pubspec: 'plain', libDir: true });
+    const result = detectFlutterRepo({ cwd: repo });
+    assert.strictEqual(result.isFlutterRepo, false);
+    assert.strictEqual(result.checks.pubspec, true);
+    assert.strictEqual(result.checks.flutterDep, false);
+    assert.ok(result.failures.some((f) => /flutter.*sdk|flutter.*dep/i.test(f)),
+      `expected a failure mentioning flutter SDK dep; got ${JSON.stringify(result.failures)}`);
+  });
+
+  test('Case 12c — pubspec with flutter dep but no lib/ → isFlutterRepo:false, failure mentions lib', () => {
+    const repo = buildFlutterRepoFixture(FIX_BASE, { pubspec: 'flutter', libDir: false });
+    const result = detectFlutterRepo({ cwd: repo });
+    assert.strictEqual(result.isFlutterRepo, false);
+    assert.strictEqual(result.checks.libDir, false);
+    assert.ok(result.failures.some((f) => /\blib\b/i.test(f)),
+      `expected a failure mentioning lib/ dir; got ${JSON.stringify(result.failures)}`);
+  });
+
+  test('Case 12d — Flutter version constraint below 3.16 → isFlutterRepo:false, failure mentions version', () => {
+    const repo = buildFlutterRepoFixture(FIX_BASE, { pubspec: 'flutter', libDir: true, flutterVersion: '>=3.0.0' });
+    const result = detectFlutterRepo({ cwd: repo });
+    assert.strictEqual(result.isFlutterRepo, false);
+    assert.strictEqual(result.checks.minVersion, false);
+    assert.ok(result.failures.some((f) => /version|3\.16/i.test(f)),
+      `expected a failure mentioning version; got ${JSON.stringify(result.failures)}`);
+  });
+
+  test('Case 12e — all checks pass → isFlutterRepo:true, empty failures', () => {
+    const repo = buildFlutterRepoFixture(FIX_BASE, { pubspec: 'flutter', libDir: true, flutterVersion: '>=3.16.0' });
+    const result = detectFlutterRepo({ cwd: repo });
+    assert.strictEqual(result.isFlutterRepo, true,
+      `expected isFlutterRepo:true with all checks satisfied; got ${JSON.stringify(result)}`);
+    assert.deepStrictEqual(result.failures, []);
+    assert.strictEqual(result.checks.pubspec, true);
+    assert.strictEqual(result.checks.flutterDep, true);
+    assert.strictEqual(result.checks.libDir, true);
+    assert.strictEqual(result.checks.minVersion, true);
+  });
+
+  test('Case 12f — pubspec with flutter dep but NO version constraint at all → minVersion:null (advisory pass), isFlutterRepo:true', () => {
+    const repo = buildFlutterRepoFixture(FIX_BASE, { pubspec: 'flutter', libDir: true, flutterVersion: null });
+    const result = detectFlutterRepo({ cwd: repo });
+    // No constraint → can't verify min version; don't block. Treat as advisory pass.
+    assert.strictEqual(result.isFlutterRepo, true,
+      `expected isFlutterRepo:true when version constraint absent (advisory); got ${JSON.stringify(result)}`);
+    assert.strictEqual(result.checks.minVersion, null);
+  });
+
+});
+
+test.describe('cmdFlutterUISetup Flutter-repo gate (TRD 10-09 Case 13 — guard integration)', () => {
+
+  test('Case 13 — non-Flutter cwd → status:"not-a-flutter-project" + exit 1 + does NOT install or scaffold', () => {
+    const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'flutter-ui-setup-HOME-nonflutter-'));
+    const tmpPath = buildFakePATH({}); // tools missing — doesn't matter, gate should fire first
+    const nonFlutterDir = fs.mkdtempSync(path.join(os.tmpdir(), 'not-flutter-')); // empty dir
+
+    const res = spawnSetup({
+      home: tmpHome,
+      pathDir: tmpPath,
+      cwd: nonFlutterDir,
+      extraArgs: ['--raw'],
+    });
+
+    assert.strictEqual(res.status, 1,
+      `expected exit 1 (non-Flutter refusal); got ${res.status}. stderr: ${res.stderr}`);
+    const payload = JSON.parse(String(res.stdout));
+    assert.strictEqual(payload.status, 'not-a-flutter-project');
+    assert.ok(Array.isArray(payload.failures) && payload.failures.length > 0,
+      `expected non-empty failures[]; got ${JSON.stringify(payload)}`);
+
+    // Negative assertion: no handoff records dispatched
+    const pendingDir = path.join(nonFlutterDir, '.devflow-handoff', 'pending');
+    const records = fs.existsSync(pendingDir)
+      ? fs.readdirSync(pendingDir).filter((f) => f.endsWith('.json'))
+      : [];
+    assert.strictEqual(records.length, 0,
+      `expected zero handoff records when gate fires; found ${records.length}`);
+  });
+
+});
+
 // Re-export fixture builders so later tests (and other test files, if any) can
 // reuse, and so static-analysis treats them as live.
 module.exports = {
@@ -446,4 +573,5 @@ module.exports = {
   buildHandoffPendingDir,
   buildBootstrapTarget,
   buildFakePidFile,
+  buildFlutterRepoFixture,
 };
