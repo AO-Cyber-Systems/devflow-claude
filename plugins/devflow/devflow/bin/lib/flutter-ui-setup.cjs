@@ -191,12 +191,22 @@ function cmdFlutterUISetup(cwd, args, raw) {
     process.exit(plan.length === 0 ? 0 : 1);
   }
 
-  // ── Daemon-live path: dispatch via handoff records.
-  const pendingDir = path.join(cwd, '.devflow-handoff', 'pending');
-  fs.mkdirSync(pendingDir, { recursive: true });
-  const dispatch = dispatchInstalls(plan, { pendingDir, cwd });
+  // ── Daemon-live path: dispatch via handoff records (only if plan non-empty).
+  let dispatch = { dispatched: 0, ids: [] };
+  if (plan.length > 0) {
+    const pendingDir = path.join(cwd, '.devflow-handoff', 'pending');
+    fs.mkdirSync(pendingDir, { recursive: true });
+    dispatch = dispatchInstalls(plan, { pendingDir, cwd });
+  }
 
-  emit({ status: 'dispatched', platform, missing: stillMissing, plan, flags, dispatch }, raw);
+  // ── Chain into the existing bootstrap detector. Lazy-require so the module
+  //    is only loaded when the daemon-live path runs (the no-daemon path doesn't
+  //    need it). Forwards the bootstrap result unchanged on the same JSON output.
+  const { checkBootstrapState } = require('./flutter-ui-bootstrap.cjs');
+  const bootstrap = checkBootstrapState({ projectDir: cwd });
+
+  const status = plan.length === 0 ? 'tools-ready' : 'dispatched';
+  emit({ status, platform, missing: stillMissing, plan, flags, dispatch, bootstrap }, raw);
   process.exit(0);
 }
 
