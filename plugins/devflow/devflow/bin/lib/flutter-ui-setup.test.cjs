@@ -246,6 +246,36 @@ test.describe('dispatchInstalls (TRD 10-09 case 5)', () => {
 
 test.describe('cmdFlutterUISetup integration (TRD 10-09 cases 6-10)', () => {
 
+  test('Case 7 — bootstrap-chain: all tools present + live daemon + bootstrap-needed → JSON includes bootstrap matching checkBootstrapState', () => {
+    const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'flutter-ui-setup-HOME-live-'));
+    buildFakePidFile(tmpHome, { live: true });
+
+    // PATH that satisfies all 3 required tools — bypasses install path.
+    const tmpPath = buildFakePATH({ jq: true, gh: true, chromedriver: true });
+
+    // Bare project root: bootstrap detector should report action:'warn' + setup_task.
+    const projTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'flutter-ui-setup-projparent-'));
+    const projectRoot = buildBootstrapTarget(projTmp, {}); // no pubspec, no dirs, no marker
+
+    const res = spawnSetup({
+      home: tmpHome,
+      pathDir: tmpPath,
+      cwd: projectRoot,
+      extraArgs: ['--raw'],
+    });
+
+    assert.strictEqual(res.status, 0, `expected exit 0 (all tools present); got ${res.status}. stderr: ${res.stderr}`);
+    const payload = JSON.parse(String(res.stdout));
+    assert.ok(payload.bootstrap, `expected payload.bootstrap to be present; got: ${JSON.stringify(payload)}`);
+
+    // Compare against the pure-function checkBootstrapState for the same project.
+    const { checkBootstrapState } = require('./flutter-ui-bootstrap.cjs');
+    const expectedBootstrap = checkBootstrapState({ projectDir: projectRoot });
+    assert.deepStrictEqual(payload.bootstrap, expectedBootstrap);
+    // Sanity: this fixture should warn (no marker + missing infra).
+    assert.strictEqual(payload.bootstrap.action, 'warn');
+  });
+
   test('Case 6 — fallback-no-daemon: NO pid file + missing tools → stdout has shell commands AND exit 1', () => {
     const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'flutter-ui-setup-HOME-empty-'));
     // No pid file written — daemon NOT running.
