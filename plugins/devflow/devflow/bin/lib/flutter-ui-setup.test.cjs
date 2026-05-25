@@ -34,8 +34,8 @@ const { validateInputsSchema } = require('./handoff.cjs');
  * Create a temp PATH directory containing executable shims for each tool whose
  * value is `true`. Returns the absolute path of the temp dir.
  *
- * Example: buildFakePATH({ jq: true, gh: false, chromedriver: true }) creates a
- * tmpdir with `jq` and `chromedriver` files (each chmod 0o755). `gh` is omitted.
+ * Example: buildFakePATH({ jq: true, maestro: false, chromedriver: true }) creates a
+ * tmpdir with `jq` and `chromedriver` files (each chmod 0o755). `maestro` is omitted.
  */
 function buildFakePATH(tools) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'flutter-ui-setup-PATH-'));
@@ -266,7 +266,7 @@ test.describe('cmdFlutterUISetup integration (TRD 10-09 cases 6-10)', () => {
     const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'flutter-ui-setup-HOME-idem-'));
     buildFakePidFile(tmpHome, { live: true });
 
-    const tmpPath = buildFakePATH({ jq: true, gh: true, chromedriver: true });
+    const tmpPath = buildFakePATH({ jq: true, maestro: true, chromedriver: true });
 
     const projTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'flutter-ui-setup-projparent-idem-'));
     // Fully set up: pubspec + dirs + marker.
@@ -303,7 +303,7 @@ test.describe('cmdFlutterUISetup integration (TRD 10-09 cases 6-10)', () => {
     buildFakePidFile(tmpHome, { live: true });
 
     // PATH that satisfies all 3 required tools — bypasses install path.
-    const tmpPath = buildFakePATH({ jq: true, gh: true, chromedriver: true });
+    const tmpPath = buildFakePATH({ jq: true, maestro: true, chromedriver: true });
 
     // Bare project root: bootstrap detector should report action:'warn' + setup_task.
     const projTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'flutter-ui-setup-projparent-'));

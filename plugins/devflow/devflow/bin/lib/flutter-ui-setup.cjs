@@ -23,7 +23,13 @@ const crypto = require('crypto');
 
 // ───── detectMissingTools ────────────────────────────────────────────────────
 
-const DEFAULT_REQUIRED_TOOLS = ['jq', 'gh', 'chromedriver'];
+// Tools required to run Flutter UI verification end-to-end:
+//   jq           — executor parses JSON output from df-tools commands
+//   chromedriver — web tier: `flutter drive` against Chrome for integration_test/
+//   maestro      — mobile tier: `maestro test .maestro/*.yaml` for end-to-end mobile flows
+// gh (GitHub CLI) is intentionally NOT here — it belongs to separate devflow features
+// (gh-sync, awareness, dup-detect) which check for it themselves when needed.
+const DEFAULT_REQUIRED_TOOLS = ['jq', 'maestro', 'chromedriver'];
 
 /**
  * Pure function: given a PATH dir and a list of required tools, return the
@@ -75,6 +81,9 @@ function buildInstallPlan(opts) {
 }
 
 function formatInstallCommand(tool, platform) {
+  // maestro distributes via a platform-agnostic curl installer — no brew formula or apt package.
+  // Same command on darwin and linux. See https://maestro.mobile.dev/getting-started/installing-maestro
+  if (tool === 'maestro') return 'curl -fsSL "https://get.maestro.dev" | bash';
   if (platform === 'darwin') {
     // chromedriver is a cask on Homebrew, not a formula.
     if (tool === 'chromedriver') return 'brew install --cask chromedriver';
@@ -161,7 +170,8 @@ function cmdFlutterUISetup(cwd, args, raw) {
   // Detect tools across the WHOLE PATH (not just one dir), so production users
   // who already have brew-installed binaries on a non-test PATH don't get false
   // positives. A tool is "missing" only when absent from every PATH entry.
-  const required = ['jq', 'gh', 'chromedriver'];
+  // Keep this list in sync with DEFAULT_REQUIRED_TOOLS above.
+  const required = DEFAULT_REQUIRED_TOOLS;
   const stillMissing = detectMissingAcrossPath(required);
   const plan = buildInstallPlan({ missing: stillMissing, platform });
 
