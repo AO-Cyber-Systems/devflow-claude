@@ -22,7 +22,7 @@ overrides:
 must_haves:
   truths:
     - "`df-tools flutter-ui setup` subcommand exists and is reachable from `node bin/df-tools.cjs flutter-ui setup --help` (or with no args) without throwing on unknown command"
-    - "Running setup against a fresh project with NO tools installed (jq, gh, chromedriver per detector) produces an ordered install plan that names each missing tool; running against a project where all 3 tools are present produces an empty install plan"
+    - "Running setup against a fresh project with NO tools installed (jq, maestro, chromedriver per detector) produces an ordered install plan that names each missing tool; running against a project where all 3 tools are present produces an empty install plan"
     - "Install plan is platform-aware (advisory): darwin returns `brew install …` shaped commands; linux returns `apt-get install …` shaped commands"
     - "When devflow-watch daemon IS running (PID file present + process live), `flutter-ui setup` dispatches each install via the existing handoff watcher by writing a pending record to `.devflow-handoff/pending/*.json` whose shape matches `validateInputsSchema` (record validates as `{ ok:true }` against the schema)"
     - "When devflow-watch daemon is NOT running, `flutter-ui setup` falls back to printing the install commands to stdout in copy-pasteable form AND exits with non-zero status (signals the caller that human action is required)"
@@ -83,7 +83,7 @@ verification_commands:
 <objective>
 Ship a single command — `df-tools flutter-ui setup` — that makes a downstream Flutter project DevFlow-Flutter-UI ready in one invocation. Today adoption requires 3 manual brew installs + emulator setup + chasing the pubspec/dirs scaffolding. This TRD wraps everything into one CLI that:
 
-1. Detects which system tools are missing (jq, gh, chromedriver — exact list nailed down in the test list).
+1. Detects which system tools are missing (jq, maestro, chromedriver — exact list nailed down in the test list).
 2. Builds an ordered, platform-aware install plan.
 3. Routes interactive installs through the existing devflow-watch handoff (when daemon is live) — falls back to printing copy-pasteable commands + non-zero exit when daemon is down.
 4. Chains into the existing `flutter-ui-bootstrap.cjs` to scaffold pubspec/dirs/marker.
@@ -215,16 +215,16 @@ Per the user CLAUDE.md TDD Playbook habit 2: test list first, before any test co
 **Fixture builders (hand-built per habit 4; named explicitly):**
 
 - `buildHandoffPendingDir(tmpdir)` — creates `<tmpdir>/.devflow-handoff/{pending,done}/` empty subtrees. Returns `{root, pending, done}`.
-- `buildFakePATH(tools)` — given an object like `{ jq: true, gh: false, chromedriver: true }`, creates a temp PATH dir containing executable shims for each `true`-valued tool. Returns the PATH dir path. The setup CLI uses `command -v`-equivalent logic (we'll use `fs.existsSync` against each PATH entry + name to keep tests deterministic on macOS where `which` shells out).
+- `buildFakePATH(tools)` — given an object like `{ jq: true, maestro: false, chromedriver: true }`, creates a temp PATH dir containing executable shims for each `true`-valued tool. Returns the PATH dir path. The setup CLI uses `command -v`-equivalent logic (we'll use `fs.existsSync` against each PATH entry + name to keep tests deterministic on macOS where `which` shells out).
 - `buildBootstrapTarget(tmpdir, opts)` — creates a temp flutter project root with optional `pubspec.yaml`, optional `integration_test/` dir, optional `.maestro/` dir, optional `.planning/.flutter-ui-bootstrap-done` marker. Mirror of `makeProject` in `flutter-ui-bootstrap.test.cjs` — extend it, do not fork.
 - `buildFakePidFile(tmpHome, { live })` — writes `~/.devflow/devflow-watch.pid` JSON in a temp HOME, optionally pointing at a process PID that IS running (`process.pid` — the test process) when `live:true` or at a dead PID (e.g. `999999`) when `live:false`. Note: `watcher-state.isWatcherLive()` uses `process.kill(pid, 0)`, so `process.pid` always passes liveness from the test runner.
 - Cassettes: N/A — no HTTP in this TRD.
 
 **Test cases (in RED-GREEN order — each is its own atomic commit pair):**
 
-1. **detector-jq-missing** — `detectMissingTools({pathDir: buildFakePATH({jq:false, gh:true, chromedriver:true})})` returns an array including `'jq'` and NOT including `'gh'` or `'chromedriver'`.
-2. **detector-all-present** — `detectMissingTools({pathDir: buildFakePATH({jq:true, gh:true, chromedriver:true})})` returns `[]`.
-3. **plan-darwin-brew** — `buildInstallPlan({missing: ['jq', 'gh'], platform: 'darwin'})` returns an array of commands starting with `'brew install '` (advisory — does not actually run brew). The exact command for jq is `'brew install jq'`; for gh is `'brew install gh'`. Order matches input order.
+1. **detector-jq-missing** — `detectMissingTools({pathDir: buildFakePATH({jq:false, maestro:true, chromedriver:true})})` returns an array including `'jq'` and NOT including `'maestro'` or `'chromedriver'`.
+2. **detector-all-present** — `detectMissingTools({pathDir: buildFakePATH({jq:true, maestro:true, chromedriver:true})})` returns `[]`.
+3. **plan-darwin-brew** — `buildInstallPlan({missing: ['jq'], platform: 'darwin'})` returns an array of commands starting with `'brew install '` (advisory — does not actually run brew). The exact command for jq is `'brew install jq'`. maestro on either platform returns `'curl -fsSL "https://get.maestro.dev" | bash'` (no brew formula or apt package). Order matches input order.
 4. **plan-linux-apt** — Same inputs but `platform: 'linux'` returns commands starting with `'sudo apt-get install -y '` (or equivalent — implementer chooses, then locks via test).
 5. **dispatch-shape-valid** — Given `buildHandoffPendingDir(tmp)` + a plan of 2 commands + a `cwd`, `dispatchInstalls()` writes 2 pending JSON files matching the handoff schema. Each record loaded back and run through `handoff.validateInputsSchema(rec.inputs || {secrets:[]})` returns `{ok:true}`. Each record has `cmd`, `cwd`, `status:'pending'`, `created_at` (ISO timestamp), and a `'h-'`-prefixed `id`.
 6. **fallback-no-daemon** — With NO pid file (`process.env.HOME = tmpEmptyHome`), `cmdFlutterUISetup` against a project missing all 3 tools prints copy-pasteable shell commands to stdout (one per line, no JSON noise mixed in unless `--raw` is passed) AND exits with code 1. Assert via spawning the CLI as a subprocess (outside-in integration test).
@@ -294,7 +294,7 @@ Implement the minimum needed to GREEN cases 1-2, then add cases 3-4 (RED) and GR
 
 Approach:
 1. Create `plugins/devflow/devflow/bin/lib/flutter-ui-setup.cjs` with stub exports: `{ detectMissingTools, buildInstallPlan, dispatchInstalls, cmdFlutterUISetup }`.
-2. Implement `detectMissingTools({ pathDir, requiredTools = ['jq', 'gh', 'chromedriver'] })`:
+2. Implement `detectMissingTools({ pathDir, requiredTools = ['jq', 'maestro', 'chromedriver'] })`:
    - For each required tool, check if `pathDir + '/' + tool` exists (production: use PATH split + existsSync per entry; tests pass a single dir).
    - Return missing tools as an array, preserving order.
 3. Run tests — cases 1-2 GREEN. Commit: `feat(10-09): add detectMissingTools (GREEN cases 1-2)`.
@@ -449,7 +449,7 @@ After all 3 tasks complete, the verifier (`/devflow:verify-work`) will run goal-
 
 <success_criteria>
 - `df-tools flutter-ui setup` is a single-command adoption path for downstream Flutter projects (eden-ui-flutter primarily).
-- Detector identifies missing system tools (jq, gh, chromedriver) on darwin + linux.
+- Detector identifies missing system tools (jq, maestro, chromedriver) on darwin + linux.
 - Install plan is platform-aware and copy-pasteable.
 - Daemon-live path dispatches via handoff (schema-validated pending records).
 - Daemon-down path prints commands + exits nonzero (signals human action needed).

@@ -74,5 +74,31 @@ TRD 10-09 delivers the one-command adoption promise. `df-tools flutter-ui setup`
 
 ---
 
+## Post-Verification Correction (2026-05-25 dogfood)
+
+A live dogfood run against `eden-libs/eden-ui-flutter/` revealed that the TRD originally listed `gh` (GitHub CLI) instead of `maestro` in `DEFAULT_REQUIRED_TOOLS`. The planner pattern-matched on devflow's existing handoff-watcher docs (where `gh auth login` is the canonical interactive-auth example) and substituted `gh` where `maestro` belonged for Flutter UI verification adoption.
+
+**Root cause:** Original planner prompt named `jq` as the example tool but did not enumerate the canonical 3-tool list (jq + chromedriver + maestro). All 12 original tests passed against the wrong list because hand-built fixtures use whatever tool names the test says, masking the substantive error.
+
+**Fix (3 commits on this branch after initial verification):**
+- `45262be` `test(10-09): swap gh→maestro, expect curl installer (RED)` — added Cases 1c, 3c, 4c; rewrote Cases 1/2/3/4 to use maestro; 4 failing tests at RED
+- `15b229c` `feat(10-09): swap gh→maestro, add curl installer for maestro (GREEN)` — `DEFAULT_REQUIRED_TOOLS = ['jq', 'maestro', 'chromedriver']`; `formatInstallCommand` special-cases maestro to `curl -fsSL "https://get.maestro.dev" | bash` on both darwin + linux (maestro has no brew formula or apt package); `cmdFlutterUISetup` now sources from `DEFAULT_REQUIRED_TOOLS` instead of a duplicated literal
+- (this docs commit follows) — TRD truths/test_list + this correction note
+
+**Re-verification:** 15/15 tests pass after fix. Live dogfood from `eden-libs/eden-ui-flutter/` now correctly emits:
+```
+$ node ~/.../df-tools.cjs flutter-ui setup --print-only
+curl -fsSL "https://get.maestro.dev" | bash
+brew install --cask chromedriver
+EXIT=1
+```
+
+**Workflow impediment flagged:** The planner-prompt-to-TRD path should enumerate the canonical tool list explicitly when scope mentions specific tools; relying on the planner to infer from one example is a foot-gun. Hand-built test fixtures do NOT catch this class of error because the fixture parameter IS the source of truth being tested.
+
+`status:` remains `passed` (10/10 must-haves verified against the CORRECTED implementation). The original 10/10 verification was structurally correct against the TRD-as-written but the TRD itself encoded the wrong tool list.
+
+---
+
 _Verified: 2026-05-25_
+_Corrected: 2026-05-25 (dogfood)_
 _Verifier: Claude (verifier)_
