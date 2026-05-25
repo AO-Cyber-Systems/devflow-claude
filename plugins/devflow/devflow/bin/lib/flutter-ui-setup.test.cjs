@@ -22,8 +22,11 @@ const { spawnSync } = require('node:child_process');
 const {
   detectMissingTools,
   buildInstallPlan,
-  // dispatchInstalls, cmdFlutterUISetup — wired in later tasks
+  dispatchInstalls,
+  // cmdFlutterUISetup — exercised via subprocess in integration tests below
 } = require('./flutter-ui-setup.cjs');
+
+const { validateInputsSchema } = require('./handoff.cjs');
 
 // ───── Fixture builders (hand-built; no LLM-generated data) ──────────────────
 
@@ -160,6 +163,44 @@ test.describe('buildInstallPlan (TRD 10-09 cases 3-4)', () => {
   test("Case 4b — empty missing → empty plan, any platform", () => {
     assert.deepStrictEqual(buildInstallPlan({ missing: [], platform: 'darwin' }), []);
     assert.deepStrictEqual(buildInstallPlan({ missing: [], platform: 'linux' }), []);
+  });
+
+});
+
+test.describe('dispatchInstalls (TRD 10-09 case 5)', () => {
+
+  test('Case 5 — dispatch-shape-valid: N plan items → N pending JSON files, each schema-valid', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'flutter-ui-setup-dispatch-'));
+    const { pending } = buildHandoffPendingDir(tmp);
+    const plan = ['brew install jq', 'brew install gh'];
+    const cwd = tmp;
+
+    const result = dispatchInstalls(plan, { pendingDir: pending, cwd });
+
+    assert.strictEqual(result.dispatched, 2);
+    assert.ok(Array.isArray(result.ids), 'result.ids must be an array');
+    assert.strictEqual(result.ids.length, 2);
+
+    const files = fs.readdirSync(pending).filter((f) => f.endsWith('.json'));
+    assert.strictEqual(files.length, 2);
+
+    for (const file of files) {
+      const rec = JSON.parse(fs.readFileSync(path.join(pending, file), 'utf-8'));
+      // Required handoff-record fields
+      assert.match(rec.id, /^h-[0-9a-f]{8}$/, `id should match /^h-[0-9a-f]{8}$/; got ${rec.id}`);
+      assert.strictEqual(typeof rec.cmd, 'string');
+      assert.ok(plan.includes(rec.cmd), `record.cmd must be one of the plan commands; got ${rec.cmd}`);
+      assert.strictEqual(rec.cwd, cwd);
+      assert.strictEqual(rec.status, 'pending');
+      assert.match(rec.created_at, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/, 'created_at must be ISO-shaped');
+
+      // Schema gate: validateInputsSchema must say ok:true.
+      // Records dispatched here carry no `inputs` field at all (no secrets needed
+      // for plain installs), so we pass the canonical empty-secrets stand-in.
+      const inputs = rec.inputs || { secrets: [] };
+      const v = validateInputsSchema(inputs);
+      assert.strictEqual(v.ok, true, `validateInputsSchema rejected: ${v.reason || '(no reason)'}`);
+    }
   });
 
 });
