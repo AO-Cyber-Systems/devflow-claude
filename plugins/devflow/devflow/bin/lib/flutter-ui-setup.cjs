@@ -49,6 +49,44 @@ function detectMissingTools(opts) {
   return missing;
 }
 
+// ───── buildInstallPlan ──────────────────────────────────────────────────────
+
+/**
+ * Pure function: given a list of missing tools and a platform, return an
+ * ordered list of install commands (input order preserved).
+ *
+ * Platform routing:
+ *   darwin → 'brew install <tool>' (chromedriver gets the --cask flag — see gotchas)
+ *   linux  → 'sudo apt-get install -y <tool>'
+ *   other  → '# manual install required: <tool>' (advisory; no platform support)
+ *
+ * @param {object} opts
+ * @param {string[]} opts.missing       — tool names (e.g. from detectMissingTools)
+ * @param {string} opts.platform        — typically process.platform
+ * @returns {string[]}                  — install commands, input-ordered
+ */
+function buildInstallPlan(opts) {
+  const o = opts || {};
+  const missing = Array.isArray(o.missing) ? o.missing : [];
+  const platform = o.platform;
+  if (missing.length === 0) return [];
+  return missing.map((tool) => formatInstallCommand(tool, platform));
+}
+
+function formatInstallCommand(tool, platform) {
+  if (platform === 'darwin') {
+    // chromedriver is a cask on Homebrew, not a formula.
+    if (tool === 'chromedriver') return 'brew install --cask chromedriver';
+    return `brew install ${tool}`;
+  }
+  if (platform === 'linux') {
+    return `sudo apt-get install -y ${tool}`;
+  }
+  // Unsupported platform — emit advisory comment so the human knows to install manually.
+  return `# manual install required: ${tool}`;
+}
+
 module.exports = {
   detectMissingTools,
+  buildInstallPlan,
 };
