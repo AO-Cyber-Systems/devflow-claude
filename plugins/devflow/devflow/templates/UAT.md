@@ -71,6 +71,33 @@ skipped: [N]
 
 ---
 
+## Auto-generated UAT (REQ-10-06)
+
+For `type: ui` + `stack: flutter` Flutter objectives, `df-tools generate uat <objective>` auto-derives the test list from:
+
+- **State coverage rows:** each `(must_haves.artifacts[*].states[*], platform)` pair across all `type: ui` TRDs — one test row per (state, platform) combination. E.g., a TRD with `platform: [mobile, web]` and 3 states per artifact produces 6 state-coverage rows per artifact (state matrix expansion).
+- **Maestro flow rows:** each YAML file in `.maestro/` — one **mobile-only** test row. (Maestro is mobile-only by design — Maestro on Flutter web is blocked upstream by mobile-dev-inc/maestro#2591. See `references/flutter-state-patterns.md` "Web verification mechanism" section.)
+- **Web integration rows:** when a TRD has `web` in `platform:`, one row per artifact instructing the user to run `flutter drive --driver=test_driver/integration_test.dart --target=<tests.integration> -d chrome`. The web verifier is `flutter drive`, NOT Maestro.
+
+The auto-generated body conforms to the same format as manually-authored UAT.md — `### N. {test name}\nexpected: ...\nresult: [pending]`. The user walks through it in ~5 min before marking the objective done.
+
+Invocation:
+
+```bash
+node ~/.claude/devflow/bin/df-tools.cjs generate uat <objective>
+# Writes to .planning/objectives/<obj-dir>/<obj>-UAT.md
+```
+
+**Safety:** the generator REFUSES to overwrite an existing UAT.md with non-pending results (i.e., once you've started walkthrough, the auto-generator is locked out).
+
+**State descriptions:** the generator uses human-readable text for common state names (`loading`, `data`, `error`, `empty`, `initial`). Custom state names get a generic "the `<state>` state UI is rendered correctly" template.
+
+**Per-platform expansion:** A TRD with `platform: [mobile, web]` produces row pairs for every (state, platform) combination — verifying the same UI on both platforms. This is REQUIRED coverage by default, not opt-in.
+
+**Web verification mechanism:** Maestro flows are mobile-only. Web verification flows through `flutter drive` invoking the same `tests.integration` path that mobile uses via `flutter test`. There is no web opt-in flag for Maestro — see TRD 10-02's "Web verification mechanism" section for the rationale.
+
+---
+
 <section_rules>
 
 **Frontmatter:**

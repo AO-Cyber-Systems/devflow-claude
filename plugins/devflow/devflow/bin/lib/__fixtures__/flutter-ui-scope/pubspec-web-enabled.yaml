@@ -1,0 +1,16 @@
+name: example_app_web
+description: A Flutter app with the legacy platforms.web block enabled (regression coverage for D12)
+publish_to: 'none'
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+flutter:
+  platforms:
+    android:
+    ios:
+    web:

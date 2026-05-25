@@ -16,7 +16,7 @@ Template for `.planning/objectives/XX-name/{objective}-{trd}-TRD.md` - self-cont
 ---
 objective: XX-name
 trd: NN
-type: standard                # standard | tdd
+type: standard                # standard | tdd | ui
 wave: N                       # Execution wave (1, 2, 3...). Pre-computed at plan time.
 depends_on: []                # TRD IDs this task requires (e.g., ["01-01"]).
 files_modified: []            # Files this TRD modifies.
@@ -29,6 +29,28 @@ must_haves:
   truths: []                  # Observable behaviors that must be true
   artifacts: []               # Files that must exist with real implementation
   key_links: []               # Critical connections between artifacts
+
+# ── Flutter UI fields (OPTIONAL — present only when type: ui) ──
+# When type: ui, the planner (TRD 10-03) requires all of these via PLANNING INCONCLUSIVE.
+# The validator schema (FRONTMATTER_SCHEMAS.trd) does NOT enforce them — non-UI TRDs are unaffected.
+stack: flutter                 # currently only 'flutter' is meaningful for type: ui
+platform: [mobile, web]        # DEFAULT for Flutter UI TRDs: BOTH platforms are required coverage.
+                               # Allowed: [mobile, web], [mobile], [web]. Default if planner detects Flutter UI scope: [mobile, web].
+state_management: riverpod     # one of: riverpod | bloc | setState | provider | other
+api_contract:                  # SHA pinning for referenced API contract files (per REQ-10-08)
+  - path: "lib/api/user_client.dart"
+    sha: "ab12cd34ef..."       # SHA256, populated at plan time by api-contract.cjs helper
+# The per-artifact `states:` and `tests:` sub-fields live under must_haves.artifacts:
+# must_haves:
+#   artifacts:
+#     - path: "lib/screens/user_list_screen.dart"
+#       provides: "User list screen"
+#       contains: "AsyncValue"
+#       states: [loading, data, error, empty]   # NEW: required for type: ui artifacts
+#       tests:                                  # NEW: required for type: ui artifacts
+#         widget: "test/screens/user_list_screen_test.dart"
+#         integration: "integration_test/user_list_flow_test.dart"
+#         maestro: ".maestro/user_list.yaml"
 ---
 
 <objective>
@@ -170,6 +192,7 @@ After completion, create `.planning/objectives/XX-name/{objective}-{trd}-SUMMARY
 | Recovery | None | `<recovery>` per task + `<error_recovery>` |
 | TDD tasks | `tdd="true"` attribute | `type="tdd"` with structured RED/GREEN |
 | Evidence | Optional | Required per-task verification |
+| Flutter UI fields | None | Optional fields when `type: ui` (REQ-10-01) |
 
 ## Backward Compatibility
 
@@ -186,7 +209,7 @@ Old JOB.md files continue to work. The system detects file suffix:
 |---|---|---|
 | `objective` | Yes | Objective identifier (e.g., `01-foundation`) |
 | `trd` | Yes | TRD number within objective (e.g., `01`, `02`) |
-| `type` | Yes | `standard` or `tdd` |
+| `type` | Yes | `standard`, `tdd`, or `ui` |
 | `wave` | Yes | Execution wave number (1, 2, 3...) |
 | `depends_on` | Yes | Array of TRD IDs this task requires |
 | `files_modified` | Yes | Files this TRD touches |
@@ -194,3 +217,20 @@ Old JOB.md files continue to work. The system detects file suffix:
 | `requirements` | Yes | **MUST** list requirement IDs from ROADMAP |
 | `user_setup` | No | Array of human-required setup items |
 | `must_haves` | Yes | Goal-backward verification criteria |
+
+### Flutter UI fields (optional; required semantically when `type: ui`)
+
+| Field | Required when `type: ui` | Purpose |
+|---|---|---|
+| `stack` | Yes | Stack family. Currently only `flutter` is meaningful. |
+| `platform` | Yes | Array of `mobile`, `web`. **Default `[mobile, web]`** — BOTH platforms are required coverage for Flutter UI TRDs. Narrow only if a TRD genuinely targets a single platform. |
+| `state_management` | Yes | One of `riverpod`, `bloc`, `setState`, `provider`, `other`. Drives state-coverage regex set (see `references/flutter-state-patterns.md`). |
+| `api_contract` | No | List of `{path, sha}` for SHA-pinning referenced contract files. Drift detection is advisory. |
+| `must_haves.artifacts[*].states` | Yes (per artifact) | Non-empty list of state names this artifact must render and test. Example: `[loading, data, error, empty]`. |
+| `must_haves.artifacts[*].tests.widget` | Yes (per artifact) | Path to widget test file. |
+| `must_haves.artifacts[*].tests.integration` | Yes (per artifact) | Path to integration_test file. **Single path used by BOTH platforms.** Mobile runs `flutter test <path>` (or `flutter test integration_test/`); web runs `flutter drive --driver=test_driver/integration_test.dart --target=<path> -d chrome`. The `test_driver/integration_test.dart` driver is auto-scaffolded by TRD 10-04a's bootstrap task. |
+| `must_haves.artifacts[*].tests.maestro` | Yes (per artifact) | Path to Maestro flow YAML. **Mobile-only BY DESIGN** — Maestro on Flutter web has an upstream blocker (mobile-dev-inc/maestro#2591) so the web-tier black-box verifier is `flutter drive` instead of Maestro. There is no web opt-in flag; web coverage flows entirely through `tests.integration` via `flutter drive`. |
+
+**Enforcement model:** These fields are NOT in `FRONTMATTER_SCHEMAS.trd.required`. A non-Flutter TRD that omits them validates fine. The planner agent (`agents/planner.md` `<step name="break_into_tasks">`) calls `df-tools detect flutter-ui-scope <objective>`; if scope detected, it semantically requires these fields and emits `## PLANNING INCONCLUSIVE` for missing ones. See TRD 10-03.
+
+**Web verification mechanism:** `tests.integration` is a single source path; the executor (TRD 10-04b) invokes it twice — once for each platform — using different drivers. Mobile uses the standard `flutter test` runner. Web uses `flutter drive` plus a chromedriver, with `test_driver/integration_test.dart` serving as the driver entrypoint. This substitution model — `flutter drive` IS the web-tier black-box verifier — exists because Maestro's web semantics overlay is broken upstream (issue mobile-dev-inc/maestro#2591). See TRD 10-02 for the full rationale.

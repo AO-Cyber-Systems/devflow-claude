@@ -710,6 +710,42 @@ PTY → Daemon polish bundle
 | /devflow:micro invocations/week | 0 | ≥30 |
 | Avg DevFlow session token cost | 300-600k | 200-400k |
 
+### Objective 10: Flutter UI verification process
+
+**Goal:** Add a devflow process layer that reduces Flutter UI bug rate by enforcing state coverage, integration_test verification, and Maestro automation at plan + execute + verify stages. Stack-focused: Flutter mobile + Flutter web. Establishes a three-layer testing pyramid (widget tests → integration_test → Maestro) with schema-enforced coverage requirements per artifact.
+
+**Why:** Mark has spent hundreds of hours resolving Flutter UI bugs in eden-ui-flutter — API mismatches, incomplete UX (missing loading/error/empty states), broken pages on render. Current devflow verification is artifact-oriented (file exists, function exported) but UI demands behavior-oriented verification (renders, all async states reachable, contract honored). eden-ui-flutter testing baseline is bare (only `flutter_test` default scaffolding); we're establishing the baseline AND the enforcement layer in devflow.
+
+**Requirements:**
+- REQ-10-01: TRD frontmatter schema extensions for Flutter UI TRDs — new fields `type: ui`, `stack: flutter`, `platform: [mobile, web]`, `state_management`, `api_contract`, plus per-artifact `states:` and `tests: { widget, integration, maestro }`.
+- REQ-10-02: Flutter state-pattern catalog at `references/flutter-state-patterns.md` with regex catalog per state-management library (Riverpod `AsyncValue.when(...)`, Bloc sealed-class State coverage, setState boolean patterns). Consumed by planner + verifier.
+- REQ-10-03: Planner gates — when `/devflow:plan-objective` detects Flutter UI scope (touches `lib/**/*.dart` + pubspec has flutter dep), planner MUST set `type: ui`, `stack: flutter`, `platform:`, detect `state_management:` from imports, demand non-empty `states:` per artifact, demand widget+integration+maestro test paths per artifact. Returns `PLANNING INCONCLUSIVE` if missing.
+- REQ-10-04: Executor gates for Flutter UI TRDs — RED-GREEN ordering enforced (widget tests with all states before widget code), `flutter test` (widget) must pass before task complete, `flutter analyze` clean per task, `flutter test integration_test/ -d <platform>` at end of TRD, `maestro test <flow>` at end of TRD, screenshots from integration_test + Maestro attached to SUMMARY.md as evidence.
+- REQ-10-05: Verifier additions for Flutter UI — reads `states:` per artifact, greps widget test file for state-name patterns per state-management lib regex; re-runs `flutter test integration_test/` + Maestro flows; for `api_contract:`, compares current contract SHA vs plan-time SHA; flags drift as advisory; optional static scan for missing `Semantics()` wrappers.
+- REQ-10-06: UAT script auto-generation — `/devflow:verify-work` generates a 1-page UAT checklist from the state matrix + Maestro flows; user walks through in ~5 min before marking objective done.
+- REQ-10-07: Graceful bootstrap — first time a project (like eden-ui-flutter) lacks integration_test or Maestro setup, devflow warns + emits a setup task (add `integration_test` to pubspec, create `.maestro/` dir, scaffold first flow) rather than hard-failing. Subsequent runs fail if still missing.
+- REQ-10-08: `api_contract:` SHA pinning + drift detection — reuses sibling-trd-scan / verify-base infrastructure to detect when a referenced proto/openapi file has moved since plan time. Surfaces as advisory in verifier.
+
+**Out of scope:**
+- Adoption work in eden-ui-flutter (separate downstream objective once this devflow process layer ships).
+- Patrol integration (Maestro covers most cases; reserve Patrol if native-dialog automation becomes needed later).
+- Golden test enforcement (too brittle across renderers; allow optional use on design-locked widgets only).
+- Cross-stack work for Rails/ERB UI in eden-biz (separate concern).
+
+**Depends on:** Objective 9
+**TRDs:** 9 plans across 4 waves
+
+TRDs:
+- [ ] 10-01-TRD.md — Frontmatter schema extensions + template docs (REQ-10-01)
+- [ ] 10-02-TRD.md — Flutter state-pattern catalog reference doc (REQ-10-02)
+- [ ] 10-03-TRD.md — flutter-ui-scope detector + planner gate (REQ-10-03)
+- [ ] 10-04a-TRD.md — Flutter UI bootstrap detector lib + df-tools verify subcommand (REQ-10-04, REQ-10-07)
+- [ ] 10-04b-TRD.md — Executor gates for Flutter UI TRDs — per-platform integration_test, Maestro mobile, screenshots (REQ-10-04)
+- [ ] 10-05-TRD.md — Verifier state-coverage + contract drift + orphan detection (REQ-10-05)
+- [ ] 10-06-TRD.md — UAT auto-generation from state matrix + per-platform expansion (REQ-10-06)
+- [ ] 10-07-TRD.md — Dogfood end-to-end integration test (REQ-10-03..07)
+- [ ] 10-08-TRD.md — api-contract.cjs SHA pinning helper (REQ-10-08)
+
 ---
 
 ## Original v1.2 plan — preserved as scope reference (now folded into objectives 10-13 above)

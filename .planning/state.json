@@ -2,9 +2,9 @@
   "current_objective": null,
   "current_job": 0,
   "total_jobs": 0,
-  "progress_pct": 99,
+  "progress_pct": 97,
   "status": "ready_for_verification",
-  "last_activity": "2026-05-06",
+  "last_activity": "2026-05-24",
   "metrics": {
     "jobs_completed": 0,
     "jobs_failed": 0,
@@ -374,6 +374,61 @@
     {
       "objective": "18",
       "summary": "Cache-only preview helpers in init.cjs — _buildCheckTodosPreview reads parsed.now array, _buildAwarenessPreview filters current branch from peer.branches; advisories_warnings always emitted as [] for stable JSON shape",
+      "rationale": null
+    },
+    {
+      "objective": "10-flutter-ui-verification-process",
+      "summary": "10-02: Flutter state-pattern catalog shipped (295 lines); HIGH=blocker/MEDIUM-LOW=advisory model; web verification via flutter drive (not Maestro, mobile-only-by-design due to #2591); setState patterns never block",
+      "rationale": null
+    },
+    {
+      "objective": "10-flutter-ui-verification-process",
+      "summary": "Tests assert actual extractFrontmatter parser output for nested-object-in-block-array fields (api_contract, artifacts): parser captures dash-prefixed items as strings, not structured objects. Tests document this behavior accurately per TRD error recovery guidance.",
+      "rationale": null
+    },
+    {
+      "objective": "10-flutter-ui-verification-process",
+      "summary": "FRONTMATTER_SCHEMAS.trd.required left unchanged at 8 fields — Flutter UI field enforcement is semantic (planner emits PLANNING INCONCLUSIVE), not schema-based. Case 12 regression guard protects this.",
+      "rationale": null
+    },
+    {
+      "objective": "10-flutter-ui-verification-process",
+      "summary": "platform: [mobile, web] documented as canonical DEFAULT for Flutter UI TRDs. tests.maestro is mobile-only BY DESIGN (upstream issue mobile-dev-inc/maestro#2591). tests.integration is single path used by both platforms via different drivers.",
+      "rationale": null
+    },
+    {
+      "objective": "10",
+      "summary": "derivePlatform always returns ['mobile', 'web'] — no pubspec.platforms.web gating (user correction 2026-05-24)",
+      "rationale": null
+    },
+    {
+      "objective": "10",
+      "summary": "Planner break_into_tasks now invokes detect flutter-ui-scope and emits PLANNING INCONCLUSIVE on missing type=ui fields (states/tests.widget/tests.integration/tests.maestro)",
+      "rationale": null
+    },
+    {
+      "objective": "10",
+      "summary": "SETUP_TASK_TEMPLATE extracted as top-level constant in flutter-ui-bootstrap.cjs for legibility; marker path is per-project (.planning/.flutter-ui-bootstrap-done inside projectDir); test_driver/integration_test.dart scaffold embedded verbatim in setup_task for single-source-of-truth",
+      "rationale": null
+    },
+    {
+      "objective": "10-flutter-ui-verification-process",
+      "summary": "TRD 10-04b: Maestro is mobile-only BY DESIGN in executor gates — no maestro_web opt-in; web verification via flutter drive --driver=test_driver/integration_test.dart",
+      "rationale": null
+    },
+    {
+      "objective": "10-flutter-ui-verification-process",
+      "summary": "TRD 10-04b: Bootstrap detector invoked in load_project_state (before task execution per Pitfall #10); flutter analyze uses baseline-diff not exit-code gate to avoid pre-existing warning false negatives",
+      "rationale": null
+    },
+    {
+      "objective": "10",
+      "summary": "Used YAML-key-first parsing strategy in loadCatalog: each yaml block's first line identifies the library — more robust than heading-matching",
+      "rationale": null
+    },
+    {
+      "objective": "10",
+      "summary": "setState patterns are all MEDIUM/LOW so setState misses route to advisories not blockers, matching flutter-state-patterns.md confidence model",
       "rationale": null
     }
   ],

@@ -46,6 +46,17 @@ STATE.md stays lean; this file grows over time.
 - [Objective 18]: bootstrapObjectiveMd mirrors bootstrapProjectMd return shape { applied, added_fields, path, reason } — consistent contract across all bootstrap helpers
 - [Objective 18]: backfillAllObjectives uses sorted fs.readdirSync for cross-platform determinism; per-dir try/catch with errors[] aggregation
 - [Objective 18]: Cache-only preview helpers in init.cjs — _buildCheckTodosPreview reads parsed.now array, _buildAwarenessPreview filters current branch from peer.branches; advisories_warnings always emitted as [] for stable JSON shape
+- [Objective 10-flutter-ui-verification-process]: 10-02: Flutter state-pattern catalog shipped (295 lines); HIGH=blocker/MEDIUM-LOW=advisory model; web verification via flutter drive (not Maestro, mobile-only-by-design due to #2591); setState patterns never block
+- [Objective 10-flutter-ui-verification-process]: Tests assert actual extractFrontmatter parser output for nested-object-in-block-array fields (api_contract, artifacts): parser captures dash-prefixed items as strings, not structured objects. Tests document this behavior accurately per TRD error recovery guidance.
+- [Objective 10-flutter-ui-verification-process]: FRONTMATTER_SCHEMAS.trd.required left unchanged at 8 fields — Flutter UI field enforcement is semantic (planner emits PLANNING INCONCLUSIVE), not schema-based. Case 12 regression guard protects this.
+- [Objective 10-flutter-ui-verification-process]: platform: [mobile, web] documented as canonical DEFAULT for Flutter UI TRDs. tests.maestro is mobile-only BY DESIGN (upstream issue mobile-dev-inc/maestro#2591). tests.integration is single path used by both platforms via different drivers.
+- [Objective 10]: derivePlatform always returns ['mobile', 'web'] — no pubspec.platforms.web gating (user correction 2026-05-24)
+- [Objective 10]: Planner break_into_tasks now invokes detect flutter-ui-scope and emits PLANNING INCONCLUSIVE on missing type=ui fields (states/tests.widget/tests.integration/tests.maestro)
+- [Objective 10]: SETUP_TASK_TEMPLATE extracted as top-level constant in flutter-ui-bootstrap.cjs for legibility; marker path is per-project (.planning/.flutter-ui-bootstrap-done inside projectDir); test_driver/integration_test.dart scaffold embedded verbatim in setup_task for single-source-of-truth
+- [Objective 10-flutter-ui-verification-process]: TRD 10-04b: Maestro is mobile-only BY DESIGN in executor gates — no maestro_web opt-in; web verification via flutter drive --driver=test_driver/integration_test.dart
+- [Objective 10-flutter-ui-verification-process]: TRD 10-04b: Bootstrap detector invoked in load_project_state (before task execution per Pitfall #10); flutter analyze uses baseline-diff not exit-code gate to avoid pre-existing warning false negatives
+- [Objective 10]: Used YAML-key-first parsing strategy in loadCatalog: each yaml block's first line identifies the library — more robust than heading-matching
+- [Objective 10]: setState patterns are all MEDIUM/LOW so setState misses route to advisories not blockers, matching flutter-state-patterns.md confidence model
 
 ## Performance Metrics
 
@@ -61,4 +72,8 @@ STATE.md stays lean; this file grows over time.
 | Objective 16 P01 | 9min | 3 tasks | 3 files |
 | Objective 17-phase-c-auto-init P04 | 5min | 2 tasks | 4 files |
 | Objective 18 P18-01 | 6 | 3 tasks | 20 files |
+| Objective 10-flutter-ui-verification-process P01 | 9 | 2 tasks | 2 files |
+| Objective 10 P03 | 13min | 2 tasks | 7 files |
+| Objective 10 P10-04a | 7min | 2 tasks | 3 files |
+| Objective 10 P05 | 12min | 2 tasks | 8 files |
 
