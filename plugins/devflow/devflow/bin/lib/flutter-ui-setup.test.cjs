@@ -328,6 +328,40 @@ test.describe('cmdFlutterUISetup integration (TRD 10-09 cases 6-10)', () => {
     assert.strictEqual(payload.bootstrap.action, 'warn');
   });
 
+  test('Case 11 — bootstrap-chain-no-daemon: all tools present + NO daemon + bootstrap-needed → JSON includes bootstrap matching checkBootstrapState (daemon NOT required for bootstrap)', () => {
+    // Common adoption scenario: user has tools already, daemon not running, project needs bootstrap.
+    // Bootstrap is a pure-detector + setup_task emission — it does NOT need the daemon.
+    const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'flutter-ui-setup-HOME-nodaemon-'));
+    // NO pid file written — daemon NOT running.
+
+    // PATH that satisfies all 3 required tools — nothing to install.
+    const tmpPath = buildFakePATH({ jq: true, maestro: true, chromedriver: true });
+
+    // Bare project root: bootstrap detector should report action:'warn' + setup_task.
+    const projTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'flutter-ui-setup-projparent-nodaemon-'));
+    const projectRoot = buildBootstrapTarget(projTmp, {}); // no pubspec, no dirs, no marker
+
+    const res = spawnSetup({
+      home: tmpHome,
+      pathDir: tmpPath,
+      cwd: projectRoot,
+      extraArgs: ['--raw'],
+    });
+
+    assert.strictEqual(res.status, 0,
+      `expected exit 0 (all tools present, bootstrap chain runs); got ${res.status}. stderr: ${res.stderr}`);
+    const payload = JSON.parse(String(res.stdout));
+    assert.ok(payload.bootstrap,
+      `expected payload.bootstrap to be present in no-daemon-but-tools-present case; got: ${JSON.stringify(payload)}`);
+
+    // Compare against the pure-function checkBootstrapState for the same project.
+    const { checkBootstrapState } = require('./flutter-ui-bootstrap.cjs');
+    const expectedBootstrap = checkBootstrapState({ projectDir: projectRoot });
+    assert.deepStrictEqual(payload.bootstrap, expectedBootstrap);
+    // Sanity: this fixture should warn (no marker + missing infra).
+    assert.strictEqual(payload.bootstrap.action, 'warn');
+  });
+
   test('Case 9 — print-only-flag: live daemon + --print-only → zero handoff records written, plan printed', () => {
     const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'flutter-ui-setup-HOME-printonly-'));
     buildFakePidFile(tmpHome, { live: true });
