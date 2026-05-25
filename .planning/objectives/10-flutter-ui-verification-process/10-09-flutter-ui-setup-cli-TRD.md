@@ -22,6 +22,7 @@ overrides:
 must_haves:
   truths:
     - "`df-tools flutter-ui setup` subcommand exists and is reachable from `node bin/df-tools.cjs flutter-ui setup --help` (or with no args) without throwing on unknown command"
+    - "Flutter-repo gate: when cwd is NOT a Flutter UI repo (no pubspec.yaml OR no `flutter: sdk: flutter` dep OR no `lib/` dir OR Flutter version constraint below 3.16.0), CLI emits `status:'not-a-flutter-project'` with `failures[]` array + exits 1 BEFORE detecting tools, dispatching installs, or scaffolding. DevFlow does NOT install Flutter tooling into unrelated directories — each consuming repo owns its own tooling install path."
     - "Running setup against a fresh project with NO tools installed (jq, maestro, chromedriver per detector) produces an ordered install plan that names each missing tool; running against a project where all 3 tools are present produces an empty install plan"
     - "Install plan is platform-aware (advisory): darwin returns `brew install …` shaped commands; linux returns `apt-get install …` shaped commands"
     - "When devflow-watch daemon IS running (PID file present + process live), `flutter-ui setup` dispatches each install via the existing handoff watcher by writing a pending record to `.devflow-handoff/pending/*.json` whose shape matches `validateInputsSchema` (record validates as `{ ok:true }` against the schema)"

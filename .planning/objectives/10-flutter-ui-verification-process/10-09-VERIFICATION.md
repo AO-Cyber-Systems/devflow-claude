@@ -152,3 +152,44 @@ EXIT=0. The setup_task is now surfaced for the executor to apply, fulfilling the
 
 _Re-verified: 2026-05-25 (second correction)_
 _Verifier: Claude (verifier)_
+
+---
+
+## Third Correction (2026-05-25, same dogfood session — architecture gap)
+
+After the maestro/URL/bootstrap-chain fixes, the user surfaced a **5th finding** — an architectural scope bug:
+
+> "Maestro isn't for devflow it is on the repository that has flutter (so any UI repo)"
+
+**Root cause:** TRD 10-09 had no Flutter-repo guard. `cmdFlutterUISetup` would happily install chromedriver/maestro/jq via the handoff watcher from ANY directory — pollution risk + wrong architecture. DevFlow's job is to *detect + scaffold + dispatch* when the consuming repo is verifiably a Flutter UI repo; the consuming repo (eden-ui-flutter, future UI verticals) owns its own toolchain install path.
+
+**Fix (4 commits on this branch after second correction):**
+- `f0f4a2e` `test(10-09): add Flutter-repo gate tests (Cases 12a-f detector + Case 13 CLI guard) (RED)` — 7 new RED tests for `detectFlutterRepo` (6 detector cases + 1 integration gate case)
+- `49d66b4` `feat(10-09): add Flutter-repo gate; refuse non-Flutter cwd (GREEN)` — new `detectFlutterRepo(opts)` exported helper composing 4 checks (pubspec existence, `flutter: sdk: flutter` dep, `lib/` dir, environment.flutter version >= 3.16.0); gate wired as FIRST step in `cmdFlutterUISetup` returning `status:'not-a-flutter-project'` + `failures[]` + exit 1 when guard fails; `buildBootstrapTarget` fixture updated to always create Flutter shape so existing integration tests still pass
+
+**Re-verification:** 23/23 tests pass after fix. Live dogfood:
+
+```
+$ cd /tmp && df-tools flutter-ui setup --raw
+{"status":"not-a-flutter-project","cwd":"/private/tmp",
+ "checks":{"pubspec":false,"flutterDep":false,"libDir":false,"minVersion":null},
+ "failures":["no pubspec.yaml at /private/tmp/pubspec.yaml ...",
+             "no 'lib/' directory at /private/tmp/lib ..."]}
+EXIT=1
+
+$ cd eden-libs/eden-ui-flutter && df-tools flutter-ui setup --raw
+{"status":"already-set-up","bootstrap":{"ready":true,"action":"skip"}}
+EXIT=0
+```
+
+**Why this is the deepest of the 5 dogfood findings:** The first 3 (gh→maestro, URL, daemon coupling) were value/logic bugs. This one is an **architectural scope bug** — the TRD's whole premise of "one-command adoption" didn't account for the cwd guard. The planner inferred "install Flutter tooling" as scope from the user-facing description without considering DevFlow's blast radius. Test fixtures couldn't catch this — they were never asked to assert "refuse to operate outside a Flutter repo" because the TRD never said so.
+
+**Workflow impediment (4th item, for devflow-claude backlog):**
+4. **Planner-prompt scope gating:** TRDs that operate on the user's filesystem must explicitly enumerate WHERE they're allowed to run, not just WHAT they do. Recommendation: planner prompt template should require a "this command is valid only when {cwd-shape conditions}" section, and the test_list must include at least one "command refuses to run when {valid cwd-shape} is absent" test per such TRD.
+
+`status:` remains `passed` (10/10 must_haves + Case 11 + Cases 12a-f + Case 13 verified). All 5 dogfood findings are fixed atomically.
+
+---
+
+_Re-verified: 2026-05-25 (third correction — Flutter-repo gate)_
+_Verifier: Claude (verifier)_
