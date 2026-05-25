@@ -19,6 +19,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 // ───── detectMissingTools ────────────────────────────────────────────────────
 
@@ -84,6 +85,54 @@ function formatInstallCommand(tool, platform) {
   }
   // Unsupported platform — emit advisory comment so the human knows to install manually.
   return `# manual install required: ${tool}`;
+}
+
+// ───── dispatchInstalls ──────────────────────────────────────────────────────
+
+/**
+ * Write a pending handoff record for each command in the plan. The daemon
+ * (devflow-watch) consumes these records via filesystem watch and executes the
+ * shell commands in the user's interactive PTY session.
+ *
+ * Record shape matches handoff.cjs::validateInputsSchema expectations (the
+ * `inputs` field is omitted entirely — installs don't need token-passing, so the
+ * empty-secrets case is the canonical no-op for schema validation).
+ *
+ * @param {string[]} plan       — install commands (each a shell string)
+ * @param {object} opts
+ * @param {string} opts.pendingDir — absolute path to .devflow-handoff/pending/
+ * @param {string} opts.cwd       — cwd the daemon should execute commands in
+ * @returns {{ dispatched: number, ids: string[] }}
+ */
+function dispatchInstalls(plan, opts) {
+  const o = opts || {};
+  const pendingDir = o.pendingDir;
+  const cwd = o.cwd;
+  if (!Array.isArray(plan)) throw new TypeError('dispatchInstalls: plan must be an array');
+  if (!pendingDir) throw new TypeError('dispatchInstalls: opts.pendingDir required');
+  if (!cwd) throw new TypeError('dispatchInstalls: opts.cwd required');
+
+  const ids = [];
+  for (const cmd of plan) {
+    const id = newHandoffId();
+    const record = {
+      id,
+      cmd,
+      cwd,
+      status: 'pending',
+      created_at: new Date().toISOString(),
+      // No `inputs` — these installs don't need token-passing. handoff.validateInputsSchema
+      // treats the absent/empty-secrets case as ok:true (see handoff.cjs lines 31-36).
+    };
+    const filePath = path.join(pendingDir, `${id}.json`);
+    fs.writeFileSync(filePath, JSON.stringify(record, null, 2) + '\n');
+    ids.push(id);
+  }
+  return { dispatched: plan.length, ids };
+}
+
+function newHandoffId() {
+  return 'h-' + crypto.randomBytes(4).toString('hex');
 }
 
 // ───── cmdFlutterUISetup (CLI entry point — stub for now) ────────────────────
@@ -154,5 +203,6 @@ function emit(payload, raw) {
 module.exports = {
   detectMissingTools,
   buildInstallPlan,
+  dispatchInstalls,
   cmdFlutterUISetup,
 };
