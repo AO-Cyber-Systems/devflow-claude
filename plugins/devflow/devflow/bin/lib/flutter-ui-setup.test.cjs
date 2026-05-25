@@ -167,6 +167,45 @@ test.describe('buildInstallPlan (TRD 10-09 cases 3-4)', () => {
 
 });
 
+// ───── Integration test helpers (subprocess invocation) ─────────────────────
+
+const DF_TOOLS = path.join(__dirname, '..', 'df-tools.cjs');
+
+/**
+ * Spawn `node df-tools.cjs flutter-ui setup [...args]` as a fresh subprocess.
+ * Controls HOME (for PID-file resolution) and PATH (for tool detection).
+ *
+ * opts:
+ *   home    — value to set as HOME env var (default: a brand-new empty tmpdir)
+ *   pathDir — single PATH entry (default: a brand-new empty tmpdir — no tools)
+ *   cwd     — working directory for the subprocess (default: tmpEmpty)
+ *   extraArgs — additional CLI args after 'flutter-ui setup'
+ *   stdinClosed — when true, set stdio:'pipe' and immediately end stdin
+ */
+function spawnSetup(opts) {
+  const o = opts || {};
+  const tmpHome = o.home || fs.mkdtempSync(path.join(os.tmpdir(), 'flutter-ui-setup-HOME-'));
+  const tmpPath = o.pathDir || buildFakePATH({}); // empty PATH → all tools missing
+  const cwd = o.cwd || tmpHome;
+  const args = ['flutter-ui', 'setup', ...(o.extraArgs || [])];
+  const env = {
+    ...process.env,
+    HOME: tmpHome,
+    PATH: tmpPath,
+    // Watcher-state honors DEVFLOW_HANDOFF_PID_FILE override; clear it so HOME-derived path wins.
+    DEVFLOW_HANDOFF_PID_FILE: '',
+  };
+  const result = spawnSync(process.execPath, [DF_TOOLS, ...args], {
+    cwd,
+    env,
+    encoding: 'utf-8',
+    stdio: o.stdinClosed ? ['pipe', 'pipe', 'pipe'] : ['ignore', 'pipe', 'pipe'],
+    input: o.stdinClosed ? '' : undefined,
+    timeout: 10000,
+  });
+  return result;
+}
+
 test.describe('dispatchInstalls (TRD 10-09 case 5)', () => {
 
   test('Case 5 — dispatch-shape-valid: N plan items → N pending JSON files, each schema-valid', () => {
@@ -201,6 +240,27 @@ test.describe('dispatchInstalls (TRD 10-09 case 5)', () => {
       const v = validateInputsSchema(inputs);
       assert.strictEqual(v.ok, true, `validateInputsSchema rejected: ${v.reason || '(no reason)'}`);
     }
+  });
+
+});
+
+test.describe('cmdFlutterUISetup integration (TRD 10-09 cases 6-10)', () => {
+
+  test('Case 6 — fallback-no-daemon: NO pid file + missing tools → stdout has shell commands AND exit 1', () => {
+    const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'flutter-ui-setup-HOME-empty-'));
+    // No pid file written — daemon NOT running.
+    const tmpPath = buildFakePATH({}); // all tools missing
+    const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'flutter-ui-setup-proj-'));
+
+    const res = spawnSetup({ home: tmpHome, pathDir: tmpPath, cwd: projectRoot });
+
+    assert.strictEqual(res.status, 1, `expected exit code 1 (no-daemon fallback); got ${res.status}. stderr: ${res.stderr}`);
+    // Non-raw default output is human-friendly newline-separated commands.
+    // We expect at least one platform-shaped command line in stdout.
+    const stdout = String(res.stdout || '');
+    const looksLikeInstallLine = /^(brew install |sudo apt-get install -y |# manual install required: )/m;
+    assert.match(stdout, looksLikeInstallLine,
+      `expected stdout to contain a shell install command; stdout was:\n${stdout}`);
   });
 
 });
