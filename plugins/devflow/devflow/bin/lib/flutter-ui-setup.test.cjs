@@ -312,6 +312,64 @@ test.describe('cmdFlutterUISetup integration (TRD 10-09 cases 6-10)', () => {
     assert.strictEqual(payload.bootstrap.action, 'warn');
   });
 
+  test('Case 9 — print-only-flag: live daemon + --print-only → zero handoff records written, plan printed', () => {
+    const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'flutter-ui-setup-HOME-printonly-'));
+    buildFakePidFile(tmpHome, { live: true });
+
+    const tmpPath = buildFakePATH({}); // all tools missing → plan is non-empty
+    const projTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'flutter-ui-setup-projparent-printonly-'));
+    const projectRoot = buildBootstrapTarget(projTmp, {});
+
+    const res = spawnSetup({
+      home: tmpHome,
+      pathDir: tmpPath,
+      cwd: projectRoot,
+      extraArgs: ['--print-only'],
+    });
+
+    // --print-only with non-empty plan exits 1 (signals tools missing). The
+    // contract for case 9 is "no handoff records written" — exit code is
+    // covered by case 6's fallback contract.
+    assert.notStrictEqual(res.status, null, `subprocess did not run; signal=${res.signal}, stderr=${res.stderr}`);
+
+    // Zero handoff records on disk despite live daemon.
+    const pendingDir = path.join(projectRoot, '.devflow-handoff', 'pending');
+    const records = fs.existsSync(pendingDir)
+      ? fs.readdirSync(pendingDir).filter((f) => f.endsWith('.json'))
+      : [];
+    assert.strictEqual(records.length, 0,
+      `expected zero handoff records with --print-only; found ${records.length}: ${records.join(', ')}`);
+
+    // Stdout has shell-runnable command lines.
+    const stdout = String(res.stdout || '');
+    assert.match(stdout, /^(brew install |sudo apt-get install -y |# manual install required: )/m,
+      `expected an install command line in stdout; got:\n${stdout}`);
+  });
+
+  test('Case 10 — auto-flag-no-prompts: --auto + closed stdin → subprocess completes without blocking', () => {
+    const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'flutter-ui-setup-HOME-auto-'));
+    // No pid file → no-daemon path → no chance of interactive prompt.
+    const tmpPath = buildFakePATH({});
+    const projTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'flutter-ui-setup-projparent-auto-'));
+    const projectRoot = buildBootstrapTarget(projTmp, {});
+
+    const res = spawnSetup({
+      home: tmpHome,
+      pathDir: tmpPath,
+      cwd: projectRoot,
+      extraArgs: ['--auto', '--raw'],
+      stdinClosed: true,
+    });
+
+    // Completed (didn't time out / hang).
+    assert.notStrictEqual(res.signal, 'SIGTERM', `subprocess timed out — likely blocked on stdin`);
+    assert.ok(res.status !== null, `expected a numeric exit code; got null (signal=${res.signal})`);
+
+    // --raw output should be parseable JSON containing the flags echo.
+    const payload = JSON.parse(String(res.stdout));
+    assert.strictEqual(payload.flags.auto, true);
+  });
+
   test('Case 6 — fallback-no-daemon: NO pid file + missing tools → stdout has shell commands AND exit 1', () => {
     const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'flutter-ui-setup-HOME-empty-'));
     // No pid file written — daemon NOT running.
