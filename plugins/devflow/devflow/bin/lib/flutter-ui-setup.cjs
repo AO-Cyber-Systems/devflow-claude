@@ -209,13 +209,13 @@ function cmdFlutterUISetup(cwd, args, raw) {
     process.stderr.write(`[advisory] stale devflow-watch PID file at ${watcherState.pidFilePath()}; treating as not-running\n`);
   }
 
-  // ── Print-only OR daemon-down path: print commands + exit nonzero (1) when
-  //    there is anything to install; exit 0 with status:'ok' otherwise.
-  if (flags.print_only || !daemonLive) {
+  // ── Print-only path: print plan + exit. NEVER side-effects (no dispatch, no
+  //    bootstrap chain). Plan-empty → exit 0; plan-non-empty → exit 1 (signals
+  //    human action required).
+  if (flags.print_only) {
     if (raw) {
-      emit({ status: daemonLive ? 'print-only' : 'no-daemon', platform, missing: stillMissing, plan, flags }, raw);
+      emit({ status: 'print-only', platform, missing: stillMissing, plan, flags }, raw);
     } else {
-      // Human-friendly: one command per line. Empty plan → friendly note.
       if (plan.length === 0) {
         process.stdout.write('# all required tools already installed\n');
       } else {
@@ -225,17 +225,33 @@ function cmdFlutterUISetup(cwd, args, raw) {
     process.exit(plan.length === 0 ? 0 : 1);
   }
 
+  // ── No daemon + something to install: can't proceed via handoff. Print
+  //    commands to stdout + exit 1 (signals caller that human action required).
+  //    Bootstrap chain skipped here because installs are unmet prerequisites —
+  //    no point scaffolding a project that doesn't yet have the tools to verify it.
+  if (!daemonLive && plan.length > 0) {
+    if (raw) {
+      emit({ status: 'no-daemon', platform, missing: stillMissing, plan, flags }, raw);
+    } else {
+      for (const cmd of plan) process.stdout.write(cmd + '\n');
+    }
+    process.exit(1);
+  }
+
   // ── Daemon-live path: dispatch via handoff records (only if plan non-empty).
+  //    When daemon is down and plan is empty, this block is a no-op and we fall
+  //    through to bootstrap — daemon is NOT required for bootstrap scaffolding.
   let dispatch = { dispatched: 0, ids: [] };
-  if (plan.length > 0) {
+  if (daemonLive && plan.length > 0) {
     const pendingDir = path.join(cwd, '.devflow-handoff', 'pending');
     fs.mkdirSync(pendingDir, { recursive: true });
     dispatch = dispatchInstalls(plan, { pendingDir, cwd });
   }
 
-  // ── Chain into the existing bootstrap detector. Lazy-require so the module
-  //    is only loaded when the daemon-live path runs (the no-daemon path doesn't
-  //    need it). Forwards the bootstrap result unchanged on the same JSON output.
+  // ── Bootstrap chain runs whenever tools are present (with or without daemon)
+  //    OR whenever daemon dispatched the installs. Lazy-require keeps the module
+  //    out of the no-daemon-missing-tools fast path above. Forwards the bootstrap
+  //    result unchanged on the same JSON output.
   const { checkBootstrapState } = require('./flutter-ui-bootstrap.cjs');
   const bootstrap = checkBootstrapState({ projectDir: cwd });
 
