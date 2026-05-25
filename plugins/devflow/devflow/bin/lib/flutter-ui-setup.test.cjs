@@ -19,10 +19,10 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
-// RED: import will fail until the next task creates the module.
 const {
   detectMissingTools,
-  // buildInstallPlan, dispatchInstalls, cmdFlutterUISetup — wired in later tasks
+  buildInstallPlan,
+  // dispatchInstalls, cmdFlutterUISetup — wired in later tasks
 } = require('./flutter-ui-setup.cjs');
 
 // ───── Fixture builders (hand-built; no LLM-generated data) ──────────────────
@@ -130,6 +130,36 @@ test.describe('detectMissingTools (TRD 10-09 cases 1-2)', () => {
     const pathDir = buildFakePATH({ jq: true, gh: true, chromedriver: true });
     const missing = detectMissingTools({ pathDir });
     assert.deepStrictEqual(missing, []);
+  });
+
+});
+
+test.describe('buildInstallPlan (TRD 10-09 cases 3-4)', () => {
+
+  test("Case 3 — plan-darwin-brew: missing jq+gh on darwin → ['brew install jq', 'brew install gh'] in input order", () => {
+    const plan = buildInstallPlan({ missing: ['jq', 'gh'], platform: 'darwin' });
+    assert.ok(Array.isArray(plan), 'plan must be an array');
+    assert.strictEqual(plan.length, 2);
+    assert.strictEqual(plan[0], 'brew install jq');
+    assert.strictEqual(plan[1], 'brew install gh');
+  });
+
+  test("Case 3b — plan-darwin-brew: chromedriver on darwin uses --cask flag", () => {
+    const plan = buildInstallPlan({ missing: ['chromedriver'], platform: 'darwin' });
+    assert.strictEqual(plan.length, 1);
+    assert.strictEqual(plan[0], 'brew install --cask chromedriver');
+  });
+
+  test("Case 4 — plan-linux-apt: missing jq+gh on linux → 'sudo apt-get install -y <tool>' per item, input order preserved", () => {
+    const plan = buildInstallPlan({ missing: ['jq', 'gh'], platform: 'linux' });
+    assert.strictEqual(plan.length, 2);
+    assert.strictEqual(plan[0], 'sudo apt-get install -y jq');
+    assert.strictEqual(plan[1], 'sudo apt-get install -y gh');
+  });
+
+  test("Case 4b — empty missing → empty plan, any platform", () => {
+    assert.deepStrictEqual(buildInstallPlan({ missing: [], platform: 'darwin' }), []);
+    assert.deepStrictEqual(buildInstallPlan({ missing: [], platform: 'linux' }), []);
   });
 
 });
