@@ -165,6 +165,30 @@ function cmdFlutterUISetup(cwd, args, raw) {
   const stillMissing = detectMissingAcrossPath(required);
   const plan = buildInstallPlan({ missing: stillMissing, platform });
 
+  // ── Idempotency short-circuit (must run BEFORE any handoff dispatch):
+  //    all tools present AND .planning/.flutter-ui-bootstrap-done marker present
+  //    AND bootstrap detector reports action:'skip' → exit 0 with status:'already-set-up'.
+  //    Note: --print-only intentionally bypasses this short-circuit so the user
+  //    can always preview the plan (which will be empty in this case).
+  if (!flags.print_only && stillMissing.length === 0) {
+    const markerPath = path.join(cwd, '.planning', '.flutter-ui-bootstrap-done');
+    if (fs.existsSync(markerPath)) {
+      const { checkBootstrapState: peek } = require('./flutter-ui-bootstrap.cjs');
+      const peeked = peek({ projectDir: cwd });
+      if (peeked.action === 'skip') {
+        emit({
+          status: 'already-set-up',
+          platform,
+          missing: [],
+          plan: [],
+          flags,
+          bootstrap: peeked,
+        }, raw);
+        process.exit(0);
+      }
+    }
+  }
+
   // ── Daemon detection (lazy require so this module loads cleanly in unit tests
   //    that never touch the daemon path).
   const watcherState = require('./watcher-state.cjs');
