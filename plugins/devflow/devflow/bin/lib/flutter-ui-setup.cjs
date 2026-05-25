@@ -83,7 +83,7 @@ function buildInstallPlan(opts) {
 function formatInstallCommand(tool, platform) {
   // maestro distributes via a platform-agnostic curl installer — no brew formula or apt package.
   // Same command on darwin and linux. See https://maestro.mobile.dev/getting-started/installing-maestro
-  if (tool === 'maestro') return 'curl -fsSL "https://get.maestro.dev" | bash';
+  if (tool === 'maestro') return 'curl -fsSL "https://get.maestro.mobile.dev" | bash';
   if (platform === 'darwin') {
     // chromedriver is a cask on Homebrew, not a formula.
     if (tool === 'chromedriver') return 'brew install --cask chromedriver';
