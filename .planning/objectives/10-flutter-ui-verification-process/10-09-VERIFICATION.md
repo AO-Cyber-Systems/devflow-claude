@@ -102,3 +102,53 @@ EXIT=1
 _Verified: 2026-05-25_
 _Corrected: 2026-05-25 (dogfood)_
 _Verifier: Claude (verifier)_
+
+---
+
+## Second Correction (2026-05-25, same dogfood session)
+
+After the maestro-tool fix, end-to-end dogfood surfaced two more TRD-encoded bugs:
+
+**Bug A: Wrong Maestro installer URL.** TRD truth #6 + test cases said `https://get.maestro.dev` — DNS doesn't resolve. Correct URL per Maestro docs is `https://get.maestro.mobile.dev`.
+
+**Bug B: Bootstrap chain skipped in the common adoption case.** Original `cmdFlutterUISetup` flow:
+```
+if (flags.print_only || !daemonLive) { print/exit BEFORE bootstrap }
+```
+This conflated "no daemon" with "skip bootstrap" — wrong, because bootstrap (`checkBootstrapState`) is a pure detector + setup_task emitter that does NOT need the daemon. The common adoption case (user already has the tools, daemon not running) hit this branch and exited 0 WITHOUT scaffolding the target project.
+
+**Fix (4 commits on this branch after first correction):**
+- `4d5c932` `test(10-09): expect get.maestro.mobile.dev (correct URL) (RED)` — 2 failing tests (Case 3c + 4c URL expectation)
+- `376a6bb` `feat(10-09): correct maestro installer URL to get.maestro.mobile.dev (GREEN)` — single-line URL change in `formatInstallCommand`
+- `866ac14` `test(10-09): add Case 11 — bootstrap-chain runs when tools present + no daemon (RED)` — new test asserting `payload.bootstrap` present in no-daemon-tools-present case
+- `b92fe3c` `feat(10-09): chain bootstrap when tools present regardless of daemon state (GREEN)` — restructured cmdFlutterUISetup into 4 explicit branches: print-only (no side-effects), no-daemon+missing-tools (print+exit 1, no bootstrap), daemon-live (dispatch if needed) + bootstrap chain ALWAYS when reachable
+
+**Re-verification:** 16/16 tests pass after fix (added Case 11). Live dogfood from `eden-libs/eden-ui-flutter/` with all tools present + no daemon now correctly returns:
+```json
+{
+  "status": "tools-ready",
+  "missing": [],
+  "plan": [],
+  "bootstrap": {
+    "ready": false,
+    "missing": ["integration_test_dep", "integration_test_dir", "maestro_dir"],
+    "action": "warn",
+    "setup_task": "<task ...>...full XML setup_task block...</task>"
+  }
+}
+```
+EXIT=0. The setup_task is now surfaced for the executor to apply, fulfilling the one-command adoption promise.
+
+**Cumulative TRD 10-09 patch history: 3 bugs found via dogfood, 3 fixed.** Pattern across all 3: planner-generated TRD test_list encoded specific values (`gh` instead of `maestro`, `get.maestro.dev` instead of `get.maestro.mobile.dev`, `if !daemonLive` instead of `if !daemonLive && plan.length > 0`) that the executor faithfully implemented, and the hand-built fixture tests validated those values rather than the underlying intent. The end-to-end dogfood was the only surface that caught all three.
+
+**Workflow impediment (consolidated, for devflow-claude backlog):**
+1. Planner prompt enumerated 1 example tool — planner backfilled the rest. **Recommendation:** require planner prompts to either enumerate the canonical list OR explicitly mark the example as "name 1 of N, planner must research the rest."
+2. URLs/version-pinned values not verified at plan time. **Recommendation:** planner should HTTP-HEAD verify URLs before encoding them in TRD test_list (cheap CLI step).
+3. Conditional logic in TRDs not pressure-tested against the common-case state matrix. **Recommendation:** for any TRD with a conditional branch, planner must enumerate the cell matrix (e.g. `{daemon: live|down} × {plan: empty|non-empty}`) and write a truth + test per cell.
+
+`status:` remains `passed` (10/10 must_haves + Case 11 verified). Original verification structurally correct against TRD-as-written; both corrections were TRD-encoding bugs.
+
+---
+
+_Re-verified: 2026-05-25 (second correction)_
+_Verifier: Claude (verifier)_
