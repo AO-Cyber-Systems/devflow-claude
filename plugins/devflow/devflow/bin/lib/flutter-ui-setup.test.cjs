@@ -161,7 +161,7 @@ test.describe('buildInstallPlan (TRD 10-09 cases 3-4)', () => {
   test("Case 3c — plan-darwin-maestro: maestro on darwin uses curl installer (no brew formula or cask)", () => {
     const plan = buildInstallPlan({ missing: ['maestro'], platform: 'darwin' });
     assert.strictEqual(plan.length, 1);
-    assert.strictEqual(plan[0], 'curl -fsSL "https://get.maestro.dev" | bash');
+    assert.strictEqual(plan[0], 'curl -fsSL "https://get.maestro.mobile.dev" | bash');
   });
 
   test("Case 4 — plan-linux-apt: missing jq on linux → 'sudo apt-get install -y jq', input order preserved", () => {
@@ -173,7 +173,7 @@ test.describe('buildInstallPlan (TRD 10-09 cases 3-4)', () => {
   test("Case 4c — plan-linux-maestro: maestro on linux uses the same curl installer (platform-agnostic)", () => {
     const plan = buildInstallPlan({ missing: ['maestro'], platform: 'linux' });
     assert.strictEqual(plan.length, 1);
-    assert.strictEqual(plan[0], 'curl -fsSL "https://get.maestro.dev" | bash');
+    assert.strictEqual(plan[0], 'curl -fsSL "https://get.maestro.mobile.dev" | bash');
   });
 
   test("Case 4b — empty missing → empty plan, any platform", () => {
