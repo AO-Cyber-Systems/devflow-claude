@@ -226,7 +226,7 @@ async function main() {
   const cwd = process.cwd();
 
   if (!command) {
-    error('Usage: df-tools <command> [args] [--raw]\nCommands: state, resolve-model, find-objective, commit, verify-summary, verify, detect, frontmatter, template, generate-slug, current-timestamp, list-todos, verify-path-exists, config-ensure-section, awareness, init');
+    error('Usage: df-tools <command> [args] [--raw]\nCommands: state, resolve-model, find-objective, commit, verify-summary, verify, detect, frontmatter, template, generate-slug, current-timestamp, list-todos, verify-path-exists, config-ensure-section, awareness, benchmark, planning, init');
   }
 
   switch (command) {
@@ -838,6 +838,62 @@ async function main() {
 
     case 'org-awareness': {
       cmdOrgAwarenessRoute(cwd, args.slice(1), raw);
+      break;
+    }
+
+    case 'planning': {
+      const sub = args[1];
+      if (sub === 'sibling-trd-scan') {
+        const objective_id = args[2];
+        if (!objective_id) {
+          process.stderr.write('Usage: df-tools planning sibling-trd-scan <objective-num> [--raw]\n');
+          process.exit(1);
+        }
+        const oa = require('./lib/org-awareness.cjs');
+        // Read .planning/config.json awareness.sibling_repos (matches org-awareness-cli.cjs pattern)
+        let config_paths = null;
+        try {
+          const fsBase = require('fs');
+          const pathBase = require('path');
+          const cfgPath = pathBase.join(cwd, '.planning', 'config.json');
+          const cfgRaw = fsBase.readFileSync(cfgPath, 'utf-8');
+          const cfg = JSON.parse(cfgRaw);
+          if (cfg && cfg.awareness && Array.isArray(cfg.awareness.sibling_repos)) {
+            config_paths = cfg.awareness.sibling_repos;
+          }
+        } catch {
+          // missing/malformed config — pass null, scanSiblingTrds emits the documented warning
+        }
+
+        const result = oa.scanSiblingTrds({ objective_id, cwd, config_paths });
+
+        if (raw) {
+          process.stdout.write(JSON.stringify(result, null, 2) + '\n');
+        } else {
+          // Human-readable
+          process.stdout.write(`scanned ${result.scanned} sibling repo(s)\n`);
+          if (result.matches.length === 0) {
+            process.stdout.write('no matching TRDs found\n');
+          } else {
+            process.stdout.write(`\nmatches (${result.matches.length}):\n`);
+            for (const m of result.matches) {
+              const supTag = m.supersedes ? ` [supersedes: ${m.supersedes}]` : '';
+              const preTag = m.prerequisite_for ? ` [prereq for: ${m.prerequisite_for}]` : '';
+              const conf = m.confidence ? ` (confidence: ${m.confidence})` : '';
+              const files = Array.isArray(m.files_modified) ? m.files_modified.join(', ') : '(none)';
+              process.stdout.write(`  - ${m.trd_path}\n`);
+              process.stdout.write(`      objective=${m.objective || '?'} trd=${m.trd || '?'}${conf}${supTag}${preTag}\n`);
+              process.stdout.write(`      files: ${files}\n`);
+            }
+          }
+          if (result.warnings.length > 0) {
+            process.stdout.write(`\nwarnings:\n`);
+            for (const w of result.warnings) process.stdout.write(`  - ${w}\n`);
+          }
+        }
+        process.exit(0);
+      }
+      error(`Unknown planning subcommand${sub ? ': ' + sub : ''}. Available: sibling-trd-scan`);
       break;
     }
 

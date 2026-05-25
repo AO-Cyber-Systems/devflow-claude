@@ -219,10 +219,12 @@ test('18I8 — Integration: cmdInitExecuteObjective emits check_todos_preview + 
   }
 });
 
-test('FIX-1: init execute-objective triggers backfillAllObjectives, scaffolding missing OBJECTIVE.md files', () => {
+test('FIX-1: init execute-objective triggers bootstrapObjectiveMd scoped to the target objective only', () => {
   const repo = makeFixture({});
   try {
-    // Build .planning with TWO objective dirs, neither has OBJECTIVE.md
+    // Build .planning with TWO objective dirs, neither has OBJECTIVE.md.
+    // Under the scoped contract (quick-4 fix), only the target dir (01-foo)
+    // should be backfilled when running `init execute-objective 1`.
     fs.mkdirSync(path.join(repo, '.planning', 'objectives', '01-foo'), { recursive: true });
     fs.mkdirSync(path.join(repo, '.planning', 'objectives', '02-bar'), { recursive: true });
     fs.writeFileSync(path.join(repo, '.planning', 'config.json'), '{}');
@@ -240,19 +242,31 @@ test('FIX-1: init execute-objective triggers backfillAllObjectives, scaffolding 
     });
     const json = JSON.parse(stdout.trim());
 
-    // Post-condition: bootstrap_objectives reports the backfill
+    // Post-condition: bootstrap_objectives reports a scoped backfill
+    // (exactly 1 applied, scanned=1 — target objective only).
     assert.ok('bootstrap_objectives' in json, 'bootstrap_objectives key must be present');
-    assert.ok(json.bootstrap_objectives.applied >= 2, `expected at least 2 applied, got: ${json.bootstrap_objectives.applied}`);
+    assert.strictEqual(json.bootstrap_objectives.applied, 1,
+      `expected exactly 1 applied (target objective only), got: ${json.bootstrap_objectives.applied}`);
+    assert.strictEqual(json.bootstrap_objectives.scanned, 1,
+      'expected scanned=1 — bootstrap is now scoped to target objective only');
 
-    // Both OBJECTIVE.md files now exist
-    assert.strictEqual(fs.existsSync(path.join(repo, '.planning', 'objectives', '01-foo', 'OBJECTIVE.md')), true);
-    assert.strictEqual(fs.existsSync(path.join(repo, '.planning', 'objectives', '02-bar', 'OBJECTIVE.md')), true);
+    // Target objective backfilled; non-target objective MUST NOT be touched.
+    assert.strictEqual(
+      fs.existsSync(path.join(repo, '.planning', 'objectives', '01-foo', 'OBJECTIVE.md')),
+      true,
+      'target objective 01-foo should have been backfilled'
+    );
+    assert.strictEqual(
+      fs.existsSync(path.join(repo, '.planning', 'objectives', '02-bar', 'OBJECTIVE.md')),
+      false,
+      'non-target objective 02-bar must NOT be backfilled (regression: bug item 5 from devflow-efficiency-handoff)'
+    );
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }
 });
 
-test('FIX-1: init plan-objective triggers backfillAllObjectives same as execute-objective', () => {
+test('FIX-1: init plan-objective triggers bootstrapObjectiveMd scoped to the target objective', () => {
   const repo = makeFixture({});
   try {
     fs.mkdirSync(path.join(repo, '.planning', 'objectives', '03-baz'), { recursive: true });
@@ -268,7 +282,10 @@ test('FIX-1: init plan-objective triggers backfillAllObjectives same as execute-
     });
     const json = JSON.parse(stdout.trim());
     assert.ok('bootstrap_objectives' in json);
-    assert.ok(json.bootstrap_objectives.applied >= 1);
+    assert.strictEqual(json.bootstrap_objectives.applied, 1,
+      'expected exactly 1 applied for scoped bootstrap');
+    assert.strictEqual(json.bootstrap_objectives.scanned, 1,
+      'expected scanned=1 — bootstrap is now scoped to target objective only');
     assert.strictEqual(fs.existsSync(path.join(repo, '.planning', 'objectives', '03-baz', 'OBJECTIVE.md')), true);
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
@@ -510,25 +527,15 @@ test('22A6 — _readStateBranch(cwd, working_tree) reads STATE.md (back-compat)'
   } finally { p.cleanup(); }
 });
 
-test('22A7 — _readStateBranch(cwd, working_tree) missing STATE.md exits 1 with hint', () => {
-  // Subprocess to capture process.exit(1)
+test('22A7 — _readStateBranch(cwd, working_tree) missing STATE.md returns null (no hard-fail)', () => {
+  // Quick-10 contract reversal: working_tree mode is permissive — missing STATE.md
+  // returns null and the caller (cmdInit*) emits state_content:null. Hard-fail is
+  // reserved for explicit cross-branch reads via --branch=<name> (git_show mode).
+  assert.ok(_readStateBranch, '_readStateBranch must be exported');
   const p = buildProjectWithoutState();
   try {
-    let threw = false;
-    let stderr = '';
-    try {
-      execSync(`node "${DF_TOOLS}" init plan-objective 1 --include state`, {
-        cwd: p.cwd,
-        encoding: 'utf-8',
-        stdio: ['pipe', 'pipe', 'pipe'],
-      });
-    } catch (e) {
-      threw = true;
-      stderr = e.stderr || '';
-    }
-    assert.ok(threw, 'expected non-zero exit when STATE.md missing and --include state');
-    assert.ok(/STATE\.md not found/i.test(stderr), `expected stderr to mention "STATE.md not found", got: ${stderr}`);
-    assert.ok(/--branch/.test(stderr), `expected stderr to mention "--branch" hint, got: ${stderr}`);
+    const content = _readStateBranch(p.cwd, { mode: 'working_tree', branch: null });
+    assert.strictEqual(content, null, 'working_tree mode should return null when STATE.md missing');
   } finally { p.cleanup(); }
 });
 

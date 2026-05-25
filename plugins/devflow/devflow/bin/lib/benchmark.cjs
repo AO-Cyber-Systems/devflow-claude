@@ -64,6 +64,7 @@ function parseSince(s) {
  *   - "v1.2 obj 10"                      → "v1.2-obj-10"
  *   - "TRD 19-01"                        → "obj-19"
  *   - "Phase E"                          → "v1.1-phase-E"
+ *   - "Plan Objective 18"                → "18"
  *   - otherwise                          → "untagged"
  */
 function extractObjectiveId(prompt, description) {
@@ -79,6 +80,8 @@ function extractObjectiveId(prompt, description) {
   if (m) return `obj-${m[1]}`;
   m = text.match(/Phase\s+([A-Z])/i);
   if (m) return `v1.1-phase-${m[1].toUpperCase()}`;
+  m = text.match(/objective\s+(\d{1,3})\b/i);
+  if (m) return m[1];
   return 'untagged';
 }
 
@@ -94,6 +97,8 @@ function canonicalize(id, dirToObjMap = {}) {
   m = id.match(/^obj-(\d+)$/);
   if (m) return `obj-${m[1]}`;
   m = id.match(/^(\d+)-/);
+  if (m && dirToObjMap[m[1]]) return dirToObjMap[m[1]];
+  m = id.match(/^(\d+)$/);
   if (m && dirToObjMap[m[1]]) return dirToObjMap[m[1]];
   return id;
 }
@@ -523,18 +528,127 @@ async function cmdBenchmarkSummary(cwd, args, raw) {
   process.exit(0);
 }
 
+// ─── Per-session benchmark ───────────────────────────────────────────────────
+
+/**
+ * Pure, testable: resolve a session UUID to its top-level transcript
+ * (~/.claude/projects/<dirHash>/<sessionId>.jsonl), parse it, and price it.
+ *
+ * Returns:
+ *   { ok: true, sessionId, dirHash, path, model, apiCalls, tokens, cost }
+ *   { ok: false, error, ... }  — never writes/exits
+ */
+async function runBenchmarkSession({ projectsRoot, sessionId, model = 'opus' }) {
+  if (!sessionId) {
+    return { ok: false, error: '--id <sessionId> required' };
+  }
+  const root = projectsRoot || path.join(os.homedir(), '.claude', 'projects');
+  if (!fs.existsSync(root)) {
+    return { ok: false, error: `projects root not found: ${root}`, searched: [] };
+  }
+  const dirHashes = fs.readdirSync(root, { withFileTypes: true })
+    .filter(d => d.isDirectory())
+    .map(d => d.name);
+  const matches = [];
+  for (const dh of dirHashes) {
+    const candidate = path.join(root, dh, `${sessionId}.jsonl`);
+    if (fs.existsSync(candidate)) matches.push({ dirHash: dh, path: candidate });
+  }
+  if (matches.length === 0) {
+    return { ok: false, error: `session ${sessionId} not found in ${root}`, searched: dirHashes };
+  }
+  if (matches.length > 1) {
+    return {
+      ok: false,
+      error: `session ${sessionId} matched multiple project dirs`,
+      matches: matches.map(m => m.dirHash),
+    };
+  }
+  const m = matches[0];
+  const rec = await parseSubagentJsonl(m.path);
+  if (rec.apiCalls === 0) {
+    return { ok: false, error: `transcript at ${m.path} has no assistant turns`, path: m.path };
+  }
+  const tokens = {
+    uncached: rec.inputUncached,
+    cache_create: rec.inputCacheCreate,
+    cache_read: rec.inputCacheRead,
+    output: rec.outputTokens,
+  };
+  const cost = dollars(tokens, model);
+  return {
+    ok: true,
+    sessionId,
+    dirHash: m.dirHash,
+    path: m.path,
+    model,
+    apiCalls: rec.apiCalls,
+    tokens,
+    cost,
+  };
+}
+
+async function cmdBenchmarkSession(cwd, args, raw) {
+  // Accept both --id=<v> and --id <v> forms (UUIDs commonly pasted with a space).
+  function getArg(name) {
+    const eq = args.find(a => a.startsWith(`--${name}=`));
+    if (eq) return eq.split('=').slice(1).join('=');
+    const idx = args.indexOf(`--${name}`);
+    if (idx >= 0 && idx + 1 < args.length) return args[idx + 1];
+    return null;
+  }
+  const sessionId = getArg('id');
+  const modelArg = (getArg('model') || 'opus').toLowerCase();
+  if (!PRICING[modelArg]) {
+    process.stderr.write(`Unknown model: ${modelArg}. Available: ${Object.keys(PRICING).join(', ')}\n`);
+    process.exit(1);
+    return;
+  }
+  const result = await runBenchmarkSession({ sessionId, model: modelArg });
+  if (raw) {
+    process.stdout.write(JSON.stringify(result, null, 2) + '\n');
+    process.exit(result.ok ? 0 : 1);
+    return;
+  }
+  if (!result.ok) {
+    process.stderr.write(`Error: ${result.error}\n`);
+    if (result.matches) process.stderr.write(`Matches: ${result.matches.join(', ')}\n`);
+    process.exit(1);
+    return;
+  }
+  const lines = [
+    `# Session benchmark — ${result.model} pricing`,
+    ``,
+    `**Session:** ${result.sessionId}`,
+    `**Transcript:** ${result.path}`,
+    `**API calls:** ${result.apiCalls}`,
+    `**Cost:** $${result.cost.toFixed(4)}`,
+    ``,
+    `## Token breakdown`,
+    `- Uncached input:  ${fmt(result.tokens.uncached)}`,
+    `- Cache create:    ${fmt(result.tokens.cache_create)}`,
+    `- Cache read:      ${fmt(result.tokens.cache_read)}`,
+    `- Output:          ${fmt(result.tokens.output)}`,
+  ];
+  process.stdout.write(lines.join('\n') + '\n');
+  process.exit(0);
+}
+
 function cmdBenchmarkRoute(cwd, args, raw) {
   const sub = args[0];
   if (sub === 'per-objective') return cmdBenchmarkPerObjective(cwd, args.slice(1), raw);
   if (sub === 'summary') return cmdBenchmarkSummary(cwd, args.slice(1), raw);
+  if (sub === 'session') return cmdBenchmarkSession(cwd, args.slice(1), raw);
   process.stderr.write(
     'Usage: df-tools benchmark <subcommand> [options]\n' +
     '  per-objective   Per-objective cost rollup with LOC/TRD denominators\n' +
     '  summary         Per-agent-type cost breakdown\n' +
+    '  session         Per-session orchestrator transcript cost (--id <sessionId>)\n' +
     '\n' +
-    'Options (both subcommands):\n' +
-    '  --since=<N>(d|h)   Time window (default: 7d)\n' +
+    'Options:\n' +
+    '  --since=<N>(d|h)   Time window (default: 7d) [per-objective, summary]\n' +
     '  --model=opus|sonnet  Pricing model (default: opus)\n' +
+    '  --id <sessionId>   Session UUID (required for `session`)\n' +
     '  --raw              Emit JSON instead of markdown\n'
   );
   process.exit(sub ? 1 : 0);
@@ -545,11 +659,13 @@ module.exports = {
   cmdBenchmarkRoute,
   cmdBenchmarkPerObjective,
   cmdBenchmarkSummary,
+  cmdBenchmarkSession,
   // Pure helpers (testable)
   extractObjectiveId,
   canonicalize,
   dollars,
   parseSince,
   buildPerObjective,
+  runBenchmarkSession,
   PRICING,
 };

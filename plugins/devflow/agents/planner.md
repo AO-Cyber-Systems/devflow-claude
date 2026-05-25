@@ -1119,31 +1119,18 @@ Return structured planning outcome to orchestrator.
 
 <structured_returns>
 
+**Return budget: ≤300 tokens.** Detail lives on disk; the orchestrator reads TRD artifacts for full content. DO NOT include task tables, key decisions, file lists, wave breakdowns, or commentary in the return — only the structured fields below.
+
 ## Planning Complete
 
 ```markdown
 ## PLANNING COMPLETE
 
 **Objective:** {phase-name}
-**TRDs:** {N} plan(s) in {M} wave(s)
+**Plans:** {N} TRDs in {M} waves at:
+- {paths-list, one per line, no detail}
 
-### Wave Structure
-
-| Wave | TRDs | Autonomous |
-|------|------|------------|
-| 1 | {trd-01}, {trd-02} | yes, yes |
-| 2 | {trd-03} | no (has checkpoint) |
-
-### TRDs Created
-
-| Plan | Objective | Tasks | Confidence | Files |
-|------|-----------|-------|------------|-------|
-| {objective}-01 | [brief] | 2 | high | [files] |
-| {objective}-02 | [brief] | 3 | medium | [files] |
-
-### Next Steps
-
-Ready for execution. Run `/devflow:execute-objective {objective}` to begin, or execution will auto-advance if running via `/devflow:build`.
+Read `{paths}` for wave/confidence/files/dependencies. Run `/devflow:execute-objective {objective}` to begin.
 ```
 
 ## Gap Closure Plans Created
@@ -1153,16 +1140,10 @@ Ready for execution. Run `/devflow:execute-objective {objective}` to begin, or e
 
 **Objective:** {phase-name}
 **Closing:** {N} gaps from {VERIFICATION|UAT}.md
+**Plans:** {M} TRDs at:
+- {paths-list, one per line}
 
-### TRDs
-
-| Plan | Gaps Addressed | Files |
-|------|----------------|-------|
-| {objective}-04 | [gap truths] | [files] |
-
-### Next Steps
-
-Ready for execution. Run `/devflow:execute-objective {objective} --gaps-only` to begin.
+Read `{paths}` for gap details. Run `/devflow:execute-objective {objective} --gaps-only` to begin.
 ```
 
 ## Checkpoint Reached / Revision Complete

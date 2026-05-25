@@ -110,6 +110,31 @@ function _expandHome(p) {
   return p;
 }
 
+// ─── Quick-9: Numeric prefix normalization ──────────────────────────────────
+
+/**
+ * Normalize an objective number for prefix matching by stripping leading zeros.
+ *
+ * Used by scanSiblingTrds to match objective_id="18" against dir "018-foo"
+ * (and vice versa). Returns null if no leading numeric prefix is present.
+ *
+ * Examples:
+ *   "18"   → "18"
+ *   "018"  → "18"
+ *   "0018" → "18"
+ *   "180"  → "180"
+ *   "abc"  → null
+ *   ""     → null
+ *   null   → null
+ *
+ * @param {string|number|null|undefined} s
+ * @returns {string|null}
+ */
+function _normalizeObjNum(s) {
+  const m = String(s == null ? '' : s).match(/^0*(\d+)/);
+  return m ? m[1] : null;
+}
+
 // ─── TRD 03-01: Sibling repo discovery ───────────────────────────────────────
 
 /**
@@ -439,6 +464,158 @@ function scanSiblings({ objective_id, cwd = process.cwd(), config_paths = null }
 
   // Truncate to TOP_N
   out.matches = out.matches.slice(0, TOP_N);
+
+  return out;
+}
+
+// ─── Quick-9: scanSiblingTrds (cross-repo TRD frontmatter scanner) ──────────
+
+/**
+ * Scan sibling repos for TRD plans matching an objective number prefix.
+ *
+ * Reuses _discoverSiblings (sibling repo discovery + path validation) and
+ * _runFs (filesystem injection) — never duplicates either.
+ *
+ * Match rule: a sibling's `.planning/objectives/<dir>/` matches when the
+ * leading numeric prefix of <dir> normalizes (leading zeros stripped) to the
+ * normalized form of objective_id. "18" and "018" both normalize to "18".
+ *
+ * For each matching dir, read all `*-TRD.md` files; parse frontmatter via
+ * extractFrontmatter; emit one match record per parseable TRD with valid
+ * shape. Files with malformed frontmatter (e.g., files_modified non-array
+ * after parse) are skipped with a warning; valid sibling TRDs continue.
+ *
+ * Per task spec: when no sibling repos are configured, return the documented
+ * empty shape with the explicit "no sibling repos configured" warning —
+ * does NOT fall through to default-glob behavior.
+ *
+ * @param {object} opts
+ * @param {string}        opts.objective_id   - objective number (required, e.g. "18" or "018")
+ * @param {string}        [opts.cwd]          - current repo path (default: process.cwd())
+ * @param {string[]|null} [opts.config_paths] - configured sibling paths from .planning/config.json
+ * @returns {{
+ *   ok: boolean,
+ *   scanned: number,                                  // siblings actually inspected
+ *   siblings: string[],                               // sibling paths discovered
+ *   matches: Array<{
+ *     sibling_repo: string,                           // absolute path to sibling
+ *     trd_path: string,                               // absolute path to the TRD.md
+ *     objective: string|null,                         // from frontmatter
+ *     trd: string|null,                               // from frontmatter
+ *     files_modified: string[]|null,                  // from frontmatter
+ *     confidence: string|null,                        // from frontmatter
+ *     supersedes: string|null,                        // from frontmatter (optional)
+ *     prerequisite_for: string|null,                  // from frontmatter (optional)
+ *   }>,
+ *   warnings: string[],
+ * }}
+ */
+function scanSiblingTrds({ objective_id, cwd = process.cwd(), config_paths = null } = {}) {
+  if (!objective_id) throw new Error('scanSiblingTrds: objective_id is required');
+
+  const out = { ok: true, scanned: 0, siblings: [], matches: [], warnings: [] };
+
+  // No-config short-circuit: per task spec, return documented shape with
+  // explicit warning. Do NOT fall through to default-glob behavior.
+  if (!Array.isArray(config_paths) || config_paths.length === 0) {
+    out.warnings.push('no sibling repos configured');
+    return out;
+  }
+
+  const normalizedTarget = _normalizeObjNum(objective_id);
+  if (normalizedTarget == null) {
+    out.warnings.push(`objective_id "${objective_id}" has no leading numeric prefix`);
+    return out;
+  }
+
+  // Reuse _discoverSiblings — never duplicate sibling validation.
+  const disc = _discoverSiblings({ cwd, config_paths });
+  out.warnings.push(...disc.warnings);
+  out.siblings = disc.paths.slice();
+
+  for (const siblingPath of disc.paths) {
+    out.scanned++;
+
+    const objsDir = path.join(siblingPath, '.planning', 'objectives');
+    if (!_runFs.existsSync(objsDir)) continue;
+
+    let dirEntries;
+    try {
+      dirEntries = _runFs.readdirSync(objsDir);
+    } catch (e) {
+      out.warnings.push(`readdir ${objsDir} failed: ${e.message}`);
+      continue;
+    }
+
+    // Find directories whose leading numeric prefix matches normalizedTarget.
+    const matchingDirs = dirEntries.filter((dn) => {
+      const m = dn.match(/^(\d+)/);
+      if (!m) return false;
+      return _normalizeObjNum(m[1]) === normalizedTarget;
+    });
+
+    for (const dirName of matchingDirs) {
+      const objDir = path.join(objsDir, dirName);
+      let files;
+      try {
+        files = _runFs.readdirSync(objDir);
+      } catch (e) {
+        out.warnings.push(`readdir ${objDir} failed: ${e.message}`);
+        continue;
+      }
+
+      // Stable iteration: alphabetical filename order so multi-TRD outputs are deterministic.
+      files.sort();
+
+      for (const fname of files) {
+        if (!fname.endsWith('-TRD.md')) continue;
+        const trdPath = path.join(objDir, fname);
+
+        let content;
+        try {
+          content = _runFs.readFileSync(trdPath, 'utf-8');
+        } catch (e) {
+          out.warnings.push(`read ${trdPath} failed: ${e.message}`);
+          continue;
+        }
+
+        let fm;
+        try {
+          fm = extractFrontmatter(content);
+        } catch (e) {
+          out.warnings.push(`malformed frontmatter in ${trdPath}: ${e.message}`);
+          continue;
+        }
+
+        if (!fm || typeof fm !== 'object' || Object.keys(fm).length === 0) {
+          // Treat empty/missing frontmatter as malformed — TRDs are required to have frontmatter.
+          out.warnings.push(`malformed frontmatter in ${trdPath}: empty or missing`);
+          continue;
+        }
+
+        // Schema-level malformation check: TRDs require files_modified to be an array.
+        // The local YAML parser silently coerces unterminated arrays (e.g.
+        // `files_modified: [a.go,`) into strings — detect and warn.
+        if (fm.files_modified !== undefined && !Array.isArray(fm.files_modified)) {
+          out.warnings.push(
+            `malformed frontmatter in ${trdPath}: files_modified is not an array`,
+          );
+          continue;
+        }
+
+        out.matches.push({
+          sibling_repo: siblingPath,
+          trd_path: trdPath,
+          objective: fm.objective != null ? String(fm.objective) : null,
+          trd: fm.trd != null ? String(fm.trd) : null,
+          files_modified: Array.isArray(fm.files_modified) ? fm.files_modified.slice() : null,
+          confidence: fm.confidence != null ? String(fm.confidence) : null,
+          supersedes: fm.supersedes != null ? String(fm.supersedes) : null,
+          prerequisite_for: fm.prerequisite_for != null ? String(fm.prerequisite_for) : null,
+        });
+      }
+    }
+  }
 
   return out;
 }
@@ -1104,6 +1281,7 @@ module.exports = {
   scanSiblings,
   scanLibs,
   scanOrgOverlap,
+  scanSiblingTrds,
   formatConsiderations,
 
   // Test hooks (mirror _setRunGh / _setRunGit pattern):
@@ -1119,6 +1297,7 @@ module.exports = {
   _detectMisfiling,
   _scoreOrgItem,
   _extractRepoFromRef,
+  _normalizeObjNum,
 
   // Sub-renderers (exposed for tests):
   _renderSiblingsSection,

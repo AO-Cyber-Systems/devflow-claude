@@ -621,6 +621,8 @@ Separate from per-task commits — captures execution results only.
 </final_commit>
 
 <completion_format>
+Return budget: <=300 tokens. Orchestrator cache-replays this every turn.
+
 ```markdown
 ## TRD COMPLETE
 
@@ -635,7 +637,7 @@ Separate from per-task commits — captures execution results only.
 **Duration:** {time}
 ```
 
-Include ALL commits (previous + new if continuation agent).
+Include ALL commit hashes (previous + new) — orchestrator needs them for continuation tracking. DO NOT include task tables, deviations narrative, or evidence bullets — those live in SUMMARY.md.
 </completion_format>
 
 <success_criteria>

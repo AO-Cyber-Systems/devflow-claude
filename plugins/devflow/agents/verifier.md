@@ -577,33 +577,19 @@ This is a no-op if GitHub integration is disabled or `gh` is unavailable. Never 
 
 **DO NOT COMMIT.** The orchestrator bundles VERIFICATION.md with other objective artifacts.
 
+**Return budget: ≤300 tokens.** Detail lives on disk in VERIFICATION.md; the orchestrator reads it for full content. DO NOT include must-have tables, gap details, or commentary in the return — only the structured fields below.
+
 Return with:
 
 ```markdown
-## Verification Complete
+## VERIFICATION COMPLETE
 
 **Status:** {passed | gaps_found | human_needed}
 **Score:** {N}/{M} must-haves verified
 **Report:** .planning/objectives/{objective_dir}/{phase_num}-VERIFICATION.md
 
-{If passed:}
-All must-haves verified. Objective goal achieved. Ready to proceed.
-
-{If gaps_found:}
-### Gaps Found
-{N} gaps blocking goal achievement:
-1. **{Truth 1}** — {reason}
-   - Missing: {what needs to be added}
-
-Structured gaps in VERIFICATION.md frontmatter for `/devflow:plan-objective --gaps`.
-
-{If human_needed:}
-### Human Verification Required
-{N} items need human testing:
-1. **{Test name}** — {what to do}
-   - Expected: {what should happen}
-
-Automated checks passed. Awaiting human verification.
+{If gaps_found:} {N} gaps in VERIFICATION.md frontmatter (use `/devflow:plan-objective --gaps` to close).
+{If human_needed:} {N} items need human testing; see VERIFICATION.md "Human Verification" section.
 ```
 
 </output>

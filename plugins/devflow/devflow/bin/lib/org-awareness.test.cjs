@@ -2067,14 +2067,16 @@ test('CLI4-4 — under mocked GhAuthError on scanOrg, considerations CLI returns
 // ─── TRD 03-07 tests ──────────────────────────────────────────────────────────
 
 // Group EX — export lock
-test('EX1 — module.exports surface is locked at 21 entries', () => {
+test('EX1 — module.exports surface is locked at 23 entries', () => {
   const expected = [
     'DEFAULT_EDEN_LIBS_PATH', 'DEFAULT_SIBLING_GLOB', 'SUMMARY_RECENCY_DAYS', 'TOP_N',
-    '_camelSplit', '_detectMisfiling', '_extractRepoFromRef', '_parseExports',
+    '_camelSplit', '_detectMisfiling', '_extractRepoFromRef', '_normalizeObjNum',
+    '_parseExports',
     '_renderLibsSection', '_renderOrgSection', '_renderSiblingsSection',
     '_resetFsMock', '_resolveEdenLibsPath', '_score', '_scoreOrgItem',
     '_setRunFs', '_tokenize',
     'formatConsiderations', 'scanLibs', 'scanOrgOverlap', 'scanSiblings',
+    'scanSiblingTrds',
   ].sort();
   const actual = Object.keys(oa).sort();
   assert.deepStrictEqual(actual, expected);
@@ -2154,4 +2156,293 @@ test('DG2 — dogfood-04.md fixture exists and has 3 subsection headers', () => 
   assert.match(content, /### Sibling repos/);
   assert.match(content, /### eden-libs candidates/);
   assert.match(content, /### Org Project overlap/);
+});
+
+// ─── Group ST — scanSiblingTrds (cross-repo TRD discovery) ──────────────────
+//
+// Tests for `scanSiblingTrds({ objective_id, cwd, config_paths })` — surfaces
+// TRD plans from sibling repos matching a given objective number prefix.
+// Per CLAUDE.md TDD Playbook habit 4: hand-built fixture content via tmpdirs;
+// no LLM-generated frontmatter strings.
+
+/**
+ * Scaffold a sibling repo at <root> with directories and TRD files.
+ * Each TRD file is created with explicit literal frontmatter content.
+ *
+ * @param {string} root              - tmp dir to scaffold under (already exists)
+ * @param {Array<{ objDir: string, trdName: string, content: string }>} trds
+ * @returns {string} root path (for chaining)
+ */
+function _stScaffoldSibling(root, trds) {
+  // Ensure .git + .planning/objectives exist so _discoverSiblings accepts the path
+  fs.mkdirSync(path.join(root, '.git'), { recursive: true });
+  fs.mkdirSync(path.join(root, '.planning', 'objectives'), { recursive: true });
+  for (const { objDir, trdName, content } of trds) {
+    const fullObjDir = path.join(root, '.planning', 'objectives', objDir);
+    fs.mkdirSync(fullObjDir, { recursive: true });
+    fs.writeFileSync(path.join(fullObjDir, trdName), content, 'utf-8');
+  }
+  return root;
+}
+
+test('ST1 — no siblings configured returns documented empty shape with warning', () => {
+  // No filesystem state needed — the function short-circuits on empty config_paths.
+  const r1 = oa.scanSiblingTrds({ objective_id: '18', cwd: '/non-existent', config_paths: null });
+  assert.deepStrictEqual(r1, {
+    ok: true,
+    scanned: 0,
+    siblings: [],
+    matches: [],
+    warnings: ['no sibling repos configured'],
+  });
+
+  const r2 = oa.scanSiblingTrds({ objective_id: '18', cwd: '/non-existent', config_paths: [] });
+  assert.deepStrictEqual(r2, {
+    ok: true,
+    scanned: 0,
+    siblings: [],
+    matches: [],
+    warnings: ['no sibling repos configured'],
+  });
+});
+
+test('ST2 — sibling exists but has no objectives/018-* dir returns scanned:1 with no matches', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'st-2-'));
+  try {
+    const sibling = path.join(tmp, 'sibling');
+    fs.mkdirSync(path.join(sibling, '.git'), { recursive: true });
+    // Create .planning/objectives but with a non-matching dir (017-foo)
+    fs.mkdirSync(path.join(sibling, '.planning', 'objectives', '017-foo'), { recursive: true });
+
+    const r = oa.scanSiblingTrds({
+      objective_id: '18',
+      cwd: path.join(tmp, 'cwd'),
+      config_paths: [sibling],
+    });
+
+    assert.strictEqual(r.ok, true);
+    assert.strictEqual(r.scanned, 1);
+    assert.deepStrictEqual(r.siblings, [sibling]);
+    assert.deepStrictEqual(r.matches, []);
+    assert.deepStrictEqual(r.warnings, []);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('ST3 — sibling with one matching TRD returns full match record with all fields', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'st-3-'));
+  try {
+    const sibling = path.join(tmp, 'sibling');
+    const trdContent =
+      '---\n' +
+      'objective: 018-foo\n' +
+      'trd: 018-01\n' +
+      'files_modified:\n' +
+      '  - a.go\n' +
+      '  - b.go\n' +
+      'confidence: high\n' +
+      '---\n' +
+      '# Body\n';
+    _stScaffoldSibling(sibling, [
+      { objDir: '018-foo', trdName: '018-01-TRD.md', content: trdContent },
+    ]);
+
+    const r = oa.scanSiblingTrds({
+      objective_id: '18',
+      cwd: path.join(tmp, 'cwd'),
+      config_paths: [sibling],
+    });
+
+    assert.strictEqual(r.ok, true);
+    assert.strictEqual(r.scanned, 1);
+    assert.strictEqual(r.matches.length, 1);
+    const m = r.matches[0];
+    assert.strictEqual(m.sibling_repo, sibling);
+    assert.strictEqual(m.trd_path, path.join(sibling, '.planning', 'objectives', '018-foo', '018-01-TRD.md'));
+    assert.strictEqual(m.objective, '018-foo');
+    assert.strictEqual(m.trd, '018-01');
+    assert.deepStrictEqual(m.files_modified, ['a.go', 'b.go']);
+    assert.strictEqual(m.confidence, 'high');
+    assert.strictEqual(m.supersedes, null);
+    assert.strictEqual(m.prerequisite_for, null);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('ST4 — multiple TRDs in same objective dir all returned in alphabetical order', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'st-4-'));
+  try {
+    const sibling = path.join(tmp, 'sibling');
+    const fmContent = (trd) =>
+      '---\n' +
+      'objective: 018-foo\n' +
+      `trd: ${trd}\n` +
+      'files_modified: [x.go]\n' +
+      '---\n' +
+      '# Body\n';
+
+    _stScaffoldSibling(sibling, [
+      { objDir: '018-foo', trdName: '018-01-TRD.md', content: fmContent('018-01') },
+      { objDir: '018-foo', trdName: '018-02-TRD.md', content: fmContent('018-02') },
+      { objDir: '018-foo', trdName: '018-FE-01-TRD.md', content: fmContent('018-FE-01') },
+    ]);
+
+    const r = oa.scanSiblingTrds({
+      objective_id: '18',
+      cwd: path.join(tmp, 'cwd'),
+      config_paths: [sibling],
+    });
+
+    assert.strictEqual(r.scanned, 1);
+    assert.strictEqual(r.matches.length, 3);
+    const trds = r.matches.map((m) => m.trd);
+    // Alphabetical filename order: 018-01, 018-02, 018-FE-01
+    assert.deepStrictEqual(trds, ['018-01', '018-02', '018-FE-01']);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('ST5 — multiple siblings each contributing matches collated, scanned:2', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'st-5-'));
+  try {
+    const siblingA = path.join(tmp, 'sibling-a');
+    const siblingB = path.join(tmp, 'sibling-b');
+    const fmContent = (trd) =>
+      '---\n' +
+      'objective: 018-foo\n' +
+      `trd: ${trd}\n` +
+      'files_modified: [x.go]\n' +
+      '---\n' +
+      '# Body\n';
+
+    _stScaffoldSibling(siblingA, [
+      { objDir: '018-foo', trdName: '018-01-TRD.md', content: fmContent('018-01') },
+    ]);
+    _stScaffoldSibling(siblingB, [
+      { objDir: '018-bar', trdName: '018-01-TRD.md', content: fmContent('018-01') },
+      { objDir: '018-bar', trdName: '018-FE-01-TRD.md', content: fmContent('018-FE-01') },
+    ]);
+
+    const r = oa.scanSiblingTrds({
+      objective_id: '18',
+      cwd: path.join(tmp, 'cwd'),
+      config_paths: [siblingA, siblingB],
+    });
+
+    assert.strictEqual(r.scanned, 2);
+    assert.strictEqual(r.matches.length, 3);
+    // Verify both siblings represented
+    const repos = new Set(r.matches.map((m) => m.sibling_repo));
+    assert.ok(repos.has(siblingA), 'siblingA must contribute matches');
+    assert.ok(repos.has(siblingB), 'siblingB must contribute matches');
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('ST6 — malformed TRD frontmatter emits warning, valid sibling TRDs still returned', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'st-6-'));
+  try {
+    const sibling = path.join(tmp, 'sibling');
+
+    // Malformed TRD: unterminated array (files_modified: [a.go,) — frontmatter
+    // closer comes early so the value parses as a non-array string.
+    const malformed =
+      '---\n' +
+      'objective: 018-foo\n' +
+      'trd: 018-01\n' +
+      'files_modified: [a.go,\n' +
+      '---\n' +
+      'body\n';
+
+    // Valid sibling TRD in the same dir
+    const valid =
+      '---\n' +
+      'objective: 018-foo\n' +
+      'trd: 018-02\n' +
+      'files_modified: [b.go]\n' +
+      '---\n' +
+      '# Valid\n';
+
+    _stScaffoldSibling(sibling, [
+      { objDir: '018-foo', trdName: '018-01-TRD.md', content: malformed },
+      { objDir: '018-foo', trdName: '018-02-TRD.md', content: valid },
+    ]);
+
+    const r = oa.scanSiblingTrds({
+      objective_id: '18',
+      cwd: path.join(tmp, 'cwd'),
+      config_paths: [sibling],
+    });
+
+    // Malformed warning was emitted
+    assert.ok(
+      r.warnings.some((w) => /malformed frontmatter/.test(w)),
+      `expected 'malformed frontmatter' warning, got: ${JSON.stringify(r.warnings)}`,
+    );
+    // Valid sibling TRD still returned
+    const validTrds = r.matches.filter((m) => m.trd === '018-02');
+    assert.strictEqual(validTrds.length, 1, 'valid sibling TRD must still be in matches');
+    // Malformed TRD was skipped (not present in matches)
+    const malformedTrds = r.matches.filter((m) => m.trd === '018-01');
+    assert.strictEqual(malformedTrds.length, 0, 'malformed TRD must be skipped from matches');
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('ST7 — leading-zero tolerant numeric prefix matching', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'st-7-'));
+  try {
+    const siblingA = path.join(tmp, 'sibling-a');
+    const siblingB = path.join(tmp, 'sibling-b');
+    const fmContent = (objective, trd) =>
+      '---\n' +
+      `objective: ${objective}\n` +
+      `trd: ${trd}\n` +
+      'files_modified: [x.go]\n' +
+      '---\n' +
+      '# Body\n';
+
+    // siblingA has dir 018-foo (leading-zero form)
+    _stScaffoldSibling(siblingA, [
+      { objDir: '018-foo', trdName: '018-01-TRD.md', content: fmContent('018-foo', '018-01') },
+    ]);
+    // siblingB has dir 18-bar (no leading zero)
+    _stScaffoldSibling(siblingB, [
+      { objDir: '18-bar', trdName: '18-01-TRD.md', content: fmContent('18-bar', '18-01') },
+    ]);
+
+    // objective_id "18" matches BOTH
+    const r1 = oa.scanSiblingTrds({
+      objective_id: '18',
+      cwd: path.join(tmp, 'cwd'),
+      config_paths: [siblingA, siblingB],
+    });
+    assert.strictEqual(r1.matches.length, 2,
+      `objective_id=18 should match both siblings, got: ${r1.matches.length}`);
+
+    // objective_id "018" matches BOTH
+    const r2 = oa.scanSiblingTrds({
+      objective_id: '018',
+      cwd: path.join(tmp, 'cwd'),
+      config_paths: [siblingA, siblingB],
+    });
+    assert.strictEqual(r2.matches.length, 2,
+      `objective_id=018 should match both siblings, got: ${r2.matches.length}`);
+
+    // objective_id "180" matches NEITHER (180 != 18 even after strip)
+    const r3 = oa.scanSiblingTrds({
+      objective_id: '180',
+      cwd: path.join(tmp, 'cwd'),
+      config_paths: [siblingA, siblingB],
+    });
+    assert.strictEqual(r3.matches.length, 0,
+      `objective_id=180 should match neither sibling, got: ${r3.matches.length}`);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
 });

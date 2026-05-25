@@ -192,6 +192,15 @@
 |---|-------------|------|--------|-----------|
 | 1 | Add release-on-tag GitHub Actions workflow | 2026-05-07 | 046eb34 | [1-add-release-on-tag-github-actions-workfl](./quick/1-add-release-on-tag-github-actions-workfl/) |
 | 2 | Extend tag gate to verify three-manifest version sync | 2026-05-07 | 455f1bf | [2-extend-tag-gate-to-verify-three-manifest](./quick/2-extend-tag-gate-to-verify-three-manifest/) |
+| 3 | add benchmark to df-tools usage Commands list | 2026-05-08 | e9c3ebc | devflow-claude |
+| 4 | scope init.cjs auto-bootstrap to target objective only | 2026-05-08 | efed0d1 | [4-scope-init-bootstrap-to-target-objective](./quick/4-scope-init-bootstrap-to-target-objective/) |
+| 5 | loosen benchmark.cjs objective-id parser to catch bare-number forms | 2026-05-08 | 35ce925 | [5-loosen-benchmark-cjs-objective-id-parser](./quick/5-loosen-benchmark-cjs-objective-id-parser/) |
+| 6 | tighten structured-return templates in 3 agents to cut cache-read cost | 2026-05-08 | 6b90c59 | [6-tighten-structured-return-templates-in-3](./quick/6-tighten-structured-return-templates-in-3/) |
+| 7 | compact executor + job-checker structured-return templates | 2026-05-08 | e45560d | [7-compact-executor-job-checker-structured](./quick/7-compact-executor-job-checker-structured/) |
+| 8 | add df-tools benchmark session subcommand for per-session orchestrator cost | 2026-05-08 | aab81a5 | [8-add-df-tools-benchmark-session-subcommand](./quick/8-add-df-tools-benchmark-session-subcommand/) |
+| 9 | add planning sibling-trd-scan subcommand for cross-repo TRD discovery | 2026-05-08 | ac04d73 | [9-add-planning-sibling-trd-scan-subcommand](./quick/9-add-planning-sibling-trd-scan-subcommand/) |
+| 10 | fix init.cjs --include gate regression + novel-domain failsafe inversion | 2026-05-08 | 425df18 | [10-fix-init-include-gate-and-novel-domain-failsafe](./quick/10-fix-init-include-gate-and-novel-domain-failsafe/) |
+| 11 | fix micro F1 atomic STATE.md commit + F2 placeholder dir lifecycle | 2026-05-08 | 515dfe9 | [11-fix-micro-f1-atomic-state-and-f2-counter-collision](./quick/11-fix-micro-f1-atomic-state-and-f2-counter-collision/) |
 
 ## Session Continuity
 

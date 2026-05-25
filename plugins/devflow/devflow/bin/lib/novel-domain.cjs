@@ -359,22 +359,37 @@ function cmdDetectNovelDomain(cwd, objective, raw) {
     return;
   }
 
-  // 3. Read package.json
+  // 3. Resolve signal-input paths (used both by failsafe guard and reads below)
   const packageJsonPath = path.join(cwd, 'package.json');
+  const patternsMdPath = path.join(cwd, '.planning', 'codebase', 'PATTERNS.md');
+
+  // Failsafe (additional path): description came only from fallback (ROADMAP/slug),
+  // AND no signal-input scaffolding exists. Without real inputs, missing_patterns
+  // would unconditionally fire and yield novel:true on a phantom signal. Bail
+  // permissively — better to miss research than emit a false positive.
+  const hasContext = !!contextContent;
+  const hasPackageJson = fs.existsSync(packageJsonPath);
+  const hasPatternsMd = fs.existsSync(patternsMdPath);
+  if (!hasContext && !hasPackageJson && !hasPatternsMd) {
+    const result = { novel: false, error: 'no description source' };
+    output(result, raw, JSON.stringify(result));
+    return;
+  }
+
+  // 4. Read package.json
   let packageJson = null;
   const packageJsonContent = safeReadFile(packageJsonPath);
   if (packageJsonContent) {
     packageJson = packageJsonContent;
   }
 
-  // 4. Read PATTERNS.md
-  const patternsMdPath = path.join(cwd, '.planning', 'codebase', 'PATTERNS.md');
+  // 5. Read PATTERNS.md
   const patternsMd = safeReadFile(patternsMdPath);
 
-  // 5. Detect
+  // 6. Detect
   const result = detectNovelDomain({ description, packageJson, patternsMd });
 
-  // 6. Output
+  // 7. Output
   const summaryLine = result.novel
     ? `novel:true — ${Object.entries(result.signals).filter(([, s]) => s.fired).map(([k]) => k).join(', ')}`
     : 'novel:false — no novel signals detected';
