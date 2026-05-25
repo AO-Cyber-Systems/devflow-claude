@@ -75,13 +75,22 @@ function buildHandoffPendingDir(tmpdir) {
 function buildBootstrapTarget(tmpdir, opts) {
   const o = opts || {};
   const root = fs.mkdtempSync(path.join(tmpdir, 'flutter-ui-setup-target-'));
+
+  // Always create the Flutter-repo shape so the CLI's gate (detectFlutterRepo)
+  // passes. Tests that want to exercise the gate's failure path use
+  // buildFlutterRepoFixture directly. Per Case 13 the gate is checked BEFORE
+  // tools/bootstrap so omitting these would make every integration test refuse.
+  fs.mkdirSync(path.join(root, 'lib'), { recursive: true });
+  const flutterShape = 'name: x\nenvironment:\n  sdk: ">=3.2.0 <4.0.0"\n  flutter: ">=3.16.0"\ndependencies:\n  flutter:\n    sdk: flutter\n';
+
   if (o.pubspecHasIntegrationTest !== undefined) {
-    fs.writeFileSync(
-      path.join(root, 'pubspec.yaml'),
-      o.pubspecHasIntegrationTest
-        ? 'name: x\ndev_dependencies:\n  flutter_test:\n    sdk: flutter\n  integration_test:\n    sdk: flutter\n'
-        : 'name: x\ndev_dependencies:\n  flutter_test:\n    sdk: flutter\n'
-    );
+    const dev = o.pubspecHasIntegrationTest
+      ? 'dev_dependencies:\n  flutter_test:\n    sdk: flutter\n  integration_test:\n    sdk: flutter\n'
+      : 'dev_dependencies:\n  flutter_test:\n    sdk: flutter\n';
+    fs.writeFileSync(path.join(root, 'pubspec.yaml'), flutterShape + dev);
+  } else {
+    // No dev_dependencies opt → still need a valid Flutter pubspec for the gate
+    fs.writeFileSync(path.join(root, 'pubspec.yaml'), flutterShape);
   }
   if (o.hasIntegrationTestDir) fs.mkdirSync(path.join(root, 'integration_test'), { recursive: true });
   if (o.hasMaestroDir) fs.mkdirSync(path.join(root, '.maestro'), { recursive: true });
@@ -455,7 +464,10 @@ test.describe('cmdFlutterUISetup integration (TRD 10-09 cases 6-10)', () => {
     const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'flutter-ui-setup-HOME-empty-'));
     // No pid file written — daemon NOT running.
     const tmpPath = buildFakePATH({}); // all tools missing
-    const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'flutter-ui-setup-proj-'));
+    // Flutter-shape projectRoot so the new gate (Case 13) passes; we're testing
+    // the no-daemon install-fallback path, NOT the gate.
+    const projTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'flutter-ui-setup-projparent-fallback-'));
+    const projectRoot = buildBootstrapTarget(projTmp, {});
 
     const res = spawnSetup({ home: tmpHome, pathDir: tmpPath, cwd: projectRoot });
 

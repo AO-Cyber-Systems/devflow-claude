@@ -167,6 +167,24 @@ function cmdFlutterUISetup(cwd, args, raw) {
   const flags = parseFlags(args || []);
   const platform = process.platform;
 
+  // ── Gate: refuse to operate outside a Flutter UI repo. DevFlow should NOT
+  //    install Flutter tooling (chromedriver/maestro/jq) into an unrelated dir.
+  //    Each consuming Flutter UI repo (eden-ui-flutter, etc.) is responsible for
+  //    its own tooling install path — devflow's job is to detect + scaffold +
+  //    dispatch when the repo is verifiably a Flutter UI repo.
+  const repoCheck = detectFlutterRepo({ cwd });
+  if (!repoCheck.isFlutterRepo) {
+    emit({
+      status: 'not-a-flutter-project',
+      platform,
+      cwd,
+      checks: repoCheck.checks,
+      failures: repoCheck.failures,
+      flags,
+    }, raw);
+    process.exit(1);
+  }
+
   // Detect tools across the WHOLE PATH (not just one dir), so production users
   // who already have brew-installed binaries on a non-test PATH don't get false
   // positives. A tool is "missing" only when absent from every PATH entry.
@@ -279,6 +297,111 @@ function detectMissingAcrossPath(required) {
   return missing;
 }
 
+// ───── detectFlutterRepo ─────────────────────────────────────────────────────
+
+// Minimum Flutter SDK version DevFlow's Flutter UI verification system targets.
+// Below this, integration_test + maestro flow patterns we expect may not be stable.
+// Bumped if upstream tooling requires.
+const MIN_FLUTTER_VERSION = '3.16.0';
+const MIN_FLUTTER_PARTS = MIN_FLUTTER_VERSION.split('.').map(Number);
+
+// Reuses the same regex as flutter-ui-scope.cjs::PUBSPEC_FLUTTER_DEP_RE.
+// Kept local here to avoid cross-module coupling on a hot-path detector.
+const PUBSPEC_FLUTTER_DEP_RE = /^\s*flutter\s*:\s*\n\s+sdk\s*:\s*flutter\s*$/m;
+
+// Matches `flutter: ">=3.16.0"` (or `'>=3.16.0'`) on an indented environment line.
+// Captures the version core for numeric comparison.
+const PUBSPEC_FLUTTER_VERSION_RE = /^\s+flutter\s*:\s*['"]?>=\s*(\d+)\.(\d+)\.(\d+)/m;
+
+/**
+ * Gate detector: decide whether `cwd` looks like a Flutter UI repo DevFlow
+ * should operate on. Composite of 4 checks:
+ *
+ *   1. pubspec.yaml exists
+ *   2. pubspec declares `flutter: sdk: flutter` dependency
+ *   3. `lib/` directory exists
+ *   4. environment.flutter version constraint is >= MIN_FLUTTER_VERSION
+ *      (null when constraint absent — advisory pass, not a hard fail)
+ *
+ * Returns: { isFlutterRepo, checks: {pubspec, flutterDep, libDir, minVersion},
+ *            failures: string[] }
+ *
+ * minVersion semantics:
+ *   true  → constraint present AND >= MIN_FLUTTER_VERSION
+ *   false → constraint present AND <  MIN_FLUTTER_VERSION (HARD fail)
+ *   null  → constraint absent (advisory pass — caller may warn)
+ *
+ * @param {object} opts
+ * @param {string} opts.cwd  — target project directory (absolute)
+ */
+function detectFlutterRepo(opts) {
+  const o = opts || {};
+  const cwd = o.cwd;
+  const checks = { pubspec: false, flutterDep: false, libDir: false, minVersion: null };
+  const failures = [];
+
+  if (!cwd) {
+    failures.push('detectFlutterRepo: cwd not provided');
+    return { isFlutterRepo: false, checks, failures };
+  }
+
+  const pubspecPath = path.join(cwd, 'pubspec.yaml');
+  if (fs.existsSync(pubspecPath)) {
+    checks.pubspec = true;
+  } else {
+    failures.push(`no pubspec.yaml at ${pubspecPath} — not a Dart/Flutter project`);
+  }
+
+  let pubspecContent = '';
+  if (checks.pubspec) {
+    try {
+      pubspecContent = fs.readFileSync(pubspecPath, 'utf8');
+    } catch (err) {
+      failures.push(`pubspec.yaml unreadable: ${err.message}`);
+    }
+  }
+
+  if (pubspecContent) {
+    checks.flutterDep = PUBSPEC_FLUTTER_DEP_RE.test(pubspecContent);
+    if (!checks.flutterDep) {
+      failures.push("pubspec.yaml has no 'flutter: sdk: flutter' dependency — not a Flutter project");
+    }
+
+    const versionMatch = pubspecContent.match(PUBSPEC_FLUTTER_VERSION_RE);
+    if (versionMatch) {
+      const got = [versionMatch[1], versionMatch[2], versionMatch[3]].map(Number);
+      const meetsMin = compareVersionParts(got, MIN_FLUTTER_PARTS) >= 0;
+      checks.minVersion = meetsMin;
+      if (!meetsMin) {
+        failures.push(`Flutter version constraint ${versionMatch[0].trim()} is below required ${MIN_FLUTTER_VERSION}`);
+      }
+    } // else: no constraint → minVersion stays null (advisory pass)
+  }
+
+  const libPath = path.join(cwd, 'lib');
+  try {
+    checks.libDir = fs.existsSync(libPath) && fs.statSync(libPath).isDirectory();
+  } catch { checks.libDir = false; }
+  if (!checks.libDir) {
+    failures.push(`no 'lib/' directory at ${libPath} — Flutter projects place source under lib/`);
+  }
+
+  // Pass = all required checks true. minVersion:null counts as pass (advisory).
+  const required = checks.pubspec && checks.flutterDep && checks.libDir;
+  const versionOk = checks.minVersion !== false; // true OR null → ok
+  const isFlutterRepo = required && versionOk;
+
+  return { isFlutterRepo, checks, failures };
+}
+
+function compareVersionParts(a, b) {
+  for (let i = 0; i < 3; i++) {
+    if ((a[i] || 0) > (b[i] || 0)) return 1;
+    if ((a[i] || 0) < (b[i] || 0)) return -1;
+  }
+  return 0;
+}
+
 function parseFlags(args) {
   return {
     print_only: args.includes('--print-only'),
@@ -299,5 +422,6 @@ module.exports = {
   detectMissingTools,
   buildInstallPlan,
   dispatchInstalls,
+  detectFlutterRepo,
   cmdFlutterUISetup,
 };
