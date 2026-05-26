@@ -6,6 +6,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-05-26
+
+### Added
+- **10-09**: df-tools flutter-ui setup — one-command Flutter UI adoption CLI (#62) (5ff58bf)
+- **objective-10**: Flutter UI verification process — schema, detector, executor + verifier gates, dogfood (d0c68a7)
+- **monorepo-standards**: add plugin to enforce monorepo conventions (#61) (5f986fe)
+- **marketplace**: consolidate eden-ui-claude plugins in-repo (#60) (e0192cb)
+
+### Docs
+- **04**: record dup-detect coordination notes accumulated during 2026-05-25 session (b846108)
+- **objective-10**: close out Flutter UI verification — VERIFICATION + ROADMAP (d205525)
+- capture todo — clean up devflow dual install + slash command naming (4f170a5)
+
+### Chore
+- **devflow**: quick-task polish batch — template compaction + benchmark + sibling-trd-scan (5ae6fea)
+
 ## [2.1.2] - 2026-05-08
 
 Re-release of the v2.1.1 planner fix with manifest version-sync. The v2.1.1 git tag
@@ -1816,6 +1832,7 @@ the gate that prevents the same slip going forward.
 [1.0.2]: https://github.com/glittercowboy/devflow/releases/tag/v1.0.2
 [1.0.1]: https://github.com/glittercowboy/devflow/releases/tag/v1.0.1
 [1.0.0]: https://github.com/glittercowboy/devflow/releases/tag/v1.0.0
+
 
 
 
