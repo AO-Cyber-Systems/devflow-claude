@@ -183,6 +183,7 @@ const {
 const { cmdVerifyTrdPre } = require('./lib/trd-pre-check.cjs');
 const { cmdVerifyApiContract } = require('./lib/api-contract.cjs');
 const { cmdVerifyFlutterUIBootstrap } = require('./lib/flutter-ui-bootstrap.cjs');
+const { cmdFlutterUISetup } = require('./lib/flutter-ui-setup.cjs');
 const { cmdVerifyFlutterStateCoverage } = require('./lib/flutter-state-coverage.cjs');
 const { cmdDetectNovelDomain } = require('./lib/novel-domain.cjs');
 const { cmdDetectBrownfieldMap } = require('./lib/brownfield-detector.cjs');
@@ -411,6 +412,19 @@ async function main() {
         cmdVerifyFlutterStateCoverage(cwd, args[2], raw);
       } else {
         error('Unknown verify subcommand. Available: job-structure, objective-completeness, references, commits, artifacts, key-links, trd-pre, api-contract, flutter-ui-bootstrap, flutter-state-coverage');
+      }
+      break;
+    }
+
+    case 'flutter-ui': {
+      // flutter-ui setup [--print-only] [--auto] [--raw]
+      //   One-command adoption: detect missing system tools, build install plan,
+      //   dispatch via handoff (daemon live) or print (daemon down), chain bootstrap.
+      const subcommand = args[1];
+      if (subcommand === 'setup') {
+        cmdFlutterUISetup(cwd, args.slice(2), raw);
+      } else {
+        error('Unknown flutter-ui subcommand. Available: setup');
       }
       break;
     }
