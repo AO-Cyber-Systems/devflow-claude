@@ -355,13 +355,15 @@ Categorize: 🛑 Blocker (prevents goal) | ⚠️ Warning (incomplete) | ℹ️ 
 **Skip if:** Objective is purely backend (API-only, CLI tools, database migrations, libraries).
 
 **Select backend** from `.planning/project.md` stack (or JOB `must_haves.platform` if set):
-- **Web** (Hugo, Next.js, static, SPA) → Playwright MCP (Step 8a)
-- **Flutter** (mobile or Flutter web) → Maestro MCP (Step 8b)
-- **Flutter web smoke-only** → Playwright MCP against `flutter run -d chrome` with `?enable-semantics=true` (Step 8a, with caveats)
+- **Flutter app** (mobile / native — iOS, Android) → Maestro MCP (Step 8b)
+- **Flutter web** → `flutter drive` + chromedriver (Step 8c). Maestro is mobile-only — Maestro on Flutter web is blocked upstream (mobile-dev-inc/maestro#2591); see TRD 10-02 "Web verification mechanism".
+- **Non-Flutter web** (Hugo, Next.js, static, SPA, Rails ERB) → Playwright MCP (Step 8a) — **fallback for non-Flutter web only.** Do NOT point Playwright at Flutter web; use Step 8c.
 
 Unknown stack → skip with status `? SKIPPED (stack not detected)`.
 
-### Step 8a: Web — Playwright MCP
+### Step 8a: Non-Flutter web — Playwright MCP
+
+Fallback path for non-Flutter web stacks (Hugo, Next.js, static SPAs, Rails ERB). **NOT for Flutter web** — Flutter web verifies through `flutter drive` + chromedriver (Step 8c), which runs the real `integration_test/` suite instead of poking the rendered a11y tree.
 
 **Reliability fixes — do these every run, in order:**
 
@@ -441,7 +443,46 @@ adb install -r build/app/outputs/flutter-apk/app-debug.apk
 
 5. Cleanup: `adb emu kill` or `xcrun simctl shutdown booted` if started here.
 
-**Flutter semantics note:** Maestro reads Flutter's SemanticsNode tree automatically. No extra config needed on mobile. For Flutter web, launch with `flutter run -d chrome --web-renderer html` and append `?enable-semantics=true` to the URL so Playwright sees a real a11y tree.
+**Flutter semantics note:** Maestro reads Flutter's SemanticsNode tree automatically on mobile — no extra config. **Maestro does NOT support Flutter web** (mobile-dev-inc/maestro#2591). For Flutter web, use Step 8c (`flutter drive` against chromedriver), which runs the same `integration_test/` suite in a real Chrome instance rather than scraping the a11y tree.
+
+### Step 8c: Flutter web — `flutter drive` + chromedriver
+
+Flutter web verification runs the same `integration_test/` suite mobile uses, driven through a real Chrome instance via `flutter drive`. Maestro is intentionally NOT used here (mobile-dev-inc/maestro#2591). Playwright is also NOT used — Step 8c executes the actual integration tests rather than scraping the rendered DOM.
+
+**Prereqs (check, do not install):**
+
+```bash
+command -v chromedriver >/dev/null || { echo "chromedriver not installed — skip with SKIPPED status"; exit 0; }
+# Install hint for user: brew install --cask chromedriver  (macOS) | apt install chromium-chromedriver (Linux)
+
+test -f test_driver/integration_test.dart || { echo "test_driver/integration_test.dart missing — bootstrap via 'node ~/.claude/devflow/bin/df-tools.cjs flutter-ui setup'"; exit 0; }
+test -d integration_test || { echo "integration_test/ missing — bootstrap via flutter-ui setup"; exit 0; }
+```
+
+**Chromedriver readiness:**
+
+```bash
+chromedriver --port=4444 --whitelisted-ips='' &
+CHROMEDRIVER_PID=$!
+timeout 15 bash -c 'until curl -sf http://localhost:4444/status > /dev/null; do sleep 1; done' \
+  || { echo "chromedriver failed to start on :4444"; kill $CHROMEDRIVER_PID 2>/dev/null; exit 1; }
+```
+
+**Protocol:**
+
+1. For each TRD with `web` in `platform:`, resolve its `tests.integration` path (an `integration_test/<name>_test.dart` file).
+2. Run `flutter drive` per integration_test file:
+   ```bash
+   flutter drive \
+     --driver=test_driver/integration_test.dart \
+     --target=integration_test/<name>_test.dart \
+     -d chrome
+   ```
+3. `flutter drive` exit code is the verdict — 0 = pass, non-zero = fail. Capture full stdout+stderr to `.planning/objectives/<obj>/evidence/flutter-drive-<name>.log`.
+4. Screenshots from `IntegrationTestWidgetsFlutterBinding.takeScreenshot()` calls land in the project root by default — move to `.planning/objectives/<obj>/evidence/`.
+5. Cleanup: `kill $CHROMEDRIVER_PID` (only if started by this step).
+
+**Mapping to UAT:** The UAT generator already emits one row per (TRD web artifact, integration_test file) with the exact `flutter drive` invocation — see `df-tools generate uat` and TRD 10-02 "Web verification mechanism". Step 8c evidence corroborates those UAT rows; the two paths share the same driver invocation by design.
 
 ### Step 8b: Maestro orphan-flow detection (REQ-10-05)
 
