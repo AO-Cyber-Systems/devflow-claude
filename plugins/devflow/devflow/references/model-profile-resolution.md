@@ -5,10 +5,10 @@ Resolve model profile once at the start of orchestration, then use it for all Ta
 ## Resolution Pattern
 
 ```bash
-MODEL_PROFILE=$(cat .planning/config.json 2>/dev/null | grep -o '"model_profile"[[:space:]]*:[[:space:]]*"[^"]*"' | grep -o '"[^"]*"$' | tr -d '"' || echo "balanced")
+MODEL_PROFILE=$(cat .planning/config.json 2>/dev/null | grep -o '"model_profile"[[:space:]]*:[[:space:]]*"[^"]*"' | grep -o '"[^"]*"$' | tr -d '"' || echo "quality")
 ```
 
-Default: `balanced` if not set or config missing.
+Default: `quality` if not set or config missing.
 
 ## Lookup Table
 

@@ -31,7 +31,7 @@ Parse current values (default to `true` if not present):
 - `workflow.research` — spawn researcher during plan-objective
 - `workflow.job_check` — spawn job checker during plan-objective
 - `workflow.verifier` — spawn verifier during execute-objective
-- `model_profile` — which model each agent uses (default: `balanced`)
+- `model_profile` — which model each agent uses (default: `quality`)
 - `git.branching_strategy` — branching approach (default: `"none"`)
 </step>
 

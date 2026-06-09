@@ -265,7 +265,7 @@ function resolveModelInternal(cwd, agentType) {
   }
 
   // Merge package defaults with any per-project agent_models overrides
-  const profile = config.model_profile || 'balanced';
+  const profile = config.model_profile || 'quality';
   const agentModels = Object.assign(
     {},
     MODEL_PROFILES[agentType] || {},
@@ -284,7 +284,7 @@ function cmdResolveModel(cwd, agentType, raw) {
   }
 
   const config = loadConfig(cwd);
-  const profile = config.model_profile || 'balanced';
+  const profile = config.model_profile || 'quality';
 
   // Merge package defaults with any per-project agent_models overrides
   const agentModels = Object.assign(
