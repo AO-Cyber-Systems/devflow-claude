@@ -139,6 +139,9 @@ describe('decision-queue', () => {
       const { _setRunExec, _resetMocks: resetNotifier } = require('./notifier.cjs');
       let notifyCalled = false;
       let notifyArgs = null;
+      // Ensure NOTIFIER_DISABLE doesn't suppress our mock
+      const savedDisable = process.env.NOTIFIER_DISABLE;
+      delete process.env.NOTIFIER_DISABLE;
       _setRunExec(async (cmd, args) => {
         notifyCalled = true;
         notifyArgs = { cmd, args };
@@ -162,6 +165,7 @@ describe('decision-queue', () => {
         assert.ok(notifyCalled, 'notifier was called');
       } finally {
         resetNotifier();
+        if (savedDisable !== undefined) process.env.NOTIFIER_DISABLE = savedDisable;
       }
     });
 
@@ -386,6 +390,64 @@ describe('decision-queue', () => {
       assert.ok(md.includes('option-b'), 'has option-b');
       assert.ok(md.includes('## To Resolve'), 'has To Resolve');
       assert.ok(md.includes('/devflow:decide DECISION-001'), 'has decide command');
+    });
+  });
+
+  // ─── CLI subcommand: decision-queue (subprocess, TRD 02-06 pattern) ───────────
+
+  describe('CLI subcommand: decision-queue', () => {
+    function runCli(tmpDir, args) {
+      const env = { ...process.env, NOTIFIER_DISABLE: '1' };
+      return execSync(
+        `node ${DF_TOOLS} decision-queue ${args}`,
+        { cwd: tmpDir, encoding: 'utf-8', env }
+      );
+    }
+
+    test('19. add subcommand → exit 0, JSON {id, path}, file exists', () => {
+      const tmp = mktmp();
+      const stdout = runCli(tmp, 'add --objective 10 --trd 10-03 --title "SmokeTest" --context "SomeContext" --options "option-a,option-b" --recommendation option-a');
+      const result = JSON.parse(stdout);
+      assert.ok(result.id, 'result has id');
+      assert.ok(result.path, 'result has path');
+      assert.ok(fs.existsSync(result.path), 'file exists at returned path');
+    });
+
+    test('20. list --raw → exit 0, JSON array', () => {
+      const tmp = mktmp();
+      runCli(tmp, 'add --objective 10 --trd 10-03 --title "T" --context "C" --options "a,b" --recommendation a');
+      const stdout = runCli(tmp, 'list --raw');
+      const result = JSON.parse(stdout);
+      assert.ok(Array.isArray(result), 'result is array');
+      assert.ok(result.length >= 1, 'has at least one item');
+    });
+
+    test('21. resolve DECISION-001 option-a → exit 0, file moved to resolved/', () => {
+      const tmp = mktmp();
+      runCli(tmp, 'add --objective 10 --trd 10-03 --title "T" --context "C" --options "a,b" --recommendation a');
+      const stdout = runCli(tmp, 'resolve DECISION-001 option-a');
+      const result = JSON.parse(stdout);
+      assert.ok(result.ok || result.resolved, 'ok response');
+      const resolvedPath = path.join(tmp, '.planning', 'decisions', 'resolved', 'DECISION-001.md');
+      assert.ok(fs.existsSync(resolvedPath), 'file moved to resolved/');
+    });
+
+    test('22. unknown subcommand → exit 1 with usage', () => {
+      const tmp = mktmp();
+      assert.throws(() => {
+        execSync(`node ${DF_TOOLS} decision-queue unknowncmd`, {
+          cwd: tmp, encoding: 'utf-8',
+          env: { ...process.env, NOTIFIER_DISABLE: '1' },
+        });
+      }, (err) => {
+        assert.ok(err.status === 1, `exit status should be 1, got: ${err.status}`);
+        const stderr = err.stderr || '';
+        assert.ok(
+          stderr.includes('unknowncmd') || stderr.includes('Usage') || stderr.includes('Unknown'),
+          `stderr should mention unknown command, got: ${stderr}`
+        );
+        return true;
+      });
     });
   });
 
