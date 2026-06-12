@@ -449,8 +449,18 @@ function cmdCommit(cwd, message, files, raw, amend) {
     execGit(cwd, ['add', file]);
   }
 
-  // Commit
-  const commitArgs = amend ? ['commit', '--amend', '--no-edit'] : ['commit', '-m', message];
+  // Commit — when specific files were named, limit the commit to those pathspecs so
+  // concurrently staged changes from other executors are not swept in.
+  // The git add loop above already ensures brand-new files are tracked first.
+  // Do NOT add pathspecs to the amend branch — --amend --no-edit -- <paths> changes amend semantics.
+  let commitArgs;
+  if (amend) {
+    commitArgs = ['commit', '--amend', '--no-edit'];
+  } else if (files && files.length > 0) {
+    commitArgs = ['commit', '-m', message, '--', ...files];
+  } else {
+    commitArgs = ['commit', '-m', message];
+  }
   const commitResult = execGit(cwd, commitArgs);
   if (commitResult.exitCode !== 0) {
     if (commitResult.stdout.includes('nothing to commit') || commitResult.stderr.includes('nothing to commit')) {
