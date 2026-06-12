@@ -718,14 +718,14 @@ PTY → Daemon polish bundle
 
 Jobs:
 - [x] 10-01-autonomous-config-foundation-TRD.md — mode "autonomous" preset in loadConfig + template + marker gitignore
-- [ ] 10-02-verifier-delegated-checkpoints-TRD.md — human-verify checkpoints delegated to verifier agent (green evidence or escalate)
-- [ ] 10-03-decision-queue-TRD.md — decision-queue lib/CLI + /devflow:decide skill + OS notification
-- [ ] 10-04-decision-wiring-wave-failures-TRD.md — park decisions/Rule-4 stops, continue independent waves, retry-once + dependency-aware skip
-- [ ] 10-05-stop-hook-auto-resume-TRD.md — Stop hook decision:block resume, bounded 3 attempts per objective
-- [ ] 10-06-subagent-retry-hook-TRD.md — SubagentStop retries failed executor once with feedback
-- [ ] 10-07-agent-hardening-TRD.md — maxTurns/worktree isolation/memory frontmatter + worktree-aware spawn/merge
-- [ ] 10-08-config-integrity-destamping-TRD.md — remove dead gates, batch new-project questions, autonomous de-stamping
-- [ ] 10-09-unattended-runbook-TRD.md — references/unattended-operation.md + settings exposure
+- [x] 10-02-verifier-delegated-checkpoints-TRD.md — human-verify checkpoints delegated to verifier agent (green evidence or escalate)
+- [x] 10-03-decision-queue-TRD.md — decision-queue lib/CLI + /devflow:decide skill + OS notification
+- [x] 10-04-decision-wiring-wave-failures-TRD.md — park decisions/Rule-4 stops, continue independent waves, retry-once + dependency-aware skip
+- [x] 10-05-stop-hook-auto-resume-TRD.md — Stop hook decision:block resume, bounded 3 attempts per objective
+- [x] 10-06-subagent-retry-hook-TRD.md — SubagentStop retries failed executor once with feedback
+- [x] 10-07-agent-hardening-TRD.md — maxTurns/worktree isolation/memory frontmatter + worktree-aware spawn/merge
+- [x] 10-08-config-integrity-destamping-TRD.md — remove dead gates, batch new-project questions, autonomous de-stamping
+- [x] 10-09-unattended-runbook-TRD.md — references/unattended-operation.md + settings exposure
 
 ---
 
