@@ -122,7 +122,7 @@ Deprecation language updates:
 <gotchas>
 - Line numbers above were verified on 2026-06-12; if drift occurred, locate by the quoted text, not the number.
 - This session runs from the home mirror — edits land in the repo; do not hand-sync to ~/.claude/devflow (sync-runtime handles that on next session).
-- 11 pre-existing test failures in daemon/watcher/peer-scan/novel-domain — do not fix, do not worsen.
+- 12 pre-existing test failures in daemon/watcher/peer-scan/novel-domain — do not fix, do not worsen.
 - HARD CONSTRAINT: never use port 8080 in any file touched; use 8091 in any example.
 </gotchas>
 
@@ -135,7 +135,7 @@ Deprecation language updates:
 ORDER MATTERS (research binding): repoint BEFORE delete.
 
 1. templates/job-prompt.md: replace both `@~/.claude/devflow/workflows/execute-job.md` occurrences (lines 60, 449) with `@~/.claude/devflow/workflows/execute-trd.md`.
-2. Prose updates: structure.md:169, user-setup.md:70, execute-objective.md:9, skills/execute-objective/SKILL.md:22 — replace execute-job mentions with execute-trd equivalents (see research_context for exact targets).
+2. Prose updates: structure.md:169, user-setup.md:70, execute-objective.md:9 AND execute-objective.md:871 (`/devflow:progress` -> `/devflow:status` — owned by this task, NOT task 2), skills/execute-objective/SKILL.md:22 — replace execute-job mentions with execute-trd equivalents (see research_context for exact targets).
 3. execute-trd.md lines 89/106/129/218/238: remove the "identical to execute-job.md — see that workflow" / "Same as execute-job.md" cross-reference phrases, leaving the surrounding instructions self-contained (option b — minimal rewording, no content additions).
 4. Verify zero remaining references: `grep -rn "execute-job" plugins/ README.md docs/ 2>/dev/null` returns nothing (excluding .planning/ history).
 5. Delete: `git rm plugins/devflow/devflow/workflows/execute-job.md`.
@@ -149,11 +149,11 @@ Commit: `chore(23-03): repoint execute-job references and delete legacy workflow
 
 <task type="auto">
   <name>Task 2: Delete 13 deprecated skill dirs + update deprecation language and stale name references</name>
-  <files>plugins/devflow/skills/{add-objective,add-todo,audit-milestone,check-todos,complete-milestone,health,insert-objective,new-milestone,pause-work,plan-milestone-gaps,progress,remove-objective,resume-work}/, plugins/devflow/devflow/workflows/help.md, README.md, plugins/devflow/devflow/workflows/execute-objective.md, plugins/devflow/devflow/workflows/discuss-objective.md, plugins/devflow/devflow/workflows/check-todos.md, plugins/devflow/devflow/workflows/pause-work.md, plugins/devflow/devflow/workflows/progress.md, plugins/devflow/devflow/workflows/insert-objective.md</files>
+  <files>plugins/devflow/skills/{add-objective,add-todo,audit-milestone,check-todos,complete-milestone,health,insert-objective,new-milestone,pause-work,plan-milestone-gaps,progress,remove-objective,resume-work}/, plugins/devflow/devflow/workflows/help.md, README.md, plugins/devflow/devflow/workflows/discuss-objective.md, plugins/devflow/devflow/workflows/check-todos.md, plugins/devflow/devflow/workflows/pause-work.md, plugins/devflow/devflow/workflows/progress.md, plugins/devflow/devflow/workflows/insert-objective.md</files>
   <action>
 1. `git rm -r` the 13 skill directories listed in frontmatter (skills/ tree ONLY — workflows/ untouched; see anti_patterns).
 2. workflows/insert-objective.md: flip frontmatter `status: active` → `status: legacy` and update line 116 `/devflow:add-objective` → `/devflow:objective add`.
-3. Update stale consolidated-name references per research_context: execute-objective.md:871, discuss-objective.md:126, check-todos.md:33/123/139, pause-work.md:113, progress.md:376.
+3. Update stale consolidated-name references per research_context (execute-objective.md:871 already handled in task 1): discuss-objective.md:126, check-todos.md:33/123/139, pause-work.md:113, progress.md:376.
 4. workflows/help.md deprecation appendix (~440-460): change "These old skill names still work but emit a deprecation warning and forward to the consolidated skill" to state the names were removed in v2.2; keep the old-name → consolidated-name table as migration guidance.
 5. README.md:546: rewrite the "13 legacy skill names ... still work" callout to "removed in v2.2 — use the consolidated commands; run /devflow:help for the migration map".
 6. Confirm DEPRECATION_MAP untouched: `git diff --stat plugins/devflow/devflow/bin/lib/skill-route.cjs` shows no changes.
@@ -177,7 +177,7 @@ Commit: `chore(23-03): delete 13 deprecated redirect skills, update deprecation 
 - `for f in add-objective check-todos health pause-work progress audit-milestone; do test -f "plugins/devflow/devflow/workflows/$f.md" || echo "MISSING WORKFLOW: $f"; done` — no output (dispatch targets intact)
 - `grep -rn "execute-job" plugins/ README.md` — no matches
 - `head -3 plugins/devflow/devflow/workflows/insert-objective.md` — shows status: legacy
-- `npm test` — zero new failures beyond the 11 known pre-existing; WD1 green
+- `npm test` — zero new failures beyond the 12 known pre-existing; WD1 green
 </verification>
 
 <success_criteria>

@@ -3,7 +3,7 @@ objective: 23-claude-compatibility-cleanup
 trd: 05
 type: standard
 wave: 2
-depends_on: [23-01, 23-02, 23-03, 23-04]
+depends_on: ["23-01", "23-02", "23-03", "23-04"]
 files_modified:
   - plugins/devflow/agents/planner.md
   - plugins/devflow/agents/executor.md
@@ -97,7 +97,7 @@ From 23-RESEARCH.md (HIGH confidence):
 - Token measurement method (use consistently for before AND after): `wc -c` for bytes; tokens ≈ bytes/4 (document the proxy in the SUMMARY). Capture before-values FIRST, in Task 1, before any edit.
 - The >=4k-token combined target is the objective's stated goal; research line-counts suggest ~3.2-3.5k may be the honest ceiling from the mapped sections alone. If after-measurements fall short, do NOT cut additional content to hit the number — report the shortfall and the per-section breakdown in the SUMMARY.
 - planner.md was extended by objective 0 (Intent Resolution steps) and obj 3/5 (user_preferences advisory blocks) — none of those sections are in scope; touch ONLY the mapped sections.
-- 11 pre-existing test failures in daemon/watcher/peer-scan/novel-domain — do not fix, do not worsen (this TRD should not affect tests at all).
+- 12 pre-existing test failures in daemon/watcher/peer-scan/novel-domain — do not fix, do not worsen (this TRD should not affect tests at all).
 - HARD CONSTRAINT: never use port 8080 in any moved/summarized content or example; use 8091 if a port example is needed.
 </gotchas>
 

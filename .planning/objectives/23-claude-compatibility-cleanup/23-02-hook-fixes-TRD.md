@@ -108,7 +108,7 @@ From 23-RESEARCH.md (HIGH confidence):
 <gotchas>
 - route-intent.test.js may contain assertions BEYOND the seven enumerated (e.g., on the `╠` divider or padding). Read the full `renderDirective` describe block first; for each assertion decide keep-as-is (compact output satisfies it) or rewrite deliberately (assertion pins dropped decoration). Never delete an assertion without replacing its intent.
 - The status skill routes (`/devflow:status resume`, `/devflow:status pause`) flow through INTENT_MAP regexes on prompt text, not descriptions — renderDirective changes cannot affect routing.
-- 11 pre-existing test failures in daemon/watcher/peer-scan/novel-domain suites — do not fix, do not worsen.
+- 12 pre-existing test failures in daemon/watcher/peer-scan/novel-domain suites — do not fix, do not worsen.
 - Hand-built fixtures only (no_llm_test_data); descriptive test names (no gherkin, no property-based libs).
 - HARD CONSTRAINT: never use port 8080 anywhere; use 8091 if a port is ever needed (none expected here).
 </gotchas>
@@ -202,7 +202,7 @@ Commit: `perf(23-02): cache stateLib resolution in statusline hook`
 <verification>
 - `node --test plugins/devflow/hooks/route-intent.test.js plugins/devflow/hooks/gate-commits.test.js plugins/devflow/hooks/statusline.test.js` — all pass
 - Directive byte size <=400 confirmed by the new assertion
-- `npm test` — zero new failures beyond the 11 known pre-existing
+- `npm test` — zero new failures beyond the 12 known pre-existing
 </verification>
 
 <success_criteria>

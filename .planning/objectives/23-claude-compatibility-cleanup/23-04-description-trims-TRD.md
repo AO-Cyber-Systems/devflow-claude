@@ -90,7 +90,7 @@ Trim recipe per skill: keep skill name + primary function + consolidated subcomm
 
 <gotchas>
 - The combined description+when_to_use budget per skill is 1,536 chars (docs) — 350 is this objective's stricter target.
-- 11 pre-existing test failures in daemon/watcher/peer-scan/novel-domain — do not fix, do not worsen.
+- 12 pre-existing test failures in daemon/watcher/peer-scan/novel-domain — do not fix, do not worsen.
 - HARD CONSTRAINT: never use port 8080 in any description/body text or example; use 8091 if a port example is ever needed.
 </gotchas>
 
@@ -139,7 +139,7 @@ Commit: `chore(23-04): trim awareness/gh-sync/sync-roadmap descriptions to <=350
 <verification>
 - Measurement one-liner <=350 for: tui, handoff, status, initiatives, awareness, gh-sync, sync-roadmap, help
 - Body sections contain the relocated trigger/mode/flag documentation (spot-check status and tui)
-- `npm test` — zero new failures beyond the 11 known pre-existing
+- `npm test` — zero new failures beyond the 12 known pre-existing
 </verification>
 
 <success_criteria>

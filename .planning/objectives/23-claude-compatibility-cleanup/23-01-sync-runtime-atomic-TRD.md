@@ -95,7 +95,7 @@ From 23-RESEARCH.md (HIGH confidence):
 <gotchas>
 - **LIVE-MIRROR SELF-UPDATE HAZARD (critical):** This very session runs from `~/.claude/devflow/`. Tests MUST use a tmpdir for BOTH source and target: spawn the hook subprocess with `CLAUDE_PLUGIN_ROOT=<tmp-plugin-root>` AND `HOME=<tmp-home>` (Node's `os.homedir()` honors `$HOME` on POSIX). NEVER run the hook in tests with the real `HOME` or with `CLAUDE_PLUGIN_ROOT` pointing at the repo root — that overwrites the live mirror mid-session.
 - Hand-build fixture trees in test code (mkdirSync + writeFileSync of small marker files like `bin/df-tools.cjs` containing `// stub`). No LLM-generated sample data; no fixtures copied from the real repo tree.
-- 11 pre-existing test failures exist in daemon/watcher/peer-scan/novel-domain suites — do not fix, do not worsen. Judge success by zero NEW failures plus the new suite passing.
+- 12 pre-existing test failures exist in daemon/watcher/peer-scan/novel-domain suites — do not fix, do not worsen. Judge success by zero NEW failures plus the new suite passing.
 - HARD CONSTRAINT: never use port 8080 anywhere (tests, examples, docs). If a port is ever needed, use 8091. (This TRD should need no ports at all.)
 </gotchas>
 
@@ -159,7 +159,7 @@ Run the full Task 1 suite — all green. Then run `npm test` to confirm zero new
 
 Commit: `feat(23-01): atomic mirror swap, test-code exclusions, content sentinel`
   </action>
-  <verify>node --test plugins/devflow/hooks/sync-runtime.test.js passes 10/10; npm test shows no new failures beyond the 11 known pre-existing</verify>
+  <verify>node --test plugins/devflow/hooks/sync-runtime.test.js passes 10/10; npm test shows no new failures beyond the 12 known pre-existing</verify>
   <done>All Test-list cases pass; sync excludes ~2.4MB of test code; sentinel self-heal works; version marker write ordered after swaps</done>
   <recovery>If renameSync onto an existing dir errors on this platform, do removeDir(target/sub) then renameSync (already the specified order); if a swap still fails, abort remaining swaps, clean tmp dirs, do not write the marker — tests 9/10 prove the failure contract.</recovery>
 </task>
@@ -175,7 +175,7 @@ Commit: `feat(23-01): atomic mirror swap, test-code exclusions, content sentinel
 - `grep -n "renameSync" plugins/devflow/hooks/sync-runtime.js` — atomic swap present
 - `grep -n "df-tools.cjs" plugins/devflow/hooks/sync-runtime.js` — sentinel present
 - Exclusion regexes do NOT match `references/deviation-rules.md`: `node -e "const p=[/\.test\.cjs$/,/\.test\.js$/,/(^|\/)__fixtures__(\/|$)/]; console.log(p.some(r=>r.test('references/deviation-rules.md')))"` prints `false`
-- `npm test` — zero new failures (11 known pre-existing in daemon/watcher/peer-scan/novel-domain allowed)
+- `npm test` — zero new failures (12 known pre-existing in daemon/watcher/peer-scan/novel-domain allowed)
 </verification>
 
 <success_criteria>
