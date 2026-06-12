@@ -551,6 +551,19 @@ Dependency order:
 
 ---
 
+### Objective 24: Natural-language routing trigger fixes
+
+**Goal:** Natural-language prompts route to the correct DevFlow skill at every layer — the gate-edits override phrases actually work at runtime (single-turn marker written by route-intent, consumed by gate-edits), route-intent's INTENT_MAP fires on the flagship phrases each skill advertises ("build objective N", "execute objective N", "implement this"), the BUILD rule stops stealing todo/quick/objective-add prompts, override phrases and an active skill marker suppress the routing directive, and build vs execute-objective SKILL.md triggers are disambiguated. Tests cover real PreToolUse payload shapes (no user_message field).
+**Depends on:** Objective 23
+**TRDs:** 3 plans
+
+TRDs:
+- [ ] 24-01-edit-override-marker-TRD.md — shared OVERRIDE_PHRASES/marker lib + gate-edits consumes .edit-override with TTL + realistic PreToolUse payload tests (Wave 1)
+- [ ] 24-02-route-intent-rules-TRD.md — EXECUTE/TODO/QUICK rules, BUILD extension + suppression, override/skill-active directive suppression, marker write, cross-hook e2e (Wave 2)
+- [ ] 24-03-skill-trigger-disambiguation-TRD.md — execute-objective vs build trigger disambiguation + quick/help generic-trigger tightening (Wave 1)
+
+---
+
 ## Milestone v1.2 — Token Efficiency + Ambient Mode + Handoff Polish (in flight)
 
 **Goal:** Three threads. (1) Cut per-invocation token cost (300-600k → 200-400k target) by consolidating skills, extracting prompts to references, and dropping low-leverage features. (2) Convert routing from advisory to authoritative (0% → 90% obedience target) so DevFlow gets used in the 88% of sessions that currently bypass it. (3) Close the "Claude continues executing" promise for TTY-interactive auth (PTY) + polish the coordination layer.
