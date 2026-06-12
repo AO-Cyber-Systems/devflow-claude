@@ -1,13 +1,19 @@
 /**
  * Tests for gate-edits PreToolUse hook — strict DENY mode
  *
- * Decision matrix (24 tests):
+ * Decision matrix:
  *
- *   shouldGate() — 8 core scenarios
- *   hasOverridePhrase() — 8 override-phrase + null-safety scenarios
+ *   shouldGate() — 11 core scenarios (pure function, unchanged)
+ *   hasOverridePhrase() — phrase detection + null-safety (re-exports from shared lib)
  *   hasSkillActiveMarker() — 3 fs-interaction scenarios
- *   subprocess e2e — 8 scenarios (DENY + ALLOW + edge-cases)
+ *   subprocess e2e — realistic PreToolUse payloads (no user_message/prompt keys)
  *   env var escape — 1 test
+ *   export re-export shape — 1 test
+ *
+ * Payload contract (TRD 24-01, 24-RESEARCH.md finding 1):
+ *   Real PreToolUse payloads carry ONLY: session_id, transcript_path, cwd,
+ *   permission_mode, hook_event_name, tool_name, tool_input.
+ *   user_message and prompt fields do NOT exist in the real harness payload.
  */
 
 'use strict';
@@ -26,6 +32,30 @@ const {
   hasOverridePhrase,
   OVERRIDE_PHRASES,
 } = require('./gate-edits.js');
+
+// ---------------------------------------------------------------------------
+// Realistic PreToolUse payload builder (locked contract from 24-RESEARCH.md)
+// Has NO user_message and NO prompt keys — guards against regression.
+// ---------------------------------------------------------------------------
+
+function realPreToolUsePayload({ tool_name, file_path, cwd }) {
+  return {
+    session_id: 'test-session',
+    transcript_path: '/tmp/transcript.jsonl',
+    cwd: cwd || '/tmp',
+    permission_mode: 'default',
+    hook_event_name: 'PreToolUse',
+    tool_name,
+    tool_input: { file_path },
+  };
+}
+
+// Verify the payload helper itself has no user_message/prompt keys
+test('realPreToolUsePayload has no user_message or prompt keys (contract guard)', () => {
+  const payload = realPreToolUsePayload({ tool_name: 'Edit', file_path: '/tmp/a.ts', cwd: '/tmp' });
+  assert.ok(!('user_message' in payload), 'payload must not contain user_message');
+  assert.ok(!('prompt' in payload), 'payload must not contain prompt');
+});
 
 // ---------------------------------------------------------------------------
 // Decision matrix: shouldGate()
@@ -112,30 +142,26 @@ describe('shouldGate decision matrix', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Override phrase detection: hasOverridePhrase()
+// Override phrase detection: hasOverridePhrase() — re-export from shared lib
 // ---------------------------------------------------------------------------
 
-describe('hasOverridePhrase — phrase detection', () => {
-  // Tests 9-12: each phrase detects case-insensitively
+describe('hasOverridePhrase — phrase detection (re-export from lib/edit-override.js)', () => {
+  // Tests: each phrase detects case-insensitively
   for (const phrase of ['skip devflow', 'just edit', 'bypass devflow', 'force edit']) {
-    // Test 9: lowercase
     test(`detects "${phrase}" (lowercase)`, () => {
       assert.equal(hasOverridePhrase(`Please ${phrase} the bug`), true);
     });
 
-    // Test 10: uppercase
     test(`detects "${phrase.toUpperCase()}" (uppercase)`, () => {
       assert.equal(hasOverridePhrase(`Please ${phrase.toUpperCase()} the bug`), true);
     });
 
-    // Test 11: mixed case
     test(`detects "${phrase}" (mixed case)`, () => {
       const mixed = phrase.split('').map((c, i) => i % 2 === 0 ? c.toUpperCase() : c).join('');
       assert.equal(hasOverridePhrase(`do this: ${mixed}`), true);
     });
   }
 
-  // Test 13: null safety
   test('returns false for null', () => {
     assert.equal(hasOverridePhrase(null), false);
   });
@@ -165,11 +191,28 @@ describe('hasOverridePhrase — phrase detection', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Export shape test (test 11): gate-edits re-exports OVERRIDE_PHRASES and hasOverridePhrase
+// ---------------------------------------------------------------------------
+
+describe('gate-edits export re-export shape', () => {
+  test('exports OVERRIDE_PHRASES (length 4) via re-export from shared lib', () => {
+    assert.ok(Array.isArray(OVERRIDE_PHRASES));
+    assert.equal(OVERRIDE_PHRASES.length, 4);
+  });
+
+  test('exports hasOverridePhrase that behaves identically to the shared lib', () => {
+    assert.equal(typeof hasOverridePhrase, 'function');
+    assert.equal(hasOverridePhrase('skip devflow'), true);
+    assert.equal(hasOverridePhrase('not a phrase'), false);
+    assert.equal(hasOverridePhrase(null), false);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Skill-active marker: hasSkillActiveMarker() — fs interaction
 // ---------------------------------------------------------------------------
 
 describe('hasSkillActiveMarker — fs interaction', () => {
-  // Test 14
   test('returns true when .skill-active file exists', () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gate-edits-marker-'));
     try {
@@ -185,7 +228,6 @@ describe('hasSkillActiveMarker — fs interaction', () => {
     }
   });
 
-  // Test 15
   test('returns false when marker file absent', () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gate-edits-no-marker-'));
     try {
@@ -196,17 +238,16 @@ describe('hasSkillActiveMarker — fs interaction', () => {
     }
   });
 
-  // Test 16
   test('returns false when planningDir is null', () => {
     assert.equal(hasSkillActiveMarker(null), false);
   });
 });
 
 // ---------------------------------------------------------------------------
-// Subprocess e2e: JSON-stdin → JSON-stdout contract
+// Subprocess e2e helpers
 // ---------------------------------------------------------------------------
 
-// Helper: run the hook as a subprocess with given payload and env
+// Run the hook as a subprocess with given payload and env
 function runHook(payload, { cwd, extraEnv = {} } = {}) {
   const tmp = cwd || fs.mkdtempSync(path.join(os.tmpdir(), 'gate-edits-e2e-'));
   const result = spawnSync(process.execPath, [HOOK_PATH], {
@@ -222,11 +263,11 @@ function runHook(payload, { cwd, extraEnv = {} } = {}) {
   return { tmp, result };
 }
 
-// Helper: create tmp dir with .planning/ (ambient DevFlow project)
-function makeTmp(withMarker = false) {
+// Create tmp dir with .planning/ (ambient DevFlow project)
+function makeTmp(withSkillMarker = false) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gate-edits-'));
   fs.mkdirSync(path.join(tmp, '.planning'));
-  if (withMarker) {
+  if (withSkillMarker) {
     fs.writeFileSync(path.join(tmp, '.planning', '.skill-active'), JSON.stringify({
       skill: 'build', started_at: new Date().toISOString(), pid: process.pid,
     }));
@@ -234,16 +275,19 @@ function makeTmp(withMarker = false) {
   return tmp;
 }
 
-describe('subprocess e2e — DENY in ambient + no marker + no override', () => {
-  // Test 17
-  test('emits permissionDecision: deny with ambient mode reason', () => {
+// ---------------------------------------------------------------------------
+// Test 7: e2e DENY — ambient project, realistic Edit payload (no user_message/prompt), no marker
+// ---------------------------------------------------------------------------
+
+describe('subprocess e2e — DENY in ambient + no marker + realistic payload', () => {
+  test('emits permissionDecision: deny with ambient mode reason (no user_message key)', () => {
     const tmp = makeTmp(false);
     try {
-      const payload = {
+      const payload = realPreToolUsePayload({
         tool_name: 'Edit',
-        tool_input: { file_path: path.join(tmp, 'src/foo.ts') },
-        user_message: 'Edit foo.ts please',
-      };
+        file_path: path.join(tmp, 'src/foo.ts'),
+        cwd: tmp,
+      });
       const { result } = runHook(payload, { cwd: tmp });
       assert.ok(result.stdout.length > 0, 'Expected JSON output (DENY)');
       const out = JSON.parse(result.stdout);
@@ -255,67 +299,89 @@ describe('subprocess e2e — DENY in ambient + no marker + no override', () => {
   });
 });
 
-describe('subprocess e2e — ALLOW with skill-active marker', () => {
-  // Test 18
+// ---------------------------------------------------------------------------
+// Test 8: e2e ALLOW — ambient project + fresh .edit-override marker
+// ---------------------------------------------------------------------------
+
+describe('subprocess e2e — ALLOW with fresh .edit-override marker', () => {
+  test('empty stdout AND marker file no longer exists after run', () => {
+    const tmp = makeTmp(false);
+    try {
+      const markerPath = path.join(tmp, '.planning', '.edit-override');
+      fs.writeFileSync(markerPath, JSON.stringify({ created_at: new Date().toISOString() }));
+      const payload = realPreToolUsePayload({
+        tool_name: 'Edit',
+        file_path: path.join(tmp, 'src/foo.ts'),
+        cwd: tmp,
+      });
+      const { result } = runHook(payload, { cwd: tmp });
+      assert.equal(result.stdout, '', 'Expected empty stdout (allow via fresh marker)');
+      assert.equal(fs.existsSync(markerPath), false, 'Marker should be consumed (deleted)');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 9: e2e DENY — ambient project + stale .edit-override marker (10 min old, TTL 5 min)
+// ---------------------------------------------------------------------------
+
+describe('subprocess e2e — DENY with stale .edit-override marker', () => {
+  test('deny output AND marker file deleted after run', () => {
+    const tmp = makeTmp(false);
+    try {
+      const markerPath = path.join(tmp, '.planning', '.edit-override');
+      fs.writeFileSync(markerPath, JSON.stringify({ created_at: new Date().toISOString() }));
+      // Backdate mtime to 10 minutes ago (past 5-min TTL)
+      const tenMinAgo = (Date.now() - 10 * 60 * 1000) / 1000;
+      fs.utimesSync(markerPath, tenMinAgo, tenMinAgo);
+      const payload = realPreToolUsePayload({
+        tool_name: 'Edit',
+        file_path: path.join(tmp, 'src/foo.ts'),
+        cwd: tmp,
+      });
+      const { result } = runHook(payload, { cwd: tmp });
+      assert.ok(result.stdout.length > 0, 'Expected JSON output (DENY for stale marker)');
+      const out = JSON.parse(result.stdout);
+      assert.equal(out.hookSpecificOutput.permissionDecision, 'deny');
+      assert.equal(fs.existsSync(markerPath), false, 'Stale marker should also be deleted');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 10: e2e regression — all other escape hatches still work (realistic payloads)
+// ---------------------------------------------------------------------------
+
+describe('subprocess e2e — ALLOW with skill-active marker (realistic payload)', () => {
   test('no stdout when skill-active marker present', () => {
     const tmp = makeTmp(true);
     try {
-      const payload = {
+      const payload = realPreToolUsePayload({
         tool_name: 'Edit',
-        tool_input: { file_path: path.join(tmp, 'src/foo.ts') },
-        user_message: 'Edit foo.ts please',
-      };
+        file_path: path.join(tmp, 'src/foo.ts'),
+        cwd: tmp,
+      });
       const { result } = runHook(payload, { cwd: tmp });
-      assert.equal(result.stdout, '', 'Expected empty stdout (allow via no-op)');
+      assert.equal(result.stdout, '', 'Expected empty stdout (allow via skill-active)');
     } finally {
       fs.rmSync(tmp, { recursive: true, force: true });
     }
   });
 });
 
-describe('subprocess e2e — ALLOW with override phrase in user_message', () => {
-  // Test 19
-  test('no stdout when user_message contains override phrase', () => {
-    const tmp = makeTmp(false);
-    try {
-      const payload = {
-        tool_name: 'Edit',
-        tool_input: { file_path: path.join(tmp, 'src/foo.ts') },
-        user_message: 'skip devflow and just fix this',
-      };
-      const { result } = runHook(payload, { cwd: tmp });
-      assert.equal(result.stdout, '', 'Expected empty stdout (override phrase allows)');
-    } finally {
-      fs.rmSync(tmp, { recursive: true, force: true });
-    }
-  });
-
-  test('no stdout when prompt field contains override phrase (fallback field)', () => {
-    const tmp = makeTmp(false);
-    try {
-      const payload = {
-        tool_name: 'Edit',
-        tool_input: { file_path: path.join(tmp, 'src/foo.ts') },
-        prompt: 'just edit it',
-      };
-      const { result } = runHook(payload, { cwd: tmp });
-      assert.equal(result.stdout, '', 'Expected empty stdout (prompt field fallback)');
-    } finally {
-      fs.rmSync(tmp, { recursive: true, force: true });
-    }
-  });
-});
-
-describe('subprocess e2e — non-ambient (no .planning) NOOP', () => {
-  // Test 20
+describe('subprocess e2e — non-ambient (no .planning) NOOP (realistic payload)', () => {
   test('empty stdout when no .planning dir (non-DevFlow project)', () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gate-edits-noplan-'));
     try {
-      const payload = {
+      const payload = realPreToolUsePayload({
         tool_name: 'Edit',
-        tool_input: { file_path: path.join(tmp, 'src/foo.ts') },
-        user_message: 'Edit foo.ts please',
-      };
+        file_path: path.join(tmp, 'src/foo.ts'),
+        cwd: tmp,
+      });
       const { result } = runHook(payload, { cwd: tmp });
       assert.equal(result.stdout, '', 'Expected empty stdout (no .planning = no-op)');
     } finally {
@@ -324,16 +390,15 @@ describe('subprocess e2e — non-ambient (no .planning) NOOP', () => {
   });
 });
 
-describe('subprocess e2e — Read tool NOOP', () => {
-  // Test 21
+describe('subprocess e2e — Read tool NOOP (realistic payload)', () => {
   test('empty stdout for Read tool in ambient project', () => {
     const tmp = makeTmp(false);
     try {
-      const payload = {
+      const payload = realPreToolUsePayload({
         tool_name: 'Read',
-        tool_input: { file_path: path.join(tmp, 'src/foo.ts') },
-        user_message: 'Read foo.ts',
-      };
+        file_path: path.join(tmp, 'src/foo.ts'),
+        cwd: tmp,
+      });
       const { result } = runHook(payload, { cwd: tmp });
       assert.equal(result.stdout, '', 'Expected empty stdout for Read tool');
     } finally {
@@ -342,16 +407,15 @@ describe('subprocess e2e — Read tool NOOP', () => {
   });
 });
 
-describe('subprocess e2e — .md path allowed', () => {
-  // Test 22
+describe('subprocess e2e — .md path allowed (realistic payload)', () => {
   test('empty stdout when editing a .md file', () => {
     const tmp = makeTmp(false);
     try {
-      const payload = {
+      const payload = realPreToolUsePayload({
         tool_name: 'Edit',
-        tool_input: { file_path: path.join(tmp, 'README.md') },
-        user_message: 'Fix the README',
-      };
+        file_path: path.join(tmp, 'README.md'),
+        cwd: tmp,
+      });
       const { result } = runHook(payload, { cwd: tmp });
       assert.equal(result.stdout, '', 'Expected empty stdout for .md file');
     } finally {
@@ -360,16 +424,15 @@ describe('subprocess e2e — .md path allowed', () => {
   });
 });
 
-describe('subprocess e2e — .planning path allowed', () => {
-  // Test 23
+describe('subprocess e2e — .planning path allowed (realistic payload)', () => {
   test('empty stdout when editing a .planning/** path', () => {
     const tmp = makeTmp(false);
     try {
-      const payload = {
+      const payload = realPreToolUsePayload({
         tool_name: 'Edit',
-        tool_input: { file_path: path.join(tmp, '.planning', 'STATE.md') },
-        user_message: 'Update planning state',
-      };
+        file_path: path.join(tmp, '.planning', 'STATE.md'),
+        cwd: tmp,
+      });
       const { result } = runHook(payload, { cwd: tmp });
       assert.equal(result.stdout, '', 'Expected empty stdout for .planning/ path');
     } finally {
@@ -379,15 +442,14 @@ describe('subprocess e2e — .planning path allowed', () => {
 });
 
 describe('env var escape hatch', () => {
-  // Test 24
   test('DEVFLOW_SKIP_EDIT_GATE=1 disables gate even in ambient mode without marker', () => {
     const tmp = makeTmp(false);
     try {
-      const payload = {
+      const payload = realPreToolUsePayload({
         tool_name: 'Edit',
-        tool_input: { file_path: path.join(tmp, 'src/foo.ts') },
-        user_message: 'Edit foo.ts please',
-      };
+        file_path: path.join(tmp, 'src/foo.ts'),
+        cwd: tmp,
+      });
       const { result } = runHook(payload, {
         cwd: tmp,
         extraEnv: { DEVFLOW_SKIP_EDIT_GATE: '1' },
