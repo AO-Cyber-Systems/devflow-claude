@@ -58,6 +58,7 @@ STATE.md stays lean; this file grows over time.
 - [Objective 23]: 23-04: Moved trigger lists into ## Triggers body sections rather than deleting; help SKILL.md at 265 chars already compliant
 - [Objective 23]: execute-trd.md cross-ref phrases removed inline (option b) — no content added, just stale execute-job refs deleted
 - [Objective 23]: check-todos E2E3 test updated to assert skill dir removed in v2.2 rather than restoring deleted dir
+- [Objective 23]: Extracted executor deviation Rules 1-4 byte-faithful to references/deviation-rules.md; RULE PRIORITY kept inline
 
 ## Performance Metrics
 
