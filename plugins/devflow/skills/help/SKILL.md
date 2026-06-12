@@ -3,7 +3,7 @@ name: help
 description: |
   Show available DevFlow commands and usage guide.
   Use when the user asks about DevFlow capabilities, available commands, or how to use the system.
-  Triggers on: "what can you do?", "how do I use DevFlow?", "show commands", "help", "what commands are available?"
+  Triggers on: "what can you do?", "how do I use DevFlow?", "show commands", "devflow help", "what commands are available?"
 ---
 <objective>
 Display the complete DevFlow command reference.
