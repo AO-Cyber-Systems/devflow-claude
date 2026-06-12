@@ -727,7 +727,7 @@ PTY → Daemon polish bundle
 
 **Goal:** Autonomous end-to-end operation — verifier-delegated (machine-verified) checkpoints, a decision queue that parks design choices without halting independent work, auto-resume/retry hooks, hardened agent frontmatter (worktree isolation, maxTurns, memory), wired-or-removed config gates, and a `mode: "autonomous"` preset + unattended runbook. Humans stop only for design/architecture decisions, auth, and destructive actions.
 **Depends on:** Objective 9
-**Jobs:** 1/3 jobs executed
+**Jobs:** 2/3 jobs executed
 
 Jobs:
 - [x] 10-01-autonomous-config-foundation-TRD.md — mode "autonomous" preset in loadConfig + template + marker gitignore

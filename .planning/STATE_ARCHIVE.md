@@ -61,6 +61,9 @@ STATE.md stays lean; this file grows over time.
 - [Objective 23]: Extracted executor deviation Rules 1-4 byte-faithful to references/deviation-rules.md; RULE PRIORITY kept inline
 - [Objective 24]: build/SKILL.md left unchanged — decision 6 locks build-flavored triggers to build skill only; execute-objective now uses execution-only phrasing with zero trigger overlap
 - [Objective 24]: quick/help generic triggers tightened — 'do this'→'do this small task', 'tackle this'→'tackle this small change', bare 'help'→'devflow help' (decision 7 description part complete)
+- [Objective 24-natural-language-routing-trigger-fixes]: OVERRIDE_PHRASES single source in hooks/lib/edit-override.js; gate-edits re-exports for back-compat with route-intent and tests
+- [Objective 24-natural-language-routing-trigger-fixes]: consumeEditOverrideMarker deletes marker in BOTH fresh and stale cases (consume-on-read + stale cleanup); TTL = 5 minutes
+- [Objective 24-natural-language-routing-trigger-fixes]: gate-edits.js main() drops dead input.user_message read; overrideActive now computed via consumeEditOverrideMarker(planningDir) only
 
 ## Performance Metrics
 
@@ -77,4 +80,5 @@ STATE.md stays lean; this file grows over time.
 | Objective 17-phase-c-auto-init P04 | 5min | 2 tasks | 4 files |
 | Objective 18 P18-01 | 6 | 3 tasks | 20 files |
 | Objective 24 P03 | 354 | 2 tasks | 3 files |
+| Objective 24-natural-language-routing-trigger-fixes P01 | 949 | 2 tasks | 4 files |
 
