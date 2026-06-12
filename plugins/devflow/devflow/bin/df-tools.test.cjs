@@ -3024,3 +3024,58 @@ describe('F5 confidence-field back-compat', () => {
     assert.strictEqual(parsed.valid, true, 'plan schema must still accept JOB.md');
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// verify job-structure trd field
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('verify job-structure trd field', () => {
+  let tmpDir;
+
+  const MINIMAL_TASK = `<task type="auto">\n<name>Example Task</name>\n<files>src/foo.ts</files>\n<action>Do the thing</action>\n<verify>node --test</verify>\n<done>Works</done>\n</task>`;
+
+  function makePlanContent(frontmatterLines) {
+    return `---\n${frontmatterLines}\ntype: standard\nwave: 1\ndepends_on: []\nfiles_modified: []\nautonomous: true\nmust_haves:\n  truths: []\n  artifacts: []\n  key_links: []\n---\n\n${MINIMAL_TASK}\n`;
+  }
+
+  beforeEach(() => {
+    tmpDir = createTempProject();
+  });
+
+  afterEach(() => {
+    cleanup(tmpDir);
+  });
+
+  test('trd: field (TRD-format) validates as valid:true with zero errors', () => {
+    const planPath = path.join(tmpDir, 'plan.md');
+    fs.writeFileSync(planPath, makePlanContent('objective: "10-phase-f"\ntrd: "01"'), 'utf-8');
+    const result = runGsdTools(`verify job-structure "${planPath}"`, tmpDir);
+    assert.ok(result.success, `Command failed: ${result.error}`);
+    const parsed = JSON.parse(result.output);
+    assert.strictEqual(parsed.valid, true, `expected valid:true; errors: ${JSON.stringify(parsed.errors)}`);
+    assert.deepStrictEqual(parsed.errors, [], 'no errors expected for TRD-format plan');
+  });
+
+  test('job: field (legacy JOB-format) still validates as valid:true', () => {
+    const planPath = path.join(tmpDir, 'plan.md');
+    fs.writeFileSync(planPath, makePlanContent('objective: "10-phase-f"\njob: "01"'), 'utf-8');
+    const result = runGsdTools(`verify job-structure "${planPath}"`, tmpDir);
+    assert.ok(result.success, `Command failed: ${result.error}`);
+    const parsed = JSON.parse(result.output);
+    assert.strictEqual(parsed.valid, true, `expected valid:true; errors: ${JSON.stringify(parsed.errors)}`);
+    assert.deepStrictEqual(parsed.errors, [], 'no errors expected for legacy JOB-format plan');
+  });
+
+  test('neither job nor trd field → valid:false with descriptive error', () => {
+    const planPath = path.join(tmpDir, 'plan.md');
+    fs.writeFileSync(planPath, makePlanContent('objective: "10-phase-f"'), 'utf-8');
+    const result = runGsdTools(`verify job-structure "${planPath}"`, tmpDir);
+    assert.ok(result.success, `Command should not error (valid:false is normal output)`);
+    const parsed = JSON.parse(result.output);
+    assert.strictEqual(parsed.valid, false, 'expected valid:false when neither job nor trd present');
+    assert.ok(
+      parsed.errors.some(e => e.includes('job') || e.includes('trd')),
+      `error should mention 'job' or 'trd'; got: ${JSON.stringify(parsed.errors)}`
+    );
+  });
+});
