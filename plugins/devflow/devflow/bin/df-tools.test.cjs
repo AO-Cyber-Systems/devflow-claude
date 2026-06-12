@@ -1337,6 +1337,74 @@ describe('objective add command', () => {
     const output = JSON.parse(result.output);
     assert.strictEqual(output.objective_number, 1, 'should be objective 1');
   });
+
+  test('caps slug at 60 chars and strips trailing hyphen for long description', () => {
+    fs.writeFileSync(
+      path.join(tmpDir, '.planning', 'ROADMAP.md'),
+      `# Roadmap\n### Objective 1: Foundation\n**Goal:** Setup\n`
+    );
+    // ~150-char description
+    const longDesc = 'This is a very long description that goes well beyond sixty characters to test slug capping behavior in the objective add command';
+    const result = runGsdTools(`objective add "${longDesc}"`, tmpDir);
+    assert.ok(result.success, `Command failed: ${result.error}`);
+    const parsed = JSON.parse(result.output);
+    assert.ok(parsed.slug.length <= 60, `slug too long: ${parsed.slug.length} chars`);
+    assert.ok(!parsed.slug.endsWith('-'), `slug must not end with hyphen: "${parsed.slug}"`);
+    // Directory must exist with capped slug
+    const dirName = `${parsed.padded}-${parsed.slug}`;
+    assert.ok(
+      fs.existsSync(path.join(tmpDir, '.planning', 'objectives', dirName)),
+      `directory not created: ${dirName}`
+    );
+    assert.ok(dirName.length <= 65, `dir name too long: ${dirName}`);
+  });
+
+  test('rejects flag-like description (starts with --) with no side effects', () => {
+    const roadmapContent = `# Roadmap\n### Objective 1: Foundation\n**Goal:** Setup\n`;
+    fs.writeFileSync(
+      path.join(tmpDir, '.planning', 'ROADMAP.md'),
+      roadmapContent
+    );
+    const result = runGsdTools('objective add --help', tmpDir);
+    assert.strictEqual(result.success, false, 'should fail for flag-like description');
+    const combined = (result.error || '') + (result.output || '');
+    assert.ok(
+      combined.includes('--') || combined.includes('flag'),
+      `error should mention flag-like arg; got: ${combined}`
+    );
+    // No directory named --help should have been created
+    const objectivesDir = path.join(tmpDir, '.planning', 'objectives');
+    const entries = fs.readdirSync(objectivesDir);
+    assert.ok(
+      !entries.some(e => e.includes('--help') || e.includes('-help')),
+      `should not create directory for --help; found: ${entries.join(', ')}`
+    );
+    // ROADMAP.md must be unchanged
+    const roadmapAfter = fs.readFileSync(path.join(tmpDir, '.planning', 'ROADMAP.md'), 'utf-8');
+    assert.strictEqual(roadmapAfter, roadmapContent, 'ROADMAP.md must not be modified');
+  });
+
+  test('number = max(ROADMAP headings, dir prefixes) + 1 — dir ahead of roadmap wins', () => {
+    // ROADMAP only has objectives 1 and 2
+    fs.writeFileSync(
+      path.join(tmpDir, '.planning', 'ROADMAP.md'),
+      `# Roadmap\n\n### Objective 1: Foundation\n**Goal:** Setup\n\n### Objective 2: API\n**Goal:** Build\n\n---\n`
+    );
+    // But a directory with prefix 11 exists on disk
+    const dir11 = path.join(tmpDir, '.planning', 'objectives', '11-phase-d-verifier-wiring');
+    fs.mkdirSync(dir11, { recursive: true });
+
+    const result = runGsdTools('objective add New Feature', tmpDir);
+    assert.ok(result.success, `Command failed: ${result.error}`);
+    const parsed = JSON.parse(result.output);
+    assert.strictEqual(parsed.objective_number, 12, `expected 12, got ${parsed.objective_number}`);
+    assert.ok(
+      fs.existsSync(path.join(tmpDir, '.planning', 'objectives', '12-new-feature')),
+      'directory 12-new-feature should exist'
+    );
+    const roadmap = fs.readFileSync(path.join(tmpDir, '.planning', 'ROADMAP.md'), 'utf-8');
+    assert.ok(roadmap.includes('### Objective 12:'), 'ROADMAP must include Objective 12');
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
