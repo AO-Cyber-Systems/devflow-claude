@@ -377,19 +377,70 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
 <step name="checkpoint_handling">
 Plans with `autonomous: false` require user interaction.
 
-**Auto-mode checkpoint handling:**
+**Mode-aware checkpoint handling:**
 
-Read auto-advance config:
+Read mode and auto-advance config:
 ```bash
+MODE=$(node ~/.claude/devflow/bin/df-tools.cjs config-get mode 2>/dev/null || echo "yolo")
 AUTO_CFG=$(node ~/.claude/devflow/bin/df-tools.cjs config-get workflow.auto_advance 2>/dev/null || echo "false")
 ```
 
-When executor returns a checkpoint AND `AUTO_CFG` is `"true"`:
+**Branch 1 — Autonomous mode (`MODE` is `"autonomous"`):**
+
+When executor returns a checkpoint AND `MODE` is `"autonomous"`:
+
+- **human-verify** → VERIFIER-DELEGATED. Do NOT blind-approve. Spawn the verifier agent in checkpoint verification mode with the checkpoint's `what-built`, `how-to-verify` steps, and plan ID. Pass the port constraint in the prompt.
+
+  ```
+  Task(
+    subagent_type="verifier",
+    model="{resolved_verifier_model}",
+    prompt="
+      <objective>
+      CHECKPOINT VERIFICATION MODE — scoped functional pass, not full objective verification.
+      Verify the checkpoint below and return structured status.
+      </objective>
+
+      <checkpoint_context>
+      Plan: {plan_id} — {plan_name}
+      What was built: {what-built from checkpoint}
+      How to verify: {how-to-verify steps from checkpoint}
+      </checkpoint_context>
+
+      <constraints>
+      - NEVER use port 8080 for anything. It is permanently occupied on the operator's machine.
+        If a dev/verification server is needed, bind port 8091 instead.
+      - Run only the checks needed to prove or disprove the how-to-verify steps.
+        Do not re-verify the whole objective.
+      </constraints>
+
+      <output_format>
+      Return structured status:
+        status: passed | gaps_found | human_needed
+      Include evidence: commands run, observed output, screenshots taken.
+      </output_format>
+    "
+  )
+  ```
+
+  **On verifier return:**
+
+  - `status: passed` → spawn continuation agent with `{user_response}` = `"approved (verifier evidence: {one-line summary})"`. Log `⚡ Verifier-approved: [checkpoint]`.
+  - `status: gaps_found` OR `status: human_needed` → escalate to user. Present the checkpoint using the standard "Present to user" format (step 4 of standard flow below) PLUS append a `### Verifier Report` section with the verifier's full evidence output. Wait for user response before spawning continuation agent.
+  - Verifier timeout or ambiguous return → treat as `human_needed` and escalate to user. Never approve on ambiguity.
+
+- **decision** → Parked via decision queue — wired in TRD 10-04; until wired, fall through to standard flow (never auto-select first option in autonomous mode).
+
+- **human-action** → Present to user. Auth gates cannot be automated.
+
+**Branch 2 — Legacy yolo (`MODE` is NOT `"autonomous"` AND `AUTO_CFG` is `"true"`):**
+
+When executor returns a checkpoint AND `MODE` is not `"autonomous"` AND `AUTO_CFG` is `"true"`:
 - **human-verify** → Auto-spawn continuation agent with `{user_response}` = `"approved"`. Log `⚡ Auto-approved checkpoint`.
 - **decision** → Auto-spawn continuation agent with `{user_response}` = first option from checkpoint details. Log `⚡ Auto-selected: [option]`.
 - **human-action** → Present to user (existing behavior below). Auth gates cannot be automated.
 
-**Standard flow (not auto-mode, or human-action type):**
+**Branch 3 — Standard interactive flow (not auto-mode, or human-action type):**
 
 1. Spawn agent for checkpoint plan
 2. Agent runs until checkpoint task or auth gate → returns structured state
