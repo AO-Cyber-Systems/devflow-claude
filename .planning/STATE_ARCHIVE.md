@@ -48,6 +48,7 @@ STATE.md stays lean; this file grows over time.
 - [Objective 18]: Cache-only preview helpers in init.cjs — _buildCheckTodosPreview reads parsed.now array, _buildAwarenessPreview filters current branch from peer.branches; advisories_warnings always emitted as [] for stable JSON shape
 - [Objective 10-autonomous-mode-overhaul]: Blocked-set computation at orchestrator level from already-loaded wave/depends_on data; computeBlockedSet reserved for resume-time recomputation
 - [Objective 10-autonomous-mode-overhaul]: Rule 4 returns parked as type: rule-4-deviation using same decision-queue add path as checkpoint:decision
+- [Objective 10]: Pending decisions in Stop hook use 3-cap bound rather than bypass: pending ids appear in the reason string on every block attempt; the cap ends the loop regardless
 
 ## Performance Metrics
 
