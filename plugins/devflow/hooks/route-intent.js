@@ -182,6 +182,15 @@ function renderDirective(skills) {
 }
 
 // main -- entry point when executed directly
+//
+// TRD 24-02 wiring:
+//   1. Parse input (prompt from UserPromptSubmit payload)
+//   2. Find planningDir; none → return
+//   3. If override phrase detected → writeEditOverrideMarker BEFORE matchIntent early-return
+//      (override prompts produce no directive but MUST arm gate bypass — decisions 1+4)
+//   4. Read skillActive from .planning/.skill-active presence (fs I/O here, not in matchIntent)
+//   5. Match intent with { skillActive }; empty → return
+//   6. Emit directive
 
 function main() {
   let input;
@@ -189,9 +198,18 @@ function main() {
   const prompt = (input.prompt || '').trim();
   if (!prompt) return;
 
-  if (!findPlanningDir(process.cwd())) return;
+  const planningDir = findPlanningDir(process.cwd());
+  if (!planningDir) return;
 
-  const skills = matchIntent(prompt);
+  // CRITICAL: write marker BEFORE matchIntent check — override prompts return [] by design
+  // yet MUST still arm the gate bypass (locked decisions 1+4 from 24-CONTEXT.md)
+  if (hasOverridePhrase(prompt)) {
+    writeEditOverrideMarker(planningDir);
+    return;
+  }
+
+  const skillActive = fs.existsSync(path.join(planningDir, '.skill-active'));
+  const skills = matchIntent(prompt, { skillActive });
   if (skills.length === 0) return;
 
   const out = {
