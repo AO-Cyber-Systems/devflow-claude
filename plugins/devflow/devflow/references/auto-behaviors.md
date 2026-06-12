@@ -50,18 +50,16 @@ Tasks may declare `caution="pause-before-destructive"` — executor pauses befor
 
 ## TDD Enforcement
 
-When `gates.require_tests` is true (default):
+TDD posture is governed by the (kind, work) defaults table — not a config gate. Type: tdd TRDs enforce RED → GREEN → REFACTOR cycle unconditionally.
 
-- Type: tdd TRDs enforce RED → GREEN → REFACTOR cycle
 - Evidence captured for each phase (command, output, exit code)
 - Exception mechanism: `<!-- TDD-EXCEPTION: {reason} -->` required to skip
 - Exceptions logged in SUMMARY.md
 
 ## Verification Enforcement
 
-When `gates.require_verification` is true (default):
+Every task completion requires evidence (command + output + exit code) — always enforced.
 
-- Every task completion requires evidence (command + output + exit code)
 - Prohibited claims: "should work", "probably passes", "I believe this works"
 - SUMMARY.md must include Task Evidence table
 - Post-TRD verification loop runs after all tasks (max 2 auto-fix cycles)

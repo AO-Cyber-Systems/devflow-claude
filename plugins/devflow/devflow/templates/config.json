@@ -23,8 +23,6 @@
     "min_jobs_for_parallel": 2
   },
   "gates": {
-    "require_verification": true,
-    "require_tests": true,
     "confirm_project": true,
     "confirm_objectives": true,
     "confirm_roadmap": true,

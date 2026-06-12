@@ -387,8 +387,7 @@ node ~/.claude/devflow/bin/df-tools.cjs commit "docs: initialize project" --file
 Using smart defaults:
 - Mode: YOLO (auto-approve, just execute)
 - Auto-advance: Enabled (phases chain automatically)
-- TDD: Enforced (failing test before implementation)
-- Verification: Required (evidence for every task)
+- TDD: Governed by project kind/work defaults
 - Parallelization: Enabled
 - Git tracking: Yes
 
@@ -449,10 +448,6 @@ Create `.planning/config.json` with settings (defaults + any overrides):
     "job_check": true,
     "verifier": true,
     "auto_advance": true
-  },
-  "gates": {
-    "require_verification": true,
-    "require_tests": true
   }
 }
 ```
