@@ -116,37 +116,22 @@ function matchIntent(prompt) {
   return [...new Set(matches.map(m => m.skill))];
 }
 
-// renderDirective -- box-drawn obligatory directive for additionalContext injection.
-
-function padEnd(s, width) {
-  if (s.length >= width) return s.slice(0, width);
-  return s + ' '.repeat(width - s.length);
-}
+// renderDirective -- 23-02: compact box-drawn directive (<=400 bytes).
+// Five-line box: top border, OBLIGATORY header, skill list, DENY notice, bottom border.
+// Inner width adapts to the longest content line (min 38).
 
 function renderDirective(skills) {
   const skillList = skills.join(' or ');
-  const BOX_TOP    = '╔' + '═'.repeat(70) + '╗';
-  const BOX_DIV    = '╠' + '═'.repeat(70) + '╣';
-  const BOX_BOT    = '╚' + '═'.repeat(70) + '╝';
-  const L = '║';
-  const pad = (s, w) => L + ' ' + padEnd(s, w) + L;
-  return [
-    BOX_TOP,
-    pad('           DEVFLOW ROUTING DIRECTIVE — OBLIGATORY', 68),
-    BOX_DIV,
-    pad('This is a DEVFLOW project (.planning/ exists).', 68),
-    pad('Intent matched: ' + skillList, 68),
-    pad('', 68),
-    pad('You MUST invoke ' + skillList, 68),
-    pad('via the Skill tool BEFORE editing any code.', 68),
-    pad('', 68),
-    pad('Do NOT call Edit, Write, or MultiEdit first.', 68),
-    pad('gate-edits.js will DENY edits in ambient mode without a skill.', 68),
-    pad('', 68),
-    pad('If the request is out of scope (a question, tiny ad-hoc fix),', 68),
-    pad('you may proceed -- but prefer /devflow:quick for <5 file changes.', 68),
-    BOX_BOT,
-  ].join('\n');
+  const lines = [
+    'DEVFLOW ROUTING — OBLIGATORY',
+    'Use ' + skillList,
+    'gate-edits.js will DENY ambient edits',
+  ];
+  const innerWidth = Math.max(38, ...lines.map(l => l.length));
+  const row = s => '║ ' + s + ' '.repeat(innerWidth - s.length) + ' ║';
+  const BOX_TOP = '╔' + '═'.repeat(innerWidth + 2) + '╗';
+  const BOX_BOT = '╚' + '═'.repeat(innerWidth + 2) + '╝';
+  return [BOX_TOP, ...lines.map(row), BOX_BOT].join('\n');
 }
 
 // main -- entry point when executed directly
