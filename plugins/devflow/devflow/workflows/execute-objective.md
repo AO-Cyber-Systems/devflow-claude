@@ -345,7 +345,7 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
    - Check `git log --oneline --all --grep="{objective}-{job}"` returns ≥1 commit
    - Check for `## Self-Check: FAILED` marker
 
-   If ANY spot-check fails: report which plan failed, route to failure handler — ask "Retry plan?" or "Continue with remaining waves?"
+   If ANY spot-check fails: report which plan failed, route to failure handler. If `MODE` is `"autonomous"`, apply the autonomous failure protocol in step 7 directly (do not prompt). Otherwise ask "Retry plan?" or "Continue with remaining waves?"
 
    If pass:
    ```
@@ -366,6 +366,35 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
 7. **Handle failures:**
 
    **Known Claude Code bug (classifyHandoffIfNeeded):** If an agent reports "failed" with error containing `classifyHandoffIfNeeded is not defined`, this is a Claude Code runtime bug — not a DevFlow or agent issue. The error fires in the completion handler AFTER all tool calls finish. In this case: run the same spot-checks as step 4 (SUMMARY.md exists, git commits present, no Self-Check: FAILED). If spot-checks PASS → treat as **successful**. If spot-checks FAIL → treat as real failure below.
+
+   **Autonomous failure protocol (when `MODE` is `"autonomous"`):**
+
+   1. **RETRY ONCE:** Re-spawn a fresh executor for the failed plan with a `<failure_feedback>` block appended to the standard executor prompt:
+      ```
+      <failure_feedback>
+      The previous attempt at this plan failed. Do NOT repeat the same approach.
+      Spot-check results: {which files were missing, which commits were absent, any Self-Check: FAILED markers}
+      Error output from failed attempt: {agent error / last output}
+      Partial commits from failed attempt (if any): {git log output for this plan's commits}
+      </failure_feedback>
+      ```
+
+   2. **If the retry also fails:** Compute the dependent set — all TRDs whose `depends_on` transitively includes the failed plan id. The orchestrator already holds this data from the objective-job-index wave/depends_on map; no shell-out needed. Skipped TRD entries are recorded with the blocking failure id.
+
+   3. **SKIP only the dependent set.** Continue executing all remaining independent TRDs in subsequent waves as normal.
+
+   4. **Final report** — include in `aggregate_results` output:
+
+      | Status | TRD | Detail |
+      |--------|-----|--------|
+      | ✓ Complete | {id} | {one-liner from SUMMARY.md} |
+      | ✗ Failed | {id} | {last error summary} |
+      | ⏭ Skipped | {id} | blocked by {failed-plan-id} |
+      | ⏸ Parked | {id} | pending DECISION-NNN |
+
+      Never ask "Continue?/Stop?" mid-run in autonomous mode.
+
+   **Non-autonomous failure handling (when `MODE` is NOT `"autonomous"`):**
 
    For real failures: report which plan failed → ask "Continue?" or "Stop?" → if continue, dependent plans may also fail. If stop, partial completion report.
 
