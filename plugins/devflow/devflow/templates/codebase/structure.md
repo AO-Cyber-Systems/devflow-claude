@@ -166,7 +166,7 @@ devflow/
 **devflow/workflows/**
 - Purpose: Reusable multi-step procedures
 - Contains: Workflow definitions called by commands
-- Key files: execute-job.md, research-objective.md
+- Key files: execute-trd.md, research-objective.md
 - Subdirectories: None
 
 ## Key File Locations

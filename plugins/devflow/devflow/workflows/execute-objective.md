@@ -6,7 +6,7 @@ Execute all jobs in an objective using wave-based parallel execution. Orchestrat
 </purpose>
 
 <core_principle>
-Orchestrator coordinates, not executes. Each subagent loads the full execute-job context. Orchestrator: discover plans → analyze deps → group waves → spawn agents → handle checkpoints → collect results.
+Orchestrator coordinates, not executes. Each subagent loads the full execute-trd context. Orchestrator: discover plans → analyze deps → group waves → spawn agents → handle checkpoints → collect results.
 </core_principle>
 
 <required_reading>
@@ -868,7 +868,7 @@ Read and follow `~/.claude/devflow/workflows/transition.md`, passing through the
 
 **If neither `--auto` nor `AUTO_CFG` is true:**
 
-The workflow ends. The user runs `/devflow:progress` or invokes the transition workflow manually.
+The workflow ends. The user runs `/devflow:status` or invokes the transition workflow manually.
 </step>
 
 </process>

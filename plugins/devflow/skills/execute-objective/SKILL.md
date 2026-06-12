@@ -19,7 +19,7 @@ allowed-tools:
 <objective>
 Execute all jobs in an objective using wave-based parallel execution.
 
-Orchestrator stays lean: discover plans, analyze dependencies, group into waves, spawn subagents, collect results. Each subagent loads the full execute-job context and handles its own job.
+Orchestrator stays lean: discover plans, analyze dependencies, group into waves, spawn subagents, collect results. Each subagent loads the full execute-trd context and handles its own TRD.
 
 Context budget: ~15% orchestrator, 100% fresh per subagent.
 </objective>
