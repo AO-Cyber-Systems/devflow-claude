@@ -56,6 +56,8 @@ STATE.md stays lean; this file grows over time.
 - [Objective 23]: gate-commits initialization check uses ROADMAP.md or objectives/ presence rather than STATE.md
 - [Objective 23]: route-intent renderDirective compact rewrite: 5-line adaptive-width box, 396 bytes (was 1564)
 - [Objective 23]: 23-04: Moved trigger lists into ## Triggers body sections rather than deleting; help SKILL.md at 265 chars already compliant
+- [Objective 23]: execute-trd.md cross-ref phrases removed inline (option b) — no content added, just stale execute-job refs deleted
+- [Objective 23]: check-todos E2E3 test updated to assert skill dir removed in v2.2 rather than restoring deleted dir
 
 ## Performance Metrics
 
