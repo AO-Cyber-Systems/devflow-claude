@@ -266,21 +266,51 @@ function cmdObjectiveAdd(cwd, description, raw) {
     error('description required for objective add');
   }
 
+  // Reject flag-like descriptions (e.g. --help) before touching any files
+  if (description.trim().startsWith('--')) {
+    error('description must not start with "--" — got a flag-like argument: ' + description);
+  }
+
   const roadmapPath = path.join(cwd, '.planning', 'ROADMAP.md');
   if (!fs.existsSync(roadmapPath)) {
     error('ROADMAP.md not found');
   }
 
   const content = fs.readFileSync(roadmapPath, 'utf-8');
-  const slug = generateSlugInternal(description);
 
-  // Find highest integer objective number
+  // Cap slug at 60 chars, strip trailing hyphens left by mid-word cut
+  let slug = generateSlugInternal(description);
+  if (slug.length > 60) {
+    slug = slug.slice(0, 60).replace(/-+$/, '');
+  }
+
+  // Find highest integer objective number from ROADMAP headings
   const objectivePattern = /#{2,4}\s*Objective\s+(\d+)(?:\.\d+)?:/gi;
   let maxObjective = 0;
   let m;
   while ((m = objectivePattern.exec(content)) !== null) {
     const num = parseInt(m[1], 10);
     if (num > maxObjective) maxObjective = num;
+  }
+
+  // Also scan .planning/objectives/ directory prefixes so a dir without a ROADMAP heading
+  // is still counted (prevents number collisions)
+  const objectivesDir = path.join(cwd, '.planning', 'objectives');
+  if (fs.existsSync(objectivesDir)) {
+    try {
+      const entries = fs.readdirSync(objectivesDir, { withFileTypes: true });
+      const dirPrefixPattern = /^(\d+)(?:\.\d+)?-/;
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+        const match = entry.name.match(dirPrefixPattern);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num > maxObjective) maxObjective = num;
+        }
+      }
+    } catch (_) {
+      // Non-fatal: if readdir fails, fall back to ROADMAP-only count
+    }
   }
 
   const newObjectiveNum = maxObjective + 1;
