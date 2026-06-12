@@ -146,7 +146,37 @@ No user permission needed for Rules 1-3.
 
 **Examples:** New DB table (not column), major schema changes, new service layer, switching libraries/frameworks, changing auth approach, new infrastructure, breaking API changes
 
-**Action:** STOP → return checkpoint with: what found, proposed change, why needed, impact, alternatives. **User decision required.**
+**Action:** STOP → return a structured, queueable checkpoint. **User decision required.**
+
+The Rule 4 return MUST be structured so the orchestrator can park it in the decision queue. Include ALL of the following fields:
+
+```
+decision: [one-line statement of what is being decided — e.g., "Switch auth library from custom JWT to jose"]
+
+context: |
+  What found: [describe the structural issue encountered]
+  Why needed: [why the current approach cannot proceed without this change]
+  Impact: [files/systems affected, risk level, migration effort]
+
+options:
+  option-a:
+    name: [Current approach — keep as-is]
+    pros: [what works about it]
+    cons: [why it cannot proceed / the blocker]
+  option-b:
+    name: [Proposed change — executor's recommendation]
+    pros: [benefits]
+    cons: [risks / additional work]
+  option-c:  # optional — add when a meaningful third path exists
+    name: [Alternative]
+    pros: [benefits]
+    cons: [tradeoffs]
+
+recommendation: option-b  # executor's pick
+rationale: [one-line reason for the recommendation]
+```
+
+**In autonomous mode:** The orchestrator parks this return in the decision queue and continues independent work — your structured return IS the decision file content. Make options self-contained (no implicit context); the reader will see only this return, not your conversation history.
 
 ---
 
