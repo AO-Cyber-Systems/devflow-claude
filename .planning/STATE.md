@@ -24,7 +24,7 @@
 **Objective complete:** 20 — Daemon polish bundle (verified 2026-05-06, 2053/2055 tests pass + 2 pre-existing failures unchanged + 34 skipped, all 5 TRDs done across 2 waves). Wave 1: 20-01 OS notifications + 20-02 auto-launch + 20-03 multi-project + 20-05 cross-shell (8 commits). Wave 2: 20-04 status-line indicator (2 commits, +25 new tests, statusline.test.js created fresh — first-ever test file for that hook). 10 commits across waves; all 5 daemon polish features (notifications, auto-launch, multi-project, status-line, cross-shell) shipped behind opt-in feature flags with byte-identical default-OFF behavior.
 **Objective complete:** 21 — Bidirectional GH sync + configurable defaults table (verified 2026-05-06, all 5 TRDs done across 2 waves). Wave 1: 21-01 gh-pull CLI (19 tests) + 21-04 defaults-table loader + 21-05 intent provenance. Wave 2: 21-02 sync-state tracking (22 tests, `lib/sync-state.cjs` with hashFrontmatter + recordSync) + 21-03 conflict resolution (25 tests, `lib/conflict.cjs` with detectConflict + 3-way diff + --resolve={disk,gh,merge} flag). Total ~114 new tests (~67 Wave 1 + 47 Wave 2). 11 atomic commits in Wave 2 (RED + GREEN per task pairs). All TDD TRDs followed test-first. `_readSyncStateRaw` stub from 21-01 cleanly removed; `cmdGhSyncObjectives`/`ghStatus` switched to `_runGh` test seam (back-compat preserved).
 **Branch:** `feature/v1.2-obj-12-bidirectional-gh-sync`
-**Status:** Objective complete — ready for verification
+**Status:** Milestone complete
 
 ## Branch State (post-merge)
 

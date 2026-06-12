@@ -734,11 +734,11 @@ Jobs:
 **TRDs:** 5 plans
 
 TRDs:
-- [ ] 23-01-sync-runtime-atomic-TRD.md — atomic mirror swap, test-code exclusions, content-sentinel self-heal (Wave 1)
-- [ ] 23-02-hook-fixes-TRD.md — route-intent compact injection (<=400B), gate-commits ROADMAP/objectives gating fix, statusline stateLib cache (Wave 1)
-- [ ] 23-03-deprecated-removal-TRD.md — delete 13 redirect skill dirs + execute-job.md, repoint references, update deprecation docs (Wave 1)
-- [ ] 23-04-description-trims-TRD.md — trim 8 oversized skill descriptions to <=350 chars, content moved to bodies (Wave 1)
-- [ ] 23-05-agent-dedup-TRD.md — planner/executor dedup vs references, new deviation-rules.md, before/after token measurements (Wave 2)
+- [x] 23-01-sync-runtime-atomic-TRD.md — atomic mirror swap, test-code exclusions, content-sentinel self-heal (Wave 1)
+- [x] 23-02-hook-fixes-TRD.md — route-intent compact injection (<=400B), gate-commits ROADMAP/objectives gating fix, statusline stateLib cache (Wave 1)
+- [x] 23-03-deprecated-removal-TRD.md — delete 13 redirect skill dirs + execute-job.md, repoint references, update deprecation docs (Wave 1)
+- [x] 23-04-description-trims-TRD.md — trim 8 oversized skill descriptions to <=350 chars, content moved to bodies (Wave 1)
+- [x] 23-05-agent-dedup-TRD.md — planner/executor dedup vs references, new deviation-rules.md, before/after token measurements (Wave 2)
 
 ---
 

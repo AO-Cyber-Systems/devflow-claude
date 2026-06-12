@@ -395,6 +395,11 @@
       "objective": "10",
       "summary": "unattended-operation.md documents all shipped autonomous-mode mechanics as operator card; mode question added to settings SKILL.md",
       "rationale": null
+    },
+    {
+      "objective": "23",
+      "summary": "Extracted executor deviation Rules 1-4 byte-faithful to references/deviation-rules.md; RULE PRIORITY kept inline",
+      "rationale": null
     }
   ],
   "blockers": [],
