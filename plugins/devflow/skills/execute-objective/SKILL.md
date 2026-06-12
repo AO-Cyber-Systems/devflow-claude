@@ -2,8 +2,8 @@
 name: execute-objective
 description: |
   Execute all planned tasks for an objective, running independent tasks in parallel for speed.
-  Use when the user wants to build, run, or execute a planned objective.
-  Triggers on: "execute objective", "run objective", "build objective", "start building", "run the jobs", "let's build"
+  Use when the user wants to run or execute an already-planned objective.
+  Triggers on: "execute objective", "run objective", "run the jobs", "run the planned objective", "execute the plan"
 argument-hint: "<phase-number> [--gaps-only]"
 allowed-tools:
   - Read
