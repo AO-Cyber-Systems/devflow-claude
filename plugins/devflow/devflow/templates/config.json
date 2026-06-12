@@ -6,7 +6,9 @@
     "research": true,
     "job_check": true,
     "verifier": true,
-    "auto_advance": true
+    "auto_advance": true,
+    "verifier_checkpoints": false,
+    "decision_queue": false
   },
   "planning": {
     "commit_docs": true,

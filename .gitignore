@@ -35,3 +35,7 @@ RAILROAD_ARCHITECTURE.md
 # Deprecation log (TRD 12-01 — append-only JSONL; records deprecated skill invocations)
 # Gitignored per CONTEXT.md locked decision — local audit trail, not planning state.
 .planning/.deprecation-log.jsonl
+
+# Autonomous-mode runtime markers (objective 10) — session-local, not planning state
+.planning/.autonomous-resume-*
+.planning/.autonomous-retry-*
