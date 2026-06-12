@@ -63,10 +63,10 @@ cat .planning/config.json 2>/dev/null
 
 **If all jobs complete:**
 
-<if mode="yolo">
+<if mode="yolo" OR="autonomous">
 
 ```
-⚡ Auto-approved: Transition Objective [X] → Objective [X+1]
+⚡ Auto-continuing: Transition Objective [X] → Objective [X+1]
 Objective [X] complete — all [Y] plans finished.
 
 Proceeding to mark done and advance...
@@ -407,7 +407,7 @@ ls .planning/objectives/*[X+1]*/*-CONTEXT.md 2>/dev/null
 
 **If next objective exists:**
 
-<if mode="yolo">
+<if mode="yolo" OR="autonomous">
 
 ```
 Objective [X] marked complete.
@@ -453,7 +453,7 @@ Exit skill and invoke SlashCommand("/devflow:plan-objective [X+1] --auto")
 node ~/.claude/devflow/bin/df-tools.cjs config-set workflow.auto_advance false
 ```
 
-<if mode="yolo">
+<if mode="yolo" OR="autonomous">
 
 ```
 Objective {X} marked complete.

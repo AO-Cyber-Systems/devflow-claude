@@ -96,10 +96,10 @@ cat .planning/config.json 2>/dev/null
 
 </config-check>
 
-<if mode="yolo">
+<if mode="yolo" OR="autonomous">
 
 ```
-⚡ Auto-approved: Milestone scope verification
+⚡ Auto-continuing: Milestone scope verification
 [Show breakdown summary without prompting]
 Proceeding to stats gathering...
 ```
