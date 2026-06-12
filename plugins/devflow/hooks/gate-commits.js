@@ -64,10 +64,12 @@ function main() {
   const planningDir = findPlanningDir(process.cwd());
   if (!planningDir) return; // Not a DevFlow project — pass through
 
-  // Read STATE.md to decide strictness
-  const stateFile = path.join(planningDir, 'STATE.md');
-  const stateExists = fs.existsSync(stateFile);
-  if (!stateExists) return; // Planning dir exists but uninitialized — don't interfere
+  // 23-02: gate on ROADMAP.md or objectives/ — both are created only by new-project,
+  // so either presence proves DevFlow initialization. STATE.md check removed: it was
+  // absent on brand-new projects (post-init, pre-first-execution), bypassing the gate.
+  const roadmapExists = fs.existsSync(path.join(planningDir, 'ROADMAP.md'));
+  const objectivesDirExists = fs.existsSync(path.join(planningDir, 'objectives'));
+  if (!roadmapExists && !objectivesDirExists) return; // Planning dir exists but uninitialized
 
   deny([
     'DevFlow project detected. Raw `git commit` is blocked.',
