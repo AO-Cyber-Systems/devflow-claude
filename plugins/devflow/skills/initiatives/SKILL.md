@@ -1,9 +1,8 @@
 ---
 name: initiatives
 description: |
-  Manage strategic initiative context — sync GitHub Epics into a planner-readable disk projection at ~/.claude/devflow/initiatives/, list cached initiatives, or show a single initiative's body. Initiatives are read by /df:plan-objective at plan time so the planner sees Why + Open questions + Linked sub-issues.
-  Use when the user wants to refresh initiative context from GitHub, audit what initiatives the planner can see, or inspect a specific initiative file.
-  Triggers on: "sync initiatives", "refresh initiatives", "show initiative", "list initiatives", "what initiatives are loaded", "initiative context".
+  Manage strategic initiative context — sync GitHub Epics to disk, list cached initiatives, or show a single initiative body. Planner reads these at plan time.
+  Triggers on: "sync initiatives", "refresh initiatives", "show initiative", "what initiatives are loaded".
 argument-hint: "[sync [--initiative <slug>] [--project-id <id>] [--force]] | [list [--home <path>]] | [show <slug>]"
 allowed-tools:
   - Bash
@@ -63,4 +62,8 @@ Flags:
 - `--raw` — sync/list/show: emit raw JSON to stdout instead of formatted output.
 
 The planner (/df:plan-objective) consumes initiative context automatically at plan time. No user invocation needed for plan-time integration — but `sync` should be re-run periodically (weekly cadence recommended) to keep the projection fresh.
+
+## Triggers
+
+Use when the user wants to refresh initiative context from GitHub, audit what initiatives the planner can see, or inspect a specific initiative file. Also fires on: "list initiatives", "initiative context".
 </context>
