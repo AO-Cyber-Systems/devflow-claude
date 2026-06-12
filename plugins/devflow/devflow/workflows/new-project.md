@@ -262,30 +262,39 @@ Loop until "Create PROJECT.md" selected.
 
 Before writing PROJECT.md, identify what the project IS. This sets the project-level half of the (kind, work) defaults lookup the planner uses on every objective.
 
-**Ask the user via AskUserQuestion:**
+**Ask both questions in one batched call (neither depends on the other's answer):**
 
-- header: "Project kind"
-- question: "What is this project? (drives test/planning defaults for every future objective)"
-- options:
-  - "api" — backend API/service consumed by clients
-  - "app" — end-user application (web, mobile, desktop)
-  - "library" — code consumed by other code via API
-  - "ui-lib" — UI components consumed by other apps
-  - "cli" — command-line tool consumed by humans in a terminal
-  - "plugin" — extends a host system via plugin contract
-
-**Then ask about `default_work` (optional):**
-
-- header: "Default work type"
-- question: "Will most objectives in this project be the same work type? (e.g., a Rails→Go port has 10+ sequential `port` objectives)"
-- options:
-  - "Skip — work types vary" — most projects pick this
-  - "feature" — most objectives ship new behavior
-  - "port" — most objectives re-implement existing behavior
-  - "refactor" — most objectives restructure without behavior change
-  - "foundation" — most objectives are scaffolding (rare for whole project)
-  - "bugfix" — most objectives are list-driven bug fixes
-  - "prototype" — most objectives are exploratory throwaways
+```
+AskUserQuestion([
+  {
+    header: "Project kind",
+    question: "What is this project? (drives test/planning defaults for every future objective)",
+    multiSelect: false,
+    options: [
+      { label: "api", description: "backend API/service consumed by clients" },
+      { label: "app", description: "end-user application (web, mobile, desktop)" },
+      { label: "library", description: "code consumed by other code via API" },
+      { label: "ui-lib", description: "UI components consumed by other apps" },
+      { label: "cli", description: "command-line tool consumed by humans in a terminal" },
+      { label: "plugin", description: "extends a host system via plugin contract" }
+    ]
+  },
+  {
+    header: "Default work type",
+    question: "Will most objectives in this project be the same work type? (e.g., a Rails→Go port has 10+ sequential `port` objectives)",
+    multiSelect: false,
+    options: [
+      { label: "Skip — work types vary", description: "most projects pick this" },
+      { label: "feature", description: "most objectives ship new behavior" },
+      { label: "port", description: "most objectives re-implement existing behavior" },
+      { label: "refactor", description: "most objectives restructure without behavior change" },
+      { label: "foundation", description: "most objectives are scaffolding (rare for whole project)" },
+      { label: "bugfix", description: "most objectives are list-driven bug fixes" },
+      { label: "prototype", description: "most objectives are exploratory throwaways" }
+    ]
+  }
+])
+```
 
 If "Skip" is chosen, omit `default_work` from PROJECT.md frontmatter — the planner falls back to `feature` per objective. If a specific work type is chosen, write it as `default_work` in the frontmatter; the planner is louder about inheritance so users can override per objective when needed.
 
@@ -430,9 +439,20 @@ questions: [
       { label: "Yes (Recommended)", description: "Planning docs tracked in version control" },
       { label: "No", description: "Keep .planning/ local-only (add to .gitignore)" }
     ]
+  },
+  {
+    header: "Research",
+    question: "Research the domain ecosystem before defining requirements?",
+    multiSelect: false,
+    options: [
+      { label: "Research first (Recommended)", description: "Discover standard stacks, expected features, architecture patterns" },
+      { label: "Skip research", description: "I know this domain well, go straight to requirements" }
+    ]
   }
 ]
 ```
+
+Record the Research answer (question 4) — use it in Step 6 to skip the standalone ask.
 
 Create `.planning/config.json` with settings (defaults + any overrides):
 
@@ -475,7 +495,11 @@ Use models from init: `researcher_model`, `synthesizer_model`, `roadmapper_model
 
 **If auto mode:** Default to "Research first" without asking.
 
-Use AskUserQuestion:
+**If interactive path (Step 5 batch):** Research answer was already collected as question 4 in Step 5 — use that answer directly, skip the standalone AskUserQuestion below. (Content-independent, so batched above.)
+
+**Otherwise (defaults path — no --interactive flag):** Use smart default "Research first" without asking.
+
+**If --interactive flag was NOT present AND user was NOT asked in Step 5:** Use AskUserQuestion:
 - header: "Research"
 - question: "Research the domain ecosystem before defining requirements?"
 - options:
@@ -814,6 +838,8 @@ For each capability mentioned:
 - Group into categories
 
 **Scope each category:**
+
+<!-- Sequential by design: each question asks about a different category discovered from prior answers. Content-dependent — cannot batch. -->
 
 For each category, use AskUserQuestion:
 
