@@ -12,10 +12,21 @@
  * do NOT fire (prevents Q&A false positives).
  *
  * Phase G consolidated skill names only.
+ *
+ * TRD 24-02 additions:
+ *   - EXECUTE rule (/devflow:execute-objective)
+ *   - TODO rule (/devflow:todo add)
+ *   - QUICK rule (/devflow:quick)
+ *   - BUILD rule extended (bare objective, this/that, let's build, start building)
+ *   - BUILD suppression post-filter: if todo-add/quick/objective-add matched, drop build
+ *   - Override phrase suppression via hasOverridePhrase (from lib/edit-override.js)
+ *   - matchIntent opts.skillActive: pure second-arg option suppresses all matches
+ *   - main() writes .edit-override marker before early-return on override prompts
  */
 
 const fs = require('fs');
 const path = require('path');
+const { hasOverridePhrase, writeEditOverrideMarker } = require('./lib/edit-override.js');
 
 function readStdin() {
   try { return fs.readFileSync(0, 'utf8'); } catch { return ''; }
@@ -42,11 +53,33 @@ const INTENT_MAP = [
     skill: '/devflow:micro',
     label: 'micro',
   },
-  // BUILD: imperative + article + noun
+  // BUILD: imperative + article + noun (original)
+  //      | build/implement + objective (bare, no article required)
+  //      | build/implement + this/that (no trailing noun required)
+  //      | let's/lets + build/implement
+  //      | start building
   {
-    rx: /\b(?:build|implement|ship|make|create|add)\s+(?:the|a|an|this|that|some)\s+\w+/i,
+    rx: /\b(?:build|implement|ship|make|create|add)\s+(?:the|a|an|this|that|some)\s+\w+|\b(?:build|implement)\s+objective\b|\b(?:build|implement)\s+(?:this|that)\b|let'?s\s+(?:build|implement)\b|\bstart\s+building\b/i,
     skill: '/devflow:build',
     label: 'build',
+  },
+  // EXECUTE: execute/run + (the)? + objective
+  {
+    rx: /\b(?:execute|run)\s+(?:the\s+)?(?:planned\s+)?objective\b/i,
+    skill: '/devflow:execute-objective',
+    label: 'execute',
+  },
+  // TODO: add/create + (a)? + todo | remember to
+  {
+    rx: /\b(?:add|create)\s+(?:a\s+)?todo\b|\bremember\s+to\b/i,
+    skill: '/devflow:todo add',
+    label: 'todo-add',
+  },
+  // QUICK: make/take/do + a + quick pass | small change
+  {
+    rx: /\b(?:make|take|do)\s+a\s+quick\s+pass\b|\bsmall\s+change\b/i,
+    skill: '/devflow:quick',
+    label: 'quick',
   },
   // DEBUG: imperative + article + optional-adjectives + bug-noun
   {
@@ -107,13 +140,27 @@ const INTENT_MAP = [
 // matchIntent -- Returns deduplicated array of skill strings matching the prompt.
 // Q&A skip-rule: prompts starting with interrogative words (Why/How/Can/etc) return [].
 // NOTE: "What" NOT in skip-list -- "What's our progress?" is a status fire prompt.
+//
+// TRD 24-02 additions:
+//   opts.skillActive {boolean} -- if true, suppress all matches (pure option, no fs)
+//   Override phrase suppression via hasOverridePhrase (imported from lib/edit-override.js)
+//   BUILD suppression post-filter: drop 'build' entry whenever any of
+//     {todo-add, quick, objective-add} are in the matched labels.
 
-function matchIntent(prompt) {
+function matchIntent(prompt, opts = {}) {
   if (!prompt) return [];
   if (/^\s*\/(devflow:|df:)/i.test(prompt)) return [];
   if (/^\s*(?:why|how|can|could|would|should|is|are|does|did|do)\b/i.test(prompt)) return [];
-  const matches = INTENT_MAP.filter(e => e.rx.test(prompt));
-  return [...new Set(matches.map(m => m.skill))];
+  // Override phrase suppression — returns [] (no directive; main() writes marker separately)
+  if (hasOverridePhrase(prompt)) return [];
+  // skillActive suppression — pure option, no fs I/O
+  if (opts.skillActive) return [];
+  const matched = INTENT_MAP.filter(e => e.rx.test(prompt));
+  // BUILD suppression post-filter (option c — smallest diff):
+  // If any of {todo-add, quick, objective-add} matched, drop the build entry
+  const suppressBuild = matched.some(e => ['todo-add', 'quick', 'objective-add'].includes(e.label));
+  const filtered = suppressBuild ? matched.filter(e => e.label !== 'build') : matched;
+  return [...new Set(filtered.map(m => m.skill))];
 }
 
 // renderDirective -- 23-02: compact box-drawn directive (<=400 bytes).
