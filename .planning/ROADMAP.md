@@ -717,7 +717,7 @@ PTY → Daemon polish bundle
 **Jobs:** 1/9 jobs executed
 
 Jobs:
-- [ ] 10-01-autonomous-config-foundation-TRD.md — mode "autonomous" preset in loadConfig + template + marker gitignore
+- [x] 10-01-autonomous-config-foundation-TRD.md — mode "autonomous" preset in loadConfig + template + marker gitignore
 - [ ] 10-02-verifier-delegated-checkpoints-TRD.md — human-verify checkpoints delegated to verifier agent (green evidence or escalate)
 - [ ] 10-03-decision-queue-TRD.md — decision-queue lib/CLI + /devflow:decide skill + OS notification
 - [ ] 10-04-decision-wiring-wave-failures-TRD.md — park decisions/Rule-4 stops, continue independent waves, retry-once + dependency-aware skip
