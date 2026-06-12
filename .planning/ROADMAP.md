@@ -727,6 +727,19 @@ Jobs:
 - [x] 10-08-config-integrity-destamping-TRD.md — remove dead gates, batch new-project questions, autonomous de-stamping
 - [x] 10-09-unattended-runbook-TRD.md — references/unattended-operation.md + settings exposure
 
+### Objective 23: Claude compatibility cleanup
+
+**Goal:** Align the plugin with current Claude Code for token efficiency and correctness — atomic mirror sync excluding test code, deprecated-skill removal, description/context-injection trims, gate-commits bypass fix, legacy workflow deletion, statusline caching, and agent-prompt dedup against references.
+**Depends on:** Objective 10
+**TRDs:** 5 plans
+
+TRDs:
+- [ ] 23-01-sync-runtime-atomic-TRD.md — atomic mirror swap, test-code exclusions, content-sentinel self-heal (Wave 1)
+- [ ] 23-02-hook-fixes-TRD.md — route-intent compact injection (<=400B), gate-commits ROADMAP/objectives gating fix, statusline stateLib cache (Wave 1)
+- [ ] 23-03-deprecated-removal-TRD.md — delete 13 redirect skill dirs + execute-job.md, repoint references, update deprecation docs (Wave 1)
+- [ ] 23-04-description-trims-TRD.md — trim 8 oversized skill descriptions to <=350 chars, content moved to bodies (Wave 1)
+- [ ] 23-05-agent-dedup-TRD.md — planner/executor dedup vs references, new deviation-rules.md, before/after token measurements (Wave 2)
+
 ---
 
 ## Original v1.2 plan — preserved as scope reference (now folded into objectives 10-13 above)
