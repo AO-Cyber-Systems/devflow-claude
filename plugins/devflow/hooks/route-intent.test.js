@@ -55,7 +55,7 @@ describe('INTENT_MAP — exported shape', () => {
     }
   });
 
-  test('INTENT_MAP contains consolidated skills: build, debug, plan-objective, verify-work, status, status resume, status pause, objective add, new-project, research-objective, micro', () => {
+  test('INTENT_MAP contains consolidated skills: build, debug, plan-objective, verify-work, status, status resume, status pause, objective add, new-project, research-objective, micro, execute-objective, todo add, quick', () => {
     const skills = new Set(INTENT_MAP.map(e => e.skill));
     const required = [
       '/devflow:build',
@@ -69,6 +69,9 @@ describe('INTENT_MAP — exported shape', () => {
       '/devflow:new-project',
       '/devflow:research-objective',
       '/devflow:micro',
+      '/devflow:execute-objective',
+      '/devflow:todo add',
+      '/devflow:quick',
     ];
     for (const skill of required) {
       assert.ok(skills.has(skill),
@@ -192,6 +195,56 @@ describe('renderDirective — box-drawn directive', () => {
     const bytes = Buffer.byteLength(renderDirective(['/devflow:debug']), 'utf8');
     assert.ok(bytes <= 400,
       `renderDirective output is ${bytes} bytes — must be <=400 (compact rewrite needed)`);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// matchIntent — exclusivity (BUILD suppression post-filter)
+// ---------------------------------------------------------------------------
+
+describe('matchIntent — exclusivity (BUILD suppressed when todo/quick/objective-add fires)', () => {
+  test('matchIntent("Add an objective for caching") deep-equals ["/devflow:objective add"]', () => {
+    assert.deepEqual(
+      matchIntent('Add an objective for caching'),
+      ['/devflow:objective add'],
+      'BUILD must be suppressed when objective-add fires'
+    );
+  });
+
+  test('matchIntent("add a todo to refactor the parser") deep-equals ["/devflow:todo add"]', () => {
+    assert.deepEqual(
+      matchIntent('add a todo to refactor the parser'),
+      ['/devflow:todo add'],
+      'BUILD must be suppressed when todo-add fires'
+    );
+  });
+
+  test('matchIntent("make a quick pass over the error handling") deep-equals ["/devflow:quick"]', () => {
+    assert.deepEqual(
+      matchIntent('make a quick pass over the error handling'),
+      ['/devflow:quick'],
+      'BUILD must be suppressed when quick fires'
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// matchIntent — skillActive option (pure, no fs)
+// ---------------------------------------------------------------------------
+
+describe('matchIntent — skillActive option', () => {
+  test('matchIntent("Fix the login bug", { skillActive: true }) returns []', () => {
+    assert.deepEqual(
+      matchIntent('Fix the login bug', { skillActive: true }),
+      [],
+      'skillActive: true must suppress all matches'
+    );
+  });
+
+  test('matchIntent("Fix the login bug") still fires (back-compat, single-arg)', () => {
+    const skills = matchIntent('Fix the login bug');
+    assert.ok(skills.length > 0, 'single-arg call must still fire');
+    assert.ok(skills.includes('/devflow:debug'), 'must include /devflow:debug');
   });
 });
 

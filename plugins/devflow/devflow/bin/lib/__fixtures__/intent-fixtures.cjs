@@ -299,6 +299,77 @@ const FIRE_FIXTURES = [
     label: 'update + the + import',
     why_fires: 'matches micro rule: update + the + import (trivial-noun whitelist)',
   },
+  // ─── 24-02: BUILD extension fixtures (5) ─────────────────────────────────
+  {
+    prompt: 'build objective 3',
+    expected_skill: '/devflow:build',
+    label: 'build + objective (no article)',
+    why_fires: 'matches extended BUILD rule: build + objective (bare noun variant)',
+  },
+  {
+    prompt: 'build this',
+    expected_skill: '/devflow:build',
+    label: 'build + this (no trailing noun)',
+    why_fires: 'matches extended BUILD rule: build/implement + this/that at word boundary',
+  },
+  {
+    prompt: 'implement this',
+    expected_skill: '/devflow:build',
+    label: 'implement + this',
+    why_fires: 'matches extended BUILD rule: implement + this',
+  },
+  {
+    prompt: "let's build",
+    expected_skill: '/devflow:build',
+    label: "let's build",
+    why_fires: "matches extended BUILD rule: let's/lets + build",
+  },
+  {
+    prompt: 'start building',
+    expected_skill: '/devflow:build',
+    label: 'start building',
+    why_fires: 'matches extended BUILD rule: start building',
+  },
+  // ─── 24-02: EXECUTE rule fixtures (2) ────────────────────────────────────
+  {
+    prompt: 'execute objective 3',
+    expected_skill: '/devflow:execute-objective',
+    label: 'execute + objective',
+    why_fires: 'matches EXECUTE rule: execute/run + objective',
+  },
+  {
+    prompt: 'run objective 3',
+    expected_skill: '/devflow:execute-objective',
+    label: 'run + objective',
+    why_fires: 'matches EXECUTE rule: run + objective',
+  },
+  // ─── 24-02: TODO rule fixtures (2) ───────────────────────────────────────
+  {
+    prompt: 'add a todo to refactor the parser',
+    expected_skill: '/devflow:todo add',
+    label: 'add a todo',
+    why_fires: 'matches TODO rule: add/create + (a)? + todo; suppression removes build match',
+  },
+  {
+    prompt: 'make a quick pass over the error handling',
+    expected_skill: '/devflow:quick',
+    label: 'make a quick pass',
+    why_fires: 'matches QUICK rule: make/take/do + a + quick pass; suppression removes build match',
+  },
+  // ─── 24-02: QUICK rule fixture (1) ───────────────────────────────────────
+  {
+    prompt: 'small change: bump the timeout',
+    expected_skill: '/devflow:quick',
+    label: 'small change',
+    why_fires: 'matches QUICK rule: small change',
+  },
+  // ─── 24-02: MOVED from NO_FIRE to FIRE — quick now has a rule ────────────
+  {
+    prompt: 'Tackle this small change in the auth flow',
+    expected_skill: '/devflow:quick',
+    label: 'small change (quick territory — now fires)',
+    why_fires: 'QUICK rule matches "small change"; TRD 24-02 moved this from NO_FIRE (micro had no rule for it; quick now does)',
+  },
 ];
 
 // ─── A2: route-intent.js no-fire fixtures (5) ────────────────────────────────
@@ -331,11 +402,16 @@ const NO_FIRE_FIXTURES = [
     label: 'meta-question about a verb',
     why_no_fire: 'fix appears but inside a meta-question, no object',
   },
-  // ─── B4: micro no-fire (1) — prevent micro from eating quick territory ───
+  // ─── 24-02: override suppression no-fire fixtures ────────────────────────
   {
-    prompt: 'Tackle this small change in the auth flow',
-    label: 'small change (quick territory)',
-    why_no_fire: 'no trivial-noun match (small change is not in micro whitelist)',
+    prompt: 'just edit the config loader to add a retry',
+    label: 'override phrase (just edit)',
+    why_no_fire: 'contains override phrase "just edit" — override suppression returns []',
+  },
+  {
+    prompt: 'skip devflow and fix the bug in the auth flow',
+    label: 'override phrase (skip devflow)',
+    why_no_fire: 'contains override phrase "skip devflow" — override suppression returns []',
   },
 ];
 
