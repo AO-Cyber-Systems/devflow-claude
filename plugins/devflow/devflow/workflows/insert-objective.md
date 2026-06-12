@@ -1,5 +1,5 @@
 ---
-status: active
+status: legacy
 ---
 <purpose>
 Insert a decimal objective for urgent work discovered mid-milestone between existing integer objectives. Uses decimal numbering (72.1, 72.2, etc.) to preserve the logical sequence of planned objectives while accommodating urgent insertions without renumbering the entire roadmap.
@@ -113,7 +113,7 @@ Project state updated: .planning/STATE.md
 
 <anti_patterns>
 
-- Don't use this for planned work at end of milestone (use /devflow:add-objective)
+- Don't use this for planned work at end of milestone (use /devflow:objective add)
 - Don't insert before Objective 1 (decimal 0.1 makes no sense)
 - Don't renumber existing objectives
 - Don't modify the target objective content

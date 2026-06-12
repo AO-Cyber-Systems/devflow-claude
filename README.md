@@ -543,7 +543,7 @@ You're never locked in. The system adapts.
 | `/devflow:debug [desc]` | Systematic debugging with persistent state |
 | `/devflow:quick [--full]` | Execute ad-hoc task with DevFlow guarantees (`--full` adds job-checking and verification) |
 
-> **13 legacy skill names** (`/devflow:add-objective`, `/devflow:progress`, `/devflow:health`, `/devflow:pause-work`, `/devflow:resume-work`, `/devflow:add-todo`, `/devflow:check-todos`, and 6 milestone/objective variants) still work as deprecation redirects. Run `/devflow:help` for the full deprecation map.
+> **13 legacy skill names** (`/devflow:add-objective`, `/devflow:progress`, `/devflow:health`, `/devflow:pause-work`, `/devflow:resume-work`, `/devflow:add-todo`, `/devflow:check-todos`, and 6 milestone/objective variants) were removed in v2.2; use the consolidated commands (run `/devflow:help` for the migration map).
 
 ---
 

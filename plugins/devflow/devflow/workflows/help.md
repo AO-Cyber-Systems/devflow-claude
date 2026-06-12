@@ -437,11 +437,11 @@ Claude Code's built-in plan mode (`EnterPlanMode`) is used by `/devflow:build` a
 - Check `.planning/ROADMAP.md` for objective status
 - Run `/devflow:status` to check where you're up to
 
-## Deprecated Skill Names (will be removed in v3.0)
+## Removed Skill Names (removed in v2.2)
 
-These old skill names still work but emit a deprecation warning and forward to the consolidated skill.
+These old skill names were removed in v2.2. Use the consolidated commands listed below for migration guidance.
 
-| Old name | New form |
+| Old name (removed) | Use instead |
 |---|---|
 | `/devflow:add-objective` | `/devflow:objective add` |
 | `/devflow:insert-objective` | `/devflow:objective add` *(insert permanently deprecated — decimal objectives dropped in v1.2)* |

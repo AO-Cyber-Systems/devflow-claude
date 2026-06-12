@@ -123,7 +123,7 @@ Parse JSON for: `commit_docs`, `objective_found`, `objective_dir`, `objective_nu
 ```
 Objective [X] not found in roadmap.
 
-Use /devflow:progress to see available objectives.
+Use /devflow:status to see available objectives.
 ```
 Exit workflow.
 
