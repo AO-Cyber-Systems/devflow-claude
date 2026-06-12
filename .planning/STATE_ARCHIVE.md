@@ -64,6 +64,9 @@ STATE.md stays lean; this file grows over time.
 - [Objective 24-natural-language-routing-trigger-fixes]: OVERRIDE_PHRASES single source in hooks/lib/edit-override.js; gate-edits re-exports for back-compat with route-intent and tests
 - [Objective 24-natural-language-routing-trigger-fixes]: consumeEditOverrideMarker deletes marker in BOTH fresh and stale cases (consume-on-read + stale cleanup); TTL = 5 minutes
 - [Objective 24-natural-language-routing-trigger-fixes]: gate-edits.js main() drops dead input.user_message read; overrideActive now computed via consumeEditOverrideMarker(planningDir) only
+- [Objective 24]: BUILD suppression post-filter (option c): apply suppressBuild on matched labels before Set/map; smallest diff, multi-intent preserved
+- [Objective 24]: matchIntent pure opts.skillActive: fs read stays in main(), matchIntent stays pure — mirrors gate-edits shouldGate pattern
+- [Objective 24]: Override marker write before early-return in main(): override prompts return [] but MUST arm gate bypass (decisions 1+4 from 24-CONTEXT.md)
 
 ## Performance Metrics
 
@@ -81,4 +84,5 @@ STATE.md stays lean; this file grows over time.
 | Objective 18 P18-01 | 6 | 3 tasks | 20 files |
 | Objective 24 P03 | 354 | 2 tasks | 3 files |
 | Objective 24-natural-language-routing-trigger-fixes P01 | 949 | 2 tasks | 4 files |
+| Objective 24 P02 | 13 | 2 tasks | 3 files |
 
