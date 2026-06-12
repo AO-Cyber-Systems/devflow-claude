@@ -99,3 +99,7 @@ Changed only the non-amend commit args construction. When `files && files.length
 ## Self-Check: PASSED
 
 Files modified exist on disk and all 6 commits are present in git log.
+
+## Deviation: dup-detect CLI test isolation (Rule 1 auto-fix)
+
+While verifying tree cleanliness, found two pre-existing "stub placeholder" tests in `dup-detect-cli.test.cjs` (resolve/log routes) invoking `cmdDupDetectRoute(process.cwd(), ...)` against the real repo — appending a Coordination Note to `.planning/objectives/04-duplicate-work-detection/04-CONTEXT.md` on every `npm test` run (observed three times on 2026-06-12). Both now use `_mkTmpRepo()` tmpdir fixtures like the adjacent CLI8 tests. Full suite confirmed: `.planning/` stays clean through a complete run.

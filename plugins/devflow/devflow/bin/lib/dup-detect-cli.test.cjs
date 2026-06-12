@@ -136,8 +136,10 @@ test('CLI: resolve subcommand → exits with stub message (04-02 placeholder)', 
   const origExit = process.exit.bind(process);
   process.exit = (code) => { exitCode = code; throw new Error(`process.exit(${code})`); };
 
+  const tmp = _mkTmpRepo();
+  fs.mkdirSync(path.join(tmp, '.planning', 'objectives', '04-test'), { recursive: true });
   try {
-    cmdDupDetectRoute(process.cwd(), ['resolve', '04', '--resolution', 'coordinate', '--peer-branch', 'feature/x', '--peer-objective', '03'], false);
+    cmdDupDetectRoute(tmp, ['resolve', '04', '--resolution', 'coordinate', '--peer-branch', 'feature/x', '--peer-objective', '03'], false);
   } catch (e) {
     if (!e.message.startsWith('process.exit')) throw e;
   } finally {
@@ -165,8 +167,9 @@ test('CLI: log subcommand → exits with stub message (04-02 placeholder)', () =
   const origExit = process.exit.bind(process);
   process.exit = (code) => { exitCode = code; throw new Error(`process.exit(${code})`); };
 
+  const tmp = _mkTmpRepo();
   try {
-    cmdDupDetectRoute(process.cwd(), ['log', '04', '--mode', 'execute'], false);
+    cmdDupDetectRoute(tmp, ['log', '04', '--mode', 'execute'], false);
   } catch (e) {
     if (!e.message.startsWith('process.exit')) throw e;
   } finally {
