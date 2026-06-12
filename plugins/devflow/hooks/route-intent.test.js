@@ -186,6 +186,13 @@ describe('renderDirective — box-drawn directive', () => {
     assert.ok(directive.includes('╚'),
       `renderDirective output missing box-drawn corner ╚:\n${directive}`);
   });
+
+  // 23-02: byte-budget assertion — compact rewrite must keep injection <=400 bytes
+  test('byte length of renderDirective(["/devflow:debug"]) is <=400', () => {
+    const bytes = Buffer.byteLength(renderDirective(['/devflow:debug']), 'utf8');
+    assert.ok(bytes <= 400,
+      `renderDirective output is ${bytes} bytes — must be <=400 (compact rewrite needed)`);
+  });
 });
 
 // ---------------------------------------------------------------------------
