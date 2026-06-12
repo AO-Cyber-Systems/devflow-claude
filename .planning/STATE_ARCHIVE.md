@@ -52,6 +52,7 @@ STATE.md stays lean; this file grows over time.
 - [Objective 10]: executor.md hardened: maxTurns:50, isolation:worktree; permissionMode omitted with comment (silently ignored for plugin agents)
 - [Objective 10]: verifier.md hardened: maxTurns:30, memory:project; executor intentionally omits memory (fresh context per plan)
 - [Objective 10]: execute-objective.md: TRD content embedded inline in executor spawn prompts + step 5b post-wave worktree merge before spot-checks
+- [Objective 10]: unattended-operation.md documents all shipped autonomous-mode mechanics as operator card; mode question added to settings SKILL.md
 
 ## Performance Metrics
 
