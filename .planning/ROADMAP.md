@@ -710,6 +710,23 @@ PTY → Daemon polish bundle
 | /devflow:micro invocations/week | 0 | ≥30 |
 | Avg DevFlow session token cost | 300-600k | 200-400k |
 
+### Objective 10: Autonomous mode overhaul
+
+**Goal:** Autonomous end-to-end operation — verifier-delegated (machine-verified) checkpoints, a decision queue that parks design choices without halting independent work, auto-resume/retry hooks, hardened agent frontmatter (worktree isolation, maxTurns, memory), wired-or-removed config gates, and a `mode: "autonomous"` preset + unattended runbook. Humans stop only for design/architecture decisions, auth, and destructive actions.
+**Depends on:** Objective 9
+**Jobs:** 9 jobs
+
+Jobs:
+- [ ] 10-01-autonomous-config-foundation-TRD.md — mode "autonomous" preset in loadConfig + template + marker gitignore
+- [ ] 10-02-verifier-delegated-checkpoints-TRD.md — human-verify checkpoints delegated to verifier agent (green evidence or escalate)
+- [ ] 10-03-decision-queue-TRD.md — decision-queue lib/CLI + /devflow:decide skill + OS notification
+- [ ] 10-04-decision-wiring-wave-failures-TRD.md — park decisions/Rule-4 stops, continue independent waves, retry-once + dependency-aware skip
+- [ ] 10-05-stop-hook-auto-resume-TRD.md — Stop hook decision:block resume, bounded 3 attempts per objective
+- [ ] 10-06-subagent-retry-hook-TRD.md — SubagentStop retries failed executor once with feedback
+- [ ] 10-07-agent-hardening-TRD.md — maxTurns/worktree isolation/memory frontmatter + worktree-aware spawn/merge
+- [ ] 10-08-config-integrity-destamping-TRD.md — remove dead gates, batch new-project questions, autonomous de-stamping
+- [ ] 10-09-unattended-runbook-TRD.md — references/unattended-operation.md + settings exposure
+
 ---
 
 ## Original v1.2 plan — preserved as scope reference (now folded into objectives 10-13 above)
