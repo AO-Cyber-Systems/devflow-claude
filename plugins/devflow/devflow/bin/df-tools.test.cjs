@@ -1408,6 +1408,78 @@ describe('objective add command', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// commit command pathspec isolation
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('commit command pathspec isolation', () => {
+  let tmpDir;
+
+  function initGitRepo(dir) {
+    execSync('git init', { cwd: dir, stdio: 'pipe' });
+    execSync('git config user.email "test@test.com"', { cwd: dir, stdio: 'pipe' });
+    execSync('git config user.name "Test User"', { cwd: dir, stdio: 'pipe' });
+    // Create an initial commit so HEAD exists
+    const placeholderPath = path.join(dir, 'init.txt');
+    fs.writeFileSync(placeholderPath, 'init');
+    execSync('git add init.txt', { cwd: dir, stdio: 'pipe' });
+    execSync('git commit -m "chore: init"', { cwd: dir, stdio: 'pipe' });
+  }
+
+  beforeEach(() => {
+    tmpDir = createTempProject();
+    initGitRepo(tmpDir);
+  });
+
+  afterEach(() => {
+    cleanup(tmpDir);
+  });
+
+  test('--files commits only named paths; unrelated staged changes remain staged', () => {
+    // Create the target file in .planning
+    fs.mkdirSync(path.join(tmpDir, '.planning'), { recursive: true });
+    fs.writeFileSync(path.join(tmpDir, '.planning', 'STATE.md'), '# State\n');
+
+    // Create an unrelated file and stage it (simulates parallel executor)
+    fs.writeFileSync(path.join(tmpDir, 'other.txt'), 'other change\n');
+    execSync('git add other.txt', { cwd: tmpDir, stdio: 'pipe' });
+
+    const result = runGsdTools('commit "test(quick-3): isolation" --files .planning/STATE.md', tmpDir);
+    assert.ok(result.success, `Command failed: ${result.error}`);
+
+    // Only .planning/STATE.md should be in the commit
+    const showResult = execSync('git show --name-only --format= HEAD', { cwd: tmpDir, encoding: 'utf-8' }).trim();
+    assert.ok(showResult.includes('.planning/STATE.md'), `STATE.md not in commit; got: ${showResult}`);
+    assert.ok(!showResult.includes('other.txt'), `other.txt was swept into commit; got: ${showResult}`);
+
+    // other.txt must still be staged (not swept away)
+    const cachedResult = execSync('git diff --cached --name-only', { cwd: tmpDir, encoding: 'utf-8' }).trim();
+    assert.ok(cachedResult.includes('other.txt'), `other.txt should still be staged; cached: ${cachedResult}`);
+  });
+
+  test('untracked named file passed via --files gets added and committed', () => {
+    fs.mkdirSync(path.join(tmpDir, '.planning'), { recursive: true });
+    fs.writeFileSync(path.join(tmpDir, '.planning', 'NEW.md'), '# New\n');
+
+    const result = runGsdTools('commit "test(quick-3): new-file" --files .planning/NEW.md', tmpDir);
+    assert.ok(result.success, `Command failed: ${result.error}`);
+
+    const showResult = execSync('git show --name-only --format= HEAD', { cwd: tmpDir, encoding: 'utf-8' }).trim();
+    assert.ok(showResult.includes('.planning/NEW.md'), `NEW.md not in commit; got: ${showResult}`);
+  });
+
+  test('no --files falls back to staging .planning/ and commits normally', () => {
+    fs.mkdirSync(path.join(tmpDir, '.planning'), { recursive: true });
+    fs.writeFileSync(path.join(tmpDir, '.planning', 'DEFAULT.md'), '# Default\n');
+
+    const result = runGsdTools('commit "test(quick-3): default-behavior"', tmpDir);
+    assert.ok(result.success, `Command failed: ${result.error}`);
+
+    const showResult = execSync('git show --name-only --format= HEAD', { cwd: tmpDir, encoding: 'utf-8' }).trim();
+    assert.ok(showResult.includes('.planning/DEFAULT.md'), `DEFAULT.md not in commit; got: ${showResult}`);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // objective insert command — DEPRECATED (TRD 12-06, I2 survey: 0% usage)
 // ─────────────────────────────────────────────────────────────────────────────
 
