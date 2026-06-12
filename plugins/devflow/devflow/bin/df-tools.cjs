@@ -869,6 +869,12 @@ async function main() {
       break;
     }
 
+    case 'decision-queue': {
+      const { cmdDecisionQueueRoute } = require('./lib/decision-queue.cjs');
+      await cmdDecisionQueueRoute(cwd, args.slice(1), raw);
+      break;
+    }
+
     case 'initiatives': {
       cmdInitiativesRoute(cwd, args.slice(1));
       break;
