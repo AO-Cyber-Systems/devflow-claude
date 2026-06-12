@@ -429,7 +429,34 @@ When executor returns a checkpoint AND `MODE` is `"autonomous"`:
   - `status: gaps_found` OR `status: human_needed` → escalate to user. Present the checkpoint using the standard "Present to user" format (step 4 of standard flow below) PLUS append a `### Verifier Report` section with the verifier's full evidence output. Wait for user response before spawning continuation agent.
   - Verifier timeout or ambiguous return → treat as `human_needed` and escalate to user. Never approve on ambiguity.
 
-- **decision** → Parked via decision queue — wired in TRD 10-04; until wired, fall through to standard flow (never auto-select first option in autonomous mode).
+- **decision** → PARK, NOTIFY, CONTINUE INDEPENDENT.
+
+  1. **Park:** Run the decision-queue add command with full context:
+     ```bash
+     node ~/.claude/devflow/bin/df-tools.cjs decision-queue add \
+       --objective {N} --trd {plan_id} --wave {W} \
+       --title "{one-line decision summary from checkpoint}" \
+       --context "{context block from checkpoint return}" \
+       --options "{option ids, comma-separated — e.g., option-a,option-b}" \
+       --recommendation "{executor's recommended option id}" \
+       --blocks "{TRD ids in the blocked set}" \
+       --independent "{remaining executable TRD ids}"
+     ```
+
+     **Computing `--blocks` and `--independent`:**
+     - The orchestrator already holds all wave/depends_on data loaded from objective-job-index.
+     - Blocked set = TRDs whose `decision_gate` frontmatter matches this decision's id (DECISION-NNN), PLUS their transitive `depends_on` closure, PLUS the parked plan itself (whose continuation requires the answer).
+     - When no TRD declares a `decision_gate` for this decision, `--blocks` is the parked plan id only; everything else is independent.
+     - `df-tools decision-queue add` fires the OS notification itself — no separate notify call needed.
+
+  2. **Mark parked:** Update the wave table entry for the parked plan to status `⏸ parked on DECISION-NNN`.
+
+  3. **Continue independent:** Proceed to the next wave executing every TRD not in the blocked set. Do NOT halt all waves. Do NOT auto-select any option — parking is the only autonomous handling for decisions.
+
+  4. **Aggregate report:** The `aggregate_results` step includes a `### Pending Decisions` section (see that step).
+
+- **Rule 4 deviation return (autonomous mode):** When an executor returns a Rule 4 architectural stop (not a checkpoint task, but an agent return containing `decision:`, `options:`, `recommendation:` fields) AND `MODE` is `"autonomous"`:
+  Park it identically to `checkpoint:decision` using `decision-queue add` with `type: rule-4-deviation`. The executor's `recommendation:` field maps to `--recommendation`, the `options:` list maps to `--options`, and the `context:` field maps to `--context`. Blocked set computation is the same as above. Never surface Rule 4 stops as mid-run user prompts in autonomous mode.
 
 - **human-action** → Present to user. Auth gates cannot be automated.
 
@@ -491,6 +518,19 @@ After all waves:
 
 ### Issues Encountered
 [Aggregate from SUMMARYs, or "None"]
+
+### Pending Decisions
+```bash
+# Check for pending decisions
+ls .planning/decisions/pending/ 2>/dev/null
+```
+If `.planning/decisions/pending/` is non-empty, include this section:
+
+| ID | Title | Blocked TRDs | Resolve Command |
+|----|-------|-------------|----------------|
+| DECISION-001 | [title from decision file] | [comma-separated TRD ids] | `/devflow:decide DECISION-001 <choice>` |
+
+Show one row per pending decision. If `.planning/decisions/pending/` is empty or absent, omit this section entirely.
 ```
 </step>
 
