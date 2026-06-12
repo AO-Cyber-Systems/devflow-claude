@@ -1,9 +1,8 @@
 ---
 name: gh-sync
 description: |
-  Sync DevFlow planning state to GitHub — create/update issues for objectives, post verification gaps as comments, generate release notes from SUMMARY files, or push a single objective's state (body + sticky comment + Project v2 fields).
-  Use when the user wants to push DevFlow state to GitHub or recover from a missed sync.
-  Triggers on: "sync to github", "create github issues", "push objectives to github", "github release notes", "sync objective", "sync state"
+  Sync DevFlow planning state to GitHub — create/update objective issues, generate release notes, or push a single objective's state (body + sticky comment + Project v2 fields).
+  Triggers on: "sync to github", "push objectives to github", "github release notes", "sync objective".
 argument-hint: "[objectives|release <tag>|status|<objective_id>]"
 allowed-tools:
   - Read
@@ -62,4 +61,8 @@ node ~/.claude/devflow/bin/df-tools.cjs commit "chore: sync GitHub mapping" --fi
 - Failures (network, rate limit, auth expired) never block the user's workflow. They are reported and the planning state remains authoritative.
 - For automatic syncing, the new-project workflow already calls `gh sync-objectives` after roadmap creation, and the verifier agent calls `gh comment` on verification gaps. This skill is for manual fire / recovery.
 - The single-objective sync (`<objective_id>` mode) requires the objective to have a `github_issue` field in its OBJECTIVE.md frontmatter. If absent, run `objectives` mode first to create the issue, then backfill the `github_issue` field.
+
+## Triggers
+
+Use when the user wants to push DevFlow state to GitHub or recover from a missed sync. Also fires on: "create github issues", "sync state".
 </context>
