@@ -113,9 +113,15 @@ function cmdVerifyJobStructure(cwd, filePath, raw) {
   const warnings = [];
 
   // Check required frontmatter fields
-  const required = ['objective', 'job', 'type', 'wave', 'depends_on', 'files_modified', 'autonomous', 'must_haves'];
+  // Note: 'job' is excluded from the required array; it is checked separately below
+  // to allow TRD-format plans that use 'trd:' instead of 'job:' as the plan identifier.
+  const required = ['objective', 'type', 'wave', 'depends_on', 'files_modified', 'autonomous', 'must_haves'];
   for (const field of required) {
     if (fm[field] === undefined) errors.push(`Missing required frontmatter field: ${field}`);
+  }
+  // Either 'job' (legacy JOB.md) or 'trd' (TRD-format) must be present
+  if (fm.job === undefined && fm.trd === undefined) {
+    errors.push('Missing required frontmatter field: job (or trd)');
   }
 
   // Parse and check task elements
