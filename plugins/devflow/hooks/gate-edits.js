@@ -8,8 +8,10 @@
  * Three escape hatches:
  *   1. .planning/.skill-active marker file — written by `df-tools skill-active --start`,
  *      removed by `--end`. Indicates an executor/skill is actively running.
- *   2. Override phrase in user prompt — "skip devflow", "just edit",
- *      "bypass devflow", "force edit" (case-insensitive, single-turn scope).
+ *   2. Override phrase in user prompt — detected by route-intent.js (UserPromptSubmit)
+ *      which writes .planning/.edit-override; this hook consumes the marker
+ *      (single-turn, TTL-bounded). Phrases: "skip devflow", "just edit",
+ *      "bypass devflow", "force edit".
  *   3. DEVFLOW_SKIP_EDIT_GATE=1 env var — debugging / manual escape hatch.
  *
  * Permits edits to:
@@ -34,15 +36,14 @@ const fs = require('fs');
 const path = require('path');
 
 // ---------------------------------------------------------------------------
-// Override phrases (locked from 15-RESEARCH.md)
+// Shared lib — single source of truth for phrases + marker lifecycle
 // ---------------------------------------------------------------------------
 
-const OVERRIDE_PHRASES = [
-  'skip devflow',
-  'just edit',
-  'bypass devflow',
-  'force edit',
-];
+const {
+  OVERRIDE_PHRASES,
+  hasOverridePhrase,
+  consumeEditOverrideMarker,
+} = require('./lib/edit-override.js');
 
 // ---------------------------------------------------------------------------
 // Pure helpers (unit-testable without side effects)
@@ -74,20 +75,6 @@ function hasSkillActiveMarker(planningDir) {
 }
 
 /**
- * Returns true if `userMessage` contains any override phrase (case-insensitive).
- * Override phrase scope is single-turn — PreToolUse fires per-call with the
- * current turn's prompt, so no persistence is needed.
- *
- * @param {string|null|undefined} userMessage
- * @returns {boolean}
- */
-function hasOverridePhrase(userMessage) {
-  if (!userMessage || typeof userMessage !== 'string') return false;
-  const lower = userMessage.toLowerCase();
-  return OVERRIDE_PHRASES.some(p => lower.includes(p));
-}
-
-/**
  * Core gate decision — pure function, no I/O.
  *
  * @param {object} opts
@@ -95,7 +82,7 @@ function hasOverridePhrase(userMessage) {
  * @param {string} opts.filePath     - Target file path (tool_input.file_path)
  * @param {string|null} opts.planningDir  - Ancestor .planning dir or null
  * @param {boolean} opts.skillActive - True if .skill-active marker exists
- * @param {boolean} opts.overrideActive  - True if user prompt has override phrase
+ * @param {boolean} opts.overrideActive  - True if .edit-override marker was fresh (consumed)
  * @returns {{ decision: 'deny'|'allow'|'noop', reason?: string }}
  */
 function shouldGate({ tool, filePath, planningDir, skillActive, overrideActive }) {
@@ -116,7 +103,7 @@ function shouldGate({ tool, filePath, planningDir, skillActive, overrideActive }
   // Escape hatch: active skill marker
   if (skillActive) return { decision: 'allow', reason: 'skill-active marker present' };
 
-  // Escape hatch: user override phrase
+  // Escape hatch: user override phrase (via .edit-override marker consumed in main())
   if (overrideActive) return { decision: 'allow', reason: 'user override phrase detected' };
 
   // Default: DENY in ambient mode
@@ -150,13 +137,12 @@ function main() {
   const tool = input.tool_name;
   const filePath = (input.tool_input && input.tool_input.file_path) || '';
 
-  // Defensive: try both field names for the user's prompt
-  // Empirical order: user_message first, prompt fallback, then empty string
-  const userMessage = input.user_message || input.prompt || '';
-
   const planningDir = findPlanningDir(process.cwd());
   const skillActive = hasSkillActiveMarker(planningDir);
-  const overrideActive = hasOverridePhrase(userMessage);
+  // Override phrase is signaled via .edit-override marker written by route-intent.js
+  // (route-intent runs on UserPromptSubmit which has access to the prompt text;
+  //  PreToolUse payloads carry no user_message/prompt field — consume the marker instead)
+  const overrideActive = consumeEditOverrideMarker(planningDir);
 
   const result = shouldGate({ tool, filePath, planningDir, skillActive, overrideActive });
 
@@ -177,6 +163,8 @@ if (require.main === module) main();
 
 // ---------------------------------------------------------------------------
 // Exports (for unit tests)
+// Back-compat: OVERRIDE_PHRASES and hasOverridePhrase are re-exported from
+// lib/edit-override.js so existing imports (route-intent TRD 24-02, tests) keep working.
 // ---------------------------------------------------------------------------
 
 module.exports = {
