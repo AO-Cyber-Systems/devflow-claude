@@ -8,6 +8,7 @@ function loadConfig(cwd) {
   const configPath = path.join(cwd, '.planning', 'config.json');
   const defaults = {
     mode: 'yolo',
+    autonomous: false,
     auto_advance: true,
     model_profile: 'balanced',
     commit_docs: true,
@@ -22,6 +23,8 @@ function loadConfig(cwd) {
     verifier: true,
     parallelization: true,
     brave_search: false,
+    verifier_checkpoints: false,
+    decision_queue: false,
   };
 
   try {
@@ -43,8 +46,12 @@ function loadConfig(cwd) {
       return defaults.parallelization;
     })();
 
+    const mode = get('mode', { section: 'workflow', field: 'mode' }) ?? defaults.mode;
+    const autonomous = mode === 'autonomous';
+
     return {
-      mode: get('mode', { section: 'workflow', field: 'mode' }) ?? defaults.mode,
+      mode,
+      autonomous,
       auto_advance: get('auto_advance', { section: 'workflow', field: 'auto_advance' }) ?? defaults.auto_advance,
       model_profile: get('model_profile') ?? defaults.model_profile,
       commit_docs: get('commit_docs', { section: 'planning', field: 'commit_docs' }) ?? defaults.commit_docs,
@@ -59,6 +66,8 @@ function loadConfig(cwd) {
       verifier: get('verifier', { section: 'workflow', field: 'verifier' }) ?? defaults.verifier,
       parallelization,
       brave_search: get('brave_search') ?? defaults.brave_search,
+      verifier_checkpoints: get('verifier_checkpoints', { section: 'workflow', field: 'verifier_checkpoints' }) ?? autonomous,
+      decision_queue: get('decision_queue', { section: 'workflow', field: 'decision_queue' }) ?? autonomous,
     };
   } catch {
     return defaults;
