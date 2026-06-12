@@ -68,16 +68,7 @@ TRD.md IS the prompt (not a document that becomes one). Contains:
 - Tasks (with verification criteria and recovery steps)
 - Success criteria (measurable)
 
-## Quality Degradation Curve
-
-| Context Usage | Quality | Claude's State |
-|---------------|---------|----------------|
-| 0-30% | PEAK | Thorough, comprehensive |
-| 30-50% | GOOD | Confident, solid work |
-| 50-70% | DEGRADING | Efficiency mode begins |
-| 70%+ | POOR | Rushed, minimal |
-
-**Rule:** Plans should complete within ~50% context. More plans, smaller scope, consistent quality. Each TRD: 2-3 tasks max.
+Quality degrades past ~50% context — budget table in `<scope_estimation>`.
 
 ## Ship Fast
 
@@ -426,9 +417,14 @@ No overlap → can run parallel. File in multiple TRDs → later TRD depends on 
 
 ## Context Budget Rules
 
-Plans should complete within ~50% context (not 80%). No context anxiety, quality maintained start to finish, room for unexpected complexity.
+Plans should complete within ~50% context (not 80%). No context anxiety, quality maintained start to finish, room for unexpected complexity. Each TRD: 2-3 tasks maximum.
 
-**Each TRD: 2-3 tasks maximum.**
+| Context Usage | Quality | Claude's State |
+|---------------|---------|----------------|
+| 0-30% | PEAK | Thorough, comprehensive |
+| 30-50% | GOOD | Confident, solid work |
+| 50-70% | DEGRADING | Efficiency mode begins |
+| 70%+ | POOR | Rushed, minimal |
 
 | Task Complexity | Tasks/Plan | Context/Task | Total |
 |-----------------|------------|--------------|-------|
@@ -487,152 +483,20 @@ Derive plans from actual work. Depth determines compression tolerance, not a tar
 </goal_backward>
 
 <checkpoints>
+Three checkpoint types plan for user interaction:
+- `checkpoint:human-verify` (90%): human confirms Claude's automated work
+- `checkpoint:decision` (9%): human chooses implementation direction
+- `checkpoint:human-action` (1%): action with no CLI/API equivalent (rare)
 
-## Checkpoint Types
+Automation-first rule: if Claude CAN do it via CLI/API, Claude MUST — checkpoints verify AFTER automation. Auth gates are created dynamically on auth errors, never pre-planned.
 
-**checkpoint:human-verify (90% of checkpoints)**
-Human confirms Claude's automated work works correctly.
-
-Use for: Visual UI checks, interactive flows, functional verification, animation/accessibility.
-
-```xml
-<task type="checkpoint:human-verify" gate="blocking">
-  <what-built>[What Claude automated]</what-built>
-  <how-to-verify>
-    [Exact steps to test - URLs, commands, expected behavior]
-  </how-to-verify>
-  <resume-signal>Type "approved" or describe issues</resume-signal>
-</task>
-```
-
-**checkpoint:decision (9% of checkpoints)**
-Human makes implementation choice affecting direction.
-
-Use for: Technology selection, architecture decisions, design choices.
-
-```xml
-<task type="checkpoint:decision" gate="blocking">
-  <decision>[What's being decided]</decision>
-  <context>[Why this matters]</context>
-  <options>
-    <option id="option-a">
-      <name>[Name]</name>
-      <pros>[Benefits]</pros>
-      <cons>[Tradeoffs]</cons>
-    </option>
-  </options>
-  <resume-signal>Select: option-a, option-b, or ...</resume-signal>
-</task>
-```
-
-**checkpoint:human-action (1% - rare)**
-Action has NO CLI/API and requires human-only interaction.
-
-Use ONLY for: Email verification links, SMS 2FA codes, manual account approvals, credit card 3D Secure flows.
-
-Do NOT use for: Deploying (use CLI), creating webhooks (use API), creating databases (use provider CLI), running builds/tests (use Bash), creating files (use Write).
-
-## Authentication Gates
-
-When Claude tries CLI/API and gets auth error → creates checkpoint → user authenticates → Claude retries. Auth gates are created dynamically, NOT pre-planned.
-
-## Writing Guidelines
-
-**DO:** Automate everything before checkpoint, be specific ("Visit https://myapp.vercel.app" not "check deployment"), number verification steps, state expected outcomes.
-
-**DON'T:** Ask human to do work Claude can automate, mix multiple verifications, place checkpoints before automation completes.
-
-## Anti-Patterns
-
-**Bad - Asking human to automate:**
-```xml
-<task type="checkpoint:human-action">
-  <action>Deploy to Vercel</action>
-  <instructions>Visit vercel.com, import repo, click deploy...</instructions>
-</task>
-```
-Why bad: Vercel has a CLI. Claude should run `vercel --yes`.
-
-**Bad - Too many checkpoints:**
-```xml
-<task type="auto">Create schema</task>
-<task type="checkpoint:human-verify">Check schema</task>
-<task type="auto">Create API</task>
-<task type="checkpoint:human-verify">Check API</task>
-```
-Why bad: Verification fatigue. Combine into one checkpoint at end.
-
-**Good - Single verification checkpoint:**
-```xml
-<task type="auto">Create schema</task>
-<task type="auto">Create API</task>
-<task type="auto">Create UI</task>
-<task type="checkpoint:human-verify">
-  <what-built>Complete auth flow (schema + API + UI)</what-built>
-  <how-to-verify>Test full flow: register, login, access protected page</how-to-verify>
-</task>
-```
-
+@~/.claude/devflow/references/checkpoints.md
 </checkpoints>
 
 <tdd_integration>
+Iron Law: no production code without a failing test first. Every source file with logic gets a paired test file (exception marker: `<!-- TDD-EXCEPTION: reason -->`). TDD tasks produce RED → GREEN → (REFACTOR) atomic commits and target ~40% context budget.
 
-## TDD Plan Structure
-
-TDD candidates identified in task_breakdown get dedicated TRDs (type: tdd). One feature per TDD TRD.
-
-**Iron Law:** No production code without a failing test first. See @~/.claude/devflow/references/tdd.md
-
-```markdown
----
-objective: XX-name
-trd: NN
-type: tdd
----
-
-<objective>
-[What feature and why]
-Purpose: [Design benefit of TDD for this feature]
-Output: [Working, tested feature]
-</objective>
-
-<feature>
-  <name>[Feature name]</name>
-  <files>[source file, test file]</files>
-  <behavior>
-    [Expected behavior in testable terms]
-    Cases:
-    - input: {input1} → expected: {output1}
-    - input: {input2} → expected: {output2}
-    - edge: {edge_case} → expected: {edge_output}
-  </behavior>
-  <implementation>[How to implement once tests pass]</implementation>
-</feature>
-```
-
-## Test Pairing Rule
-
-Every source file with logic MUST have a corresponding test file. The planner enforces this by:
-- Including both source and test file paths in `<files>` element
-- Verifying test file exists or will be created in the TRD's task list
-
-**Exception mechanism:** Only skip test pairing with explicit marker:
-`<!-- TDD-EXCEPTION: {reason} -->` (e.g., configuration files, type definitions)
-
-## Red-Green-Refactor Cycle
-
-**RED:** Create test file → write test describing expected behavior → run test (MUST fail) → commit: `test({objective}-{trd}): add failing test for [feature]`
-
-**GREEN:** Write minimal code to pass → run test (MUST pass) → commit: `feat({objective}-{trd}): implement [feature]`
-
-**REFACTOR (if needed):** Clean up → run tests (MUST still pass) → commit only if changes: `refactor({objective}-{trd}): clean up [feature]`
-
-Each TDD TRD produces 2-3 atomic commits.
-
-## Context Budget for TDD
-
-TDD TRDs target ~40% context (lower than standard 50%). The RED→GREEN→REFACTOR back-and-forth with file reads, test runs, and output analysis is heavier than linear execution.
-
+@~/.claude/devflow/references/tdd.md
 </tdd_integration>
 
 <gap_closure_mode>
