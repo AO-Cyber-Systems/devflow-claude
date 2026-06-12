@@ -118,8 +118,6 @@ describe('loadConfig', () => {
       auto_advance: true,
       model_profile: 'quality',
       commit_docs: false,
-      require_verification: false,
-      require_tests: false,
       search_gitignored: true,
       branching_strategy: 'none',
       parallelization: true,
@@ -135,8 +133,6 @@ describe('loadConfig', () => {
     assert.strictEqual(cfg.auto_advance, true);
     assert.strictEqual(cfg.model_profile, 'quality');
     assert.strictEqual(cfg.commit_docs, false);
-    assert.strictEqual(cfg.require_verification, false);
-    assert.strictEqual(cfg.require_tests, false);
     assert.strictEqual(cfg.search_gitignored, true);
     assert.strictEqual(cfg.branching_strategy, 'none');
     assert.strictEqual(cfg.parallelization, true);
@@ -145,6 +141,73 @@ describe('loadConfig', () => {
     assert.ok('research' in cfg);
     assert.ok('job_checker' in cfg);
     assert.ok('verifier' in cfg);
+    // Dead keys must NOT appear in return value
+    assert.ok(!('require_verification' in cfg), 'require_verification must not be in return value');
+    assert.ok(!('require_tests' in cfg), 'require_tests must not be in return value');
+  });
+
+});
+
+describe('dead gates removed', () => {
+
+  afterEach(() => {
+    if (tmpdir && fs.existsSync(tmpdir)) {
+      fs.rmSync(tmpdir, { recursive: true, force: true });
+      tmpdir = null;
+    }
+  });
+
+  // TRD 10-08 Test 1: loadConfig return has NO require_verification or require_tests keys
+  test('10. loadConfig return has no require_verification or require_tests keys', () => {
+    tmpdir = fs.mkdtempSync(path.join(os.tmpdir(), 'df-config-'));
+    buildPlanningDirWithConfig(tmpdir, { mode: 'yolo' });
+    const cfg = loadConfig(tmpdir);
+    assert.strictEqual('require_verification' in cfg, false, 'require_verification must not be in return');
+    assert.strictEqual('require_tests' in cfg, false, 'require_tests must not be in return');
+  });
+
+  // TRD 10-08 Test 2: legacy config with gates.require_verification/require_tests → loads without crash; dead keys absent from return; live keys correct
+  test('11. legacy config with gates.require_verification/require_tests loads fine; dead keys absent from return', () => {
+    tmpdir = fs.mkdtempSync(path.join(os.tmpdir(), 'df-config-'));
+    buildPlanningDirWithConfig(tmpdir, {
+      mode: 'yolo',
+      gates: {
+        require_verification: true,
+        require_tests: true,
+        confirm_project: true,
+        confirm_objectives: true,
+      },
+    });
+    let cfg;
+    assert.doesNotThrow(() => { cfg = loadConfig(tmpdir); });
+    // Dead keys must not appear in return
+    assert.strictEqual('require_verification' in cfg, false, 'require_verification must not be in return');
+    assert.strictEqual('require_tests' in cfg, false, 'require_tests must not be in return');
+    // Live keys correct
+    assert.strictEqual(cfg.mode, 'yolo');
+    assert.strictEqual(cfg.autonomous, false);
+  });
+
+  // TRD 10-08 Test 3: legacy flat-form config with top-level require_tests: false → ignored silently
+  test('12. legacy flat-form top-level require_tests: false is ignored silently', () => {
+    tmpdir = fs.mkdtempSync(path.join(os.tmpdir(), 'df-config-'));
+    buildPlanningDirWithConfig(tmpdir, {
+      mode: 'yolo',
+      require_tests: false,
+    });
+    let cfg;
+    assert.doesNotThrow(() => { cfg = loadConfig(tmpdir); });
+    assert.strictEqual('require_tests' in cfg, false, 'require_tests must not be in return');
+    assert.strictEqual(cfg.mode, 'yolo');
+  });
+
+  // TRD 10-08 Test 4: defaults path (missing config) → no dead keys in defaults shape
+  test('13. defaults path (missing config.json) has no dead keys', () => {
+    tmpdir = fs.mkdtempSync(path.join(os.tmpdir(), 'df-config-'));
+    buildPlanningDirWithConfig(tmpdir, null); // no config file
+    const cfg = loadConfig(tmpdir);
+    assert.strictEqual('require_verification' in cfg, false, 'require_verification must not be in defaults');
+    assert.strictEqual('require_tests' in cfg, false, 'require_tests must not be in defaults');
   });
 
 });
