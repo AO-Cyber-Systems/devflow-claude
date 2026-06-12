@@ -261,8 +261,16 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
 
 4. **Spawn executor agents:**
 
-   Pass paths only — executors read files themselves with their fresh 200k context.
-   This keeps orchestrator context lean (~10-15%).
+   Embed the full TRD content inline in every executor spawn prompt. Executors may run in
+   an isolated git worktree (isolation: worktree in executor frontmatter) where uncommitted
+   .planning/ files from the parent tree are not visible. Embedding the TRD guarantees the
+   executor has its plan regardless of worktree state. Context cost: ~plan size per spawn;
+   acceptable because TRDs are 2-3 tasks.
+
+   Before spawning, read the plan file into orchestrator context:
+   ```
+   TRD_CONTENT = Read("{objective_dir}/{plan_file}")
+   ```
 
    ```
    Task(
@@ -282,17 +290,26 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
        @~/.claude/devflow/references/anti-patterns.md
        </execution_context>
 
-       <files_to_read>
-       Read these files at execution start using the Read tool:
-       - Plan: {objective_dir}/{plan_file}
-       - State: .planning/STATE.md
-       - Config: .planning/config.json (if exists)
-       </files_to_read>
+       <plan_content>
+       The full TRD content is embedded below because you may be running in an isolated
+       worktree where .planning/ files from the parent tree are not visible.
+       --- BEGIN TRD ---
+       {TRD_CONTENT}
+       --- END TRD ---
+       </plan_content>
+
+       <worktree_protocol>
+       - You may be in an isolated git worktree. Commit to your current branch as normal.
+       - Write SUMMARY.md at the path given in the TRD output section and COMMIT it —
+         the orchestrator reads it from your branch after merging.
+       - STATE.md/ROADMAP.md updates: include them in your commits; conflicts are resolved
+         at merge time by the orchestrator.
+       </worktree_protocol>
 
        <success_criteria>
        - [ ] All tasks executed
        - [ ] Each task committed individually
-       - [ ] SUMMARY.md created in plan directory
+       - [ ] SUMMARY.md created in plan directory and committed
        - [ ] STATE.md updated with position and decisions
        - [ ] ROADMAP.md updated with job progress (via `roadmap update-job-progress`)
        </success_criteria>
@@ -327,11 +344,48 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
      result = TaskOutput(task_id=task_id, block=true, timeout=600000)
    ```
 
-   Collect all results, then proceed to spot-check.
+   Collect all results, then proceed to step 5b.
 
    **Sequential execution (when `PARALLELIZATION=false` OR wave has 1 plan):**
 
    Use standard blocking Task() calls (existing behavior).
+
+5b. **Merge worktree branches (when executors run with isolation: worktree):**
+
+   Platform-managed worktrees (created via `isolation: worktree` in executor frontmatter)
+   run on branches auto-created by Claude Code. After all wave agents complete, merge those
+   branches back into the current branch BEFORE any disk-based spot-checks. File-existence
+   checks read the working tree, so merge-before-spot-check ordering is mandatory.
+
+   Prior art: workstreams.cjs already provisions worktrees with `worktree_prefix` and
+   `merge_strategy: "squash"` — the same concept applied to platform-managed worktrees.
+
+   **Branch merge protocol:**
+   ```bash
+   # 1. Snapshot branch list before spawning the wave (do this BEFORE step 4):
+   git branch --format='%(refname:short)' > /tmp/df-branches-before-wave-{N}
+
+   # 2. After all wave agents complete, diff to find agent-created branches:
+   git branch --format='%(refname:short)' > /tmp/df-branches-after-wave-{N}
+   diff /tmp/df-branches-before-wave-{N} /tmp/df-branches-after-wave-{N}
+
+   # 3. For each new branch, merge into current branch:
+   git merge --no-ff {agent-branch}
+   # File ownership is exclusive per wave (each TRD owns different files),
+   # so conflicts indicate a planning error. On conflict:
+   git merge --abort
+   # Route to the failure handler with: "Merge conflict on {branch} — planning error,
+   # two TRDs in the same wave modified the same file."
+   ```
+
+   **Caution:** Worktree isolation branches from the DEFAULT branch, not the parent HEAD
+   (research Pitfall 5). On feature branches, commits from prior waves may be missing in
+   a fresh worktree. Worktree isolation is safest when executing on the default branch or
+   with `branching_strategy: "none"` where prior waves' commits are merged back before the
+   next wave spawns. The 5b merge step guarantees exactly this sequencing between waves.
+
+   After all new branches are merged, `git log --all --grep` and file-existence spot-checks
+   in step 6 will see all wave commits.
 
 6. **Report completion — spot-check claims first:**
 
