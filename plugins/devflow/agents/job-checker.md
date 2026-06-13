@@ -562,6 +562,8 @@ Return all issues as a structured `issues:` YAML list (see dimension examples fo
 
 <structured_returns>
 
+Return budget: <=300 tokens. Orchestrator cache-replays this every turn.
+
 ## VERIFICATION PASSED
 
 ```markdown
@@ -569,30 +571,9 @@ Return all issues as a structured `issues:` YAML list (see dimension examples fo
 
 **Objective:** {phase-name}
 **Plans verified:** {N}
-**Status:** All checks passed
+**Confidence:** {avg_score}/10 (lowest plan: {low_score}/10)
 
-### Coverage Summary
-
-| Requirement | Plans | Status |
-|-------------|-------|--------|
-| {req-1}     | 01    | Covered |
-| {req-2}     | 01,02 | Covered |
-
-### Plan Summary
-
-| Plan | Tasks | Files | Wave | Status |
-|------|-------|-------|------|--------|
-| 01   | 3     | 5     | 1    | Valid  |
-| 02   | 2     | 4     | 2    | Valid  |
-
-### Confidence Assessment
-
-| Plan | Score | Key Factor |
-|------|-------|------------|
-| 01   | 8/10  | Clear patterns, well-researched |
-| 02   | 7/10  | Standard CRUD, existing patterns |
-
-{If any plan <7: **Recommendation:** Consider `/devflow:research-objective` for [topic] before execution.}
+{If any plan <7: **Recommendation:** Consider `/devflow:research-objective` for {topic} before execution.}
 
 Plans verified. Run `/devflow:execute-objective {objective}` to proceed.
 ```
@@ -603,8 +584,8 @@ Plans verified. Run `/devflow:execute-objective {objective}` to proceed.
 ## ISSUES FOUND
 
 **Objective:** {phase-name}
-**Plans checked:** {N}
 **Issues:** {X} blocker(s), {Y} warning(s), {Z} info
+**Confidence:** {avg_score}/10
 
 ### Blockers (must fix)
 
@@ -623,18 +604,7 @@ Plans verified. Run `/devflow:execute-objective {objective}` to proceed.
 
 (YAML issues list using format from Issue Format above)
 
-### Confidence Assessment
-
-| Plan | Score | Key Factor |
-|------|-------|------------|
-| 01   | 6/10  | Missing research for complex domain |
-| 02   | 8/10  | Clear patterns, straightforward |
-
-{If any plan <7: **Recommendation:** Consider `/devflow:research-objective` for [topic] before execution.}
-
-### Recommendation
-
-{N} blocker(s) require revision. Returning to planner with feedback.
+{N} blocker(s) require revision.
 ```
 
 </structured_returns>

@@ -88,8 +88,12 @@
  *   verify commits <h1> [h2] ...      Batch verify commit hashes
  *   verify artifacts <job-file>       Check must_haves.artifacts
  *   verify key-links <job-file>       Check must_haves.key_links
+ *   verify api-contract <trd-path>    SHA drift for api_contract: block (advisory; exits 0)
  *   verify trd-pre <objective>        Cheap pre-flight: req coverage, task completeness,
  *                                       dep cycles, scope counts (pure-logic, no agent spawn)
+ *   verify flutter-ui-bootstrap <project-dir>  Check Flutter UI testing infra
+ *                                       (pubspec/integration_test/.maestro/test_driver/marker)
+ *   verify flutter-state-coverage <trd-path>  Check Flutter UI artifact state coverage via regex catalog
  *
  * Skill Lifecycle:
  *   skill-active --start <name>        Mark skill as active (writes .planning/.skill-active)
@@ -100,6 +104,14 @@
  *   detect novel-domain <objective>   Detect if objective crosses research boundary
  *     [--raw]                           Returns { novel, signals, recommendation }
  *                                       Signals: new_dep, missing_patterns, comparison_keyword
+ *   detect flutter-ui-scope <objective>  Detect Flutter UI scope (sets type=ui semantics in planner)
+ *     [--raw]                           Returns { detected, signals, platform, state_management, evidence }
+ *
+ * UAT Generation:
+ *   generate uat <objective>           Auto-generate 1-page UAT.md checklist from TRDs + Maestro flows
+ *     [--raw]                           (mobile-only) + flutter drive web instructions. Writes to
+ *                                       .planning/objectives/<obj-dir>/<obj>-UAT.md. Refuses to
+ *                                       overwrite a UAT.md already in use (non-pending results).
  *
  * Template Fill:
  *   template fill summary --objective N    Create pre-filled SUMMARY.md
@@ -169,8 +181,13 @@ const {
   cmdVerifyReferences, cmdVerifyCommits, cmdVerifyArtifacts, cmdVerifyKeyLinks,
 } = require('./lib/verify.cjs');
 const { cmdVerifyTrdPre } = require('./lib/trd-pre-check.cjs');
+const { cmdVerifyApiContract } = require('./lib/api-contract.cjs');
+const { cmdVerifyFlutterUIBootstrap } = require('./lib/flutter-ui-bootstrap.cjs');
+const { cmdFlutterUISetup } = require('./lib/flutter-ui-setup.cjs');
+const { cmdVerifyFlutterStateCoverage } = require('./lib/flutter-state-coverage.cjs');
 const { cmdDetectNovelDomain } = require('./lib/novel-domain.cjs');
 const { cmdDetectBrownfieldMap } = require('./lib/brownfield-detector.cjs');
+const { cmdDetectFlutterUIScope } = require('./lib/flutter-ui-scope.cjs');
 const { cmdValidateConsistency, cmdValidateHealth } = require('./lib/validate.cjs');
 const {
   cmdResolveModel, cmdInitExecuteObjective, cmdInitPlanObjective, cmdInitNewProject,
@@ -213,6 +230,7 @@ const { cmdMicro } = require('./lib/micro.cjs');
 const { cmdProjectDecline, cmdProjectAccept } = require('./lib/decline-tracker.cjs');
 const { cmdProjectState } = require('./lib/project-state.cjs');
 const { cmdGlobalConfig } = require('./lib/global-config.cjs');
+const { cmdGenerateUAT } = require('./lib/uat-generator.cjs');
 
 // ─── CLI Router ───────────────────────────────────────────────────────────────
 
@@ -226,7 +244,7 @@ async function main() {
   const cwd = process.cwd();
 
   if (!command) {
-    error('Usage: df-tools <command> [args] [--raw]\nCommands: state, resolve-model, find-objective, commit, verify-summary, verify, detect, frontmatter, template, generate-slug, current-timestamp, list-todos, verify-path-exists, config-ensure-section, awareness, init');
+    error('Usage: df-tools <command> [args] [--raw]\nCommands: state, resolve-model, find-objective, commit, verify-summary, verify, detect, generate, frontmatter, template, generate-slug, current-timestamp, list-todos, verify-path-exists, config-ensure-section, awareness, benchmark, planning, init');
   }
 
   switch (command) {
@@ -383,8 +401,30 @@ async function main() {
         cmdVerifyKeyLinks(cwd, args[2], raw);
       } else if (subcommand === 'trd-pre') {
         cmdVerifyTrdPre(cwd, args[2], raw);
+      } else if (subcommand === 'api-contract') {
+        // verify api-contract <trd-path> [--raw]
+        cmdVerifyApiContract(cwd, args[2], raw);
+      } else if (subcommand === 'flutter-ui-bootstrap') {
+        // verify flutter-ui-bootstrap <project-dir> [--raw]
+        cmdVerifyFlutterUIBootstrap(cwd, args[2], raw);
+      } else if (subcommand === 'flutter-state-coverage') {
+        // verify flutter-state-coverage <trd-path> [--raw]
+        cmdVerifyFlutterStateCoverage(cwd, args[2], raw);
       } else {
-        error('Unknown verify subcommand. Available: job-structure, objective-completeness, references, commits, artifacts, key-links, trd-pre');
+        error('Unknown verify subcommand. Available: job-structure, objective-completeness, references, commits, artifacts, key-links, trd-pre, api-contract, flutter-ui-bootstrap, flutter-state-coverage');
+      }
+      break;
+    }
+
+    case 'flutter-ui': {
+      // flutter-ui setup [--print-only] [--auto] [--raw]
+      //   One-command adoption: detect missing system tools, build install plan,
+      //   dispatch via handoff (daemon live) or print (daemon down), chain bootstrap.
+      const subcommand = args[1];
+      if (subcommand === 'setup') {
+        cmdFlutterUISetup(cwd, args.slice(2), raw);
+      } else {
+        error('Unknown flutter-ui subcommand. Available: setup');
       }
       break;
     }
@@ -397,8 +437,24 @@ async function main() {
       } else if (subcommand === 'brownfield-map') {
         // detect brownfield-map [<cwd>] [--raw]
         cmdDetectBrownfieldMap(cwd, args[2], raw);
+      } else if (subcommand === 'flutter-ui-scope') {
+        // detect flutter-ui-scope <objective> [--raw]
+        cmdDetectFlutterUIScope(cwd, args[2], raw);
       } else {
-        error('Unknown detect subcommand. Available: novel-domain, brownfield-map');
+        error('Unknown detect subcommand. Available: novel-domain, brownfield-map, flutter-ui-scope');
+      }
+      break;
+    }
+
+    case 'generate': {
+      const subcommand = args[1];
+      if (subcommand === 'uat') {
+        // generate uat <objective> [--raw]
+        // Auto-generates 1-page UAT checklist from TRDs + Maestro flows + flutter drive web rows.
+        // Writes to .planning/objectives/<obj-dir>/<obj>-UAT.md
+        cmdGenerateUAT(cwd, args[2], raw);
+      } else {
+        error('Unknown generate subcommand. Available: uat');
       }
       break;
     }
@@ -838,6 +894,62 @@ async function main() {
 
     case 'org-awareness': {
       cmdOrgAwarenessRoute(cwd, args.slice(1), raw);
+      break;
+    }
+
+    case 'planning': {
+      const sub = args[1];
+      if (sub === 'sibling-trd-scan') {
+        const objective_id = args[2];
+        if (!objective_id) {
+          process.stderr.write('Usage: df-tools planning sibling-trd-scan <objective-num> [--raw]\n');
+          process.exit(1);
+        }
+        const oa = require('./lib/org-awareness.cjs');
+        // Read .planning/config.json awareness.sibling_repos (matches org-awareness-cli.cjs pattern)
+        let config_paths = null;
+        try {
+          const fsBase = require('fs');
+          const pathBase = require('path');
+          const cfgPath = pathBase.join(cwd, '.planning', 'config.json');
+          const cfgRaw = fsBase.readFileSync(cfgPath, 'utf-8');
+          const cfg = JSON.parse(cfgRaw);
+          if (cfg && cfg.awareness && Array.isArray(cfg.awareness.sibling_repos)) {
+            config_paths = cfg.awareness.sibling_repos;
+          }
+        } catch {
+          // missing/malformed config — pass null, scanSiblingTrds emits the documented warning
+        }
+
+        const result = oa.scanSiblingTrds({ objective_id, cwd, config_paths });
+
+        if (raw) {
+          process.stdout.write(JSON.stringify(result, null, 2) + '\n');
+        } else {
+          // Human-readable
+          process.stdout.write(`scanned ${result.scanned} sibling repo(s)\n`);
+          if (result.matches.length === 0) {
+            process.stdout.write('no matching TRDs found\n');
+          } else {
+            process.stdout.write(`\nmatches (${result.matches.length}):\n`);
+            for (const m of result.matches) {
+              const supTag = m.supersedes ? ` [supersedes: ${m.supersedes}]` : '';
+              const preTag = m.prerequisite_for ? ` [prereq for: ${m.prerequisite_for}]` : '';
+              const conf = m.confidence ? ` (confidence: ${m.confidence})` : '';
+              const files = Array.isArray(m.files_modified) ? m.files_modified.join(', ') : '(none)';
+              process.stdout.write(`  - ${m.trd_path}\n`);
+              process.stdout.write(`      objective=${m.objective || '?'} trd=${m.trd || '?'}${conf}${supTag}${preTag}\n`);
+              process.stdout.write(`      files: ${files}\n`);
+            }
+          }
+          if (result.warnings.length > 0) {
+            process.stdout.write(`\nwarnings:\n`);
+            for (const w of result.warnings) process.stdout.write(`  - ${w}\n`);
+          }
+        }
+        process.exit(0);
+      }
+      error(`Unknown planning subcommand${sub ? ': ' + sub : ''}. Available: sibling-trd-scan`);
       break;
     }
 

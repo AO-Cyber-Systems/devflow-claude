@@ -370,6 +370,157 @@ const FIRE_FIXTURES = [
     label: 'small change (quick territory — now fires)',
     why_fires: 'QUICK rule matches "small change"; TRD 24-02 moved this from NO_FIRE (micro had no rule for it; quick now does)',
   },
+  // ─── Obj 12: broader-lexicon fixtures (B item) ───
+  {
+    prompt: 'ship it for the auth flow',
+    expected_skill: '/devflow:build',
+    label: 'ship it + prep phrase',
+    why_fires: 'matches new build rule: ship + it (verb particle)',
+  },
+  {
+    prompt: "let's work on the new dashboard",
+    expected_skill: '/devflow:build',
+    label: "let's + work on + the + noun",
+    why_fires: "matches new build rule: let's + work on + the + noun",
+  },
+  {
+    prompt: "let's start the migration",
+    expected_skill: '/devflow:build',
+    label: "let's + start + the + noun",
+    why_fires: "matches new build rule: let's + start + the + noun",
+  },
+  {
+    prompt: 'I want to fix the broken login',
+    expected_skill: '/devflow:debug',
+    label: 'I want to + fix + the + bug-ish noun',
+    why_fires: 'matches new debug rule with broader noun whitelist',
+  },
+  {
+    prompt: 'take a quick pass on the auth module',
+    expected_skill: '/devflow:quick',
+    label: 'quick routing — take a quick pass',
+    why_fires: 'matches new quick rule: take + a + quick + pass (avoids "do" Q&A skip)',
+  },
+  {
+    prompt: 'make a quick fix to the README',
+    expected_skill: '/devflow:quick',
+    label: 'quick routing — make a quick fix',
+    why_fires: 'matches new quick rule: make + a + quick + fix',
+  },
+  {
+    prompt: 'what should I work on',
+    expected_skill: '/devflow:status',
+    label: 'what should I work on',
+    why_fires: 'matches new status rule (what NOT in Q&A skip-list)',
+  },
+  {
+    prompt: "what's next",
+    expected_skill: '/devflow:status',
+    label: "what's next",
+    why_fires: "matches new status rule: what's + next",
+  },
+  {
+    prompt: "what's on my plate",
+    expected_skill: '/devflow:status',
+    label: "what's on my plate",
+    why_fires: "matches new status rule: what's + on + my + plate",
+  },
+  {
+    prompt: 'save my progress',
+    expected_skill: '/devflow:status pause',
+    label: 'save my progress',
+    why_fires: 'matches new pause rule: save + my + progress',
+  },
+  {
+    prompt: "I'm stopping for the day",
+    expected_skill: '/devflow:status pause',
+    label: "I'm stopping",
+    why_fires: "matches new pause rule: I'm + stopping",
+  },
+  {
+    prompt: 'leaving for now',
+    expected_skill: '/devflow:status pause',
+    label: 'leaving for now',
+    why_fires: 'matches new pause rule: leaving + for + now',
+  },
+  {
+    prompt: "let's pick up where we stopped",
+    expected_skill: '/devflow:status resume',
+    label: "let's pick up where we stopped",
+    why_fires: "matches new resume rule: let's + pick up + where + we + stopped",
+  },
+  {
+    prompt: "what'd I miss",
+    expected_skill: '/devflow:awareness',
+    label: "what'd I miss",
+    why_fires: "matches new awareness rule: what'd + I + miss",
+  },
+  {
+    prompt: 'show me recent activity',
+    expected_skill: '/devflow:awareness',
+    label: 'show me recent activity',
+    why_fires: 'matches new awareness rule: show + me + recent + activity',
+  },
+  {
+    prompt: 'add a todo for the README cleanup',
+    expected_skill: '/devflow:add-todo',
+    label: 'add a todo',
+    why_fires: 'matches new add-todo rule: add + a + todo + for',
+  },
+  {
+    prompt: 'any todos',
+    expected_skill: '/devflow:check-todos',
+    label: 'any todos',
+    why_fires: 'matches new check-todos rule: any + todos',
+  },
+  {
+    prompt: 'verify this objective',
+    expected_skill: '/devflow:verify-work',
+    label: 'verify this objective',
+    why_fires: 'matches new verify rule: verify + this + objective',
+  },
+  {
+    prompt: 'check the work',
+    expected_skill: '/devflow:verify-work',
+    label: 'check the work (regression)',
+    why_fires: 'matches existing verify rule (regression confirmation)',
+  },
+  {
+    prompt: 'research how to use Vitest',
+    expected_skill: '/devflow:research-objective',
+    label: 'research how to + verb',
+    why_fires: 'matches new research rule: research + how + to + verb',
+  },
+  {
+    prompt: 'investigate the Vitest library',
+    expected_skill: '/devflow:research-objective',
+    label: 'investigate the Vitest library',
+    why_fires: 'matches new research rule: investigate + the + X + library',
+  },
+  {
+    prompt: 'audit the milestone',
+    expected_skill: '/devflow:audit-milestone',
+    label: 'audit the milestone',
+    why_fires: 'matches new audit-milestone rule',
+  },
+  {
+    prompt: 'sync to github',
+    expected_skill: '/devflow:gh-sync',
+    label: 'sync to github',
+    why_fires: 'matches new gh-sync rule: sync + to + github',
+  },
+  {
+    prompt: 'make a new milestone',
+    expected_skill: '/devflow:new-milestone',
+    label: 'make a new milestone',
+    why_fires: 'matches new new-milestone rule: make + a + new + milestone',
+  },
+  {
+    prompt: 'discuss the objective',
+    expected_skill: '/devflow:discuss-objective',
+    label: 'discuss the objective',
+    why_fires: 'matches new discuss-objective rule: discuss + the + objective',
+  },
 ];
 
 // ─── A2: route-intent.js no-fire fixtures (5) ────────────────────────────────
@@ -412,6 +563,37 @@ const NO_FIRE_FIXTURES = [
     prompt: 'skip devflow and fix the bug in the auth flow',
     label: 'override phrase (skip devflow)',
     why_no_fire: 'contains override phrase "skip devflow" — override suppression returns []',
+  },
+  // ─── Obj 12: interrogative regression (broader lexicon must coexist with Q&A skip) ───
+  {
+    prompt: 'can you fix the failing test',
+    label: 'can-prefixed fix request',
+    why_no_fire: 'starts with "can" — Q&A interrogative skip',
+  },
+  {
+    prompt: 'is anyone else on the auth refactor',
+    label: 'is-prefixed coordination question',
+    why_no_fire: 'starts with "is" — Q&A interrogative skip',
+  },
+  {
+    prompt: 'can you ship it for the auth flow',
+    label: 'can-prefixed ship-it',
+    why_no_fire: 'starts with "can" — Q&A interrogative skip (regression vs new build rule)',
+  },
+  {
+    prompt: 'why are we stopping',
+    label: 'why-prefixed pause question',
+    why_no_fire: 'starts with "why" — Q&A interrogative skip (regression vs new pause rule)',
+  },
+  {
+    prompt: 'is anyone else working on this',
+    label: 'is-prefixed coordination',
+    why_no_fire: 'starts with "is" — Q&A interrogative skip',
+  },
+  {
+    prompt: 'should I sync to github',
+    label: 'should-prefixed gh-sync question',
+    why_no_fire: 'starts with "should" — Q&A interrogative skip (regression vs new gh-sync rule)',
   },
 ];
 

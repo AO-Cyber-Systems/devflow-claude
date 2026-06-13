@@ -231,6 +231,63 @@ grep -r "$artifact_name" "${search_path:-src/}" --include="*.ts" --include="*.ts
 | ✓      | ✗           | -     | ✗ STUB      |
 | ✗      | -           | -     | ✗ MISSING   |
 
+### Flutter UI state coverage (REQ-10-05)
+
+For each `type: ui` + `stack: flutter` TRD, run the state-coverage gate after Levels 1-2 (exists + substantive) and before Level 3 (wiring):
+
+```bash
+STATE_COV=$(node ~/.claude/devflow/bin/df-tools.cjs verify flutter-state-coverage "$TRD_PATH" --raw)
+```
+
+Parse JSON shape: `{ trd_path, state_management, artifacts: [{artifact, status, coverage, blockers, advisories}], overall }`.
+
+For each artifact result:
+- `status: 'verified'` → VERIFIED. No action.
+- `status: 'partial'` → record per-state coverage in VERIFICATION.md `partial_state_coverage:` section. blockers go to `gaps:`, advisories go to `notes:`.
+- `status: 'missing'` → all declared states unmet — record as gap (`gaps:` section).
+- `status: 'missing_test_file'` → the artifact's `tests.widget` path doesn't exist on disk. Record as blocker gap.
+- `status: 'skipped'` → `state_management: other`. Advisory only.
+
+Confidence model honored by df-tools (HIGH-only patterns → blockers; MEDIUM/LOW → advisories). Verifier does not need to re-implement confidence routing.
+
+### Optional: Semantics() wrappers check (REQ-10-05 advisory)
+
+For each `type: ui` artifact:
+```bash
+WIDGET_TEST=<path>
+SOURCE=<artifact.path>
+if [ -f "$SOURCE" ] && ! grep -q "Semantics(" "$SOURCE"; then
+  echo "Advisory: $SOURCE has no Semantics() wrappers — Maestro selectability may be impaired."
+fi
+```
+
+Emit as VERIFICATION.md `notes:` entry, never blocker.
+
+## Step 4.5: API Contract Drift (REQ-10-05 / REQ-10-08)
+
+For each TRD with `api_contract:` in frontmatter, run the drift detector:
+
+```bash
+DRIFT=$(node ~/.claude/devflow/bin/df-tools.cjs verify api-contract "$TRD_PATH" --raw)
+DRIFT_COUNT=$(echo "$DRIFT" | jq '.drift | length')
+```
+
+Status:
+- `ok: true` (`drift: []`) → no drift; no VERIFICATION.md note required.
+- `ok: false` (`drift: [...]`) → ADVISORY. For each entry in drift, append to VERIFICATION.md's `drift:` section:
+  ```yaml
+  drift:
+    - path: <path>
+      expected_sha: <expected>
+      actual_sha: <actual or null>
+      status: DRIFTED | MISSING
+      note: "Contract file changed since plan time. Manual review recommended."
+  ```
+
+Drift is ALWAYS advisory — never blocks verification pass/fail. The verifier surfaces it so the user can decide whether the change is intentional.
+
+For non-Flutter TRDs without `api_contract:` block: skip silently.
+
 ## Step 5: Verify Key Links (Wiring)
 
 Key links are critical connections. If broken, the goal fails even with all artifacts present.
@@ -443,6 +500,27 @@ adb install -r build/app/outputs/flutter-apk/app-debug.apk
 
 **Flutter semantics note:** Maestro reads Flutter's SemanticsNode tree automatically. No extra config needed on mobile. For Flutter web, launch with `flutter run -d chrome --web-renderer html` and append `?enable-semantics=true` to the URL so Playwright sees a real a11y tree.
 
+### Step 8b: Maestro orphan-flow detection (REQ-10-05)
+
+After running Maestro flows, cross-reference the on-disk `.maestro/*.yaml` files against TRD `must_haves.artifacts[*].tests.maestro` references:
+
+```bash
+DECLARED=$(find .planning/objectives/$OBJECTIVE_DIR -name '*-TRD.md' -exec grep -h '^\s*maestro:' {} \; | sed -E 's/^\s*maestro:\s*//' | sort -u)
+ACTUAL=$(find .maestro -name '*.yaml' 2>/dev/null | sort -u)
+
+ORPHANS=$(comm -23 <(echo "$ACTUAL") <(echo "$DECLARED"))
+```
+
+For each orphan flow, append to VERIFICATION.md's `notes:` section:
+```yaml
+notes:
+  - kind: maestro_orphan_flow
+    path: .maestro/foo.yaml
+    note: "Flow file present but not referenced by any TRD's tests.maestro. Legitimate bootstrap flows (e.g., app_launch.yaml) are expected — review before deleting."
+```
+
+Orphans are advisory, never blocking.
+
 ### Shared evidence contract
 
 Regardless of backend, append to VERIFICATION.md:
@@ -480,6 +558,27 @@ Items that pass functional verification (Step 8a web or 8b Flutter/Maestro) can 
 **Expected:** {What should happen}
 **Why human:** {Why can't verify programmatically or via browser automation}
 ```
+
+### Step 9 (REQ-10-06): Auto-generate UAT for Flutter UI objectives
+
+If the objective contains AT LEAST ONE TRD with `type: ui` + `stack: flutter`, auto-generate the 1-page UAT checklist:
+
+```bash
+node ~/.claude/devflow/bin/df-tools.cjs generate uat "$OBJECTIVE" --raw
+```
+
+Output JSON: `{ generated: true, uat_path: '...', test_count: N }` or `{ error: '...' }`.
+
+The generator produces:
+- State-coverage rows expanded per platform (e.g., `platform: [mobile, web]` doubles state rows — one row per (state, platform) combination)
+- Maestro flow rows (mobile-only by design — Maestro on Flutter web is blocked upstream)
+- Web integration rows (`flutter drive` invocations) — when `web` is in the TRD's `platform` field
+
+On success, mention the UAT.md path in the verifier's final report. The user runs through the checklist; results feed back into `/devflow:verify-work` via the existing UAT.md flow (see `templates/UAT.md` lifecycle section).
+
+If the generator returns an error like "UAT.md already in use; refusing to overwrite" — this means a previous walkthrough is in progress. Report and skip; do NOT regenerate.
+
+For non-Flutter objectives: skip this subroutine. Manual UAT (the existing flow) is unchanged.
 
 ## Step 10: Determine Overall Status
 
@@ -634,33 +733,19 @@ This is a no-op if GitHub integration is disabled or `gh` is unavailable. Never 
 
 **DO NOT COMMIT.** The orchestrator bundles VERIFICATION.md with other objective artifacts.
 
+**Return budget: ≤300 tokens.** Detail lives on disk in VERIFICATION.md; the orchestrator reads it for full content. DO NOT include must-have tables, gap details, or commentary in the return — only the structured fields below.
+
 Return with:
 
 ```markdown
-## Verification Complete
+## VERIFICATION COMPLETE
 
 **Status:** {passed | gaps_found | human_needed}
 **Score:** {N}/{M} must-haves verified
 **Report:** .planning/objectives/{objective_dir}/{phase_num}-VERIFICATION.md
 
-{If passed:}
-All must-haves verified. Objective goal achieved. Ready to proceed.
-
-{If gaps_found:}
-### Gaps Found
-{N} gaps blocking goal achievement:
-1. **{Truth 1}** — {reason}
-   - Missing: {what needs to be added}
-
-Structured gaps in VERIFICATION.md frontmatter for `/devflow:plan-objective --gaps`.
-
-{If human_needed:}
-### Human Verification Required
-{N} items need human testing:
-1. **{Test name}** — {what to do}
-   - Expected: {what should happen}
-
-Automated checks passed. Awaiting human verification.
+{If gaps_found:} {N} gaps in VERIFICATION.md frontmatter (use `/devflow:plan-objective --gaps` to close).
+{If human_needed:} {N} items need human testing; see VERIFICATION.md "Human Verification" section.
 ```
 
 </output>

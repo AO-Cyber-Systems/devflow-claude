@@ -1,0 +1,5 @@
+appId: com.example.flutter_ui_dogfood
+---
+- launchApp
+- assertVisible: "Welcome"
+- takeScreenshot: home

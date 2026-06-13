@@ -214,6 +214,21 @@ function startMicro({ planningDir, description, pid, now }) {
   const nextNum = _nextQuickNum(planningDir);
   const taskDir = path.join('.planning', 'quick', `${nextNum}-${slug}`);
 
+  // F2: physically create the placeholder dir BEFORE writing the marker.
+  // This prevents counter collisions with `df-tools init quick` which scans the
+  // same dir for `^\d+-` entries. Order matters: mkdir before startSkill so a
+  // mkdir failure doesn't leave a stranded marker.
+  const absTaskDir = path.join(planningDir, 'quick', `${nextNum}-${slug}`);
+  try {
+    fs.mkdirSync(absTaskDir, { recursive: true });
+  } catch (e) {
+    return {
+      ok: false,
+      reason: 'mkdir-failed',
+      message: `Failed to create placeholder dir: ${e.message}`,
+    };
+  }
+
   // Write the skill-active marker (last-write-wins: startSkill overwrites)
   const skillResult = startSkill({ planningDir, skillName: 'micro', pid, now });
   if (!skillResult.ok) {
@@ -320,29 +335,111 @@ function commitMicro({ planningDir, description, files, now, gitRunner }) {
     commitHash = commitResult.stdout.trim().substring(0, 7);
   }
 
-  // Determine next_num for STATE.md row
-  const nextNum = _nextQuickNum(planningDir);
+  // Determine row num for STATE.md.
+  // F2 changed the contract: startMicro now creates the placeholder dir, so
+  // _nextQuickNum() at commit time would return one HIGHER than the slot
+  // actually allocated. Resolve to the slot we actually used by scanning for a
+  // dir matching the current slug; fall back to _nextQuickNum if not found.
+  const commitSlug = generateSlugInternal(commitDesc)?.substring(0, 40) || 'task';
+  let rowNum = null;
+  try {
+    const quickDir = path.join(planningDir, 'quick');
+    const matches = fs.readdirSync(quickDir).filter(d => d.endsWith(`-${commitSlug}`));
+    if (matches.length > 0) {
+      // Pick the highest-numbered match (the one this micro created)
+      const sorted = matches.sort(
+        (a, b) => parseInt(b.split('-')[0], 10) - parseInt(a.split('-')[0], 10)
+      );
+      const n = parseInt(sorted[0].split('-')[0], 10);
+      if (!isNaN(n)) rowNum = n;
+    }
+  } catch {
+    // Fall through to fallback
+  }
+  if (rowNum === null) {
+    rowNum = _nextQuickNum(planningDir);
+  }
 
-  // Append STATE.md row
+  // Append STATE.md row (records SOURCE commit hash, not STATE.md commit hash)
+  let stateRowAppended = false;
   try {
     _appendQuickTaskRow(stateMdPath, {
-      num: nextNum,
+      num: rowNum,
       description: commitDesc,
       date: now || new Date().toISOString(),
       commitHash: commitHash || '',
       directory: path.basename(projectRoot),
     });
+    stateRowAppended = true;
   } catch (e) {
     // Non-fatal: STATE.md write failed but commit succeeded
-    // Fall through — still remove marker and return ok
+    // Fall through — still remove marker and return ok with state_commit_hash:null
   }
 
-  // Remove the marker — only after successful commit
+  // Remove the marker BEFORE the STATE.md commit so the second commit picks up
+  // the marker deletion alongside the STATE.md row. This keeps the working tree
+  // clean post-commit (no `D .planning/.skill-active` lingering) and matches the
+  // /devflow:quick 2-commit pattern: source → state-and-cleanup.
+  // STATE.md commit failure is recoverable; marker cleanup is the user-meaningful
+  // unit and must always happen.
   endSkill({ planningDir });
+
+  // F1: second atomic commit for STATE.md (and any pending marker deletion).
+  // Mirrors /devflow:quick's 2-commit pattern. Only attempt if the row was
+  // successfully appended — otherwise nothing to commit.
+  //
+  // Also stage `.planning/.skill-active` IF it was tracked in commit 1 (i.e.,
+  // the first commit used `git add .` from a null `files` arg). After endSkill,
+  // the marker is deleted on disk; if it was tracked, this shows as `D` in the
+  // working tree and must be captured in commit 2 to keep the tree clean.
+  // If the marker was never tracked (explicit `files` list), skip staging it —
+  // `git add` on an untracked, now-deleted path errors with "did not match".
+  const stateFiles = ['.planning/STATE.md'];
+  const lsResult = spawnSync('git', ['ls-files', '--error-unmatch', '.planning/.skill-active'], {
+    cwd: projectRoot,
+    encoding: 'utf8',
+    env: { ...process.env, DEVFLOW_ALLOW_RAW_COMMIT: '1' },
+  });
+  if (lsResult.status === 0) {
+    stateFiles.push('.planning/.skill-active');
+  }
+
+  let stateCommitHash = null;
+  if (stateRowAppended) {
+    try {
+      const stateCommitResult = runner(projectRoot, {
+        message: `chore(micro): record STATE.md row for ${commitDesc}`,
+        files: stateFiles,
+      });
+      if (stateCommitResult.exitCode === 0) {
+        const h = spawnSync('git', ['rev-parse', '--short', 'HEAD'], {
+          cwd: projectRoot,
+          encoding: 'utf8',
+          env: { ...process.env, DEVFLOW_ALLOW_RAW_COMMIT: '1' },
+        });
+        if (h.status === 0) {
+          stateCommitHash = h.stdout.trim();
+        }
+        // When the runner is a mock, it may return the hash directly
+        if (!stateCommitHash && stateCommitResult.stdout) {
+          stateCommitHash = stateCommitResult.stdout.trim().substring(0, 7);
+        }
+      } else {
+        process.stderr.write(
+          `[micro] warning: STATE.md commit failed (${stateCommitResult.stderr || 'unknown'}); STATE.md left dirty in working tree\n`
+        );
+      }
+    } catch (e) {
+      process.stderr.write(
+        `[micro] warning: STATE.md commit threw (${e.message}); STATE.md left dirty\n`
+      );
+    }
+  }
 
   return {
     ok: true,
     commit_hash: commitHash,
+    state_commit_hash: stateCommitHash,
     removed_marker: true,
   };
 }
@@ -363,6 +460,30 @@ function abortMicro({ planningDir }) {
       reason: 'no-planning-dir',
       message: 'No .planning/ directory found in cwd or ancestors',
     };
+  }
+
+  // F2: remove placeholder dir created by startMicro (idempotent — swallow ENOENT).
+  // Order: dir-removal first (pure fs op), then endSkill (existing contract).
+  // If dir removal fails, still call endSkill — leaving the dir behind is recoverable,
+  // leaving the marker is not.
+  try {
+    const descFile = path.join(planningDir, '.micro-description');
+    if (fs.existsSync(descFile)) {
+      const desc = fs.readFileSync(descFile, 'utf8').trim();
+      const slug = generateSlugInternal(desc)?.substring(0, 40) || 'task';
+      const quickDir = path.join(planningDir, 'quick');
+      if (fs.existsSync(quickDir)) {
+        const matches = fs.readdirSync(quickDir).filter(d => d.endsWith(`-${slug}`));
+        // Pick the highest-N match (the one this micro just created)
+        const target = matches
+          .sort((a, b) => parseInt(b.split('-')[0], 10) - parseInt(a.split('-')[0], 10))[0];
+        if (target) {
+          fs.rmSync(path.join(quickDir, target), { recursive: true, force: true });
+        }
+      }
+    }
+  } catch {
+    // Idempotent — ignore. Marker cleanup is the only required side-effect.
   }
 
   const result = endSkill({ planningDir });

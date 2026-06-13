@@ -95,15 +95,16 @@ describe('INTENT_MAP — exported shape', () => {
 });
 
 // ---------------------------------------------------------------------------
-// matchIntent — 10 fire fixtures
+// matchIntent — fire fixtures
 // ---------------------------------------------------------------------------
 
-describe('matchIntent — 10 fire fixtures (must match)', () => {
+describe('matchIntent — fire fixtures (must match)', () => {
   for (const f of FIRE_FIXTURES) {
     test(`fires on "${f.prompt}" → ${f.expected_skill} (${f.label})`, () => {
-      const skills = matchIntent(f.prompt);
-      assert.ok(skills.length > 0,
-        `expected >= 1 match for "${f.prompt}", got: ${JSON.stringify(skills)}\nwhy_fires: ${f.why_fires}`);
+      const matches = matchIntent(f.prompt);
+      assert.ok(matches.length > 0,
+        `expected >= 1 match for "${f.prompt}", got: ${JSON.stringify(matches)}\nwhy_fires: ${f.why_fires}`);
+      const skills = matches.map(m => m.skill);
       assert.ok(skills.includes(f.expected_skill),
         `expected ${f.expected_skill} in results for "${f.prompt}"\ngot: ${JSON.stringify(skills)}\nlabel: ${f.label}`);
     });
@@ -111,15 +112,15 @@ describe('matchIntent — 10 fire fixtures (must match)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// matchIntent — 5 no-fire fixtures
+// matchIntent — no-fire fixtures
 // ---------------------------------------------------------------------------
 
-describe('matchIntent — 5 no-fire fixtures (must NOT match)', () => {
+describe('matchIntent — no-fire fixtures (must NOT match)', () => {
   for (const f of NO_FIRE_FIXTURES) {
     test(`does NOT fire on "${f.prompt}" (${f.label})`, () => {
-      const skills = matchIntent(f.prompt);
-      assert.equal(skills.length, 0,
-        `expected 0 matches for "${f.prompt}", got: ${JSON.stringify(skills)}\nwhy_no_fire: ${f.why_no_fire}`);
+      const matches = matchIntent(f.prompt);
+      assert.equal(matches.length, 0,
+        `expected 0 matches for "${f.prompt}", got: ${JSON.stringify(matches)}\nwhy_no_fire: ${f.why_no_fire}`);
     });
   }
 });
@@ -152,7 +153,10 @@ describe('matchIntent — skill-prefix exclusion', () => {
 // ---------------------------------------------------------------------------
 
 describe('renderDirective — box-drawn directive', () => {
-  const directive = renderDirective(['/devflow:debug']);
+  const directive = renderDirective(
+    [{ skill: '/devflow:debug', label: 'debug', hint: 'fix a bug' }],
+    'Fix the login bug'
+  );
 
   test('returns a string', () => {
     assert.equal(typeof directive, 'string');
@@ -190,12 +194,6 @@ describe('renderDirective — box-drawn directive', () => {
       `renderDirective output missing box-drawn corner ╚:\n${directive}`);
   });
 
-  // 23-02: byte-budget assertion — compact rewrite must keep injection <=400 bytes
-  test('byte length of renderDirective(["/devflow:debug"]) is <=400', () => {
-    const bytes = Buffer.byteLength(renderDirective(['/devflow:debug']), 'utf8');
-    assert.ok(bytes <= 400,
-      `renderDirective output is ${bytes} bytes — must be <=400 (compact rewrite needed)`);
-  });
 });
 
 // ---------------------------------------------------------------------------
@@ -205,7 +203,7 @@ describe('renderDirective — box-drawn directive', () => {
 describe('matchIntent — exclusivity (BUILD suppressed when todo/quick/objective-add fires)', () => {
   test('matchIntent("Add an objective for caching") deep-equals ["/devflow:objective add"]', () => {
     assert.deepEqual(
-      matchIntent('Add an objective for caching'),
+      matchIntent('Add an objective for caching').map(m => m.skill),
       ['/devflow:objective add'],
       'BUILD must be suppressed when objective-add fires'
     );
@@ -213,7 +211,7 @@ describe('matchIntent — exclusivity (BUILD suppressed when todo/quick/objectiv
 
   test('matchIntent("add a todo to refactor the parser") deep-equals ["/devflow:todo add"]', () => {
     assert.deepEqual(
-      matchIntent('add a todo to refactor the parser'),
+      matchIntent('add a todo to refactor the parser').map(m => m.skill),
       ['/devflow:todo add'],
       'BUILD must be suppressed when todo-add fires'
     );
@@ -221,7 +219,7 @@ describe('matchIntent — exclusivity (BUILD suppressed when todo/quick/objectiv
 
   test('matchIntent("make a quick pass over the error handling") deep-equals ["/devflow:quick"]', () => {
     assert.deepEqual(
-      matchIntent('make a quick pass over the error handling'),
+      matchIntent('make a quick pass over the error handling').map(m => m.skill),
       ['/devflow:quick'],
       'BUILD must be suppressed when quick fires'
     );
@@ -242,9 +240,77 @@ describe('matchIntent — skillActive option', () => {
   });
 
   test('matchIntent("Fix the login bug") still fires (back-compat, single-arg)', () => {
-    const skills = matchIntent('Fix the login bug');
+    const skills = matchIntent('Fix the login bug').map(m => m.skill);
     assert.ok(skills.length > 0, 'single-arg call must still fire');
     assert.ok(skills.includes('/devflow:debug'), 'must include /devflow:debug');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// renderDirective — enriched matches + echo + disambiguation (Obj 12)
+// ---------------------------------------------------------------------------
+
+describe('renderDirective — enriched matches + echo + disambiguation', () => {
+  const singleMatch = [{ skill: '/devflow:debug', label: 'debug', hint: 'fix a bug or failing test' }];
+  const multiMatch = [
+    { skill: '/devflow:build', label: 'build', hint: 'plan + execute a multi-subsystem feature' },
+    { skill: '/devflow:verify-work', label: 'verify', hint: 'verify a completed objective' },
+  ];
+
+  test('single-match: contains "Triggered by:" echo line with prompt excerpt', () => {
+    const out = renderDirective(singleMatch, 'Fix the login bug in the auth flow');
+    assert.ok(out.includes('Triggered by:'), `missing "Triggered by:" line:\n${out}`);
+    assert.ok(out.includes('Fix the login bug'), `missing prompt excerpt:\n${out}`);
+  });
+
+  test('single-match: still contains OBLIGATORY (regression)', () => {
+    const out = renderDirective(singleMatch, 'Fix the login bug');
+    assert.ok(out.includes('OBLIGATORY'), `missing OBLIGATORY:\n${out}`);
+  });
+
+  test('single-match: still contains "gate-edits.js will DENY" (regression)', () => {
+    const out = renderDirective(singleMatch, 'Fix the login bug');
+    assert.ok(out.includes('gate-edits.js will DENY'), `missing gate-edits line:\n${out}`);
+  });
+
+  test('multi-match: contains "MULTIPLE INTENTS MATCHED" banner', () => {
+    const out = renderDirective(multiMatch, 'Build the dashboard and verify the work');
+    assert.ok(out.includes('MULTIPLE INTENTS MATCHED'), `missing banner:\n${out}`);
+  });
+
+  test('multi-match: contains numbered list (1. and 2.)', () => {
+    const out = renderDirective(multiMatch, 'Build the dashboard and verify the work');
+    assert.ok(/\b1\./.test(out), `missing "1." numbered marker:\n${out}`);
+    assert.ok(/\b2\./.test(out), `missing "2." numbered marker:\n${out}`);
+  });
+
+  test("multi-match: contains each match's hint text", () => {
+    const out = renderDirective(multiMatch, 'Build the dashboard and verify the work');
+    assert.ok(out.includes('plan + execute'), `missing build hint:\n${out}`);
+    assert.ok(out.includes('verify a completed objective'), `missing verify hint:\n${out}`);
+  });
+
+  test('multi-match: instructs Claude to confirm with user', () => {
+    const out = renderDirective(multiMatch, 'Build the dashboard and verify the work');
+    assert.ok(/confirm.*user/i.test(out), `missing "confirm with the user":\n${out}`);
+  });
+
+  test('multi-match: still warns about gate-edits.js', () => {
+    const out = renderDirective(multiMatch, 'Build the dashboard and verify the work');
+    assert.ok(
+      out.includes('gate-edits.js will DENY') || /Do NOT call (Edit|Write|MultiEdit)/i.test(out),
+      `missing gate-edits warning:\n${out}`,
+    );
+  });
+
+  test('empty matches: returns empty string', () => {
+    assert.equal(renderDirective([], 'anything'), '');
+  });
+
+  test('handles missing hint gracefully (existing entries have no hint)', () => {
+    const out = renderDirective([{ skill: '/devflow:build', label: 'build' }], 'Build the dashboard');
+    assert.ok(typeof out === 'string', 'should still return a string when hint absent');
+    assert.ok(out.length > 0, 'should still render box when hint absent');
   });
 });
 

@@ -155,6 +155,52 @@ describe('startMicro', () => {
   });
 });
 
+// ─── startMicro: placeholder dir (F2) ────────────────────────────────────────
+
+describe('startMicro: placeholder dir (F2)', () => {
+  let env;
+  beforeEach(() => { env = mkAmbient(); });
+  afterEach(() => {
+    fs.rmSync(env.root, { recursive: true, force: true });
+    _resetMocks();
+  });
+
+  // Test list F2-1: startMicro creates placeholder dir on disk
+  test('F2-1 happy: startMicro creates .planning/quick/<N>-<slug>/ on disk', () => {
+    const result = startMicro({
+      planningDir: env.planningDir,
+      description: 'fix x',
+      pid: 1,
+      now: '2026-05-08T00:00:00Z',
+    });
+    assert.equal(result.ok, true);
+    const expectedDir = path.join(env.planningDir, 'quick', `${result.next_num}-${result.slug}`);
+    assert.equal(fs.existsSync(expectedDir), true, `expected dir to exist at ${expectedDir}`);
+    assert.equal(fs.statSync(expectedDir).isDirectory(), true);
+  });
+
+  // Test list F2-3: consecutive starts get distinct N values (collision-free)
+  test('F2-3 happy: consecutive starts allocate distinct N (no collision with init quick scan)', () => {
+    const first = startMicro({
+      planningDir: env.planningDir,
+      description: 'first task',
+      pid: 1,
+      now: '2026-05-08T00:00:00Z',
+    });
+    assert.equal(first.ok, true);
+    const second = startMicro({
+      planningDir: env.planningDir,
+      description: 'second task',
+      pid: 2,
+      now: '2026-05-08T00:01:00Z',
+    });
+    assert.equal(second.ok, true);
+    // Distinct N — second must be one higher than first because first's dir is on disk
+    assert.equal(second.next_num, first.next_num + 1,
+      `expected second.next_num=${first.next_num + 1}, got ${second.next_num} (collision with first)`);
+  });
+});
+
 // ─── commitMicro ─────────────────────────────────────────────────────────────
 
 describe('commitMicro', () => {
@@ -194,16 +240,17 @@ describe('commitMicro', () => {
     assert.ok(stateMd.includes('fix typo in readme'), 'STATE.md should contain task description');
   });
 
-  // Test 9: happy with files array — only that subset is staged
-  test('happy with files: passes files list to gitRunner', () => {
+  // Test 9: happy with files array — only that subset is staged.
+  // After F1 fix: gitRunner called TWICE — once with files arg, once with .planning/STATE.md.
+  test('happy with files: passes files list to gitRunner (called twice — source + STATE.md)', () => {
     startMicro({ planningDir: env.planningDir, description: 'bump dependency version', pid: 1, now: '2026-05-06T00:00:00Z' });
     // Create two files, only stage one
     fs.writeFileSync(path.join(env.root, 'a.txt'), 'a\n');
     fs.writeFileSync(path.join(env.root, 'b.txt'), 'b\n');
 
-    let capturedArgs = null;
-    const mockGitRunner = (cwd, args, env2) => {
-      capturedArgs = { cwd, args, env2 };
+    const allCalls = [];
+    const mockGitRunner = (cwd, opts) => {
+      allCalls.push({ cwd, opts });
       // simulate success
       return { exitCode: 0, stdout: 'abc1234', stderr: '' };
     };
@@ -215,8 +262,10 @@ describe('commitMicro', () => {
       now: '2026-05-06T00:01:00Z',
       gitRunner: mockGitRunner,
     });
-    // The gitRunner should have been called with files containing 'a.txt'
-    assert.ok(capturedArgs !== null, 'gitRunner should have been called');
+    // The gitRunner should have been called twice — first with source files, second with STATE.md
+    assert.equal(allCalls.length, 2, `expected 2 gitRunner calls (source + STATE.md), got ${allCalls.length}`);
+    assert.deepEqual(allCalls[0].opts.files, ['a.txt'], 'first call should pass source files list');
+    assert.deepEqual(allCalls[1].opts.files, ['.planning/STATE.md'], 'second call should stage .planning/STATE.md');
   });
 
   // Test 10: edge — no active marker → ok:false, reason:no-active-micro
@@ -317,6 +366,183 @@ describe('commitMicro', () => {
   });
 });
 
+// ─── commitMicro: atomic STATE.md (F1) ───────────────────────────────────────
+
+describe('commitMicro: atomic STATE.md (F1)', () => {
+  let env;
+  beforeEach(() => {
+    env = mkGitAmbient();
+    process.env.DEVFLOW_ALLOW_RAW_COMMIT = '1';
+  });
+  afterEach(() => {
+    fs.rmSync(env.root, { recursive: true, force: true });
+    delete process.env.DEVFLOW_ALLOW_RAW_COMMIT;
+    _resetMocks();
+  });
+
+  // Test list F1-6 (THE bug): after commitMicro returns ok, working tree is clean
+  test('F1-6 happy: working tree is clean after commitMicro returns ok (no M .planning/STATE.md)', () => {
+    startMicro({ planningDir: env.planningDir, description: 'fix typo in readme', pid: 1, now: '2026-05-06T00:00:00Z' });
+    fs.writeFileSync(path.join(env.root, 'fix.txt'), 'fix\n');
+    spawnSync('git', ['add', 'fix.txt'], { cwd: env.root, env: { ...process.env, DEVFLOW_ALLOW_RAW_COMMIT: '1' } });
+
+    const result = commitMicro({
+      planningDir: env.planningDir,
+      description: 'fix typo in readme',
+      files: null,
+      now: '2026-05-06T00:01:00Z',
+      gitRunner: null,
+    });
+    assert.equal(result.ok, true, `expected ok:true, got reason: ${result.reason}`);
+
+    // Working tree should be clean — NO `M .planning/STATE.md`
+    const statusProc = spawnSync('git', ['status', '--porcelain'], {
+      cwd: env.root,
+      encoding: 'utf8',
+    });
+    assert.equal(statusProc.stdout.trim(), '',
+      `expected clean tree, got: ${JSON.stringify(statusProc.stdout)}`);
+  });
+
+  // Test list F1-7: two commits — `chore(micro): record STATE.md row for ...` then `chore(micro): ...`
+  test('F1-7 happy: produces two atomic commits — source then STATE.md row', () => {
+    startMicro({ planningDir: env.planningDir, description: 'fix typo in readme', pid: 1, now: '2026-05-06T00:00:00Z' });
+    fs.writeFileSync(path.join(env.root, 'fix.txt'), 'fix\n');
+    spawnSync('git', ['add', 'fix.txt'], { cwd: env.root, env: { ...process.env, DEVFLOW_ALLOW_RAW_COMMIT: '1' } });
+
+    const result = commitMicro({
+      planningDir: env.planningDir,
+      description: 'fix typo in readme',
+      files: null,
+      now: '2026-05-06T00:01:00Z',
+      gitRunner: null,
+    });
+    assert.equal(result.ok, true, `expected ok:true, got reason: ${result.reason}`);
+
+    // Get last 2 commit messages, newest first
+    const logProc = spawnSync('git', ['log', '--format=%s', '-2'], {
+      cwd: env.root,
+      encoding: 'utf8',
+    });
+    const messages = logProc.stdout.trim().split('\n');
+    assert.equal(messages.length, 2, `expected 2 commit messages, got: ${JSON.stringify(messages)}`);
+    // Newest (HEAD) is the STATE.md commit
+    assert.equal(messages[0], 'chore(micro): record STATE.md row for fix typo in readme',
+      `HEAD message wrong: ${messages[0]}`);
+    // HEAD~1 is the source commit
+    assert.equal(messages[1], 'chore(micro): fix typo in readme',
+      `HEAD~1 message wrong: ${messages[1]}`);
+  });
+
+  // Test list F1-8: STATE.md row records SOURCE commit hash (HEAD~1), not STATE.md commit hash (HEAD)
+  test('F1-8 happy: STATE.md row records SOURCE commit hash (HEAD~1), not STATE.md commit hash', () => {
+    startMicro({ planningDir: env.planningDir, description: 'fix typo in readme', pid: 1, now: '2026-05-06T00:00:00Z' });
+    fs.writeFileSync(path.join(env.root, 'fix.txt'), 'fix\n');
+    spawnSync('git', ['add', 'fix.txt'], { cwd: env.root, env: { ...process.env, DEVFLOW_ALLOW_RAW_COMMIT: '1' } });
+
+    const result = commitMicro({
+      planningDir: env.planningDir,
+      description: 'fix typo in readme',
+      files: null,
+      now: '2026-05-06T00:01:00Z',
+      gitRunner: null,
+    });
+    assert.equal(result.ok, true, `expected ok:true, got reason: ${result.reason}`);
+
+    // Resolve HEAD~1 (source commit hash)
+    const sourceHashProc = spawnSync('git', ['rev-parse', '--short', 'HEAD~1'], {
+      cwd: env.root,
+      encoding: 'utf8',
+    });
+    const sourceHash = sourceHashProc.stdout.trim();
+    assert.ok(sourceHash, 'expected to resolve HEAD~1');
+
+    const stateMd = fs.readFileSync(path.join(env.planningDir, 'STATE.md'), 'utf8');
+    assert.ok(stateMd.includes(sourceHash),
+      `expected STATE.md to contain source hash ${sourceHash}, got STATE.md content:\n${stateMd}`);
+  });
+
+  // Test list F1-9: return shape includes both commit_hash and state_commit_hash
+  test('F1-9 happy: return shape includes commit_hash AND state_commit_hash', () => {
+    startMicro({ planningDir: env.planningDir, description: 'fix typo in readme', pid: 1, now: '2026-05-06T00:00:00Z' });
+    fs.writeFileSync(path.join(env.root, 'fix.txt'), 'fix\n');
+    spawnSync('git', ['add', 'fix.txt'], { cwd: env.root, env: { ...process.env, DEVFLOW_ALLOW_RAW_COMMIT: '1' } });
+
+    const result = commitMicro({
+      planningDir: env.planningDir,
+      description: 'fix typo in readme',
+      files: null,
+      now: '2026-05-06T00:01:00Z',
+      gitRunner: null,
+    });
+    assert.equal(result.ok, true, `expected ok:true, got reason: ${result.reason}`);
+    assert.ok(result.commit_hash, 'expected commit_hash (source)');
+    assert.ok(result.state_commit_hash, 'expected state_commit_hash');
+    assert.notEqual(result.commit_hash, result.state_commit_hash,
+      'commit_hash and state_commit_hash should be distinct');
+  });
+
+  // Test list F1-10 (graceful degradation): if second commit (STATE.md) fails,
+  // first commit still landed, marker still removed, ok:true with state_commit_hash:null
+  test('F1-10 edge: STATE.md commit failure → ok:true, commit_hash set, state_commit_hash:null, marker removed', () => {
+    startMicro({ planningDir: env.planningDir, description: 'fix typo in readme', pid: 1, now: '2026-05-06T00:00:00Z' });
+    fs.writeFileSync(path.join(env.root, 'fix.txt'), 'fix\n');
+
+    let callIdx = 0;
+    const stderrChunks = [];
+    const origWrite = process.stderr.write.bind(process.stderr);
+    process.stderr.write = (chunk) => { stderrChunks.push(String(chunk)); return true; };
+
+    let result;
+    try {
+      // Mock runner: first call (source) succeeds; second call (STATE.md) fails
+      const mockGitRunner = (cwd, opts) => {
+        callIdx += 1;
+        if (callIdx === 1) {
+          // Real source commit — actually do it so HEAD advances
+          const r = spawnSync('git', ['add', 'fix.txt'], {
+            cwd, encoding: 'utf8',
+            env: { ...process.env, DEVFLOW_ALLOW_RAW_COMMIT: '1' },
+          });
+          if (r.status !== 0) return { exitCode: 1, stdout: '', stderr: r.stderr || '' };
+          const c = spawnSync('git', ['commit', '-m', opts.message], {
+            cwd, encoding: 'utf8',
+            env: { ...process.env, DEVFLOW_ALLOW_RAW_COMMIT: '1' },
+          });
+          return {
+            exitCode: c.status ?? 1,
+            stdout: (c.stdout || '').trim(),
+            stderr: (c.stderr || '').trim(),
+          };
+        }
+        // Second call — simulated failure
+        return { exitCode: 1, stdout: '', stderr: 'simulated STATE.md commit failure' };
+      };
+
+      result = commitMicro({
+        planningDir: env.planningDir,
+        description: 'fix typo in readme',
+        files: null,
+        now: '2026-05-06T00:01:00Z',
+        gitRunner: mockGitRunner,
+      });
+    } finally {
+      process.stderr.write = origWrite;
+    }
+
+    assert.equal(result.ok, true, `expected ok:true even with STATE.md commit failure, got: ${JSON.stringify(result)}`);
+    assert.ok(result.commit_hash, 'commit_hash should be set (source landed)');
+    assert.equal(result.state_commit_hash, null, 'state_commit_hash should be null on failure');
+    assert.equal(result.removed_marker, true, 'marker should still be removed');
+    assert.equal(fs.existsSync(path.join(env.planningDir, '.skill-active')), false,
+      'marker file must not exist on disk');
+    // Warning emitted to stderr
+    const stderrAll = stderrChunks.join('');
+    assert.ok(stderrAll.includes('STATE.md'),
+      `expected stderr warning mentioning STATE.md, got: ${JSON.stringify(stderrAll)}`);
+  });
+});
+
 // ─── abortMicro ──────────────────────────────────────────────────────────────
 
 describe('abortMicro', () => {
@@ -349,6 +575,49 @@ describe('abortMicro', () => {
     const result = abortMicro({ planningDir: null });
     assert.equal(result.ok, false);
     assert.equal(result.reason, 'no-planning-dir');
+  });
+
+  // Test list F2-2: startMicro then abortMicro removes the placeholder dir from disk
+  test('F2-2 happy: abortMicro removes placeholder dir created by startMicro', () => {
+    const start = startMicro({
+      planningDir: env.planningDir,
+      description: 'add missing semicolon',
+      pid: 1,
+      now: '2026-05-08T00:00:00Z',
+    });
+    assert.equal(start.ok, true);
+    const dir = path.join(env.planningDir, 'quick', `${start.next_num}-${start.slug}`);
+    assert.equal(fs.existsSync(dir), true, 'precondition: dir should exist after start');
+
+    // Need .micro-description on disk for abort to find which dir to remove
+    // (startMicro already wrote it, but verify)
+    const descFile = path.join(env.planningDir, '.micro-description');
+    assert.equal(fs.existsSync(descFile), true, 'precondition: .micro-description should exist');
+
+    const result = abortMicro({ planningDir: env.planningDir });
+    assert.equal(result.ok, true);
+    assert.equal(fs.existsSync(dir), false,
+      `expected placeholder dir to be removed after abort, but still exists at ${dir}`);
+  });
+
+  // Test list F2-4: abortMicro is idempotent — placeholder dir already gone, no error
+  test('F2-4 edge: abortMicro idempotent when placeholder dir already cleaned up', () => {
+    const start = startMicro({
+      planningDir: env.planningDir,
+      description: 'idempotent abort test',
+      pid: 1,
+      now: '2026-05-08T00:00:00Z',
+    });
+    assert.equal(start.ok, true);
+    const dir = path.join(env.planningDir, 'quick', `${start.next_num}-${start.slug}`);
+
+    // Manually pre-remove the placeholder dir to simulate "already gone"
+    fs.rmSync(dir, { recursive: true, force: true });
+    assert.equal(fs.existsSync(dir), false, 'precondition: dir manually pre-removed');
+
+    // abort should still return ok:true without throwing
+    const result = abortMicro({ planningDir: env.planningDir });
+    assert.equal(result.ok, true, `expected ok:true even when dir already gone, got: ${JSON.stringify(result)}`);
   });
 });
 

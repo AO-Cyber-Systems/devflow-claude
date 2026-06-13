@@ -328,32 +328,19 @@ node ~/.claude/devflow/bin/df-tools.cjs commit "docs($OBJECTIVE): research objec
 
 <structured_returns>
 
+**Return budget: ≤300 tokens.** Detail lives on disk in RESEARCH.md; the planner reads it for full content. DO NOT include findings, decision tables, library lists, or commentary in the return — only the structured fields below.
+
 ## Research Complete
 
 ```markdown
 ## RESEARCH COMPLETE
 
 **Objective:** {objective_number} - {objective_name}
-**Confidence:** [HIGH/MEDIUM/LOW]
+**Confidence:** [HIGH|MEDIUM|LOW]
+**Path:** $OBJECTIVE_DIR/$PADDED_OBJECTIVE-RESEARCH.md
+**Open questions:** {N} (see RESEARCH.md "Open Questions" section)
 
-### Key Findings
-[3-5 bullet points of most important discoveries]
-
-### File Created
-`$OBJECTIVE_DIR/$PADDED_OBJECTIVE-RESEARCH.md`
-
-### Confidence Assessment
-| Area | Level | Reason |
-|------|-------|--------|
-| Standard Stack | [level] | [why] |
-| Architecture | [level] | [why] |
-| Pitfalls | [level] | [why] |
-
-### Open Questions
-[Gaps that couldn't be resolved]
-
-### Ready for Planning
-Research complete. Planner can now create JOB.md files.
+Planner can proceed.
 ```
 
 ## Research Blocked

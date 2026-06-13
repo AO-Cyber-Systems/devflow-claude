@@ -822,6 +822,61 @@ For each task:
 3. Can it run independently? (no dependencies = Wave 1 candidate)
 
 Apply TDD detection heuristic. Apply user setup detection.
+
+## Flutter UI scope sub-procedure (REQ-10-03)
+
+After initial task breakdown — but BEFORE `<step name="build_dependency_graph">` — invoke the Flutter UI scope detector:
+
+```bash
+FLUTTER_UI_SCOPE=$(node ~/.claude/devflow/bin/df-tools.cjs detect flutter-ui-scope "$OBJECTIVE" --raw)
+DETECTED=$(echo "$FLUTTER_UI_SCOPE" | jq -r '.detected')
+```
+
+If `DETECTED == "true"`:
+
+1. **Set type=ui + stack=flutter + platform=[mobile, web] on each TRD touching lib/**/*.dart:**
+   For each drafted TRD whose `files_modified` includes paths matching `lib/**/*.dart`:
+   - Set `type: ui` (third valid type alongside `standard` and `tdd`)
+   - Set `stack: flutter`
+   - Set `platform: [mobile, web]` — **DEFAULT for Flutter UI TRDs.** BOTH platforms are required coverage. Narrow only with explicit user-locked decision in OBJECTIVE.md.
+   - Extract `state_management:` from the detector output: `<riverpod|bloc|setState|other>`
+
+2. **Semantic field requirement for each type=ui artifact:**
+   For each entry in `must_haves.artifacts` of a `type: ui` TRD, require ALL of:
+   - `states:` — non-empty list of state names (e.g., `[loading, data, error, empty]`)
+   - `tests.widget:` — path to widget test file
+   - `tests.integration:` — path to integration_test file. **Used by BOTH platforms** — mobile runs `flutter test <path>`, web runs `flutter drive --driver=test_driver/integration_test.dart --target=<path> -d chrome`.
+   - `tests.maestro:` — path to Maestro flow YAML. **Mobile-only by design** — Maestro on Flutter web is blocked upstream (mobile-dev-inc/maestro#2591). The web verifier is `flutter drive`, not Maestro.
+
+   These are SEMANTICALLY required by the planner — the validator schema (FRONTMATTER_SCHEMAS.trd) does NOT enforce them. The planner is the gate.
+
+   Use the state-pattern catalog at `~/.claude/devflow/references/flutter-state-patterns.md` for guidance on what `states:` values are conventionally expected per state_management library:
+   - **riverpod**: `[loading, data, error, empty]` (or subset)
+   - **bloc**: `[initial, loading, data, error]` (or subset; custom state names may need Phase-2 aliases)
+   - **setState**: `[loading, data, error, empty]` (or subset; lower confidence in regex coverage)
+   - **other**: planner emits PLANNING INCONCLUSIVE and asks user to declare states explicitly OR drop to truths-only (rare escape hatch).
+
+3. **PLANNING INCONCLUSIVE on any missing field:**
+   If ANY `type: ui` artifact lacks ANY of the four required fields above, emit a structured `## PLANNING INCONCLUSIVE` block listing each missing field per artifact, then HALT. Do NOT write the TRD files. Return to the orchestrator with the inconclusive block.
+
+   Example PLANNING INCONCLUSIVE output:
+   ```
+   ## PLANNING INCONCLUSIVE
+
+   The following Flutter UI TRDs are missing required fields:
+
+   ### TRD 10-03 → artifact `lib/screens/user_list.dart`
+   - Missing: `states:` (no state names declared)
+   - Missing: `tests.maestro:` (no Maestro flow path; required for mobile coverage)
+
+   Either:
+   - Provide the missing fields in the objective context (locked design decisions), or
+   - Drop scope to a non-UI TRD (set `type: standard` and remove Flutter UI fields).
+   ```
+
+4. **If detected=false:** proceed normally. No Flutter UI fields added; the rest of `break_into_tasks` is unchanged.
+
+5. **Failsafe:** If the detector returns `{ detected: false, error: ... }` (e.g., no pubspec, no .planning/objectives, etc.), treat as detected=false and proceed normally. Do NOT block planning on detector errors.
 </step>
 
 <step name="build_dependency_graph">
@@ -983,31 +1038,18 @@ Return structured planning outcome to orchestrator.
 
 <structured_returns>
 
+**Return budget: ≤300 tokens.** Detail lives on disk; the orchestrator reads TRD artifacts for full content. DO NOT include task tables, key decisions, file lists, wave breakdowns, or commentary in the return — only the structured fields below.
+
 ## Planning Complete
 
 ```markdown
 ## PLANNING COMPLETE
 
 **Objective:** {phase-name}
-**TRDs:** {N} plan(s) in {M} wave(s)
+**Plans:** {N} TRDs in {M} waves at:
+- {paths-list, one per line, no detail}
 
-### Wave Structure
-
-| Wave | TRDs | Autonomous |
-|------|------|------------|
-| 1 | {trd-01}, {trd-02} | yes, yes |
-| 2 | {trd-03} | no (has checkpoint) |
-
-### TRDs Created
-
-| Plan | Objective | Tasks | Confidence | Files |
-|------|-----------|-------|------------|-------|
-| {objective}-01 | [brief] | 2 | high | [files] |
-| {objective}-02 | [brief] | 3 | medium | [files] |
-
-### Next Steps
-
-Ready for execution. Run `/devflow:execute-objective {objective}` to begin, or execution will auto-advance if running via `/devflow:build`.
+Read `{paths}` for wave/confidence/files/dependencies. Run `/devflow:execute-objective {objective}` to begin.
 ```
 
 ## Gap Closure Plans Created
@@ -1017,16 +1059,10 @@ Ready for execution. Run `/devflow:execute-objective {objective}` to begin, or e
 
 **Objective:** {phase-name}
 **Closing:** {N} gaps from {VERIFICATION|UAT}.md
+**Plans:** {M} TRDs at:
+- {paths-list, one per line}
 
-### TRDs
-
-| Plan | Gaps Addressed | Files |
-|------|----------------|-------|
-| {objective}-04 | [gap truths] | [files] |
-
-### Next Steps
-
-Ready for execution. Run `/devflow:execute-objective {objective} --gaps-only` to begin.
+Read `{paths}` for gap details. Run `/devflow:execute-objective {objective} --gaps-only` to begin.
 ```
 
 ## Checkpoint Reached / Revision Complete

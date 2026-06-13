@@ -37,6 +37,42 @@ cat .planning/STATE.md 2>/dev/null
 
 If STATE.md missing but .planning/ exists: offer to reconstruct or continue without.
 If .planning/ missing: Error — project not initialized.
+
+## Flutter UI bootstrap detector (REQ-10-07)
+
+If the TRD has `type: ui` AND `stack: flutter`, run the bootstrap detector at executor start (BEFORE executing any tasks):
+
+```bash
+BOOTSTRAP=$(node ~/.claude/devflow/bin/df-tools.cjs verify flutter-ui-bootstrap . --raw)
+ACTION=$(echo "$BOOTSTRAP" | jq -r '.action')
+```
+
+| ACTION | Behavior |
+|--------|----------|
+| skip | All required infra present (pubspec dev_dep + integration_test/ + .maestro/ + test_driver/integration_test.dart) and marker exists. Continue normally. |
+| warn | First-run, missing some infra. Extract `.setup_task` from the JSON and insert it as a NEW task ahead of all other tasks. The setup task carries `caution="pause-before-destructive"` so the user reviews the proposed pubspec changes before commit. It scaffolds the test_driver/integration_test.dart driver REQUIRED for web `flutter drive` verification. |
+| fail | Marker file present + infra still missing. HARD FAIL the executor with a structured error pointing to the missing items. The user must restore the infra OR delete the marker to re-run the bootstrap. |
+
+**Extracting the setup task (action:warn):**
+
+```bash
+SETUP_TASK=$(echo "$BOOTSTRAP" | jq -r '.setup_task')
+# Insert SETUP_TASK as the first task in the task list (before all TRD-defined tasks).
+# The setup task is a fully-formed <task> XML block from TRD 10-04a's bootstrap detector.
+```
+
+**Hard fail (action:fail):**
+
+```bash
+MISSING=$(echo "$BOOTSTRAP" | jq -r '.missing | join(", ")')
+echo "EXECUTOR HARD FAIL: Flutter UI bootstrap infra missing after marker set. Missing: $MISSING"
+echo "Restore the missing infra OR delete .planning/.flutter-ui-bootstrap-done to re-run bootstrap."
+exit 1
+```
+
+For non-Flutter TRDs (type != ui OR stack != flutter), skip this detector entirely.
+
+The bootstrap detector is shipped by TRD 10-04a (`lib/flutter-ui-bootstrap.cjs` + df-tools subcommand). See `~/.claude/devflow/references/flutter-state-patterns.md` "Web verification mechanism" section for why test_driver/integration_test.dart is required (web verification flows through `flutter drive --driver=test_driver/integration_test.dart`).
 </step>
 
 <step name="load_plan">
@@ -107,6 +143,139 @@ For each task:
    - A fresh agent will be spawned to continue
 
 3. After all tasks: run overall verification, confirm success criteria, document deviations
+
+## Flutter UI per-task verification (REQ-10-04)
+
+If TRD frontmatter has `type: ui` AND `stack: flutter`, apply these gates PER TASK in addition to the standard per-task verification:
+
+### Per-task: flutter analyze (baseline-diff)
+
+`flutter analyze` exits non-zero on any warning, including pre-existing. Per RESEARCH.md Pitfall #6, compare against a baseline captured at task START:
+
+```bash
+# At task START (capture baseline)
+BASELINE_ANALYZE=$(flutter analyze --no-pub --no-fatal-warnings 2>&1 | sort)
+
+# At task END (compare)
+CURRENT_ANALYZE=$(flutter analyze --no-pub --no-fatal-warnings 2>&1 | sort)
+NEW_WARNINGS=$(diff <(echo "$BASELINE_ANALYZE") <(echo "$CURRENT_ANALYZE") | grep '^>')
+
+if [ -n "$NEW_WARNINGS" ]; then
+  echo "FAIL: task introduced new flutter analyze warnings:"
+  echo "$NEW_WARNINGS"
+  # Apply deviation Rules 1-3 to fix; if 3 attempts exhausted, document as Deferred Issue.
+fi
+```
+
+### Per-task: flutter test on the task's widget test
+
+If the task's `<files>` includes a path ending in `_test.dart` AND the task is `tdd="true"`:
+
+```bash
+# RED phase — MUST exit non-zero (test fails on missing implementation)
+flutter test <path/to/test.dart>
+
+# GREEN phase (after implementation) — MUST exit zero
+flutter test <path/to/test.dart>
+```
+
+For non-tdd tasks with a widget test path, run once at task end; MUST exit zero.
+
+**If `flutter` is not installed:** If `command -v flutter` fails AND TRD has `type: ui`, emit a checkpoint asking the user to install Flutter or run from a project where it IS installed. Do NOT silently skip verification.
+
+## Flutter UI post-all-tasks verification (REQ-10-04)
+
+After ALL tasks complete (before final commit + SUMMARY), if TRD has `type: ui` + `stack: flutter`, run the post-all-tasks gate. **Iterate over each platform in TRD frontmatter `platform:`** — invocations differ per platform.
+
+**Pre-create evidence dir:**
+
+```bash
+mkdir -p .planning/objectives/$OBJECTIVE_DIR/evidence/
+```
+
+**Per-platform integration_test + Maestro invocations:**
+
+Read `platform:` from TRD frontmatter (default `[mobile, web]` per TRD 10-03's planner gate). For each platform:
+
+**Mobile** (`mobile` in platform):
+
+```bash
+# Requires booted emulator. If not booted, emit checkpoint asking user to boot one.
+flutter test integration_test/
+
+# Move screenshots (from takeScreenshot() calls inside integration_test files):
+mv build/integration_test_screenshots/* .planning/objectives/$OBJECTIVE_DIR/evidence/ 2>/dev/null || true
+
+# Build + install app for Maestro:
+flutter build apk --debug
+adb install -r build/app/outputs/flutter-apk/app-debug.apk
+
+# Run Maestro flows (MOBILE ONLY — Maestro is mobile-only by design):
+# See references/flutter-state-patterns.md "Web verification mechanism" — upstream blocker
+# mobile-dev-inc/maestro#2591 (open since July 2025, unresolved mid-2026). NO MAESTRO ON WEB.
+maestro test .maestro/ \
+  --format junit \
+  --output .planning/objectives/$OBJECTIVE_DIR/evidence/maestro.xml
+
+# Maestro screenshots:
+mv ~/.maestro/tests/*/screenshots/* .planning/objectives/$OBJECTIVE_DIR/evidence/ 2>/dev/null || true
+```
+
+**If `maestro` is not installed:** Emit a checkpoint. Do not silently skip. Install: `curl -fsSL "https://get.maestro.dev" | bash`.
+
+**Web** (`web` in platform):
+
+```bash
+# Requires chromedriver running (port 4444). If not running, emit checkpoint.
+pgrep chromedriver >/dev/null || { echo "CHECKPOINT: Start chromedriver --port=4444 in another terminal"; exit 1; }
+
+# Per references/flutter-state-patterns.md "Web verification mechanism":
+# WEB uses flutter drive invoking the SAME tests.integration path that mobile uses via flutter test.
+# The test_driver/integration_test.dart driver is scaffolded by TRD 10-04a's bootstrap setup task.
+# DO NOT use `flutter test integration_test/ -d chrome` — deprecated for web (Pitfall #1).
+flutter drive \
+  --driver=test_driver/integration_test.dart \
+  --target=<tests.integration path from TRD> \
+  -d chrome
+
+# Move web integration_test screenshots:
+mv build/integration_test_screenshots/* .planning/objectives/$OBJECTIVE_DIR/evidence/ 2>/dev/null || true
+
+# NO MAESTRO ON WEB — Maestro is mobile-only BY DESIGN.
+# See references/flutter-state-patterns.md "Web verification mechanism" section.
+# Upstream blocker: mobile-dev-inc/maestro#2591 (open since July 2025, unresolved mid-2026).
+echo "Web verification complete — flutter drive ran tests.integration. Maestro not invoked on web (mobile-only by design)."
+```
+
+**Both platforms are REQUIRED coverage by default.** If `platform:` is missing from TRD, treat it as `[mobile, web]`. If chromedriver isn't available, emit a checkpoint — do NOT silently skip web verification.
+
+**SUMMARY.md evidence attachment:**
+
+After all verification commands run, append to the SUMMARY.md:
+
+```markdown
+## Flutter UI Evidence
+
+- Mobile integration_test screenshots: .planning/objectives/<obj>/evidence/<file>.png (N files)
+- Web flutter drive screenshots: .planning/objectives/<obj>/evidence/<file>.png (N files)
+- Maestro junit XML (mobile): .planning/objectives/<obj>/evidence/maestro.xml
+- Maestro screenshots (mobile): .planning/objectives/<obj>/evidence/<flow>-<step>.png (N files)
+- flutter analyze: clean (no new warnings vs baseline)
+- Platforms verified: [mobile, web]  <- from TRD frontmatter `platform:` field
+```
+
+**Failure handling:**
+
+If any post-all-tasks gate fails:
+- Apply deviation Rule 1 (auto-fix bug) for genuine test failures.
+- Apply deviation Rule 3 (auto-fix blocking) for missing emulator/chromedriver — emit checkpoint to user.
+- Document as Deferred Issue if 3 fix attempts exhausted (per existing FIX ATTEMPT LIMIT in scope_boundary).
+
+For non-Flutter TRDs (type != ui OR stack != flutter), skip ALL Flutter UI verification.
+
+**Flutter UI reference docs:**
+- `~/.claude/devflow/references/flutter-state-patterns.md` — state-coverage regex catalog AND "Web verification mechanism" section (why tests.maestro is mobile-only-by-design; why flutter drive is the web verifier)
+- `df-tools verify flutter-ui-bootstrap` — bootstrap gate at executor start (REQ-10-07; shipped by TRD 10-04a)
 </step>
 
 </execution_flow>
@@ -576,6 +745,8 @@ Separate from per-task commits — captures execution results only.
 </final_commit>
 
 <completion_format>
+Return budget: <=300 tokens. Orchestrator cache-replays this every turn.
+
 ```markdown
 ## TRD COMPLETE
 
@@ -590,7 +761,7 @@ Separate from per-task commits — captures execution results only.
 **Duration:** {time}
 ```
 
-Include ALL commits (previous + new if continuation agent).
+Include ALL commit hashes (previous + new) — orchestrator needs them for continuation tracking. DO NOT include task tables, deviations narrative, or evidence bullets — those live in SUMMARY.md.
 </completion_format>
 
 <success_criteria>

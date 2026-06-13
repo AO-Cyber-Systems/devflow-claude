@@ -7,7 +7,7 @@ const { output, error, safeReadFile, generateSlugInternal, pathExistsInternal, M
 const { loadConfig } = require('./config.cjs');
 const { findObjectiveInternal } = require('./objective.cjs');
 const { getMilestoneInfo, getRoadmapObjectiveInternal } = require('./roadmap.cjs');
-const { bootstrapProjectMd, backfillAllObjectives } = require('./project-bootstrap.cjs');
+const { bootstrapProjectMd, bootstrapObjectiveMd, backfillAllObjectives } = require('./project-bootstrap.cjs');
 
 // ─── Git plumbing (TRD 22-01) ─────────────────────────────────────────────────
 //
@@ -97,31 +97,27 @@ function _resolveBranch(args, cwd) {
 /**
  * Read .planning/STATE.md respecting branch spec.
  *
- * working_tree mode: fs.readFileSync — errors if STATE.md missing.
- * git_show    mode: git show <branch>:.planning/STATE.md — errors if missing.
+ * working_tree mode: fs.readFileSync — returns null if STATE.md missing (caller decides).
+ * git_show    mode: git show <branch>:.planning/STATE.md — errors if missing
+ *                   (explicit cross-branch reads must fail loudly).
  *
- * Both error paths call error() with actionable message. PRIOR behavior in some
- * call sites (silent null/empty fallback via safeReadFile) is REMOVED for
- * STATE.md reads gated by --include state. Callers that legitimately tolerate
- * missing STATE.md (cmdInitNewProject, cmdInitResume) MUST NOT call this helper.
+ * Callers receive null when default working-tree read finds no STATE.md and may
+ * render that as `state_content: null` in --include state output. Cross-branch
+ * reads via --branch=<name> still hard-fail to prevent silent fallback.
  *
  * @param {string} cwd
  * @param {{ mode: string, branch: string|null }} branchSpec
- * @returns {string} STATE.md content
+ * @returns {string|null} STATE.md content, or null in working_tree mode when missing
  */
 function _readStateBranch(cwd, branchSpec) {
   if (branchSpec.mode === 'working_tree') {
     const full = path.join(cwd, '.planning', 'STATE.md');
     if (!fs.existsSync(full)) {
-      error(
-        `.planning/STATE.md not found on current branch. ` +
-        `If you need state from another branch, pass --branch=<name>. ` +
-        `If this is a new project, run /devflow:new-project first.`
-      );
+      return null;
     }
     return fs.readFileSync(full, 'utf-8');
   }
-  // git_show mode
+  // git_show mode — keep this branch hard-erroring; cross-branch reads are explicit
   const showR = _runGit(['show', `${branchSpec.branch}:.planning/STATE.md`], { cwd });
   if (!showR.ok) {
     error(`.planning/STATE.md not found on branch ${branchSpec.branch}.`);
@@ -404,7 +400,20 @@ function cmdInitExecuteObjective(cwd, objective, includes, raw, args = []) {
   // so the calling skill can surface it to the user (no auto-commit; user folds
   // the change into their next commit).
   result.bootstrap = bootstrapProjectMd(cwd);
-  result.bootstrap_objectives = backfillAllObjectives(cwd);
+  // Scoped bootstrap: only touch the target objective's dir, not every
+  // objective under .planning/objectives/. Synthesize the legacy shape so
+  // downstream consumers (skills/agents reading bootstrap_objectives) work
+  // unchanged.
+  const _bootstrapObjId = objectiveInfo?.directory
+    ? path.basename(objectiveInfo.directory)
+    : objective;
+  const _bootstrapR = bootstrapObjectiveMd(cwd, _bootstrapObjId);
+  result.bootstrap_objectives = {
+    scanned: 1,
+    applied: _bootstrapR.applied ? 1 : 0,
+    skipped: _bootstrapR.applied ? 0 : 1,
+    errors: [],
+  };
 
   output(result, raw);
 }
@@ -525,7 +534,20 @@ function cmdInitPlanObjective(cwd, objective, includes, raw, args = []) {
   // Self-healing bootstrap: ensure PROJECT.md has org + github_repo fields.
   // See cmdInitExecuteObjective for the same pattern.
   result.bootstrap = bootstrapProjectMd(cwd);
-  result.bootstrap_objectives = backfillAllObjectives(cwd);
+  // Scoped bootstrap: only touch the target objective's dir, not every
+  // objective under .planning/objectives/. Synthesize the legacy shape so
+  // downstream consumers (skills/agents reading bootstrap_objectives) work
+  // unchanged.
+  const _bootstrapObjId = objectiveInfo?.directory
+    ? path.basename(objectiveInfo.directory)
+    : objective;
+  const _bootstrapR = bootstrapObjectiveMd(cwd, _bootstrapObjId);
+  result.bootstrap_objectives = {
+    scanned: 1,
+    applied: _bootstrapR.applied ? 1 : 0,
+    skipped: _bootstrapR.applied ? 0 : 1,
+    errors: [],
+  };
 
   output(result, raw);
 }
