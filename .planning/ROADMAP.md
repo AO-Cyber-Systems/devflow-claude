@@ -558,9 +558,9 @@ Dependency order:
 **TRDs:** 3 plans
 
 TRDs:
-- [ ] 24-01-edit-override-marker-TRD.md — shared OVERRIDE_PHRASES/marker lib + gate-edits consumes .edit-override with TTL + realistic PreToolUse payload tests (Wave 1)
-- [ ] 24-02-route-intent-rules-TRD.md — EXECUTE/TODO/QUICK rules, BUILD extension + suppression, override/skill-active directive suppression, marker write, cross-hook e2e (Wave 2)
-- [ ] 24-03-skill-trigger-disambiguation-TRD.md — execute-objective vs build trigger disambiguation + quick/help generic-trigger tightening (Wave 1)
+- [x] 24-01-edit-override-marker-TRD.md — shared OVERRIDE_PHRASES/marker lib + gate-edits consumes .edit-override with TTL + realistic PreToolUse payload tests (Wave 1)
+- [x] 24-02-route-intent-rules-TRD.md — EXECUTE/TODO/QUICK rules, BUILD extension + suppression, override/skill-active directive suppression, marker write, cross-hook e2e (Wave 2)
+- [x] 24-03-skill-trigger-disambiguation-TRD.md — execute-objective vs build trigger disambiguation + quick/help generic-trigger tightening (Wave 1)
 
 ---
 
