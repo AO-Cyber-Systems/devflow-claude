@@ -6,6 +6,109 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-06-13
+
+### Added
+- **24-02**: wire main() with marker write, skill-active suppression, e2e proof (18e643d)
+- **24-02**: EXECUTE/TODO/QUICK rules, BUILD extension, BUILD suppression, override suppression (f93b333)
+- **24-01**: rewire gate-edits to consume .edit-override marker; drop dead user_message read (7806ec6)
+- **24-01**: implement edit-override shared lib with marker lifecycle (1e46289)
+- **24-03**: tighten generic triggers in quick and help skills (44e2e88)
+- **24-03**: disambiguate execute-objective triggers from build (0fad55e)
+- **23-01**: atomic mirror swap, test-code exclusions, content sentinel (3544206)
+- **23-02**: compact route-intent directive to <=400 bytes (d4f2a2a)
+- **10-08**: autonomous mode skips pure-stamp confirmations (0b52176)
+- **10-08**: batch new-project config questions (<=4 per AskUserQuestion call) (e2b9773)
+- **10-08**: remove dead require_verification/require_tests gates (4caceda)
+- **10-09**: expose autonomous mode in settings skill (9171778)
+- **10-07**: worktree-aware executor spawning and post-wave merge (9aeee24)
+- **10-07**: harden executor/verifier frontmatter (maxTurns, worktree isolation, memory) (d7b8d11)
+- **10-06**: SubagentStop retries failed executor once with feedback (b8b1826)
+- **10-05**: Stop hook auto-resumes mid-execution autonomous runs (bounded 3 attempts) (4189c01)
+- **10-04**: retry-once then dependency-aware skip for autonomous wave failures (77ed505)
+- **10-04**: park decisions and continue independent waves in autonomous mode (127e6e1)
+- **10-03**: /devflow:decide skill (fabea29)
+- **10-03**: decision-queue CLI subcommand (910377c)
+- **10-03**: decision queue library (c02a71c)
+- **10-02**: verifier-delegated human-verify checkpoints in autonomous mode (e0686c4)
+- **10-01**: add autonomous mode preset to loadConfig (80d8c7a)
+
+### Fixed
+- **quick-3**: verify job-structure accepts trd identifier field (5fdedb2)
+- **quick-3**: limit commit --files to named pathspecs (f877673)
+- **quick-3**: harden objective add — slug cap, flag rejection, dir-aware numbering (147a55b)
+- **23-03**: update check-todos E2E3 test to assert skill dir removed in v2.2 (c4bd185)
+- **23-02**: gate commits on ROADMAP.md or objectives dir, not STATE.md (c585a5c)
+
+### Performance
+- **23-02**: cache stateLib resolution in statusline hook (8ce9270)
+
+### Changed
+- **23-05**: dedup planner checkpoints/TDD blocks against references, consolidate context-budget sections (e32c004)
+- **23-05**: extract executor deviation rules to references/deviation-rules.md (3938715)
+
+### Docs
+- **objective-24**: complete objective execution (d45fd1a)
+- **24-02**: complete route-intent-rules TRD summary and state updates (3c525c1)
+- **24-01**: complete edit-override-marker TRD summary and state updates (4d912f9)
+- **24-03**: complete skill-trigger-disambiguation TRD (bdc4eed)
+- **24**: add objective definition, context, and research artifacts (42bf4bc)
+- **24**: create objective TRDs for natural-language routing trigger fixes (514acbf)
+- **quick-3**: fix df-tools objective-add, commit isolation, verify trd field (232e6df)
+- **quick-3**: add summary for df-tools bug fixes (b55421d)
+- **quick-3**: plan df-tools bug fixes (objective add, commit pathspec, trd field) (92a0573)
+- **23**: complete claude-compatibility-cleanup objective — verification passed 14/14, roadmap synced (9080052)
+- **23-05**: complete agent-dedup TRD summary and state updates (c8d8c44)
+- **23-05**: record before/after dedup measurements (416fa00)
+- **23-03**: complete deprecated-removal TRD summary and state updates (2eef8e9)
+- **23-01**: complete sync-runtime-atomic TRD summary and state updates (8aafac9)
+- **23-04**: complete description-trims TRD summary and state updates (90ba35c)
+- **23-02**: complete hook-fixes TRD summary and state updates (e85aadd)
+- **23**: apply job-checker revisions to TRDs (baseline count, depends_on quoting, file ownership) (3fb2d1d)
+- **23**: create objective TRDs (5 plans, 2 waves) (523b7dd)
+- **10**: complete autonomous-mode-overhaul objective — verification passed, roadmap synced (fb8c7b9)
+- **10-08**: complete config-integrity-destamping TRD (9a92dca)
+- **10-09**: complete unattended-runbook TRD (b6e0df5)
+- **10-07**: complete agent-hardening SUMMARY (acab432)
+- **10-09**: unattended-operation runbook (7971db1)
+- **10-06**: complete subagent-retry-hook SUMMARY (e23f9ed)
+- **10-05**: complete stop-hook-auto-resume SUMMARY (03dca9b)
+- **10-04**: complete decision-wiring-wave-failures SUMMARY (b49f1f4)
+- **10-04**: queueable Rule 4 return + decision_gate frontmatter field (7453f84)
+- **10-03**: complete decision-queue SUMMARY (3730559)
+- **10-02**: complete verifier-delegated-checkpoints SUMMARY (eacb8d1)
+- **10-02**: autonomous checkpoint semantics + verifier checkpoint mode (9377a00)
+- **objective-10**: tick 10-01 ROADMAP checkbox after wave 1 (2524f3b)
+- **10-01**: complete autonomous-config-foundation SUMMARY (75e1c28)
+- **10**: create 9 objective TRDs for autonomous mode overhaul (4da6215)
+
+### Tests
+- **24**: complete UAT - 7 passed, 0 issues (73863a9)
+- **24-02**: add failing tests for main() wiring and cross-hook e2e (623861a)
+- **24-02**: add failing tests for EXECUTE/TODO/QUICK rules and BUILD suppression (07fd699)
+- **24-01**: rewrite gate-edits tests with real PreToolUse payloads and marker-based e2e (dfa352c)
+- **24-01**: add failing tests for edit-override shared lib (ed230ad)
+- **quick-3**: isolate dup-detect CLI stub tests from real repo cwd (2968d1e)
+- **quick-3**: add failing test for verify job-structure trd field (1c0c757)
+- **quick-3**: add failing test for commit --files pathspec isolation (f2621fe)
+- **quick-3**: add failing tests for objective add hardening (ddd8358)
+- **23-01**: add failing tests for atomic sync, exclusions, self-heal (adb87a5)
+- **23-02**: add failing tests for gate-commits ROADMAP/objectives gating (f7fd8db)
+- **23-02**: add failing byte-budget assertion for compact renderDirective (a83dfce)
+- **10-08**: assert dead config gates removed from loadConfig (c2a27db)
+- **10-06**: add failing tests for SubagentStop retry-once (fce8430)
+- **10-05**: add failing tests for Stop-hook autonomous resume (53c4c97)
+- **10-03**: add failing CLI tests for decision-queue subcommand (c9d3f70)
+- **10-03**: add failing tests for decision queue library (7bc9311)
+- **10-01**: add failing tests for autonomous config preset (77e5c47)
+
+### Chore
+- **23-04**: trim awareness/gh-sync/sync-roadmap descriptions to <=350 chars (cf4b34c)
+- **23-03**: delete 13 deprecated redirect skills, update deprecation docs (410a459)
+- **23-03**: repoint execute-job references and delete legacy workflow (a372c47)
+- **23-04**: trim tui/handoff/status/initiatives descriptions to <=350 chars (4cca99c)
+- **10-01**: document autonomous preset in template + gitignore markers (cb0689c)
+
 ## [2.2.0] - 2026-05-26
 
 ### Added
@@ -1832,6 +1935,7 @@ the gate that prevents the same slip going forward.
 [1.0.2]: https://github.com/glittercowboy/devflow/releases/tag/v1.0.2
 [1.0.1]: https://github.com/glittercowboy/devflow/releases/tag/v1.0.1
 [1.0.0]: https://github.com/glittercowboy/devflow/releases/tag/v1.0.0
+
 
 
 
