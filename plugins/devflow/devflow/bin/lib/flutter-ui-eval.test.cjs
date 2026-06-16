@@ -246,3 +246,45 @@ test.describe('exported enums', () => {
     assert.strictEqual(DEFECT_TYPES.length, 7);
   });
 });
+
+// ──────────────────────────────────────────────────────────────────────────────
+// callVisionJudge — impure boundary, fake-injected (zero network)
+// ──────────────────────────────────────────────────────────────────────────────
+
+test.describe('callVisionJudge (injectable boundary, fake judge)', () => {
+  test('Case C1 — fake returns canned valid Shape-C -> parsed + validated JudgeResult', () => {
+    const capture = makeCaptureResult();
+    const canned = makeJudgeResult({ state_id: capture.state_id });
+    const judge = makeFakeVisionJudge(canned);
+
+    const res = callVisionJudge({ capture, judge });
+
+    assert.strictEqual(res.valid, true);
+    assert.deepStrictEqual(res.result, canned);
+    // The injected judge was the only path — and it received the assembled request.
+    assert.strictEqual(judge.calls.length, 1);
+    assert.strictEqual(judge.calls[0].expected, capture.metadata.expected);
+    assert.deepStrictEqual(judge.calls[0].defect_types, DEFECT_TYPES);
+  });
+
+  test('Case C2 — fake returns malformed output -> validateJudgeResult rejects (no crash)', () => {
+    const capture = makeCaptureResult();
+    const judge = makeFakeVisionJudge({ garbage: true });
+
+    const res = callVisionJudge({ capture, judge });
+
+    assert.strictEqual(res.valid, false);
+    assert.ok(Array.isArray(res.errors) && res.errors.length > 0);
+    assert.strictEqual(judge.calls.length, 1);
+  });
+
+  test('Case C2b — fake returns a non-object -> rejected (no crash)', () => {
+    const capture = makeCaptureResult();
+    const judge = makeFakeVisionJudge('not an object');
+
+    const res = callVisionJudge({ capture, judge });
+
+    assert.strictEqual(res.valid, false);
+    assert.ok(res.errors.length > 0);
+  });
+});
