@@ -1001,6 +1001,26 @@ If `DETECTED == "true"`:
    `decideUIEvalDefault` in `bin/lib/flutter-ui-eval-planner-default.cjs` (emit iff detected). A
    non-ui objective gets neither stub nor gate.
 
+   **Write the gate as a VISIBLE, reviewable call-out (CALLOUT-01).** When `decideUIEvalDefault`
+   returns `emit:true`, it ALSO returns a `callout` string and a `tasks` array
+   (`{subject,description}` descriptors: author the ui_eval state-matrix manifest; run the
+   `/devflow:ui-eval` visual gate). Do NOT keep the gate implicit. Write a visible
+   `## Visual-Eval Gate (auto-required)` section into the plan output (the objective's
+   PLAN/SUMMARY artifact, or a clearly-marked block in the generated TRD) containing the returned
+   `callout` line followed by the `tasks` rendered as a checklist, e.g.:
+
+   ```markdown
+   ## Visual-Eval Gate (auto-required)
+
+   <callout line from decideUIEvalDefault>
+
+   - [ ] <tasks[0].subject> — <tasks[0].description>
+   - [ ] <tasks[1].subject> — <tasks[1].description>
+   ```
+
+   This makes the auto-required gate a reviewable artifact a human sees explicitly, not just the
+   silently-injected manifest stub. A non-ui objective (emit:false) writes NO such section.
+
 4. **PLANNING INCONCLUSIVE on any missing field:**
    If ANY `type: ui` artifact lacks ANY of the four required fields above, emit a structured `## PLANNING INCONCLUSIVE` block listing each missing field per artifact, then HALT. Do NOT write the TRD files. Return to the orchestrator with the inconclusive block.
 
