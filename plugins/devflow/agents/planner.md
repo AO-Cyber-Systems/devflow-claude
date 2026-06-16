@@ -992,7 +992,16 @@ If `DETECTED == "true"`:
    - **setState**: `[loading, data, error, empty]` (or subset; lower confidence in regex coverage)
    - **other**: planner emits PLANNING INCONCLUSIVE and asks user to declare states explicitly OR drop to truths-only (rare escape hatch).
 
-3. **PLANNING INCONCLUSIVE on any missing field:**
+3. **Auto-emit the ui-eval visual gate (P5).** When flutter-ui scope is detected, auto-emit a
+   ui-eval state-matrix manifest stub (Shape-A: a `states` array with per-state `id`/`route`/
+   `data_state`/`expected`) referenced from the objective, AND declare the verifier visual gate —
+   i.e. record that verifier Step 8c will run `df-tools verify flutter-ui-eval "$OBJECTIVE" --raw`
+   on this objective. This is exactly parallel to how the state-coverage semantic fields are
+   auto-required above; visual eval becomes opt-out, not opt-in. The emit decision is the pure
+   `decideUIEvalDefault` in `bin/lib/flutter-ui-eval-planner-default.cjs` (emit iff detected). A
+   non-ui objective gets neither stub nor gate.
+
+4. **PLANNING INCONCLUSIVE on any missing field:**
    If ANY `type: ui` artifact lacks ANY of the four required fields above, emit a structured `## PLANNING INCONCLUSIVE` block listing each missing field per artifact, then HALT. Do NOT write the TRD files. Return to the orchestrator with the inconclusive block.
 
    Example PLANNING INCONCLUSIVE output:
@@ -1010,9 +1019,9 @@ If `DETECTED == "true"`:
    - Drop scope to a non-UI TRD (set `type: standard` and remove Flutter UI fields).
    ```
 
-4. **If detected=false:** proceed normally. No Flutter UI fields added; the rest of `break_into_tasks` is unchanged.
+5. **If detected=false:** proceed normally. No Flutter UI fields added; the rest of `break_into_tasks` is unchanged.
 
-5. **Failsafe:** If the detector returns `{ detected: false, error: ... }` (e.g., no pubspec, no .planning/objectives, etc.), treat as detected=false and proceed normally. Do NOT block planning on detector errors.
+6. **Failsafe:** If the detector returns `{ detected: false, error: ... }` (e.g., no pubspec, no .planning/objectives, etc.), treat as detected=false and proceed normally. Do NOT block planning on detector errors.
 </step>
 
 <step name="build_dependency_graph">
