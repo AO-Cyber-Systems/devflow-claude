@@ -84,4 +84,53 @@ test.describe('decideUIEvalDefault — P5 planner auto-emit default', () => {
     assert.ok(typeof anon.manifest_stub.objective === 'string' && anon.manifest_stub.objective.length > 0,
       'absent objective yields a placeholder string, not undefined');
   });
+
+  // ─── CALLOUT-01: explicit call-out + session-task descriptors (additive) ───
+
+  test('C1: emit case → callout is a non-empty string naming the visual gate + /devflow:ui-eval + the objective', () => {
+    const r = decideUIEvalDefault({ scope: uiScope(), objective: 'MY-UI-OBJ' });
+    assert.strictEqual(typeof r.callout, 'string', 'callout is a string');
+    assert.ok(r.callout.length > 0, 'callout is non-empty');
+    assert.match(r.callout, /visual/i, 'callout mentions "visual"');
+    assert.match(r.callout, /\/devflow:ui-eval|ui_eval/, 'callout references /devflow:ui-eval (or ui_eval)');
+    assert.ok(r.callout.includes('MY-UI-OBJ'), 'callout names the objective');
+  });
+
+  test('C2: emit case → tasks is an array of >=2 {subject,description}: author manifest + run gate', () => {
+    const r = decideUIEvalDefault({ scope: uiScope(), objective: 'MY-UI-OBJ' });
+    assert.ok(Array.isArray(r.tasks), 'tasks is an array');
+    assert.ok(r.tasks.length >= 2, 'tasks has at least 2 entries');
+    for (const t of r.tasks) {
+      assert.strictEqual(typeof t.subject, 'string', 'each task has a string subject');
+      assert.ok(t.subject.length > 0, 'task subject non-empty');
+      assert.strictEqual(typeof t.description, 'string', 'each task has a string description');
+      assert.ok(t.description.length > 0, 'task description non-empty');
+    }
+    const joined = r.tasks.map((t) => `${t.subject} ${t.description}`).join(' ');
+    assert.match(joined, /manifest/i, 'one task is about authoring the manifest');
+    assert.match(joined, /\/devflow:ui-eval/, 'one task is about running the /devflow:ui-eval gate');
+    assert.ok(r.tasks.some((t) => t.subject.includes('MY-UI-OBJ')), 'tasks name the objective');
+  });
+
+  test('C3: non-emit case (detected!==true) → no callout, no tasks, still {emit:false}', () => {
+    const r = decideUIEvalDefault({ scope: nonUiScope(), objective: 'API-OBJ' });
+    assert.strictEqual(r.emit, false, 'emit:false for non-ui');
+    assert.ok(!r.callout, 'no callout when emit:false');
+    assert.ok(!r.tasks || (Array.isArray(r.tasks) && r.tasks.length === 0), 'no/empty tasks when emit:false');
+    const fsr = decideUIEvalDefault({ scope: failsafeScope() });
+    assert.ok(!fsr.callout && (!fsr.tasks || fsr.tasks.length === 0), 'failsafe carries no callout/tasks');
+    const none = decideUIEvalDefault({});
+    assert.ok(!none.callout && (!none.tasks || none.tasks.length === 0), 'missing scope carries no callout/tasks');
+  });
+
+  test('C4: existing P1-P5 keys unchanged on emit (emit/visual_gate/manifest_stub still correct alongside callout/tasks)', () => {
+    const r = decideUIEvalDefault({ scope: uiScope(), objective: 'UI-OBJ' });
+    assert.strictEqual(r.emit, true, 'emit unchanged');
+    assert.strictEqual(r.visual_gate, true, 'visual_gate unchanged');
+    assert.ok(r.manifest_stub && Array.isArray(r.manifest_stub.states) && r.manifest_stub.states.length >= 1,
+      'manifest_stub Shape-A unchanged');
+    assert.strictEqual(r.manifest_stub.objective, 'UI-OBJ', 'manifest_stub objective unchanged');
+    assert.strictEqual(typeof r.callout, 'string');
+    assert.ok(Array.isArray(r.tasks));
+  });
 });
