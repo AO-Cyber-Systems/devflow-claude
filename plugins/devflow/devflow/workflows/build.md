@@ -224,6 +224,28 @@ Duration: {total time}
 Verification: Passed ✓
 ```
 
+**Visual-Eval Gate (conditional — UI objectives only):**
+
+If a visual-eval gate was reported for this objective during planning (i.e.
+`decideUIEvalDefault.emit` was true / a TRD carries a `## Visual-Eval Gate (auto-required)`
+section), then on completion:
+
+1. Surface the gate's `callout` line in the COMPLETE block, e.g.:
+
+   > 👁 Visual-eval gate auto-required: run /devflow:ui-eval to capture + golden-diff + VLM-judge the rendered UI for {X}.
+
+2. Create tracked session tasks via `TaskCreate` for EACH entry in the gate's `tasks` array
+   (author the ui_eval manifest; run the /devflow:ui-eval visual gate), so the visual-eval
+   step lands on the session task list and is not forgotten, e.g.:
+
+   ```
+   TaskCreate(subject="Author ui_eval state-matrix manifest for {X}", description="...", activeForm="Authoring ui_eval manifest")
+   TaskCreate(subject="Run /devflow:ui-eval visual gate for {X}", description="...", activeForm="Running /devflow:ui-eval gate")
+   ```
+
+Non-UI objectives (no visual-eval gate) get NEITHER the callout line NOR the session tasks —
+this is strictly conditional on the gate being on.
+
 **If GAPS FOUND:**
 
 Display gap summary, then auto-generate fix TRDs (max 2 cycles):
