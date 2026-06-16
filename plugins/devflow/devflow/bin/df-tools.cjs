@@ -184,6 +184,7 @@ const { cmdVerifyTrdPre } = require('./lib/trd-pre-check.cjs');
 const { cmdVerifyApiContract } = require('./lib/api-contract.cjs');
 const { cmdVerifyFlutterUIBootstrap } = require('./lib/flutter-ui-bootstrap.cjs');
 const { cmdFlutterUISetup } = require('./lib/flutter-ui-setup.cjs');
+const { cmdFlutterUIEvalBootstrap } = require('./lib/flutter-ui-eval-bootstrap.cjs');
 const { cmdVerifyFlutterStateCoverage } = require('./lib/flutter-state-coverage.cjs');
 const { cmdVerifyFlutterUIEval } = require('./lib/flutter-ui-eval.cjs');
 const { cmdDetectNovelDomain } = require('./lib/novel-domain.cjs');
@@ -430,8 +431,11 @@ async function main() {
       } else if (subcommand === 'eval') {
         // flutter-ui eval <manifest|captureResults> [--raw]
         cmdVerifyFlutterUIEval(cwd, args.slice(2), raw);
+      } else if (subcommand === 'bootstrap') {
+        // flutter-ui bootstrap [project-dir] [--raw]
+        cmdFlutterUIEvalBootstrap(cwd, args[2], raw);
       } else {
-        error('Unknown flutter-ui subcommand. Available: setup, eval');
+        error('Unknown flutter-ui subcommand. Available: setup, eval, bootstrap');
       }
       break;
     }
