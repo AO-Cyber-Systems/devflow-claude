@@ -8,11 +8,10 @@ function loadConfig(cwd) {
   const configPath = path.join(cwd, '.planning', 'config.json');
   const defaults = {
     mode: 'yolo',
+    autonomous: false,
     auto_advance: true,
     model_profile: 'balanced',
     commit_docs: true,
-    require_verification: true,
-    require_tests: true,
     search_gitignored: false,
     branching_strategy: 'none',
     objective_branch_template: 'df/objective-{objective}-{slug}',
@@ -22,6 +21,8 @@ function loadConfig(cwd) {
     verifier: true,
     parallelization: true,
     brave_search: false,
+    verifier_checkpoints: false,
+    decision_queue: false,
   };
 
   try {
@@ -43,13 +44,15 @@ function loadConfig(cwd) {
       return defaults.parallelization;
     })();
 
+    const mode = get('mode', { section: 'workflow', field: 'mode' }) ?? defaults.mode;
+    const autonomous = mode === 'autonomous';
+
     return {
-      mode: get('mode', { section: 'workflow', field: 'mode' }) ?? defaults.mode,
+      mode,
+      autonomous,
       auto_advance: get('auto_advance', { section: 'workflow', field: 'auto_advance' }) ?? defaults.auto_advance,
       model_profile: get('model_profile') ?? defaults.model_profile,
       commit_docs: get('commit_docs', { section: 'planning', field: 'commit_docs' }) ?? defaults.commit_docs,
-      require_verification: get('require_verification', { section: 'workflow', field: 'require_verification' }) ?? defaults.require_verification,
-      require_tests: get('require_tests', { section: 'workflow', field: 'require_tests' }) ?? defaults.require_tests,
       search_gitignored: get('search_gitignored', { section: 'planning', field: 'search_gitignored' }) ?? defaults.search_gitignored,
       branching_strategy: get('branching_strategy', { section: 'git', field: 'branching_strategy' }) ?? defaults.branching_strategy,
       objective_branch_template: get('objective_branch_template', { section: 'git', field: 'objective_branch_template' }) ?? defaults.objective_branch_template,
@@ -59,6 +62,8 @@ function loadConfig(cwd) {
       verifier: get('verifier', { section: 'workflow', field: 'verifier' }) ?? defaults.verifier,
       parallelization,
       brave_search: get('brave_search') ?? defaults.brave_search,
+      verifier_checkpoints: get('verifier_checkpoints', { section: 'workflow', field: 'verifier_checkpoints' }) ?? autonomous,
+      decision_queue: get('decision_queue', { section: 'workflow', field: 'decision_queue' }) ?? autonomous,
     };
   } catch {
     return defaults;

@@ -6,7 +6,7 @@ Execute all jobs in an objective using wave-based parallel execution. Orchestrat
 </purpose>
 
 <core_principle>
-Orchestrator coordinates, not executes. Each subagent loads the full execute-job context. Orchestrator: discover plans → analyze deps → group waves → spawn agents → handle checkpoints → collect results.
+Orchestrator coordinates, not executes. Each subagent loads the full execute-trd context. Orchestrator: discover plans → analyze deps → group waves → spawn agents → handle checkpoints → collect results.
 </core_principle>
 
 <required_reading>
@@ -261,8 +261,16 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
 
 4. **Spawn executor agents:**
 
-   Pass paths only — executors read files themselves with their fresh 200k context.
-   This keeps orchestrator context lean (~10-15%).
+   Embed the full TRD content inline in every executor spawn prompt. Executors may run in
+   an isolated git worktree (isolation: worktree in executor frontmatter) where uncommitted
+   .planning/ files from the parent tree are not visible. Embedding the TRD guarantees the
+   executor has its plan regardless of worktree state. Context cost: ~plan size per spawn;
+   acceptable because TRDs are 2-3 tasks.
+
+   Before spawning, read the plan file into orchestrator context:
+   ```
+   TRD_CONTENT = Read("{objective_dir}/{plan_file}")
+   ```
 
    ```
    Task(
@@ -282,17 +290,26 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
        @~/.claude/devflow/references/anti-patterns.md
        </execution_context>
 
-       <files_to_read>
-       Read these files at execution start using the Read tool:
-       - Plan: {objective_dir}/{plan_file}
-       - State: .planning/STATE.md
-       - Config: .planning/config.json (if exists)
-       </files_to_read>
+       <plan_content>
+       The full TRD content is embedded below because you may be running in an isolated
+       worktree where .planning/ files from the parent tree are not visible.
+       --- BEGIN TRD ---
+       {TRD_CONTENT}
+       --- END TRD ---
+       </plan_content>
+
+       <worktree_protocol>
+       - You may be in an isolated git worktree. Commit to your current branch as normal.
+       - Write SUMMARY.md at the path given in the TRD output section and COMMIT it —
+         the orchestrator reads it from your branch after merging.
+       - STATE.md/ROADMAP.md updates: include them in your commits; conflicts are resolved
+         at merge time by the orchestrator.
+       </worktree_protocol>
 
        <success_criteria>
        - [ ] All tasks executed
        - [ ] Each task committed individually
-       - [ ] SUMMARY.md created in plan directory
+       - [ ] SUMMARY.md created in plan directory and committed
        - [ ] STATE.md updated with position and decisions
        - [ ] ROADMAP.md updated with job progress (via `roadmap update-job-progress`)
        </success_criteria>
@@ -327,11 +344,48 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
      result = TaskOutput(task_id=task_id, block=true, timeout=600000)
    ```
 
-   Collect all results, then proceed to spot-check.
+   Collect all results, then proceed to step 5b.
 
    **Sequential execution (when `PARALLELIZATION=false` OR wave has 1 plan):**
 
    Use standard blocking Task() calls (existing behavior).
+
+5b. **Merge worktree branches (when executors run with isolation: worktree):**
+
+   Platform-managed worktrees (created via `isolation: worktree` in executor frontmatter)
+   run on branches auto-created by Claude Code. After all wave agents complete, merge those
+   branches back into the current branch BEFORE any disk-based spot-checks. File-existence
+   checks read the working tree, so merge-before-spot-check ordering is mandatory.
+
+   Prior art: workstreams.cjs already provisions worktrees with `worktree_prefix` and
+   `merge_strategy: "squash"` — the same concept applied to platform-managed worktrees.
+
+   **Branch merge protocol:**
+   ```bash
+   # 1. Snapshot branch list before spawning the wave (do this BEFORE step 4):
+   git branch --format='%(refname:short)' > /tmp/df-branches-before-wave-{N}
+
+   # 2. After all wave agents complete, diff to find agent-created branches:
+   git branch --format='%(refname:short)' > /tmp/df-branches-after-wave-{N}
+   diff /tmp/df-branches-before-wave-{N} /tmp/df-branches-after-wave-{N}
+
+   # 3. For each new branch, merge into current branch:
+   git merge --no-ff {agent-branch}
+   # File ownership is exclusive per wave (each TRD owns different files),
+   # so conflicts indicate a planning error. On conflict:
+   git merge --abort
+   # Route to the failure handler with: "Merge conflict on {branch} — planning error,
+   # two TRDs in the same wave modified the same file."
+   ```
+
+   **Caution:** Worktree isolation branches from the DEFAULT branch, not the parent HEAD
+   (research Pitfall 5). On feature branches, commits from prior waves may be missing in
+   a fresh worktree. Worktree isolation is safest when executing on the default branch or
+   with `branching_strategy: "none"` where prior waves' commits are merged back before the
+   next wave spawns. The 5b merge step guarantees exactly this sequencing between waves.
+
+   After all new branches are merged, `git log --all --grep` and file-existence spot-checks
+   in step 6 will see all wave commits.
 
 6. **Report completion — spot-check claims first:**
 
@@ -345,7 +399,7 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
    - Check `git log --oneline --all --grep="{objective}-{job}"` returns ≥1 commit
    - Check for `## Self-Check: FAILED` marker
 
-   If ANY spot-check fails: report which plan failed, route to failure handler — ask "Retry plan?" or "Continue with remaining waves?"
+   If ANY spot-check fails: report which plan failed, route to failure handler. If `MODE` is `"autonomous"`, apply the autonomous failure protocol in step 7 directly (do not prompt). Otherwise ask "Retry plan?" or "Continue with remaining waves?"
 
    If pass:
    ```
@@ -367,6 +421,35 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
 
    **Known Claude Code bug (classifyHandoffIfNeeded):** If an agent reports "failed" with error containing `classifyHandoffIfNeeded is not defined`, this is a Claude Code runtime bug — not a DevFlow or agent issue. The error fires in the completion handler AFTER all tool calls finish. In this case: run the same spot-checks as step 4 (SUMMARY.md exists, git commits present, no Self-Check: FAILED). If spot-checks PASS → treat as **successful**. If spot-checks FAIL → treat as real failure below.
 
+   **Autonomous failure protocol (when `MODE` is `"autonomous"`):**
+
+   1. **RETRY ONCE:** Re-spawn a fresh executor for the failed plan with a `<failure_feedback>` block appended to the standard executor prompt:
+      ```
+      <failure_feedback>
+      The previous attempt at this plan failed. Do NOT repeat the same approach.
+      Spot-check results: {which files were missing, which commits were absent, any Self-Check: FAILED markers}
+      Error output from failed attempt: {agent error / last output}
+      Partial commits from failed attempt (if any): {git log output for this plan's commits}
+      </failure_feedback>
+      ```
+
+   2. **If the retry also fails:** Compute the dependent set — all TRDs whose `depends_on` transitively includes the failed plan id. The orchestrator already holds this data from the objective-job-index wave/depends_on map; no shell-out needed. Skipped TRD entries are recorded with the blocking failure id.
+
+   3. **SKIP only the dependent set.** Continue executing all remaining independent TRDs in subsequent waves as normal.
+
+   4. **Final report** — include in `aggregate_results` output:
+
+      | Status | TRD | Detail |
+      |--------|-----|--------|
+      | ✓ Complete | {id} | {one-liner from SUMMARY.md} |
+      | ✗ Failed | {id} | {last error summary} |
+      | ⏭ Skipped | {id} | blocked by {failed-plan-id} |
+      | ⏸ Parked | {id} | pending DECISION-NNN |
+
+      Never ask "Continue?/Stop?" mid-run in autonomous mode.
+
+   **Non-autonomous failure handling (when `MODE` is NOT `"autonomous"`):**
+
    For real failures: report which plan failed → ask "Continue?" or "Stop?" → if continue, dependent plans may also fail. If stop, partial completion report.
 
 8. **Execute checkpoint plans between waves** — see `<checkpoint_handling>`.
@@ -377,19 +460,97 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
 <step name="checkpoint_handling">
 Plans with `autonomous: false` require user interaction.
 
-**Auto-mode checkpoint handling:**
+**Mode-aware checkpoint handling:**
 
-Read auto-advance config:
+Read mode and auto-advance config:
 ```bash
+MODE=$(node ~/.claude/devflow/bin/df-tools.cjs config-get mode 2>/dev/null || echo "yolo")
 AUTO_CFG=$(node ~/.claude/devflow/bin/df-tools.cjs config-get workflow.auto_advance 2>/dev/null || echo "false")
 ```
 
-When executor returns a checkpoint AND `AUTO_CFG` is `"true"`:
+**Branch 1 — Autonomous mode (`MODE` is `"autonomous"`):**
+
+When executor returns a checkpoint AND `MODE` is `"autonomous"`:
+
+- **human-verify** → VERIFIER-DELEGATED. Do NOT blind-approve. Spawn the verifier agent in checkpoint verification mode with the checkpoint's `what-built`, `how-to-verify` steps, and plan ID. Pass the port constraint in the prompt.
+
+  ```
+  Task(
+    subagent_type="verifier",
+    model="{resolved_verifier_model}",
+    prompt="
+      <objective>
+      CHECKPOINT VERIFICATION MODE — scoped functional pass, not full objective verification.
+      Verify the checkpoint below and return structured status.
+      </objective>
+
+      <checkpoint_context>
+      Plan: {plan_id} — {plan_name}
+      What was built: {what-built from checkpoint}
+      How to verify: {how-to-verify steps from checkpoint}
+      </checkpoint_context>
+
+      <constraints>
+      - NEVER use port 8080 for anything. It is permanently occupied on the operator's machine.
+        If a dev/verification server is needed, bind port 8091 instead.
+      - Run only the checks needed to prove or disprove the how-to-verify steps.
+        Do not re-verify the whole objective.
+      </constraints>
+
+      <output_format>
+      Return structured status:
+        status: passed | gaps_found | human_needed
+      Include evidence: commands run, observed output, screenshots taken.
+      </output_format>
+    "
+  )
+  ```
+
+  **On verifier return:**
+
+  - `status: passed` → spawn continuation agent with `{user_response}` = `"approved (verifier evidence: {one-line summary})"`. Log `⚡ Verifier-approved: [checkpoint]`.
+  - `status: gaps_found` OR `status: human_needed` → escalate to user. Present the checkpoint using the standard "Present to user" format (step 4 of standard flow below) PLUS append a `### Verifier Report` section with the verifier's full evidence output. Wait for user response before spawning continuation agent.
+  - Verifier timeout or ambiguous return → treat as `human_needed` and escalate to user. Never approve on ambiguity.
+
+- **decision** → PARK, NOTIFY, CONTINUE INDEPENDENT.
+
+  1. **Park:** Run the decision-queue add command with full context:
+     ```bash
+     node ~/.claude/devflow/bin/df-tools.cjs decision-queue add \
+       --objective {N} --trd {plan_id} --wave {W} \
+       --title "{one-line decision summary from checkpoint}" \
+       --context "{context block from checkpoint return}" \
+       --options "{option ids, comma-separated — e.g., option-a,option-b}" \
+       --recommendation "{executor's recommended option id}" \
+       --blocks "{TRD ids in the blocked set}" \
+       --independent "{remaining executable TRD ids}"
+     ```
+
+     **Computing `--blocks` and `--independent`:**
+     - The orchestrator already holds all wave/depends_on data loaded from objective-job-index.
+     - Blocked set = TRDs whose `decision_gate` frontmatter matches this decision's id (DECISION-NNN), PLUS their transitive `depends_on` closure, PLUS the parked plan itself (whose continuation requires the answer).
+     - When no TRD declares a `decision_gate` for this decision, `--blocks` is the parked plan id only; everything else is independent.
+     - `df-tools decision-queue add` fires the OS notification itself — no separate notify call needed.
+
+  2. **Mark parked:** Update the wave table entry for the parked plan to status `⏸ parked on DECISION-NNN`.
+
+  3. **Continue independent:** Proceed to the next wave executing every TRD not in the blocked set. Do NOT halt all waves. Do NOT auto-select any option — parking is the only autonomous handling for decisions.
+
+  4. **Aggregate report:** The `aggregate_results` step includes a `### Pending Decisions` section (see that step).
+
+- **Rule 4 deviation return (autonomous mode):** When an executor returns a Rule 4 architectural stop (not a checkpoint task, but an agent return containing `decision:`, `options:`, `recommendation:` fields) AND `MODE` is `"autonomous"`:
+  Park it identically to `checkpoint:decision` using `decision-queue add` with `type: rule-4-deviation`. The executor's `recommendation:` field maps to `--recommendation`, the `options:` list maps to `--options`, and the `context:` field maps to `--context`. Blocked set computation is the same as above. Never surface Rule 4 stops as mid-run user prompts in autonomous mode.
+
+- **human-action** → Present to user. Auth gates cannot be automated.
+
+**Branch 2 — Legacy yolo (`MODE` is NOT `"autonomous"` AND `AUTO_CFG` is `"true"`):**
+
+When executor returns a checkpoint AND `MODE` is not `"autonomous"` AND `AUTO_CFG` is `"true"`:
 - **human-verify** → Auto-spawn continuation agent with `{user_response}` = `"approved"`. Log `⚡ Auto-approved checkpoint`.
 - **decision** → Auto-spawn continuation agent with `{user_response}` = first option from checkpoint details. Log `⚡ Auto-selected: [option]`.
 - **human-action** → Present to user (existing behavior below). Auth gates cannot be automated.
 
-**Standard flow (not auto-mode, or human-action type):**
+**Branch 3 — Standard interactive flow (not auto-mode, or human-action type):**
 
 1. Spawn agent for checkpoint plan
 2. Agent runs until checkpoint task or auth gate → returns structured state
@@ -440,6 +601,19 @@ After all waves:
 
 ### Issues Encountered
 [Aggregate from SUMMARYs, or "None"]
+
+### Pending Decisions
+```bash
+# Check for pending decisions
+ls .planning/decisions/pending/ 2>/dev/null
+```
+If `.planning/decisions/pending/` is non-empty, include this section:
+
+| ID | Title | Blocked TRDs | Resolve Command |
+|----|-------|-------------|----------------|
+| DECISION-001 | [title from decision file] | [comma-separated TRD ids] | `/devflow:decide DECISION-001 <choice>` |
+
+Show one row per pending decision. If `.planning/decisions/pending/` is empty or absent, omit this section entirely.
 ```
 </step>
 
@@ -694,7 +868,7 @@ Read and follow `~/.claude/devflow/workflows/transition.md`, passing through the
 
 **If neither `--auto` nor `AUTO_CFG` is true:**
 
-The workflow ends. The user runs `/devflow:progress` or invokes the transition workflow manually.
+The workflow ends. The user runs `/devflow:status` or invokes the transition workflow manually.
 </step>
 
 </process>

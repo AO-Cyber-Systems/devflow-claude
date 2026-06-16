@@ -373,7 +373,7 @@ Ready to plan the next milestone.
 - Objective complete but next objective not planned → offer `/devflow:plan-objective [next]`
 - All work complete → offer milestone completion
 - Blockers present → highlight before offering to continue
-- Handoff file exists → mention it, offer `/devflow:resume-work`
+- Handoff file exists → mention it, offer `/devflow:status resume`
   </step>
 
 </process>

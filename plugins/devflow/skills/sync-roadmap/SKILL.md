@@ -1,9 +1,8 @@
 ---
 name: sync-roadmap
 description: |
-  Reconcile ROADMAP.md checkbox state against on-disk SUMMARY.md presence. Default mode silently corrects drift; --dry-run shows the diff without writing; --interactive prompts per change.
-  Use when the user wants to update ROADMAP after a TRD ships, audit drift between ROADMAP claims and disk truth, or perform a one-off cleanup.
-  Triggers on: "sync roadmap", "reconcile roadmap", "update roadmap checkboxes", "fix roadmap drift", "is the roadmap accurate".
+  Reconcile ROADMAP.md checkbox state against on-disk SUMMARY.md presence. Default: silently corrects drift; --dry-run previews; --interactive prompts per change.
+  Triggers on: "sync roadmap", "reconcile roadmap", "fix roadmap drift", "is the roadmap accurate".
 argument-hint: "[--dry-run] [--interactive] [--raw]"
 allowed-tools:
   - Bash
@@ -67,4 +66,8 @@ Limitations:
 - **Forward-only rollup.** Once an objective Status flips to `complete`, the reconciler doesn't auto-revert even if a TRD becomes `[ ] (failed)`. Edit manually.
 
 Note: The skill takes effect on next session restart (sync-runtime hook mirrors it to `~/.claude/devflow/skills/sync-roadmap/SKILL.md`).
+
+## Triggers
+
+Use when the user wants to update ROADMAP after a TRD ships, audit drift between ROADMAP claims and disk truth, or perform a one-off cleanup. Also fires on: "update roadmap checkboxes".
 </context>

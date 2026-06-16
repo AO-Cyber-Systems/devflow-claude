@@ -57,7 +57,7 @@ src/
 </file_tree>
 
 <execution_context>
-@~/.claude/devflow/workflows/execute-job.md
+@~/.claude/devflow/workflows/execute-trd.md
 @~/.claude/devflow/templates/summary.md
 [If plan contains checkpoint tasks (type="checkpoint:*"), add:]
 @~/.claude/devflow/references/checkpoints.md
@@ -446,7 +446,7 @@ Output: Working dashboard component.
 </objective>
 
 <execution_context>
-@~/.claude/devflow/workflows/execute-job.md
+@~/.claude/devflow/workflows/execute-trd.md
 @~/.claude/devflow/templates/summary.md
 @~/.claude/devflow/references/checkpoints.md
 </execution_context>

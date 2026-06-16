@@ -86,7 +86,7 @@ grep -n "type=\"checkpoint" .planning/objectives/XX-name/{plan-file}
 | Verify-only | B (segmented) | Segments between checkpoints |
 | Decision | C (main) | Execute entirely in main context |
 
-Routing logic identical to execute-job.md — see that workflow for full pattern details.
+Select the pattern above based on whether checkpoints exist in the TRD.
 </step>
 
 <step name="execute_tasks_with_evidence">
@@ -103,7 +103,7 @@ For each task:
      ```
    - If verification fails AND `<recovery>` exists: follow recovery steps (max 2 attempts)
    - If still fails: document in SUMMARY as failed task, continue
-   - Commit (see task_commit_protocol from execute-job.md)
+   - Commit (see task_commit_protocol in the task_commit_protocol step below)
    - Store evidence for SUMMARY.md
 
 2. **If `type="tdd"` (TDD task):**
@@ -126,7 +126,7 @@ For each task:
      - Commit only if changes: `refactor({objective}-{trd}): clean up [feature]`
 
 3. **If `type="checkpoint:*"`:**
-   - STOP — return structured checkpoint message (same as execute-job.md)
+   - STOP — return structured checkpoint message (see checkpoint_return_format in executor agent)
 
 4. **Per-task evidence collection (ALL task types):**
    ```
@@ -215,7 +215,7 @@ Create `{objective}-{trd}-SUMMARY.md` at `.planning/objectives/XX-name/`.
 </step>
 
 <step name="state_updates">
-Same as execute-job.md — update STATE.md, ROADMAP.md, REQUIREMENTS.md.
+Update STATE.md, ROADMAP.md, REQUIREMENTS.md.
 
 ```bash
 node ~/.claude/devflow/bin/df-tools.cjs state advance-job
@@ -235,7 +235,7 @@ node ~/.claude/devflow/bin/df-tools.cjs commit "docs({objective}-{trd}): complet
 </step>
 
 <step name="offer_next">
-Same routing as execute-job.md — check for more TRDs/JOBs, objective completion, milestone completion.
+Check for more TRDs, objective completion, milestone completion.
 
 Auto-advance if configured: phases chain automatically.
 Use `--pause` flag to stop between phases.

@@ -1337,6 +1337,146 @@ describe('objective add command', () => {
     const output = JSON.parse(result.output);
     assert.strictEqual(output.objective_number, 1, 'should be objective 1');
   });
+
+  test('caps slug at 60 chars and strips trailing hyphen for long description', () => {
+    fs.writeFileSync(
+      path.join(tmpDir, '.planning', 'ROADMAP.md'),
+      `# Roadmap\n### Objective 1: Foundation\n**Goal:** Setup\n`
+    );
+    // ~150-char description
+    const longDesc = 'This is a very long description that goes well beyond sixty characters to test slug capping behavior in the objective add command';
+    const result = runGsdTools(`objective add "${longDesc}"`, tmpDir);
+    assert.ok(result.success, `Command failed: ${result.error}`);
+    const parsed = JSON.parse(result.output);
+    assert.ok(parsed.slug.length <= 60, `slug too long: ${parsed.slug.length} chars`);
+    assert.ok(!parsed.slug.endsWith('-'), `slug must not end with hyphen: "${parsed.slug}"`);
+    // Directory must exist with capped slug
+    const dirName = `${parsed.padded}-${parsed.slug}`;
+    assert.ok(
+      fs.existsSync(path.join(tmpDir, '.planning', 'objectives', dirName)),
+      `directory not created: ${dirName}`
+    );
+    assert.ok(dirName.length <= 65, `dir name too long: ${dirName}`);
+  });
+
+  test('rejects flag-like description (starts with --) with no side effects', () => {
+    const roadmapContent = `# Roadmap\n### Objective 1: Foundation\n**Goal:** Setup\n`;
+    fs.writeFileSync(
+      path.join(tmpDir, '.planning', 'ROADMAP.md'),
+      roadmapContent
+    );
+    const result = runGsdTools('objective add --help', tmpDir);
+    assert.strictEqual(result.success, false, 'should fail for flag-like description');
+    const combined = (result.error || '') + (result.output || '');
+    assert.ok(
+      combined.includes('--') || combined.includes('flag'),
+      `error should mention flag-like arg; got: ${combined}`
+    );
+    // No directory named --help should have been created
+    const objectivesDir = path.join(tmpDir, '.planning', 'objectives');
+    const entries = fs.readdirSync(objectivesDir);
+    assert.ok(
+      !entries.some(e => e.includes('--help') || e.includes('-help')),
+      `should not create directory for --help; found: ${entries.join(', ')}`
+    );
+    // ROADMAP.md must be unchanged
+    const roadmapAfter = fs.readFileSync(path.join(tmpDir, '.planning', 'ROADMAP.md'), 'utf-8');
+    assert.strictEqual(roadmapAfter, roadmapContent, 'ROADMAP.md must not be modified');
+  });
+
+  test('number = max(ROADMAP headings, dir prefixes) + 1 — dir ahead of roadmap wins', () => {
+    // ROADMAP only has objectives 1 and 2
+    fs.writeFileSync(
+      path.join(tmpDir, '.planning', 'ROADMAP.md'),
+      `# Roadmap\n\n### Objective 1: Foundation\n**Goal:** Setup\n\n### Objective 2: API\n**Goal:** Build\n\n---\n`
+    );
+    // But a directory with prefix 11 exists on disk
+    const dir11 = path.join(tmpDir, '.planning', 'objectives', '11-phase-d-verifier-wiring');
+    fs.mkdirSync(dir11, { recursive: true });
+
+    const result = runGsdTools('objective add New Feature', tmpDir);
+    assert.ok(result.success, `Command failed: ${result.error}`);
+    const parsed = JSON.parse(result.output);
+    assert.strictEqual(parsed.objective_number, 12, `expected 12, got ${parsed.objective_number}`);
+    assert.ok(
+      fs.existsSync(path.join(tmpDir, '.planning', 'objectives', '12-new-feature')),
+      'directory 12-new-feature should exist'
+    );
+    const roadmap = fs.readFileSync(path.join(tmpDir, '.planning', 'ROADMAP.md'), 'utf-8');
+    assert.ok(roadmap.includes('### Objective 12:'), 'ROADMAP must include Objective 12');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// commit command pathspec isolation
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('commit command pathspec isolation', () => {
+  let tmpDir;
+
+  function initGitRepo(dir) {
+    execSync('git init', { cwd: dir, stdio: 'pipe' });
+    execSync('git config user.email "test@test.com"', { cwd: dir, stdio: 'pipe' });
+    execSync('git config user.name "Test User"', { cwd: dir, stdio: 'pipe' });
+    // Create an initial commit so HEAD exists
+    const placeholderPath = path.join(dir, 'init.txt');
+    fs.writeFileSync(placeholderPath, 'init');
+    execSync('git add init.txt', { cwd: dir, stdio: 'pipe' });
+    execSync('git commit -m "chore: init"', { cwd: dir, stdio: 'pipe' });
+  }
+
+  beforeEach(() => {
+    tmpDir = createTempProject();
+    initGitRepo(tmpDir);
+  });
+
+  afterEach(() => {
+    cleanup(tmpDir);
+  });
+
+  test('--files commits only named paths; unrelated staged changes remain staged', () => {
+    // Create the target file in .planning
+    fs.mkdirSync(path.join(tmpDir, '.planning'), { recursive: true });
+    fs.writeFileSync(path.join(tmpDir, '.planning', 'STATE.md'), '# State\n');
+
+    // Create an unrelated file and stage it (simulates parallel executor)
+    fs.writeFileSync(path.join(tmpDir, 'other.txt'), 'other change\n');
+    execSync('git add other.txt', { cwd: tmpDir, stdio: 'pipe' });
+
+    const result = runGsdTools('commit "test(quick-3): isolation" --files .planning/STATE.md', tmpDir);
+    assert.ok(result.success, `Command failed: ${result.error}`);
+
+    // Only .planning/STATE.md should be in the commit
+    const showResult = execSync('git show --name-only --format= HEAD', { cwd: tmpDir, encoding: 'utf-8' }).trim();
+    assert.ok(showResult.includes('.planning/STATE.md'), `STATE.md not in commit; got: ${showResult}`);
+    assert.ok(!showResult.includes('other.txt'), `other.txt was swept into commit; got: ${showResult}`);
+
+    // other.txt must still be staged (not swept away)
+    const cachedResult = execSync('git diff --cached --name-only', { cwd: tmpDir, encoding: 'utf-8' }).trim();
+    assert.ok(cachedResult.includes('other.txt'), `other.txt should still be staged; cached: ${cachedResult}`);
+  });
+
+  test('untracked named file passed via --files gets added and committed', () => {
+    fs.mkdirSync(path.join(tmpDir, '.planning'), { recursive: true });
+    fs.writeFileSync(path.join(tmpDir, '.planning', 'NEW.md'), '# New\n');
+
+    const result = runGsdTools('commit "test(quick-3): new-file" --files .planning/NEW.md', tmpDir);
+    assert.ok(result.success, `Command failed: ${result.error}`);
+
+    const showResult = execSync('git show --name-only --format= HEAD', { cwd: tmpDir, encoding: 'utf-8' }).trim();
+    assert.ok(showResult.includes('.planning/NEW.md'), `NEW.md not in commit; got: ${showResult}`);
+  });
+
+  test('no --files falls back to staging .planning/ and commits normally', () => {
+    fs.mkdirSync(path.join(tmpDir, '.planning'), { recursive: true });
+    fs.writeFileSync(path.join(tmpDir, '.planning', 'DEFAULT.md'), '# Default\n');
+
+    const result = runGsdTools('commit "test(quick-3): default-behavior"', tmpDir);
+    assert.ok(result.success, `Command failed: ${result.error}`);
+
+    const showResult = execSync('git show --name-only --format= HEAD', { cwd: tmpDir, encoding: 'utf-8' }).trim();
+    assert.ok(showResult.includes('.planning/DEFAULT.md'), `DEFAULT.md not in commit; got: ${showResult}`);
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2882,5 +3022,60 @@ describe('F5 confidence-field back-compat', () => {
     const result = runGsdTools(`frontmatter validate "${jobPath}" --schema plan`);
     const parsed = JSON.parse(result.output);
     assert.strictEqual(parsed.valid, true, 'plan schema must still accept JOB.md');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// verify job-structure trd field
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('verify job-structure trd field', () => {
+  let tmpDir;
+
+  const MINIMAL_TASK = `<task type="auto">\n<name>Example Task</name>\n<files>src/foo.ts</files>\n<action>Do the thing</action>\n<verify>node --test</verify>\n<done>Works</done>\n</task>`;
+
+  function makePlanContent(frontmatterLines) {
+    return `---\n${frontmatterLines}\ntype: standard\nwave: 1\ndepends_on: []\nfiles_modified: []\nautonomous: true\nmust_haves:\n  truths: []\n  artifacts: []\n  key_links: []\n---\n\n${MINIMAL_TASK}\n`;
+  }
+
+  beforeEach(() => {
+    tmpDir = createTempProject();
+  });
+
+  afterEach(() => {
+    cleanup(tmpDir);
+  });
+
+  test('trd: field (TRD-format) validates as valid:true with zero errors', () => {
+    const planPath = path.join(tmpDir, 'plan.md');
+    fs.writeFileSync(planPath, makePlanContent('objective: "10-phase-f"\ntrd: "01"'), 'utf-8');
+    const result = runGsdTools(`verify job-structure "${planPath}"`, tmpDir);
+    assert.ok(result.success, `Command failed: ${result.error}`);
+    const parsed = JSON.parse(result.output);
+    assert.strictEqual(parsed.valid, true, `expected valid:true; errors: ${JSON.stringify(parsed.errors)}`);
+    assert.deepStrictEqual(parsed.errors, [], 'no errors expected for TRD-format plan');
+  });
+
+  test('job: field (legacy JOB-format) still validates as valid:true', () => {
+    const planPath = path.join(tmpDir, 'plan.md');
+    fs.writeFileSync(planPath, makePlanContent('objective: "10-phase-f"\njob: "01"'), 'utf-8');
+    const result = runGsdTools(`verify job-structure "${planPath}"`, tmpDir);
+    assert.ok(result.success, `Command failed: ${result.error}`);
+    const parsed = JSON.parse(result.output);
+    assert.strictEqual(parsed.valid, true, `expected valid:true; errors: ${JSON.stringify(parsed.errors)}`);
+    assert.deepStrictEqual(parsed.errors, [], 'no errors expected for legacy JOB-format plan');
+  });
+
+  test('neither job nor trd field → valid:false with descriptive error', () => {
+    const planPath = path.join(tmpDir, 'plan.md');
+    fs.writeFileSync(planPath, makePlanContent('objective: "10-phase-f"'), 'utf-8');
+    const result = runGsdTools(`verify job-structure "${planPath}"`, tmpDir);
+    assert.ok(result.success, `Command should not error (valid:false is normal output)`);
+    const parsed = JSON.parse(result.output);
+    assert.strictEqual(parsed.valid, false, 'expected valid:false when neither job nor trd present');
+    assert.ok(
+      parsed.errors.some(e => e.includes('job') || e.includes('trd')),
+      `error should mention 'job' or 'trd'; got: ${JSON.stringify(parsed.errors)}`
+    );
   });
 });

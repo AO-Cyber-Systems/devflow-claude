@@ -8,7 +8,7 @@ Plans execute autonomously. Checkpoints formalize interaction points where human
 2. **Claude sets up the verification environment** - Start dev servers, seed databases, configure env vars
 3. **User only does what requires human judgment** - Visual checks, UX evaluation, "does this feel right?"
 4. **Secrets come from user, automation comes from Claude** - Ask for API keys, then Claude uses them via CLI
-5. **Auto-mode bypasses verification/decision checkpoints** — When `workflow.auto_advance` is true in config: human-verify auto-approves, decision auto-selects first option, human-action still stops (auth gates cannot be automated)
+5. **Checkpoint behavior depends on mode** — Three modes govern checkpoint handling: (a) **interactive** (default): all checkpoint types present to the user; (b) **yolo** (`workflow.auto_advance: true` in config, `mode` not `"autonomous"`): human-verify auto-approves with `"approved"`, decision auto-selects first option — legacy convenience behavior, no machine verification; (c) **autonomous** (`mode: "autonomous"` in config): human-verify is delegated to the verifier agent and approved ONLY on green machine evidence (`status: passed`); decision is parked in the decision queue; human-action always stops for the user regardless of mode — auth gates cannot be automated
 </overview>
 
 <checkpoint_types>
@@ -268,6 +268,48 @@ Plans execute autonomously. Checkpoints formalize interaction points where human
 **Key distinction:** Auth gates are created dynamically when Claude encounters auth errors. NOT pre-planned — Claude automates first, asks for credentials only when blocked.
 </type>
 </checkpoint_types>
+
+<autonomous_checkpoints>
+
+## Autonomous Mode Checkpoint Semantics
+
+When `config-get mode` returns `"autonomous"`, the orchestrator never blind-approves a `checkpoint:human-verify`. Instead it delegates to the verifier agent in **checkpoint verification mode** — a scoped functional pass, not a full objective verification.
+
+### Delegation flow
+
+1. Executor returns checkpoint with `what-built` and `how-to-verify`.
+2. Orchestrator spawns verifier agent with the checkpoint context and a prompt containing `CHECKPOINT VERIFICATION MODE`.
+3. Verifier runs only the checks needed to prove or disprove the `how-to-verify` steps (Step 8a/8b tooling as appropriate).
+4. Verifier returns structured status:
+   - `status: passed` — orchestrator spawns continuation agent with `{user_response}` = `"approved (verifier evidence: ...)"`. No human sees it.
+   - `status: gaps_found` or `status: human_needed` — orchestrator escalates to user: presents checkpoint details PLUS a `### Verifier Report` section with the verifier's evidence. Human decides.
+   - Ambiguous or timeout → treated as `human_needed`; escalates to user. Never approve on ambiguity.
+
+### Evidence requirement
+
+Approval requires explicit `status: passed` from the verifier, backed by commands run, observed output, and/or screenshots. The verifier documents all evidence before returning.
+
+### Escalation on failure
+
+When the verifier returns `gaps_found` or `human_needed`, the user sees both the original checkpoint and the full verifier report side by side. The human's response then drives the continuation agent (same flow as standard interactive checkpoints).
+
+### Port rule for verification servers
+
+Any server the verifier starts during checkpoint verification MUST bind port **8091**. Port 8080 is permanently occupied on the operator's machine and must never be used.
+
+### Decision checkpoints in autonomous mode
+
+`checkpoint:decision` is NOT auto-selected in autonomous mode. Decisions are parked via the decision queue (wired in TRD 10-04). Until the queue is wired, decision checkpoints fall through to the standard interactive flow.
+
+### human-action checkpoints
+
+`checkpoint:human-action` always stops for the user in all modes. Auth gates and truly manual steps cannot be automated.
+
+### Reference
+
+For the full unattended-operation contract (queue management, audit trail, timeout policies), see `references/unattended-operation.md` (created by TRD 10-09).
+
+</autonomous_checkpoints>
 
 <execution_protocol>
 

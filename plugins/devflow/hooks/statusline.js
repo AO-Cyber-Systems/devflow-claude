@@ -6,6 +6,10 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
+// 23-02: cache resolved watcher-state lib across renders within this process
+let _stateLibPath = null;
+let _stateLib = null;
+
 // Read JSON from stdin
 let input = '';
 process.stdin.setEncoding('utf8');
@@ -92,25 +96,27 @@ process.stdin.on('end', () => {
       if (fs.existsSync(cwdConfig)) {
         const cfg = JSON.parse(fs.readFileSync(cwdConfig, 'utf8'));
         if (cfg.daemon && cfg.daemon.status_line === true) {
-          const stateLibPath = path.join(homeDir, '.claude', 'devflow', 'bin', 'lib', 'watcher-state.cjs');
-          if (fs.existsSync(stateLibPath)) {
-            const stateLib = require(stateLibPath);
-            if (stateLib.isWatcherLive()) {
-              const info = stateLib.readPidFile();
-              const watching = (info && Array.isArray(info.watching)) ? info.watching : [];
-              let pendingCount = 0;
-              for (const projRoot of watching) {
-                try {
-                  const pendDir = path.join(projRoot, '.devflow-handoff', 'pending');
-                  if (fs.existsSync(pendDir)) {
-                    pendingCount += fs.readdirSync(pendDir).filter(f => f.endsWith('.json')).length;
-                  }
-                } catch { /* per-project errors swallowed; others still counted */ }
-              }
-              watcherStatus = pendingCount > 0
-                ? `\x1b[33m⏸ ${pendingCount} pending\x1b[0m`
-                : `\x1b[32m▶ watcher\x1b[0m`;
+          if (_stateLibPath === null) {
+            _stateLibPath = path.join(homeDir, '.claude', 'devflow', 'bin', 'lib', 'watcher-state.cjs');
+          }
+          if (_stateLib === null && fs.existsSync(_stateLibPath)) {
+            _stateLib = require(_stateLibPath);
+          }
+          if (_stateLib && _stateLib.isWatcherLive()) {
+            const info = _stateLib.readPidFile();
+            const watching = (info && Array.isArray(info.watching)) ? info.watching : [];
+            let pendingCount = 0;
+            for (const projRoot of watching) {
+              try {
+                const pendDir = path.join(projRoot, '.devflow-handoff', 'pending');
+                if (fs.existsSync(pendDir)) {
+                  pendingCount += fs.readdirSync(pendDir).filter(f => f.endsWith('.json')).length;
+                }
+              } catch { /* per-project errors swallowed; others still counted */ }
             }
+            watcherStatus = pendingCount > 0
+              ? `\x1b[33m⏸ ${pendingCount} pending\x1b[0m`
+              : `\x1b[32m▶ watcher\x1b[0m`;
           }
         }
       }

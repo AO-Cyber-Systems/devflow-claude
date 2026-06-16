@@ -16,6 +16,7 @@ depends_on: []                # Plan IDs this TRD requires
 files_modified: []            # Files this TRD touches
 autonomous: true              # false if TRD has checkpoints
 requirements: []              # REQUIRED — Requirement IDs from ROADMAP this TRD addresses. MUST NOT be empty.
+decision_gate: DECISION-NNN   # Optional — omit when absent; see below
 user_setup: []                # Human-required setup (omit if empty)
 
 must_haves:
@@ -125,6 +126,7 @@ After completion, create `.planning/objectives/XX-name/{objective}-{trd}-SUMMARY
 | `autonomous` | Yes | `true` if no checkpoints |
 | `requirements` | Yes | **MUST** list requirement IDs from ROADMAP. Every roadmap requirement ID MUST appear in at least one TRD. |
 | `user_setup` | No | Human-required setup items |
+| `decision_gate` | No | Decision id (e.g., `DECISION-001`) that must be resolved before this TRD can start; absent = independent |
 | `validation_gates` | No | Runnable lint/test/build commands from STACK.md |
 | `must_haves` | Yes | Goal-backward verification criteria |
 
@@ -142,6 +144,38 @@ Tasks may declare a caution attribute: `<task type="auto" caution="pause-before-
 Other values are warned and treated as absent. There is no TRD-level confidence flag — caution is per-task and opt-in.
 
 **Back-compat:** TRDs may still carry a `confidence:` frontmatter field from in-flight planning. Ignore it — do not error, do not branch on it.
+
+## decision_gate Frontmatter Field
+
+`decision_gate` is an optional field that links a TRD to a pending decision in the decision queue. When present, the TRD cannot start until the named decision is resolved.
+
+**Set by:** the planner, when a TRD's implementation path depends on a choice that has been parked (by a `checkpoint:decision` or a Rule 4 architectural stop) during autonomous execution.
+
+**Consumed by:**
+- `execute-objective.md`: computes the blocked set when parking a decision (TRDs with a matching `decision_gate` plus their transitive `depends_on` closure).
+- `df-tools decision-queue computeBlockedSet`: recomputes the blocked set at resume time for `/devflow:decide`.
+
+**Value format:** A `DECISION-NNN` id matching the filename in `.planning/decisions/pending/`.
+
+**Absent = independent.** A TRD without `decision_gate` is always eligible to execute (subject to normal `depends_on` ordering).
+
+**Example — a TRD gated on a parked architectural decision:**
+
+```yaml
+---
+objective: 05-payments
+trd: "03"
+type: standard
+wave: 2
+depends_on: ["05-02"]
+files_modified: [src/payments/processor.ts]
+autonomous: true
+requirements: [PAY-03]
+decision_gate: DECISION-001
+---
+```
+
+In this example, TRD 05-03 will be skipped during autonomous execution until `DECISION-001` is resolved via `/devflow:decide DECISION-001 <choice>`, which unblocks it for the next `/devflow:execute-objective` run.
 
 ## Context Section Rules
 

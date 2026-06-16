@@ -551,6 +551,19 @@ Dependency order:
 
 ---
 
+### Objective 24: Natural-language routing trigger fixes
+
+**Goal:** Natural-language prompts route to the correct DevFlow skill at every layer — the gate-edits override phrases actually work at runtime (single-turn marker written by route-intent, consumed by gate-edits), route-intent's INTENT_MAP fires on the flagship phrases each skill advertises ("build objective N", "execute objective N", "implement this"), the BUILD rule stops stealing todo/quick/objective-add prompts, override phrases and an active skill marker suppress the routing directive, and build vs execute-objective SKILL.md triggers are disambiguated. Tests cover real PreToolUse payload shapes (no user_message field).
+**Depends on:** Objective 23
+**TRDs:** 3 plans
+
+TRDs:
+- [x] 24-01-edit-override-marker-TRD.md — shared OVERRIDE_PHRASES/marker lib + gate-edits consumes .edit-override with TTL + realistic PreToolUse payload tests (Wave 1)
+- [x] 24-02-route-intent-rules-TRD.md — EXECUTE/TODO/QUICK rules, BUILD extension + suppression, override/skill-active directive suppression, marker write, cross-hook e2e (Wave 2)
+- [x] 24-03-skill-trigger-disambiguation-TRD.md — execute-objective vs build trigger disambiguation + quick/help generic-trigger tightening (Wave 1)
+
+---
+
 ## Milestone v1.2 — Token Efficiency + Ambient Mode + Handoff Polish (in flight)
 
 **Goal:** Three threads. (1) Cut per-invocation token cost (300-600k → 200-400k target) by consolidating skills, extracting prompts to references, and dropping low-leverage features. (2) Convert routing from advisory to authoritative (0% → 90% obedience target) so DevFlow gets used in the 88% of sessions that currently bypass it. (3) Close the "Claude continues executing" promise for TTY-interactive auth (PTY) + polish the coordination layer.
@@ -710,7 +723,39 @@ PTY → Daemon polish bundle
 | /devflow:micro invocations/week | 0 | ≥30 |
 | Avg DevFlow session token cost | 300-600k | 200-400k |
 
+### Objective 10: Autonomous mode overhaul
+
+**Goal:** Autonomous end-to-end operation — verifier-delegated (machine-verified) checkpoints, a decision queue that parks design choices without halting independent work, auto-resume/retry hooks, hardened agent frontmatter (worktree isolation, maxTurns, memory), wired-or-removed config gates, and a `mode: "autonomous"` preset + unattended runbook. Humans stop only for design/architecture decisions, auth, and destructive actions.
+**Depends on:** Objective 9
+**Jobs:** 3/3 jobs complete
+
+Jobs:
+- [x] 10-01-autonomous-config-foundation-TRD.md — mode "autonomous" preset in loadConfig + template + marker gitignore
+- [x] 10-02-verifier-delegated-checkpoints-TRD.md — human-verify checkpoints delegated to verifier agent (green evidence or escalate)
+- [x] 10-03-decision-queue-TRD.md — decision-queue lib/CLI + /devflow:decide skill + OS notification
+- [x] 10-04-decision-wiring-wave-failures-TRD.md — park decisions/Rule-4 stops, continue independent waves, retry-once + dependency-aware skip
+- [x] 10-05-stop-hook-auto-resume-TRD.md — Stop hook decision:block resume, bounded 3 attempts per objective
+- [x] 10-06-subagent-retry-hook-TRD.md — SubagentStop retries failed executor once with feedback
+- [x] 10-07-agent-hardening-TRD.md — maxTurns/worktree isolation/memory frontmatter + worktree-aware spawn/merge
+- [x] 10-08-config-integrity-destamping-TRD.md — remove dead gates, batch new-project questions, autonomous de-stamping
+- [x] 10-09-unattended-runbook-TRD.md — references/unattended-operation.md + settings exposure
+
+### Objective 23: Claude compatibility cleanup
+
+**Goal:** Align the plugin with current Claude Code for token efficiency and correctness — atomic mirror sync excluding test code, deprecated-skill removal, description/context-injection trims, gate-commits bypass fix, legacy workflow deletion, statusline caching, and agent-prompt dedup against references.
+**Depends on:** Objective 10
+**TRDs:** 5 plans
+
+TRDs:
+- [x] 23-01-sync-runtime-atomic-TRD.md — atomic mirror swap, test-code exclusions, content-sentinel self-heal (Wave 1)
+- [x] 23-02-hook-fixes-TRD.md — route-intent compact injection (<=400B), gate-commits ROADMAP/objectives gating fix, statusline stateLib cache (Wave 1)
+- [x] 23-03-deprecated-removal-TRD.md — delete 13 redirect skill dirs + execute-job.md, repoint references, update deprecation docs (Wave 1)
+- [x] 23-04-description-trims-TRD.md — trim 8 oversized skill descriptions to <=350 chars, content moved to bodies (Wave 1)
+- [x] 23-05-agent-dedup-TRD.md — planner/executor dedup vs references, new deviation-rules.md, before/after token measurements (Wave 2)
+
 ### Objective 10: Flutter UI verification process
+
+<!-- NOTE: duplicate objective number — this "10" was planned/shipped in a parallel session (released v2.2.0) independently of "Objective 10: Autonomous mode overhaul" above. Both are complete; kept under their original numbers to preserve directory/commit references. -->
 
 **Goal:** Add a devflow process layer that reduces Flutter UI bug rate by enforcing state coverage, integration_test verification, and Maestro automation at plan + execute + verify stages. Stack-focused: Flutter mobile + Flutter web. Establishes a three-layer testing pyramid (widget tests → integration_test → Maestro) with schema-enforced coverage requirements per artifact.
 

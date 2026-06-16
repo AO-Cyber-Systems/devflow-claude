@@ -1,9 +1,8 @@
 ---
 name: tui
 description: |
-  Open the program-aware TUI viewer — a read-only terminal UI showing parallel sessions + their position in the org tree. Three vertically-stacked panels: org tree (Product × Quarter from the Product Roadmap project), peer awareness (active branches with author + objective + last commit), and active initiatives (slug + Why summary + open question count). tmux-pane safe; reflows narrow terminals (< 80 cols). Read-only — no mutation. `r` refreshes; `q` exits cleanly.
-  Use when the user wants to see what's happening across parallel sessions, get a high-level view of the program/initiative landscape, or visualize where their current work sits in the org. Composes obj 1 (gh chain) + obj 2 (peer awareness) + obj 5 (initiatives) + obj 6 (todo aggregation cache) into a single screen.
-  Triggers on: "open tui", "show tui", "program viewer", "what's running across sessions", "show org tree", "tui", "show peer sessions", "what's everyone working on", "tui viewer".
+  Open the program-aware TUI viewer — read-only terminal UI showing parallel sessions, org tree, and active initiatives in three stacked panels. tmux-safe; reflows narrow terminals.
+  Triggers on: "open tui", "show tui", "what's running across sessions", "show org tree".
 argument-hint: "[--once] [--raw] [--no-color] [--reset-only]"
 allowed-tools:
   - Bash
@@ -24,6 +23,8 @@ Modes:
 Auto-fallback: when stdout is non-TTY (piped, redirected, running in a non-interactive environment), `df-tools tui` automatically switches to `--once --raw` mode.
 
 Locked v1.1 limitations: read-only (no mutations), manual refresh only (no auto-poll), 3 stacked panels (no multi-pane layouts), `r` and `q` are the only keystrokes accepted.
+
+Composes obj 1 (gh chain) + obj 2 (peer awareness) + obj 5 (initiatives) + obj 6 (todo aggregation cache) into a single screen.
 </objective>
 
 <execution_context>
@@ -77,4 +78,8 @@ Subcommand options:
 - `df-tools tui --reset-only` — emit recovery escapes (cursor-show + alt-screen-leave + SGR-reset). Use after a killed session.
 
 Requires obj 2 awareness cache (`/devflow:awareness scan-peer`) and obj 5 initiatives (`/devflow:initiatives sync`) for the richest view. With neither cached, the TUI still renders — it just shows "(no peer sessions)" / "(no org context)" / "(no initiatives)" placeholders. Never crashes (SC-8 resilience).
+
+## Triggers
+
+Use when the user wants to see what's happening across parallel sessions, get a high-level view of the program/initiative landscape, or visualize where their current work sits in the org. Also fires on: "show tui", "program viewer", "show peer sessions", "what's everyone working on", "tui viewer".
 </context>

@@ -1796,18 +1796,16 @@ describe('check-todos: Group E2E — self-test + integration (TRD 06-04)', () =>
     assert.strictEqual(result.cached, false, 'Expected cached=false under --refresh');
   });
 
-  it('E2E3: skill exists check — SKILL.md present with correct frontmatter + deprecation redirect (TRD 12-03)', () => {
+  it('E2E3: skill dir removed (TRD 23-03) — workflow dispatch target still present', () => {
     const fs = require('fs');
     const path = require('path');
     const repoRoot = process.cwd();
+    // TRD 23-03: the check-todos redirect skill dir was removed in v2.2.
+    // The skill directory must NOT exist (deprecated redirect shim deleted).
     const skillPath = path.join(repoRoot, 'plugins', 'devflow', 'skills', 'check-todos', 'SKILL.md');
-
-    assert.ok(fs.existsSync(skillPath), `SKILL.md must exist at ${skillPath}`);
-    const content = fs.readFileSync(skillPath, 'utf-8');
-    assert.match(content, /^name: check-todos/m, 'frontmatter must have name: check-todos');
-    // TRD 12-03: check-todos is now a deprecation redirect to /devflow:todo list
-    // The skill logs deprecation via df-tools deprecation log and forwards to /devflow:todo list
-    assert.match(content, /DEPRECATED/, 'skill body must include DEPRECATED notice');
-    assert.match(content, /deprecation log check-todos/, 'skill body must invoke df-tools deprecation log check-todos');
+    assert.ok(!fs.existsSync(skillPath), `check-todos redirect skill dir must be deleted in v2.2 (${skillPath} should not exist)`);
+    // The SKILL_ROUTES dispatch target (workflow) must still exist.
+    const workflowPath = path.join(repoRoot, 'plugins', 'devflow', 'devflow', 'workflows', 'check-todos.md');
+    assert.ok(fs.existsSync(workflowPath), `workflow dispatch target must still exist at ${workflowPath}`);
   });
 });

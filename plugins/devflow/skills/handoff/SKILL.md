@@ -1,10 +1,9 @@
 ---
 name: handoff
 description: |
-  Hand off an interactive or shell-flow command to the user's shell so the session keeps flowing.
-  Use proactively when a command will need a TTY (doctl auth init, gcloud auth login, gh auth login, op signin, npm login) OR the user's interactive shell environment (nvm use, mise use, conda activate, direnv, pyenv shell).
-  When the devflow-watch daemon is running, the handoff is fully non-disruptive — Claude continues executing while the daemon runs the command and returns the result on the next turn.
-  Triggers on: "auth init", "log in to", "interactive command", "needs my password", "I need to paste a token", "needs my shell environment", "nvm/mise/conda activate"
+  Hand off a TTY-required or shell-env-dependent command to the user's shell.
+  Use for auth flows (gh auth login, doctl auth init, npm login) or shell-init commands (nvm/mise/conda activate, direnv). Non-disruptive when devflow-watch is running.
+  Triggers on: "auth init", "log in to", "needs my password", "needs my shell environment".
 argument-hint: <command to run interactively or via user shell>
 allowed-tools:
   - Bash
@@ -20,6 +19,12 @@ Use this when:
 - You want to pre-empt the friction before the harness fights an interactive prompt
 
 Out of scope: commands that can run non-interactively via flags or env vars (e.g. `gh auth login --with-token < tokenfile`). Prefer the non-interactive form when available.
+
+## Triggers
+
+Triggers on: "auth init", "log in to", "interactive command", "needs my password", "I need to paste a token", "needs my shell environment", "nvm/mise/conda activate".
+
+When the devflow-watch daemon is running, the handoff is fully non-disruptive — Claude continues executing while the daemon runs the command and returns the result on the next turn.
 </objective>
 
 <execution_context>

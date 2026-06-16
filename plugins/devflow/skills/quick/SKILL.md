@@ -3,7 +3,7 @@ name: quick
 description: |
   Small features (single executor, no planner, no verifier) — between micro (1-line) and build (multi-subsystem). Cutoff: <5 files, <200 LOC, no new abstractions.
   Use when the change is too big for /devflow:micro but doesn't warrant full /devflow:build planning.
-  Triggers on: "small change", "small feature", "5-file change", "isolated bug fix", "do this", "tackle this", "make a quick pass"
+  Triggers on: "small change", "small feature", "5-file change", "isolated bug fix", "do this small task", "tackle this small change", "make a quick pass"
 argument-hint: "[--full]"
 allowed-tools:
   - Read

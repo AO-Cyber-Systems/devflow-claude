@@ -55,7 +55,7 @@ describe('INTENT_MAP — exported shape', () => {
     }
   });
 
-  test('INTENT_MAP contains consolidated skills: build, debug, plan-objective, verify-work, status, status resume, status pause, objective add, new-project, research-objective, micro', () => {
+  test('INTENT_MAP contains consolidated skills: build, debug, plan-objective, verify-work, status, status resume, status pause, objective add, new-project, research-objective, micro, execute-objective, todo add, quick', () => {
     const skills = new Set(INTENT_MAP.map(e => e.skill));
     const required = [
       '/devflow:build',
@@ -69,6 +69,9 @@ describe('INTENT_MAP — exported shape', () => {
       '/devflow:new-project',
       '/devflow:research-objective',
       '/devflow:micro',
+      '/devflow:execute-objective',
+      '/devflow:todo add',
+      '/devflow:quick',
     ];
     for (const skill of required) {
       assert.ok(skills.has(skill),
@@ -190,6 +193,57 @@ describe('renderDirective — box-drawn directive', () => {
     assert.ok(directive.includes('╚'),
       `renderDirective output missing box-drawn corner ╚:\n${directive}`);
   });
+
+});
+
+// ---------------------------------------------------------------------------
+// matchIntent — exclusivity (BUILD suppression post-filter)
+// ---------------------------------------------------------------------------
+
+describe('matchIntent — exclusivity (BUILD suppressed when todo/quick/objective-add fires)', () => {
+  test('matchIntent("Add an objective for caching") deep-equals ["/devflow:objective add"]', () => {
+    assert.deepEqual(
+      matchIntent('Add an objective for caching').map(m => m.skill),
+      ['/devflow:objective add'],
+      'BUILD must be suppressed when objective-add fires'
+    );
+  });
+
+  test('matchIntent("add a todo to refactor the parser") deep-equals ["/devflow:todo add"]', () => {
+    assert.deepEqual(
+      matchIntent('add a todo to refactor the parser').map(m => m.skill),
+      ['/devflow:todo add'],
+      'BUILD must be suppressed when todo-add fires'
+    );
+  });
+
+  test('matchIntent("make a quick pass over the error handling") deep-equals ["/devflow:quick"]', () => {
+    assert.deepEqual(
+      matchIntent('make a quick pass over the error handling').map(m => m.skill),
+      ['/devflow:quick'],
+      'BUILD must be suppressed when quick fires'
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// matchIntent — skillActive option (pure, no fs)
+// ---------------------------------------------------------------------------
+
+describe('matchIntent — skillActive option', () => {
+  test('matchIntent("Fix the login bug", { skillActive: true }) returns []', () => {
+    assert.deepEqual(
+      matchIntent('Fix the login bug', { skillActive: true }),
+      [],
+      'skillActive: true must suppress all matches'
+    );
+  });
+
+  test('matchIntent("Fix the login bug") still fires (back-compat, single-arg)', () => {
+    const skills = matchIntent('Fix the login bug').map(m => m.skill);
+    assert.ok(skills.length > 0, 'single-arg call must still fire');
+    assert.ok(skills.includes('/devflow:debug'), 'must include /devflow:debug');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -264,6 +318,8 @@ describe('renderDirective — enriched matches + echo + disambiguation', () => {
 // Subprocess e2e tests (2 cases — keep overhead low)
 // ---------------------------------------------------------------------------
 
+const GATE_EDITS_PATH = path.join(__dirname, 'gate-edits.js');
+
 function mkAmbientTmpProject() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'route-intent-'));
   fs.mkdirSync(path.join(root, '.planning'), { recursive: true });
@@ -276,6 +332,18 @@ function runHook(payload, cwd) {
     input: JSON.stringify(payload),
     encoding: 'utf-8',
   });
+}
+
+// Helper: build realistic UserPromptSubmit payload (TRD 24-02 decision 8 realism)
+function realUserPromptSubmitPayload(prompt, cwd) {
+  return {
+    session_id: 'test-session',
+    transcript_path: '/tmp/transcript.jsonl',
+    cwd,
+    permission_mode: 'default',
+    hook_event_name: 'UserPromptSubmit',
+    prompt,
+  };
 }
 
 describe('hook subprocess — e2e', () => {
@@ -306,6 +374,124 @@ describe('hook subprocess — e2e', () => {
         'expected empty stdout when no .planning/ directory exists');
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TRD 24-02: main() wiring — marker write, skill-active suppression, e2e
+// ---------------------------------------------------------------------------
+
+describe('route-intent main() — realistic UserPromptSubmit e2e', () => {
+  // Case 2: realistic UserPromptSubmit payload + execute intent → directive with execute-objective
+  test('realistic payload "execute objective 3" → additionalContext includes /devflow:execute-objective and OBLIGATORY', () => {
+    const { root, cleanup } = mkAmbientTmpProject();
+    try {
+      const payload = realUserPromptSubmitPayload('execute objective 3', root);
+      const result = runHook(payload, root);
+      assert.equal(result.status, 0, `hook exited non-zero: ${result.stderr}`);
+      assert.ok(result.stdout.length > 0,
+        'expected non-empty stdout for "execute objective 3" in ambient project');
+      const out = JSON.parse(result.stdout);
+      const ctx = out.hookSpecificOutput.additionalContext;
+      assert.ok(ctx.includes('/devflow:execute-objective'),
+        `additionalContext missing "/devflow:execute-objective":\n${ctx}`);
+      assert.ok(ctx.includes('OBLIGATORY'),
+        `additionalContext missing "OBLIGATORY":\n${ctx}`);
+    } finally {
+      cleanup();
+    }
+  });
+
+  // Case 3: .planning/.skill-active present → empty stdout (no directive)
+  test('.planning/.skill-active present → empty stdout (no directive injected mid-skill)', () => {
+    const { root, cleanup } = mkAmbientTmpProject();
+    try {
+      fs.writeFileSync(
+        path.join(root, '.planning', '.skill-active'),
+        JSON.stringify({ skill: 'executor', started_at: new Date().toISOString() })
+      );
+      const payload = realUserPromptSubmitPayload('Fix the login bug', root);
+      const result = runHook(payload, root);
+      assert.equal(result.status, 0, `hook exited non-zero: ${result.stderr}`);
+      assert.equal(result.stdout, '',
+        'expected empty stdout when .skill-active is present');
+    } finally {
+      cleanup();
+    }
+  });
+
+  // Case 4: override phrase → empty stdout AND .edit-override marker written
+  test('override phrase "skip devflow and fix the bug in the auth flow" → empty stdout + marker written', () => {
+    const { root, cleanup } = mkAmbientTmpProject();
+    try {
+      const payload = realUserPromptSubmitPayload('skip devflow and fix the bug in the auth flow', root);
+      const result = runHook(payload, root);
+      assert.equal(result.status, 0, `hook exited non-zero: ${result.stderr}`);
+      assert.equal(result.stdout, '',
+        'expected empty stdout for override phrase (no directive)');
+      assert.ok(
+        fs.existsSync(path.join(root, '.planning', '.edit-override')),
+        '.planning/.edit-override marker must exist after override phrase'
+      );
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TRD 24-02: Cross-hook e2e — decision-1 end-to-end proof
+// route-intent writes .edit-override; gate-edits consumes it (allow + deleted)
+// ---------------------------------------------------------------------------
+
+describe('cross-hook e2e — route-intent marker consumed by gate-edits', () => {
+  test('override prompt → marker written by route-intent → gate-edits allows edit AND deletes marker', () => {
+    const { root, cleanup } = mkAmbientTmpProject();
+    try {
+      // Step 1: run route-intent with override prompt — should produce empty stdout + write marker
+      const routePayload = realUserPromptSubmitPayload('just edit the config loader to add a retry', root);
+      const routeResult = spawnSync('node', [HOOK_PATH], {
+        cwd: root,
+        input: JSON.stringify(routePayload),
+        encoding: 'utf-8',
+      });
+      assert.equal(routeResult.status, 0, `route-intent exited non-zero: ${routeResult.stderr}`);
+      assert.equal(routeResult.stdout, '', 'route-intent must produce empty stdout for override phrase');
+      const markerPath = path.join(root, '.planning', '.edit-override');
+      assert.ok(fs.existsSync(markerPath), '.edit-override marker must be written by route-intent');
+
+      // Step 2: run gate-edits with realistic PreToolUse Edit payload in the same project
+      // PreToolUse payloads carry no user_message/prompt keys — only session/tool info
+      const gatePayload = {
+        session_id: 'test-session',
+        transcript_path: '/tmp/transcript.jsonl',
+        cwd: root,
+        permission_mode: 'default',
+        hook_event_name: 'PreToolUse',
+        tool_name: 'Edit',
+        tool_input: {
+          file_path: path.join(root, 'src', 'config-loader.js'),
+          old_string: 'timeout: 1000',
+          new_string: 'timeout: 3000',
+        },
+      };
+      const gateResult = spawnSync('node', [GATE_EDITS_PATH], {
+        cwd: root,
+        input: JSON.stringify(gatePayload),
+        encoding: 'utf-8',
+      });
+      assert.equal(gateResult.status, 0, `gate-edits exited non-zero: ${gateResult.stderr}`);
+      // gate-edits must produce empty stdout (allow decision — no deny output)
+      assert.equal(gateResult.stdout, '',
+        'gate-edits must produce empty stdout (allow) after consuming override marker');
+      // marker must be deleted (consumed on read)
+      assert.ok(
+        !fs.existsSync(markerPath),
+        '.edit-override marker must be deleted after gate-edits consumes it'
+      );
+    } finally {
+      cleanup();
     }
   });
 });

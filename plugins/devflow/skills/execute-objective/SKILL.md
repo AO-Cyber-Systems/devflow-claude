@@ -2,8 +2,8 @@
 name: execute-objective
 description: |
   Execute all planned tasks for an objective, running independent tasks in parallel for speed.
-  Use when the user wants to build, run, or execute a planned objective.
-  Triggers on: "execute objective", "run objective", "build objective", "start building", "run the jobs", "let's build"
+  Use when the user wants to run or execute an already-planned objective.
+  Triggers on: "execute objective", "run objective", "run the jobs", "run the planned objective", "execute the plan"
 argument-hint: "<phase-number> [--gaps-only]"
 allowed-tools:
   - Read
@@ -19,7 +19,7 @@ allowed-tools:
 <objective>
 Execute all jobs in an objective using wave-based parallel execution.
 
-Orchestrator stays lean: discover plans, analyze dependencies, group into waves, spawn subagents, collect results. Each subagent loads the full execute-job context and handles its own job.
+Orchestrator stays lean: discover plans, analyze dependencies, group into waves, spawn subagents, collect results. Each subagent loads the full execute-trd context and handles its own TRD.
 
 Context budget: ~15% orchestrator, 100% fresh per subagent.
 </objective>

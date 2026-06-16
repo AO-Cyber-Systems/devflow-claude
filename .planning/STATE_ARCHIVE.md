@@ -46,6 +46,27 @@ STATE.md stays lean; this file grows over time.
 - [Objective 18]: bootstrapObjectiveMd mirrors bootstrapProjectMd return shape { applied, added_fields, path, reason } — consistent contract across all bootstrap helpers
 - [Objective 18]: backfillAllObjectives uses sorted fs.readdirSync for cross-platform determinism; per-dir try/catch with errors[] aggregation
 - [Objective 18]: Cache-only preview helpers in init.cjs — _buildCheckTodosPreview reads parsed.now array, _buildAwarenessPreview filters current branch from peer.branches; advisories_warnings always emitted as [] for stable JSON shape
+- [Objective 10-autonomous-mode-overhaul]: Blocked-set computation at orchestrator level from already-loaded wave/depends_on data; computeBlockedSet reserved for resume-time recomputation
+- [Objective 10-autonomous-mode-overhaul]: Rule 4 returns parked as type: rule-4-deviation using same decision-queue add path as checkpoint:decision
+- [Objective 10]: Pending decisions in Stop hook use 3-cap bound rather than bypass: pending ids appear in the reason string on every block attempt; the cap ends the loop regardless
+- [Objective 10]: executor.md hardened: maxTurns:50, isolation:worktree; permissionMode omitted with comment (silently ignored for plugin agents)
+- [Objective 10]: verifier.md hardened: maxTurns:30, memory:project; executor intentionally omits memory (fresh context per plan)
+- [Objective 10]: execute-objective.md: TRD content embedded inline in executor spawn prompts + step 5b post-wave worktree merge before spot-checks
+- [Objective 10]: unattended-operation.md documents all shipped autonomous-mode mechanics as operator card; mode question added to settings SKILL.md
+- [Objective 23]: gate-commits initialization check uses ROADMAP.md or objectives/ presence rather than STATE.md
+- [Objective 23]: route-intent renderDirective compact rewrite: 5-line adaptive-width box, 396 bytes (was 1564)
+- [Objective 23]: 23-04: Moved trigger lists into ## Triggers body sections rather than deleting; help SKILL.md at 265 chars already compliant
+- [Objective 23]: execute-trd.md cross-ref phrases removed inline (option b) — no content added, just stale execute-job refs deleted
+- [Objective 23]: check-todos E2E3 test updated to assert skill dir removed in v2.2 rather than restoring deleted dir
+- [Objective 23]: Extracted executor deviation Rules 1-4 byte-faithful to references/deviation-rules.md; RULE PRIORITY kept inline
+- [Objective 24]: build/SKILL.md left unchanged — decision 6 locks build-flavored triggers to build skill only; execute-objective now uses execution-only phrasing with zero trigger overlap
+- [Objective 24]: quick/help generic triggers tightened — 'do this'→'do this small task', 'tackle this'→'tackle this small change', bare 'help'→'devflow help' (decision 7 description part complete)
+- [Objective 24-natural-language-routing-trigger-fixes]: OVERRIDE_PHRASES single source in hooks/lib/edit-override.js; gate-edits re-exports for back-compat with route-intent and tests
+- [Objective 24-natural-language-routing-trigger-fixes]: consumeEditOverrideMarker deletes marker in BOTH fresh and stale cases (consume-on-read + stale cleanup); TTL = 5 minutes
+- [Objective 24-natural-language-routing-trigger-fixes]: gate-edits.js main() drops dead input.user_message read; overrideActive now computed via consumeEditOverrideMarker(planningDir) only
+- [Objective 24]: BUILD suppression post-filter (option c): apply suppressBuild on matched labels before Set/map; smallest diff, multi-intent preserved
+- [Objective 24]: matchIntent pure opts.skillActive: fs read stays in main(), matchIntent stays pure — mirrors gate-edits shouldGate pattern
+- [Objective 24]: Override marker write before early-return in main(): override prompts return [] but MUST arm gate bypass (decisions 1+4 from 24-CONTEXT.md)
 - [Objective 10-flutter-ui-verification-process]: 10-02: Flutter state-pattern catalog shipped (295 lines); HIGH=blocker/MEDIUM-LOW=advisory model; web verification via flutter drive (not Maestro, mobile-only-by-design due to #2591); setState patterns never block
 - [Objective 10-flutter-ui-verification-process]: Tests assert actual extractFrontmatter parser output for nested-object-in-block-array fields (api_contract, artifacts): parser captures dash-prefixed items as strings, not structured objects. Tests document this behavior accurately per TRD error recovery guidance.
 - [Objective 10-flutter-ui-verification-process]: FRONTMATTER_SCHEMAS.trd.required left unchanged at 8 fields — Flutter UI field enforcement is semantic (planner emits PLANNING INCONCLUSIVE), not schema-based. Case 12 regression guard protects this.
@@ -72,6 +93,9 @@ STATE.md stays lean; this file grows over time.
 | Objective 16 P01 | 9min | 3 tasks | 3 files |
 | Objective 17-phase-c-auto-init P04 | 5min | 2 tasks | 4 files |
 | Objective 18 P18-01 | 6 | 3 tasks | 20 files |
+| Objective 24 P03 | 354 | 2 tasks | 3 files |
+| Objective 24-natural-language-routing-trigger-fixes P01 | 949 | 2 tasks | 4 files |
+| Objective 24 P02 | 13 | 2 tasks | 3 files |
 | Objective 10-flutter-ui-verification-process P01 | 9 | 2 tasks | 2 files |
 | Objective 10 P03 | 13min | 2 tasks | 7 files |
 | Objective 10 P10-04a | 7min | 2 tasks | 3 files |

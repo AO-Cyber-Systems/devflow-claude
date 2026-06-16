@@ -125,6 +125,88 @@ function appendAuditLog(entry, logPath) {
   }
 }
 
+// ─── Autonomous resume (Stop-hook decision:block, TRD 10-05) ─────────────────
+
+const MAX_RESUME_ATTEMPTS = 3;
+
+/**
+ * Return true only when .planning/config.json has mode === "autonomous".
+ * Hooks cannot require df-tools, so we read config.json directly.
+ * Any error (missing, malformed, non-object) → false (safe default).
+ */
+function isAutonomousMode(planningDir) {
+  try {
+    const config = JSON.parse(fs.readFileSync(path.join(planningDir, 'config.json'), 'utf8'));
+    return config.mode === 'autonomous';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Return true when STATE.md contains an execution-in-progress keyword.
+ * Uses the same heuristic as verify-commits.js so both hooks agree.
+ */
+function isMidExecution(planningDir) {
+  try {
+    const stateContent = fs.readFileSync(path.join(planningDir, 'STATE.md'), 'utf8');
+    return stateContent.includes('Executing') || stateContent.includes('In progress');
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Parse the current objective number from STATE.md's Current Position section.
+ * Returns the number as a string (e.g. "10") or "current" as fallback.
+ */
+function parseObjectiveKey(planningDir) {
+  try {
+    const stateContent = fs.readFileSync(path.join(planningDir, 'STATE.md'), 'utf8');
+    const m = stateContent.match(/Objective[:\s]+(\w+)/);
+    return m ? m[1] : 'current';
+  } catch {
+    return 'current';
+  }
+}
+
+function resumeCounterPath(planningDir, objectiveKey) {
+  return path.join(planningDir, `.autonomous-resume-${objectiveKey}`);
+}
+
+function readResumeCount(planningDir, key) {
+  try {
+    return parseInt(fs.readFileSync(resumeCounterPath(planningDir, key), 'utf8').trim(), 10) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+function writeResumeCount(planningDir, key, count) {
+  try {
+    fs.writeFileSync(resumeCounterPath(planningDir, key), String(count));
+  } catch {}
+}
+
+function clearResumeCount(planningDir, key) {
+  try {
+    fs.unlinkSync(resumeCounterPath(planningDir, key));
+  } catch {}
+}
+
+/**
+ * List basenames of files in .planning/decisions/pending/.
+ * Returns [] when the directory is absent or unreadable.
+ */
+function listPendingDecisions(planningDir) {
+  try {
+    const pendingDir = path.join(planningDir, 'decisions', 'pending');
+    return fs.readdirSync(pendingDir).map(f => path.basename(f, '.md'));
+  } catch {
+    return [];
+  }
+}
+
 // ─── Read input from stdin (Stop hook payload) ────────────────────────────────
 
 function readStdin() {
@@ -185,7 +267,7 @@ function emitAuditEntry(planningDir) {
   }
 }
 
-// ─── Main: existing SUMMARY scan + new audit emit ────────────────────────────
+// ─── Main: existing SUMMARY scan + new audit emit + autonomous resume ────────
 
 function main() {
   const planningDir = findPlanningDir();
@@ -196,6 +278,46 @@ function main() {
 
   // New: emit audit log entry (best-effort)
   emitAuditEntry(planningDir);
+
+  // ── Autonomous resume gate (TRD 10-05) ──────────────────────────────────
+  // Wrap entirely so any unexpected error never crashes the Stop event.
+  try {
+    if (!isAutonomousMode(planningDir)) return;
+
+    if (!isMidExecution(planningDir)) {
+      // Execution completed cleanly — clear any stale counter and allow stop.
+      const objKey = parseObjectiveKey(planningDir);
+      clearResumeCount(planningDir, objKey);
+      return;
+    }
+
+    const objKey = parseObjectiveKey(planningDir);
+    const count = readResumeCount(planningDir, objKey);
+
+    if (count >= MAX_RESUME_ATTEMPTS) {
+      // Cap reached — allow stop and reset so the next run starts fresh.
+      clearResumeCount(planningDir, objKey);
+      return;
+    }
+
+    // Gate passed: block the Stop event and direct Claude to resume.
+    writeResumeCount(planningDir, objKey, count + 1);
+
+    const pendingIds = listPendingDecisions(planningDir);
+    const pendingNote = pendingIds.length > 0
+      ? ` Pending decisions awaiting human input: ${pendingIds.join(', ')}.`
+      : '';
+
+    const reason =
+      `DevFlow autonomous mode: mid-execution state detected — resuming (attempt ${count + 1}/${MAX_RESUME_ATTEMPTS}).` +
+      ` Read .planning/STATE.md for current position, then continue executing the in-flight objective via /devflow:execute-objective.` +
+      `${pendingNote}` +
+      ` Never use port 8080 for any verification server — use 8091.`;
+
+    process.stdout.write(JSON.stringify({ decision: 'block', reason }));
+  } catch {
+    // Silent failure — hook must never crash the Stop event.
+  }
 }
 
 if (require.main === module) main();
@@ -205,4 +327,9 @@ module.exports = {
   appendAuditLog,
   auditLogPath,
   findPlanningDir,
+  isAutonomousMode,
+  isMidExecution,
+  readResumeCount,
+  writeResumeCount,
+  clearResumeCount,
 };

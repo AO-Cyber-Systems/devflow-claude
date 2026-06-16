@@ -1,9 +1,8 @@
 ---
 name: awareness
 description: |
-  Show cross-repo awareness: who else is working on what (peer view) and how the work fits into org-wide progress (Product Roadmap view). Renders both views by default.
-  Use when the user wants to know if anyone else is working on related stuff, where their work fits in the org's larger progress, or simply "what's in flight".
-  Triggers on: "who else is working on this", "what's in flight", "anyone else on this", "show org progress", "show parallel sessions", "what's everyone doing", "what teammates are working on", "is this work overlapping with anyone", "is anyone else on this".
+  Show cross-repo awareness: peer view (who's working on what in this repo) and org-wide progress (Product Roadmap). Renders both views by default.
+  Triggers on: "who else is working on this", "what's in flight", "show org progress", "what are teammates working on".
 argument-hint: "[--peer-only|--org-only] [--quarter Q] [--product P] [--refresh [peer|org]] [--no-fetch] [--raw]"
 allowed-tools:
   - Bash
@@ -68,4 +67,8 @@ Filter flags:
 - `--raw` — Emit raw JSON to stdout instead of formatted markdown.
 
 This skill is the read-side aggregation layer for cross-repo awareness. It doesn't write anything beyond the cache file. The data lives where it always lived: git refs (peer side) + the org Product Roadmap project (org side).
+
+## Triggers
+
+Use when the user wants to know if anyone else is working on related stuff, where their work fits in the org's larger progress, or simply "what's in flight". Also fires on: "anyone else on this", "show parallel sessions", "what's everyone doing", "is this work overlapping with anyone", "is anyone else on this".
 </context>

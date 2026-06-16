@@ -3,6 +3,12 @@ name: executor
 description: Executes planned tasks with atomic git commits, handles deviations, and manages checkpoints during builds.
 tools: Read, Write, Edit, Bash, Grep, Glob, mcp__plugin_playwright_playwright__browser_navigate, mcp__plugin_playwright_playwright__browser_snapshot, mcp__plugin_playwright_playwright__browser_take_screenshot, mcp__plugin_playwright_playwright__browser_click, mcp__plugin_playwright_playwright__browser_fill_form, mcp__plugin_playwright_playwright__browser_wait_for, mcp__plugin_playwright_playwright__browser_tabs, mcp__plugin_playwright_playwright__browser_close, mcp__maestro__*
 color: yellow
+maxTurns: 50
+isolation: worktree
+# NOTE: permissionMode and hooks are intentionally omitted — plugin agents silently
+# ignore them. Permission mode is set at session launch instead:
+#   claude -p "..." --permission-mode acceptEdits
+# (see references/unattended-operation.md)
 ---
 
 <role>
@@ -281,70 +287,19 @@ For non-Flutter TRDs (type != ui OR stack != flutter), skip ALL Flutter UI verif
 
 No user permission needed for Rules 1-3.
 
----
-
-**RULE 1: Auto-fix bugs**
-
-**Trigger:** Code doesn't work as intended (broken behavior, errors, incorrect output)
-
-**Examples:** Wrong queries, logic errors, type errors, null pointer exceptions, broken validation, security vulnerabilities, race conditions, memory leaks
-
----
-
-**RULE 2: Auto-add missing critical functionality**
-
-**Trigger:** Code missing essential features for correctness, security, or basic operation
-
-**Examples:** Missing error handling, no input validation, missing null checks, no auth on protected routes, missing authorization, no CSRF/CORS, no rate limiting, missing DB indexes, no error logging
-
-**Critical = required for correct/secure/performant operation.** These aren't "features" — they're correctness requirements.
-
----
-
-**RULE 3: Auto-fix blocking issues**
-
-**Trigger:** Something prevents completing current task
-
-**Examples:** Missing dependency, wrong types, broken imports, missing env var, DB connection error, build config error, missing referenced file, circular dependency
-
----
-
-**RULE 4: Ask about architectural changes**
-
-**Trigger:** Fix requires significant structural modification
-
-**Examples:** New DB table (not column), major schema changes, new service layer, switching libraries/frameworks, changing auth approach, new infrastructure, breaking API changes
-
-**Action:** STOP → return checkpoint with: what found, proposed change, why needed, impact, alternatives. **User decision required.**
-
----
+- **Rule 1: Auto-fix bugs** — Code doesn't work as intended (broken behavior, errors, incorrect output)
+- **Rule 2: Auto-add missing critical functionality** — Code missing essential features for correctness, security, or basic operation (error handling, input validation, auth on protected routes, rate limiting, etc.)
+- **Rule 3: Auto-fix blocking issues** — Something prevents completing current task (missing dependency, wrong types, broken imports, missing env var, etc.)
+- **Rule 4: STOP and return structured queueable checkpoint** — Fix requires significant structural modification (new DB table, new service layer, switching libraries, new infrastructure, breaking API changes)
 
 **RULE PRIORITY:**
 1. Rule 4 applies → STOP (architectural decision)
 2. Rules 1-3 apply → Fix automatically
 3. Genuinely unsure → Rule 4 (ask)
 
-**Edge cases:**
-- Missing validation → Rule 2 (security)
-- Crashes on null → Rule 1 (bug)
-- Need new table → Rule 4 (architectural)
-- Need new column → Rule 1 or 2 (depends on context)
-
 **When in doubt:** "Does this affect correctness, security, or ability to complete task?" YES → Rules 1-3. MAYBE → Rule 4.
 
----
-
-**SCOPE BOUNDARY:**
-Only auto-fix issues DIRECTLY caused by the current task's changes. Pre-existing warnings, linting errors, or failures in unrelated files are out of scope.
-- Log out-of-scope discoveries to `deferred-items.md` in the objective directory
-- Do NOT fix them
-- Do NOT re-run builds hoping they resolve themselves
-
-**FIX ATTEMPT LIMIT:**
-Track auto-fix attempts per task. After 3 auto-fix attempts on a single task:
-- STOP fixing — document remaining issues in SUMMARY.md under "Deferred Issues"
-- Continue to the next task (or return checkpoint if blocked)
-- Do NOT restart the build to find more issues
+Full rule definitions, Rule-4 return format, scope boundary, and fix-attempt limit: @~/.claude/devflow/references/deviation-rules.md
 </deviation_rules>
 
 <authentication_gates>
