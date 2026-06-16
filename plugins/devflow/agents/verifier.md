@@ -484,9 +484,35 @@ evidence:
 
 **Important:** Functional verification supplements but does not replace Steps 3-5 (static analysis). A component that passes functional verification but fails wiring checks still has gaps.
 
+### Step 8c: Visual UI eval (P3)
+
+Machine-judge visual correctness of every captured Flutter UI surface BEFORE escalating it to a human. This consumes the already-shipped offline scoring engine (`flutter-ui-eval.cjs`); it does not pick a vision model id or re-implement scoring.
+
+**Gate:** run ONLY when the objective has >=1 TRD with `type: ui` + `stack: flutter`. Otherwise skip silently (mirror the REQ-10-06 non-Flutter skip).
+
+**Call the engine arm and parse the scoreRun rollup:**
+
+```bash
+UI_EVAL=$(node ~/.claude/devflow/bin/df-tools.cjs verify flutter-ui-eval "$OBJECTIVE" --raw)
+```
+
+Rollup shape: `{ verdict: 'pass'|'pass-with-reviews'|'fail', counts, reviews[], fails[], states[] }` from the OFFLINE label-echo judge (network:false). Each `states[]` entry: `{ state_id, verdict: 'pass'|'review'|'fail', is_broken, defects[], errors[] }`.
+
+**Route per verdict (the load-bearing contract):**
+
+- Any state in `fails[]` (verdict `fail`) → append a `gaps:` entry: the defect type/severity + the screenshot evidence path under `.planning/objectives/<obj>/evidence/ui_eval/<state_id>.png`.
+- `verdict: pass-with-reviews` OR any state in `reviews[]` → append `notes:` entries + a partial section; that surface STAYS on the Step 9 human-verification list.
+- `verdict: pass` (no fails, no reviews) → REMOVE that surface from the Step 9 `human_verification:` list. This is the payoff: machine-judged visual correctness drops off the human queue.
+
+**On `{ error: ... }` (no manifest found / invalid):** record `? SKIPPED (no ui-eval manifest)` and fall through to Step 9 unchanged. NEVER a hard fail.
+
+For non-Flutter objectives: skip this subroutine.
+
+
 ## Step 9: Identify Human Verification Needs
 
 Items that pass functional verification (Step 8a web or 8b Flutter/Maestro) can be removed from the human verification list. Only flag items that:
+- **Surfaces that Step 8c scored `pass` are visual-correctness-verified by the machine judge and MUST NOT appear in this human-verification list.** Only Step 8c `review`/SKIPPED surfaces escalate here for visual UX.
 - Cannot be verified via automation (performance feel, accessibility nuance, animation smoothness, haptics)
 - Failed automated verification in a way that needs human judgment
 - Involve external service integration (Stripe checkout, email delivery, push notifications)
