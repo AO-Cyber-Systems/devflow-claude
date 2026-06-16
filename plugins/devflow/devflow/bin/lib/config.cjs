@@ -10,7 +10,7 @@ function loadConfig(cwd) {
     mode: 'yolo',
     autonomous: false,
     auto_advance: true,
-    model_profile: 'balanced',
+    model_profile: 'quality',
     commit_docs: true,
     search_gitignored: false,
     branching_strategy: 'none',
@@ -108,7 +108,7 @@ function cmdConfigEnsureSection(cwd, raw) {
 
   // Create default config (user-level defaults override hardcoded defaults)
   const hardcoded = {
-    model_profile: 'balanced',
+    model_profile: 'quality',
     commit_docs: true,
     search_gitignored: false,
     branching_strategy: 'none',

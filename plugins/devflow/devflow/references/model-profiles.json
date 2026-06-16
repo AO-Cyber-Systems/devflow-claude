@@ -1,21 +1,21 @@
 {
   "models": {
-    "opus":   "claude-opus-4-6",
+    "opus":   "claude-opus-4-8",
     "sonnet": "claude-sonnet-4-6",
     "haiku":  "claude-haiku-4-5-20251001"
   },
   "agents": {
-    "df-planner":              { "quality": "opus",   "balanced": "opus",    "budget": "sonnet" },
-    "df-roadmapper":           { "quality": "opus",   "balanced": "sonnet",  "budget": "sonnet" },
-    "df-executor":             { "quality": "opus",   "balanced": "sonnet",  "budget": "sonnet" },
-    "df-objective-researcher": { "quality": "opus",   "balanced": "sonnet",  "budget": "haiku"  },
-    "df-project-researcher":   { "quality": "opus",   "balanced": "sonnet",  "budget": "haiku"  },
-    "df-research-synthesizer": { "quality": "sonnet", "balanced": "sonnet",  "budget": "haiku"  },
-    "df-debugger":             { "quality": "opus",   "balanced": "sonnet",  "budget": "sonnet" },
-    "df-codebase-mapper":      { "quality": "sonnet", "balanced": "haiku",   "budget": "haiku"  },
-    "df-verifier":             { "quality": "sonnet", "balanced": "sonnet",  "budget": "haiku"  },
-    "df-job-checker":          { "quality": "sonnet", "balanced": "sonnet",  "budget": "haiku"  },
-    "df-integration-checker":  { "quality": "sonnet", "balanced": "sonnet",  "budget": "haiku"  },
-    "df-security-auditor":     { "quality": "opus",   "balanced": "sonnet",  "budget": "sonnet" }
+    "planner":              { "quality": "opus",   "balanced": "opus",    "budget": "sonnet" },
+    "roadmapper":           { "quality": "opus",   "balanced": "sonnet",  "budget": "sonnet" },
+    "executor":             { "quality": "opus",   "balanced": "sonnet",  "budget": "sonnet" },
+    "objective-researcher": { "quality": "opus",   "balanced": "sonnet",  "budget": "haiku"  },
+    "project-researcher":   { "quality": "opus",   "balanced": "sonnet",  "budget": "haiku"  },
+    "research-synthesizer": { "quality": "sonnet", "balanced": "sonnet",  "budget": "haiku"  },
+    "debugger":             { "quality": "opus",   "balanced": "sonnet",  "budget": "sonnet" },
+    "codebase-mapper":      { "quality": "sonnet", "balanced": "haiku",   "budget": "haiku"  },
+    "verifier":             { "quality": "sonnet", "balanced": "sonnet",  "budget": "haiku"  },
+    "job-checker":          { "quality": "sonnet", "balanced": "sonnet",  "budget": "haiku"  },
+    "integration-checker":  { "quality": "sonnet", "balanced": "sonnet",  "budget": "haiku"  },
+    "security-auditor":     { "quality": "opus",   "balanced": "sonnet",  "budget": "sonnet" }
   }
 }
