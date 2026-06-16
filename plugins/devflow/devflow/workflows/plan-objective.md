@@ -727,6 +727,30 @@ Confidence: {Display confidence scores if checker ran, e.g., "01: 8/10, 02: 7/10
 
 ───────────────────────────────────────────────────────────────
 
+### Visual-Eval Gate (conditional — UI objectives only)
+
+If the planner reported a visual-eval gate for this objective (i.e. `decideUIEvalDefault.emit`
+was true / the plan contains a `## Visual-Eval Gate (auto-required)` section), then:
+
+1. Surface the gate's `callout` line in this Next Up block, e.g.:
+
+   > 👁 Visual-eval gate auto-required for {X}: author a ui_eval state-matrix manifest, then run /devflow:ui-eval after build.
+
+2. Create tracked session tasks via `TaskCreate` for EACH entry in the gate's `tasks` array
+   (the planner surfaced them in the Visual-Eval Gate section), e.g.:
+
+   ```
+   TaskCreate(subject="Author ui_eval state-matrix manifest for {X}", description="...", activeForm="Authoring ui_eval manifest")
+   TaskCreate(subject="Run /devflow:ui-eval visual gate for {X}", description="...", activeForm="Running /devflow:ui-eval gate")
+   ```
+
+   so the visual-eval steps are on the session task list and not forgotten.
+
+Non-UI objectives (no visual-eval gate) get NEITHER the callout line NOR the session tasks —
+this block is strictly conditional on the gate being on.
+
+───────────────────────────────────────────────────────────────
+
 **Also available:**
 - cat .planning/objectives/{objective-dir}/*-TRD.md — review plans
 - /devflow:plan-objective {X} --research — re-research first

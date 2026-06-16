@@ -1,0 +1,13 @@
+{
+  "state_id": "broken-overflow",
+  "surface": "web",
+  "screenshot_path": "./broken-overflow.png",
+  "viewport": { "width": 360, "height": 640 },
+  "captured_at": "2026-06-16T00:00:00.000Z",
+  "metadata": {
+    "console_errors": ["A RenderFlex overflowed by 217 pixels on the right."],
+    "flutter_view_bbox": { "x": 0, "y": 0, "width": 360, "height": 640 },
+    "fonts_ready": true,
+    "expected": "Dashboard shows a populated revenue chart and a non-empty table; no overflow, no blank regions."
+  }
+}

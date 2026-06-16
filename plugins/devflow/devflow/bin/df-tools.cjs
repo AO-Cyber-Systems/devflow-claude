@@ -184,7 +184,9 @@ const { cmdVerifyTrdPre } = require('./lib/trd-pre-check.cjs');
 const { cmdVerifyApiContract } = require('./lib/api-contract.cjs');
 const { cmdVerifyFlutterUIBootstrap } = require('./lib/flutter-ui-bootstrap.cjs');
 const { cmdFlutterUISetup } = require('./lib/flutter-ui-setup.cjs');
+const { cmdFlutterUIEvalBootstrap } = require('./lib/flutter-ui-eval-bootstrap.cjs');
 const { cmdVerifyFlutterStateCoverage } = require('./lib/flutter-state-coverage.cjs');
+const { cmdVerifyFlutterUIEval } = require('./lib/flutter-ui-eval.cjs');
 const { cmdDetectNovelDomain } = require('./lib/novel-domain.cjs');
 const { cmdDetectBrownfieldMap } = require('./lib/brownfield-detector.cjs');
 const { cmdDetectFlutterUIScope } = require('./lib/flutter-ui-scope.cjs');
@@ -410,8 +412,11 @@ async function main() {
       } else if (subcommand === 'flutter-state-coverage') {
         // verify flutter-state-coverage <trd-path> [--raw]
         cmdVerifyFlutterStateCoverage(cwd, args[2], raw);
+      } else if (subcommand === 'flutter-ui-eval') {
+        // verify flutter-ui-eval <manifest|captureResults> [--raw]
+        cmdVerifyFlutterUIEval(cwd, args.slice(2), raw);
       } else {
-        error('Unknown verify subcommand. Available: job-structure, objective-completeness, references, commits, artifacts, key-links, trd-pre, api-contract, flutter-ui-bootstrap, flutter-state-coverage');
+        error('Unknown verify subcommand. Available: job-structure, objective-completeness, references, commits, artifacts, key-links, trd-pre, api-contract, flutter-ui-bootstrap, flutter-state-coverage, flutter-ui-eval');
       }
       break;
     }
@@ -423,8 +428,14 @@ async function main() {
       const subcommand = args[1];
       if (subcommand === 'setup') {
         cmdFlutterUISetup(cwd, args.slice(2), raw);
+      } else if (subcommand === 'eval') {
+        // flutter-ui eval <manifest|captureResults> [--raw]
+        cmdVerifyFlutterUIEval(cwd, args.slice(2), raw);
+      } else if (subcommand === 'bootstrap') {
+        // flutter-ui bootstrap [project-dir] [--raw]
+        cmdFlutterUIEvalBootstrap(cwd, args[2], raw);
       } else {
-        error('Unknown flutter-ui subcommand. Available: setup');
+        error('Unknown flutter-ui subcommand. Available: setup, eval, bootstrap');
       }
       break;
     }
