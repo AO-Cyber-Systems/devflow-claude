@@ -49,7 +49,7 @@ function buildManifestStub(objective) {
  *   scope — a flutter-ui-scope detectFlutterUIScope result:
  *           { detected: boolean, signals?, platform?, state_management?, error? }
  *   objective — objective id (flows into the stub; defaults to a placeholder).
- * @returns {{ emit: boolean, visual_gate: boolean, manifest_stub?: object }}
+ * @returns {{ emit: boolean, visual_gate: boolean, manifest_stub?: object, callout?: string, tasks?: object[] }}
  *   Emit iff `scope.detected === true`. Non-ui / failsafe → { emit:false, visual_gate:false }.
  */
 function decideUIEvalDefault(input) {
@@ -61,10 +61,32 @@ function decideUIEvalDefault(input) {
     return { emit: false, visual_gate: false };
   }
 
+  const obj = objective || "<TODO: objective>";
   return {
     emit: true,
     visual_gate: true, // verifier Step 8c runs `df-tools verify flutter-ui-eval` on this objective
     manifest_stub: buildManifestStub(objective),
+    // CALLOUT-01: make the auto-required gate VISIBLE. A terse, factual line for the
+    // user-facing plan output + the Next Up block (one marker only — ui-brand restraint).
+    callout:
+      "\u{1F441} Visual-eval gate auto-required for " +
+      obj +
+      " (type:ui/stack:flutter detected): a ui_eval state-matrix manifest + the verifier " +
+      "visual step (df-tools verify flutter-ui-eval). Run /devflow:ui-eval after build to judge the rendered UI.",
+    // Session-task descriptors the skills (plan-objective/build) turn into TaskCreate entries.
+    tasks: [
+      {
+        subject: "Author ui_eval state-matrix manifest for " + obj,
+        description:
+          "Fill flutter/ui_eval/manifests/*.manifest.json states (route x data_state) with expected " +
+          "prose — the visual-eval anchor.",
+      },
+      {
+        subject: "Run /devflow:ui-eval visual gate for " + obj,
+        description:
+          "Capture + golden-diff + VLM-judge the rendered UI; fail/review surfaces as gaps/notes.",
+      },
+    ],
   };
 }
 
