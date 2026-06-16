@@ -225,33 +225,44 @@ function scoreRun(results, opts = {}) {
   const flakeBudget = typeof opts.flakeBudget === 'number' ? opts.flakeBudget : 1;
 
   const counts = { pass: 0, fail: 0, review: 0 };
-  const reviews = [];
-  const fails = [];
+  const reviews = [];          // UNEXPECTED reviews (expect=pass) — count against the flake budget
+  const fails = [];            // NEW/unexpected failures (expect=pass) — the regression signal
+  const known_failing = [];    // expect=fail AND still fail/review — a tracked known-broken state, NOT a new regression
+  const resolved = [];         // expect=fail BUT now passes — likely fixed; drop its known_broken flag
 
   for (const r of results) {
-    if (r.verdict === 'fail') {
-      counts.fail += 1;
-      fails.push(r.state_id);
-    } else if (r.verdict === 'review') {
-      counts.review += 1;
-      reviews.push(r.state_id);
+    // A state may declare its expected verdict (default 'pass'). known_broken states
+    // expected to gate-fail carry `expect: 'fail'` so they don't fail the whole run
+    // while open — but an UNEXPECTED pass (fixed) or a NEW fail still surfaces.
+    const expect = r.expect || 'pass';
+
+    // Raw counts reflect ACTUAL verdicts (for the report), independent of expectation.
+    if (r.verdict === 'fail') counts.fail += 1;
+    else if (r.verdict === 'review') counts.review += 1;
+    else counts.pass += 1;
+
+    if (expect === 'fail') {
+      if (r.verdict === 'pass') resolved.push(r.state_id);
+      else known_failing.push(r.state_id); // fail or review — expected while the issue is open
     } else {
-      counts.pass += 1;
+      // expect === 'pass' (default) — preserves the original behavior exactly.
+      if (r.verdict === 'fail') fails.push(r.state_id);
+      else if (r.verdict === 'review') reviews.push(r.state_id);
     }
   }
 
   let verdict;
   if (fails.length > 0) {
-    verdict = 'fail';
+    verdict = 'fail'; // a NEW/unexpected failure
   } else if (reviews.length > flakeBudget) {
-    verdict = 'fail'; // reviews exceeded the flake budget → escalate
+    verdict = 'fail'; // unexpected reviews exceeded the flake budget → escalate
   } else if (reviews.length > 0) {
     verdict = 'pass-with-reviews';
   } else {
     verdict = 'pass';
   }
 
-  return { verdict, counts, reviews, fails };
+  return { verdict, counts, reviews, fails, known_failing, resolved };
 }
 
 // ─── Injectable vision-judge boundary (impure; default real impl in TRD-02) ─────
@@ -466,7 +477,7 @@ function cmdVerifyFlutterUIEval(cwd, args, raw) {
     // Run the INJECTED offline judge through the real callVisionJudge -> validateJudgeResult.
     const judged = callVisionJudge({ capture, expected: st.expected, judge: offlineJudge });
     if (!judged.valid) {
-      stateResults.push({ state_id: st.state_id, verdict: 'review', advisories: judged.errors });
+      stateResults.push({ state_id: st.state_id, verdict: 'review', advisories: judged.errors, expect: st.expect });
       stateDetail.push({ state_id: st.state_id, verdict: 'review', is_broken: null, defects: [], errors: judged.errors });
       continue;
     }
@@ -474,7 +485,7 @@ function cmdVerifyFlutterUIEval(cwd, args, raw) {
     // Replicate to N identical samples (offline judge is deterministic) and score the state.
     const sampleSet = Array.from({ length: samples }, () => judged.result);
     const stateScore = scoreState({ samples: sampleSet });
-    stateResults.push({ state_id: st.state_id, verdict: stateScore.verdict, advisories: stateScore.advisories });
+    stateResults.push({ state_id: st.state_id, verdict: stateScore.verdict, advisories: stateScore.advisories, expect: st.expect });
     stateDetail.push({
       state_id: st.state_id,
       verdict: stateScore.verdict,
@@ -496,6 +507,8 @@ function cmdVerifyFlutterUIEval(cwd, args, raw) {
     counts: rollup.counts,
     reviews: rollup.reviews,
     fails: rollup.fails,
+    known_failing: rollup.known_failing, // expect:fail states still failing — tracked, not a new regression
+    resolved: rollup.resolved,           // expect:fail states now passing — likely fixed; drop the known_broken flag
     states: stateDetail,
   }, raw);
 }

@@ -82,6 +82,40 @@ test.describe('scoreRun (run-level rollup)', () => {
     assert.strictEqual(run.verdict, 'fail');
     assert.deepStrictEqual(run.fails, ['b']);
   });
+
+  // expect:fail regression semantics (known_broken states expected to gate-fail).
+  test('Case R4 — expect:fail + verdict:fail -> known_failing, NOT a run fail', () => {
+    const results = [
+      { state_id: 'a', verdict: 'pass', advisories: [] },
+      { state_id: 'known', verdict: 'fail', advisories: [], expect: 'fail' },
+    ];
+    const run = scoreRun(results);
+    assert.strictEqual(run.verdict, 'pass'); // the known-broken state does not fail the whole run
+    assert.deepStrictEqual(run.fails, []);
+    assert.deepStrictEqual(run.known_failing, ['known']);
+    assert.deepStrictEqual(run.resolved, []);
+  });
+
+  test('Case R5 — expect:fail + verdict:pass -> resolved (fixed; surfaced for flag cleanup)', () => {
+    const results = [
+      { state_id: 'known', verdict: 'pass', advisories: [], expect: 'fail' },
+    ];
+    const run = scoreRun(results);
+    assert.strictEqual(run.verdict, 'pass');
+    assert.deepStrictEqual(run.resolved, ['known']);
+    assert.deepStrictEqual(run.known_failing, []);
+  });
+
+  test('Case R6 — a NEW (expect:pass) fail still fails the run alongside a known_failing', () => {
+    const results = [
+      { state_id: 'known', verdict: 'fail', advisories: [], expect: 'fail' },
+      { state_id: 'new', verdict: 'fail', advisories: [] }, // expect defaults to pass
+    ];
+    const run = scoreRun(results);
+    assert.strictEqual(run.verdict, 'fail');
+    assert.deepStrictEqual(run.fails, ['new']);           // only the NEW regression
+    assert.deepStrictEqual(run.known_failing, ['known']); // the known one is tracked, not a regression
+  });
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
