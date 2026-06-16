@@ -19,6 +19,9 @@
  *
  * Flutter detection is delegated to detectPubspecFlutter from flutter-ui-scope.cjs
  * (locked reuse per OBJECTIVE.md P4 — no reinvented pubspec parse).
+ *
+ * Idempotency contract: scaffolding is a no-op on re-run. Presence is decided by
+ * checking each target path; the marker is the LAST write so a failed run retries.
  */
 
 const fs = require('fs');
@@ -37,6 +40,80 @@ const MARKER_REL = path.join('.planning', '.flutter-ui-eval-bootstrap-done');
 
 // Token used to detect (and to mark) the `ui_eval` Playwright project entry.
 const PLAYWRIGHT_PROJECT_TOKEN = "name: 'ui_eval'";
+
+// ─── Scaffold content templates (authored, never LLM-generated) ──────────────
+
+/** Shape-A manifest skeleton — JSON-parseable, matches the engine's loadManifest. */
+const MANIFEST_SKELETON = JSON.stringify(
+  {
+    objective: '<TODO: describe the screen/flow under visual evaluation>',
+    samples: 3,
+    flakeBudget: 1,
+    states: [
+      // Example Shape-A state (uncomment + edit):
+      // {
+      //   "state_id": "dashboard-populated",
+      //   "route": "/dashboard",
+      //   "data_state": "populated",
+      //   "viewport": { "width": 1280, "height": 800 },
+      //   "expected": "Populated revenue chart and a non-empty table; no overflow, no blank regions.",
+      //   "capture_path": "./captures/dashboard-populated.capture.json",
+      //   "screenshot_path": "./captures/dashboard-populated.png"
+      // }
+    ],
+  },
+  null,
+  2,
+) + '\n';
+
+/** Capture-adapter stub — web Playwright adapter scaffold. */
+const ADAPTER_STUB = `// captureWeb.js — UI-visual-eval web capture adapter (scaffolded by df-tools flutter-ui bootstrap).
+//
+// Drives the Flutter-web build under Playwright and emits one capture artifact per
+// manifest state ({ label, screenshot_path, ... }) that the offline judge consumes.
+//
+// TODO: implement captureState(page, state) to:
+//   1. navigate to state.route on the running flutter-web build
+//   2. apply state.viewport + state.data_state
+//   3. screenshot to state.screenshot_path
+//   4. write the sibling state.capture_path JSON
+//
+// See bin/lib/__fixtures__/flutter-ui-eval/*.capture.json for the capture shape.
+
+'use strict';
+
+async function captureState(/* page, state */) {
+  throw new Error('captureWeb.captureState not implemented — scaffolded stub');
+}
+
+module.exports = { captureState };
+`;
+
+/** Playwright config scaffold — created when no playwright.config.js exists. */
+const PLAYWRIGHT_CONFIG_NEW = `// playwright.config.js — scaffolded by df-tools flutter-ui bootstrap.
+// Adds a dedicated \`ui_eval\` project for UI-visual-eval capture runs.
+module.exports = {
+  projects: [
+    {
+      ${PLAYWRIGHT_PROJECT_TOKEN},
+      testDir: './web_e2e/tests/ui_eval',
+      snapshotDir: './web_e2e/tests/ui_eval/__screenshots__',
+    },
+  ],
+};
+`;
+
+/** Appended block when a playwright.config.js exists but lacks the ui_eval project. */
+const PLAYWRIGHT_PROJECT_APPEND = `
+
+// ── Appended by df-tools flutter-ui bootstrap: UI-visual-eval project ──
+// Merge the following project entry into your existing config's \`projects\` array:
+//   {
+//     ${PLAYWRIGHT_PROJECT_TOKEN},
+//     testDir: './web_e2e/tests/ui_eval',
+//     snapshotDir: './web_e2e/tests/ui_eval/__screenshots__',
+//   }
+`;
 
 // ─── checkScaffoldState (pure planner) ───────────────────────────────────────
 
@@ -78,10 +155,96 @@ function checkScaffoldState({ projectDir }) {
   return { action: 'scaffold', missing };
 }
 
-// ─── scaffoldUIEval (impure writer) — implemented in next TDD cycle ──────────
+// ─── scaffoldUIEval (impure writer) ──────────────────────────────────────────
 
-function scaffoldUIEval(/* { projectDir } */) {
-  throw new Error('scaffoldUIEval not implemented — scaffolded stub');
+/**
+ * Idempotent writer: scaffolds whatever checkScaffoldState reports missing, then
+ * writes the marker LAST. A re-run is a no-op (returns the planner's skip result).
+ *
+ * @param {object} opts
+ * @param {string} opts.projectDir - absolute path to the repo root
+ * @returns {{ action:'scaffolded'|'skip', created?:string[], missing?:string[], reason?:string }}
+ */
+function scaffoldUIEval({ projectDir }) {
+  const state = checkScaffoldState({ projectDir });
+  if (state.action !== 'scaffold') {
+    // Non-flutter skip, or all-present no-op (B3/B6).
+    return state;
+  }
+
+  const created = [];
+  const missing = new Set(state.missing);
+
+  if (missing.has('manifest')) {
+    const dest = path.join(projectDir, MANIFEST_REL);
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.writeFileSync(dest, MANIFEST_SKELETON);
+    created.push('manifest');
+  }
+
+  if (missing.has('adapter')) {
+    const dest = path.join(projectDir, ADAPTER_REL);
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.writeFileSync(dest, ADAPTER_STUB);
+    created.push('adapter');
+  }
+
+  if (missing.has('baseline_dirs')) {
+    fs.mkdirSync(path.join(projectDir, BASELINE_WEB_REL), { recursive: true });
+    fs.mkdirSync(path.join(projectDir, BASELINE_GOLDENS_REL), { recursive: true });
+    created.push('baseline_dirs');
+  }
+
+  if (missing.has('playwright_project')) {
+    const dest = path.join(projectDir, PLAYWRIGHT_REL);
+    if (!fs.existsSync(dest)) {
+      fs.writeFileSync(dest, PLAYWRIGHT_CONFIG_NEW);
+    } else {
+      // Append ONLY if the ui_eval token is absent (keeps re-run a true no-op).
+      const existing = safeRead(dest) || '';
+      if (!existing.includes(PLAYWRIGHT_PROJECT_TOKEN)) {
+        fs.appendFileSync(dest, PLAYWRIGHT_PROJECT_APPEND);
+      }
+    }
+    created.push('playwright_project');
+  }
+
+  // Marker LAST — only reached if every earlier write succeeded, so a failed
+  // run leaves no marker and the next run retries the missing pieces.
+  const markerPath = path.join(projectDir, MARKER_REL);
+  fs.mkdirSync(path.dirname(markerPath), { recursive: true });
+  fs.writeFileSync(markerPath, '');
+
+  return { action: 'scaffolded', created };
+}
+
+// ─── cmdFlutterUIEvalBootstrap (CLI I/O wrapper) ─────────────────────────────
+
+const USAGE = {
+  command: 'flutter-ui bootstrap',
+  usage: 'df-tools flutter-ui bootstrap [project-dir] [--raw]',
+  description:
+    'Scaffold the UI-visual-eval wiring (manifest skeleton, capture adapter, baseline dirs, ui_eval Playwright project) into a stack:flutter repo. Idempotent; skips non-flutter repos.',
+};
+
+/**
+ * CLI entry point: resolve target dir, run the scaffolder, emit the result.
+ * `--help`/`-h` emits a usage object and exits 0.
+ *
+ * @param {string} cwd
+ * @param {string} projectDir - optional override path (args[2] from CLI)
+ * @param {boolean} raw
+ */
+function cmdFlutterUIEvalBootstrap(cwd, projectDir, raw) {
+  if (projectDir === '--help' || projectDir === '-h') {
+    output(USAGE, raw);
+    return;
+  }
+  const target = projectDir
+    ? (path.isAbsolute(projectDir) ? projectDir : path.join(cwd, projectDir))
+    : cwd;
+  const result = scaffoldUIEval({ projectDir: target });
+  output(result, raw);
 }
 
 // ─── internals ───────────────────────────────────────────────────────────────
@@ -103,4 +266,5 @@ function playwrightProjectPresent(projectDir) {
 module.exports = {
   checkScaffoldState,
   scaffoldUIEval,
+  cmdFlutterUIEvalBootstrap,
 };
