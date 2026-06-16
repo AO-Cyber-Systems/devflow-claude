@@ -125,3 +125,76 @@ test.describe('checkScaffoldState (P4 pure planner)', () => {
     assert.ok(!result.missing.includes('manifest'), 'manifest NOT missing (already present)');
   });
 });
+
+// ─── Impure writer: scaffoldUIEval (B5-B6, idempotency) ──────────────────────
+
+// Recursively count files (not dirs) under a root — used to assert "no new files".
+function countFiles(root) {
+  let n = 0;
+  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+    const p = path.join(root, entry.name);
+    if (entry.isDirectory()) n += countFiles(p);
+    else n += 1;
+  }
+  return n;
+}
+
+function occurrences(haystack, needle) {
+  return haystack.split(needle).length - 1;
+}
+
+test.describe('scaffoldUIEval (P4 impure writer)', () => {
+
+  test('B5 — scaffold on clean flutter repo CREATES manifest(JSON w/ states[]), adapter, baseline dirs, ui_eval playwright project, marker-LAST', () => {
+    const tmp = makeProject({ pubspec: 'flutter' });
+    const result = scaffoldUIEval({ projectDir: tmp });
+    assert.strictEqual(result.action, 'scaffolded');
+
+    // Manifest is a valid Shape-A skeleton: object with an Array `states`.
+    const manifestPath = path.join(tmp, MANIFEST_REL);
+    assert.ok(fs.existsSync(manifestPath), 'manifest file exists');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+    assert.ok(Array.isArray(manifest.states), 'manifest.states is an Array');
+
+    // Capture-adapter stub.
+    assert.ok(fs.existsSync(path.join(tmp, ADAPTER_REL)), 'adapter stub exists');
+
+    // Baseline dirs.
+    assert.ok(fs.existsSync(path.join(tmp, BASELINE_WEB_REL)), 'web baseline dir exists');
+    assert.ok(fs.existsSync(path.join(tmp, BASELINE_GOLDENS_REL)), 'goldens baseline dir exists');
+
+    // ui_eval playwright project entry.
+    const cfg = fs.readFileSync(path.join(tmp, PLAYWRIGHT_REL), 'utf-8');
+    assert.match(cfg, /ui_eval/, 'playwright.config.js contains ui_eval project token');
+
+    // Marker present (written LAST).
+    assert.ok(fs.existsSync(path.join(tmp, MARKER_REL)), 'marker exists');
+  });
+
+  test('B6 — scaffold run twice is idempotent: 2nd run is a no-op (no new files, exactly one ui_eval, reports skip)', () => {
+    const tmp = makeProject({ pubspec: 'flutter' });
+
+    const first = scaffoldUIEval({ projectDir: tmp });
+    assert.strictEqual(first.action, 'scaffolded');
+    const filesAfterFirst = countFiles(tmp);
+    const cfgAfterFirst = fs.readFileSync(path.join(tmp, PLAYWRIGHT_REL), 'utf-8');
+    assert.strictEqual(occurrences(cfgAfterFirst, "name: 'ui_eval'"), 1, 'exactly one ui_eval after first run');
+
+    const second = scaffoldUIEval({ projectDir: tmp });
+    assert.strictEqual(second.action, 'skip', 'second run reports no-op skip');
+    const filesAfterSecond = countFiles(tmp);
+    assert.strictEqual(filesAfterSecond, filesAfterFirst, 'no new files on second run');
+
+    const cfgAfterSecond = fs.readFileSync(path.join(tmp, PLAYWRIGHT_REL), 'utf-8');
+    assert.strictEqual(occurrences(cfgAfterSecond, "name: 'ui_eval'"), 1, 'still exactly one ui_eval after second run');
+  });
+
+  test('B6b — second run on a repo that HAD a pre-existing playwright.config (with ui_eval) does not duplicate', () => {
+    const tmp = makeProject({ pubspec: 'flutter', hasPlaywrightProject: true });
+    const r = scaffoldUIEval({ projectDir: tmp });
+    // playwright_project already present, so it is NOT in missing; other items get scaffolded.
+    assert.strictEqual(r.action, 'scaffolded');
+    const cfg = fs.readFileSync(path.join(tmp, PLAYWRIGHT_REL), 'utf-8');
+    assert.strictEqual(occurrences(cfg, "name: 'ui_eval'"), 1, 'no duplicate ui_eval entry');
+  });
+});
