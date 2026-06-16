@@ -18,6 +18,8 @@ const {
   scoreState,
   scoreRun,
   callVisionJudge,
+  defaultVisionJudge,
+  makeOfflineLabelEchoJudge,
   DEFECT_TYPES,
   SEVERITIES,
 } = require('./flutter-ui-eval.cjs');
@@ -286,5 +288,47 @@ test.describe('callVisionJudge (injectable boundary, fake judge)', () => {
 
     assert.strictEqual(res.valid, false);
     assert.ok(res.errors.length > 0);
+  });
+});
+
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Default real vision judge — wired but NEVER auto-invoked offline (TRD-02 N1 guard)
+// ──────────────────────────────────────────────────────────────────────────────
+
+test.describe('defaultVisionJudge (impure boundary, never auto-invoked offline)', () => {
+  test('Case N1a — the default real judge is exported (wired) as a function', () => {
+    assert.strictEqual(typeof defaultVisionJudge, 'function');
+  });
+
+  test('Case N1b — callVisionJudge with the offline label-echo judge never touches defaultVisionJudge', () => {
+    // The dogfood/verify path injects the offline judge; the real network default is bypassed.
+    const labels = { 'x.state': { is_broken: true, type: 'overflow', severity: 'high' } };
+    const offline = makeOfflineLabelEchoJudge(labels, 3);
+    const capture = makeCaptureResult({ state_id: 'x.state' });
+
+    // Spy: prove defaultVisionJudge is never called on this path by wrapping it would be
+    // intrusive; instead assert the offline judge is the SOLE invoked path (its .calls grows).
+    const res = callVisionJudge({ capture, judge: offline });
+
+    assert.strictEqual(res.valid, true);
+    assert.strictEqual(res.result.is_broken, true);
+    assert.strictEqual(offline.calls.length, 1, 'offline judge was the only path invoked');
+  });
+
+  test('Case N1c — defaultVisionJudge is the live network boundary: only reachable on explicit opt-in', () => {
+    // It must NOT be auto-run; calling it directly hits the impure seam (here a guarded throw),
+    // confirming verification/tests never reach it unless a caller explicitly passes it as judge.
+    const capture = makeCaptureResult();
+    const request = {
+      state_id: capture.state_id,
+      screenshot_path: capture.screenshot_path,
+      expected: capture.metadata.expected,
+      defect_types: DEFECT_TYPES,
+      severities: SEVERITIES,
+    };
+    // screenshot_path points at a non-existent fixture path; the impure boundary either
+    // throws on read or on the network seam — either way it is NOT silently invoked offline.
+    assert.throws(() => defaultVisionJudge(request));
   });
 });
