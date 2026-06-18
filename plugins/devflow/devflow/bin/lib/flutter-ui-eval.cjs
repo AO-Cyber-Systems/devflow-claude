@@ -471,14 +471,16 @@ function parseVisionResponse(apiBody, request) {
  * NEVER reached by tests/verification — callers opt in by passing this as `judge`. Returns a
  * single-sample Shape-C JudgeResult. Throws (clear message) if no credential is configured.
  */
-function defaultVisionJudge(request) {
+// One real Anthropic Messages call. Returns { result, usage, model } so the CLI proof-run can
+// measure per-page token cost; defaultVisionJudge below is the thin judge-fn wrapper over it.
+function liveVisionCall(request) {
   const { body } = buildVisionRequest(request);
   const base = process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com';
   const apiKey = process.env.ANTHROPIC_API_KEY;
   const authToken = process.env.ANTHROPIC_AUTH_TOKEN;
   if (!apiKey && !authToken) {
     throw new Error(
-      'defaultVisionJudge: no credential — set ANTHROPIC_API_KEY (or ANTHROPIC_AUTH_TOKEN ' +
+      'no credential — set ANTHROPIC_API_KEY (or ANTHROPIC_AUTH_TOKEN ' +
       '+ ANTHROPIC_BASE_URL) to run the live vision judge.');
   }
   const headers = ['-H', 'content-type: application/json', '-H', 'anthropic-version: 2023-06-01'];
@@ -493,7 +495,14 @@ function defaultVisionJudge(request) {
   try { apiBody = JSON.parse(out); }
   catch (e) { throw new Error('vision API non-JSON response: ' + String(out).slice(0, 200)); }
   if (apiBody.type === 'error') throw new Error('vision API error: ' + JSON.stringify(apiBody.error));
-  return parseVisionResponse(apiBody, request).result;
+  return parseVisionResponse(apiBody, request);
+}
+
+// The injectable judge-fn: returns a single-sample Shape-C JudgeResult (the contract callVisionJudge
+// expects). SYNC on purpose (callVisionJudge calls the judge synchronously). NEVER reached by
+// tests/verification — callers opt in by passing this as `judge`.
+function defaultVisionJudge(request) {
+  return liveVisionCall(request).result;
 }
 
 // ─── df-tools subcommand handler ─────────────────────────────────────────────────
@@ -517,8 +526,8 @@ function cmdVerifyFlutterUIEval(cwd, args, raw) {
 
   if (!manifestArg || list.includes('--help')) {
     output({
-      usage: 'verify flutter-ui-eval <manifest|captureResults> [--raw]  |  flutter-ui eval <manifest|captureResults> [--raw]',
-      description: 'Score a UI visual-eval manifest through the offline scoreState/scoreRun pipeline (offline label-echo judge; NO network). Emits a scoreRun rollup.',
+      usage: 'verify flutter-ui-eval <manifest|captureResults> [--raw] [--judge live] [--samples N]',
+      description: 'Score a UI visual-eval manifest. Default: offline label-echo judge (deterministic, NO network). --judge live runs the REAL Anthropic vision judge (needs ANTHROPIC_API_KEY, or ANTHROPIC_AUTH_TOKEN+ANTHROPIC_BASE_URL) N times/state → real N-sample voting (flake) + per-page token cost.',
       ok: true,
     }, raw);
     return;
@@ -541,6 +550,9 @@ function cmdVerifyFlutterUIEval(cwd, args, raw) {
   const manifestDir = path.dirname(absManifest);
   const samples = typeof manifest.samples === 'number' ? manifest.samples : 3;
   const flakeBudget = typeof manifest.flakeBudget === 'number' ? manifest.flakeBudget : 1;
+  const liveJudge = list.indexOf('--judge') >= 0 && list[list.indexOf('--judge') + 1] === 'live';
+  const sIdx = list.indexOf('--samples');
+  const nSamples = sIdx >= 0 ? Math.max(1, parseInt(list[sIdx + 1], 10) || samples) : samples;
 
   // Hand-built labels alongside the manifest drive the OFFLINE judge (no pixels, no network).
   const labelsPath = path.join(manifestDir, 'labels.json');
@@ -551,6 +563,8 @@ function cmdVerifyFlutterUIEval(cwd, args, raw) {
 
   const stateResults = [];
   const stateDetail = [];
+  const usageTotal = { input_tokens: 0, output_tokens: 0 };
+  let liveModel = null;
 
   for (const st of manifest.states) {
     // Load the Shape-B capture for this state (relative to the manifest dir).
@@ -565,15 +579,49 @@ function cmdVerifyFlutterUIEval(cwd, args, raw) {
       capture = { state_id: st.state_id, surface: st.surface, screenshot_path: st.screenshot_path, metadata: { expected: st.expected } };
     }
 
-    // Run the INJECTED offline judge through the real callVisionJudge -> validateJudgeResult.
+    if (liveJudge) {
+      // LIVE: N INDEPENDENT real vision calls per state → genuine N-sample voting (flake) +
+      // per-page token cost. A refusal / credential / network error downgrades the state to review.
+      const sp = (capture && capture.screenshot_path) || st.screenshot_path;
+      const screenshot_path = sp && !path.isAbsolute(sp) ? path.join(manifestDir, sp) : sp;
+      const request = { state_id: st.state_id, surface: st.surface, screenshot_path, expected: st.expected, defect_types: DEFECT_TYPES, severities: SEVERITIES };
+      const liveSamples = [];
+      let liveErr = null;
+      for (let i = 0; i < nSamples; i++) {
+        try {
+          const r = liveVisionCall(request);
+          liveSamples.push(r.result);
+          if (r.usage) { usageTotal.input_tokens += r.usage.input_tokens || 0; usageTotal.output_tokens += r.usage.output_tokens || 0; }
+          if (r.model) liveModel = r.model;
+        } catch (e) { liveErr = e.message; break; }
+      }
+      if (liveErr || liveSamples.length === 0) {
+        stateResults.push({ state_id: st.state_id, verdict: 'review', advisories: [liveErr || 'no live samples'], expect: st.expect });
+        stateDetail.push({ state_id: st.state_id, verdict: 'review', is_broken: null, defects: [], errors: [liveErr || 'no live samples'] });
+        continue;
+      }
+      const agg = aggregateVotes(liveSamples);
+      const stateScore = scoreState({ samples: liveSamples });
+      stateResults.push({ state_id: st.state_id, verdict: stateScore.verdict, advisories: stateScore.advisories, expect: st.expect });
+      stateDetail.push({
+        state_id: st.state_id,
+        verdict: stateScore.verdict,
+        is_broken: agg.is_broken,
+        flake: agg.split === true || agg.tie === true, // the N samples disagreed → flaky judgment
+        votes: agg.votes,
+        defects: liveSamples.flatMap(s => s.defects || []),
+        advisories: stateScore.advisories,
+      });
+      continue;
+    }
+
+    // OFFLINE (default): deterministic label-echo judge through callVisionJudge (no network).
     const judged = callVisionJudge({ capture, expected: st.expected, judge: offlineJudge });
     if (!judged.valid) {
       stateResults.push({ state_id: st.state_id, verdict: 'review', advisories: judged.errors, expect: st.expect });
       stateDetail.push({ state_id: st.state_id, verdict: 'review', is_broken: null, defects: [], errors: judged.errors });
       continue;
     }
-
-    // Replicate to N identical samples (offline judge is deterministic) and score the state.
     const sampleSet = Array.from({ length: samples }, () => judged.result);
     const stateScore = scoreState({ samples: sampleSet });
     stateResults.push({ state_id: st.state_id, verdict: stateScore.verdict, advisories: stateScore.advisories, expect: st.expect });
@@ -590,9 +638,10 @@ function cmdVerifyFlutterUIEval(cwd, args, raw) {
 
   output({
     manifest_path: absManifest,
-    network: false,            // OFFLINE label-echo judge — machine-checkable no-network guarantee
-    judge: 'offline-label-echo',
-    samples,
+    network: liveJudge,                                  // true only on the live path
+    judge: liveJudge ? 'live-vision' : 'offline-label-echo',
+    model: liveJudge ? liveModel : undefined,
+    samples: liveJudge ? nSamples : samples,
     flakeBudget,
     verdict: rollup.verdict,
     counts: rollup.counts,
@@ -600,6 +649,7 @@ function cmdVerifyFlutterUIEval(cwd, args, raw) {
     fails: rollup.fails,
     known_failing: rollup.known_failing, // expect:fail states still failing — tracked, not a new regression
     resolved: rollup.resolved,           // expect:fail states now passing — likely fixed; drop the known_broken flag
+    usage: liveJudge ? usageTotal : undefined,           // per-run token totals for cost estimation
     states: stateDetail,
   }, raw);
 }
@@ -613,6 +663,7 @@ module.exports = {
   callVisionJudge,
   makeOfflineLabelEchoJudge,
   defaultVisionJudge,
+  liveVisionCall,
   buildVisionRequest,
   parseVisionResponse,
   visionPerceptualSchema,
