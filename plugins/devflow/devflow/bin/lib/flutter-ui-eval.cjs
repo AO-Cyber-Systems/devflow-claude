@@ -473,15 +473,17 @@ function parseVisionResponse(apiBody, request) {
  */
 // One real Anthropic Messages call. Returns { result, usage, model } so the CLI proof-run can
 // measure per-page token cost; defaultVisionJudge below is the thin judge-fn wrapper over it.
-function liveVisionCall(request) {
-  const { body } = buildVisionRequest(request);
+// Shared Anthropic Messages API boundary (ONE synchronous curl). Both modes ride this:
+// the defect judge (liveVisionCall) and the design critic (flutter-ui-design-review.cjs) — so
+// there is a single network/auth/error path, not two that drift. Returns the parsed apiBody.
+function anthropicMessagesCall(body) {
   const base = process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com';
   const apiKey = process.env.ANTHROPIC_API_KEY;
   const authToken = process.env.ANTHROPIC_AUTH_TOKEN;
   if (!apiKey && !authToken) {
     throw new Error(
       'no credential — set ANTHROPIC_API_KEY (or ANTHROPIC_AUTH_TOKEN ' +
-      '+ ANTHROPIC_BASE_URL) to run the live vision judge.');
+      '+ ANTHROPIC_BASE_URL) to run the live vision call.');
   }
   const headers = ['-H', 'content-type: application/json', '-H', 'anthropic-version: 2023-06-01'];
   if (apiKey) headers.push('-H', 'x-api-key: ' + apiKey);
@@ -495,7 +497,12 @@ function liveVisionCall(request) {
   try { apiBody = JSON.parse(out); }
   catch (e) { throw new Error('vision API non-JSON response: ' + String(out).slice(0, 200)); }
   if (apiBody.type === 'error') throw new Error('vision API error: ' + JSON.stringify(apiBody.error));
-  return parseVisionResponse(apiBody, request);
+  return apiBody;
+}
+
+function liveVisionCall(request) {
+  const { body } = buildVisionRequest(request);
+  return parseVisionResponse(anthropicMessagesCall(body), request);
 }
 
 // The injectable judge-fn: returns a single-sample Shape-C JudgeResult (the contract callVisionJudge
@@ -664,6 +671,7 @@ module.exports = {
   makeOfflineLabelEchoJudge,
   defaultVisionJudge,
   liveVisionCall,
+  anthropicMessagesCall,
   buildVisionRequest,
   parseVisionResponse,
   visionPerceptualSchema,
