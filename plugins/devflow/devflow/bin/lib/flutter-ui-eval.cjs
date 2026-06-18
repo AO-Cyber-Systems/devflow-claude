@@ -368,41 +368,132 @@ function makeOfflineLabelEchoJudge(labels, samples) {
  * @param {object} request — the assembled judge request from callVisionJudge.
  * @returns {Promise<object>} a Shape-C-ish value (validated by callVisionJudge's caller).
  */
-function defaultVisionJudge(request) {
-  // Resolve the concrete vision model id from model-profiles.json (NOT hardcoded).
+// Shape-C PERCEPTUAL schema — the fields the VISION MODEL produces for one screenshot.
+// The aggregate fields (state_id/samples/votes) are added by parseVisionResponse, not the
+// model. output_config.format pins the response to this schema so the text block is parseable
+// JSON (supported on the 4.x family; json_schema requires additionalProperties:false + enums).
+function visionPerceptualSchema() {
+  return {
+    type: 'object',
+    additionalProperties: false,
+    required: ['is_broken', 'defects', 'matches_expected', 'confidence'],
+    properties: {
+      is_broken: { type: 'boolean' },
+      matches_expected: { type: 'boolean' },
+      confidence: { type: 'number' },
+      defects: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['type', 'severity', 'region', 'rationale'],
+          properties: {
+            type: { type: 'string', enum: DEFECT_TYPES },
+            severity: { type: 'string', enum: SEVERITIES },
+            region: { type: 'string' },
+            rationale: { type: 'string' },
+          },
+        },
+      },
+    },
+  };
+}
+
+/**
+ * PURE — build the Anthropic Messages API request body for one screenshot. Resolves the model
+ * from model-profiles.json (df-ui-evaluator → tier → models[tier]); base64-encodes the screenshot;
+ * anchors the prompt on request.expected + the taxonomy; pins the response to the perceptual schema.
+ * Reads the screenshot file (deterministic given the path) so it's offline-testable with a real PNG.
+ * @returns {{model:string, body:object}}
+ */
+function buildVisionRequest(request) {
   const profilesPath = path.join(__dirname, '..', '..', 'references', 'model-profiles.json');
   const profiles = JSON.parse(fs.readFileSync(profilesPath, 'utf-8'));
-  const profile = process.env.DEVFLOW_MODEL_PROFILE || 'quality';
-  const tier = (profiles.agents['df-ui-evaluator'] || {})[profile] || 'opus';
-  const model = profiles.models[tier];
+  const profile = process.env.DEVFLOW_MODEL_PROFILE || 'balanced'; // judge runs hot → cost tier by default
+  const tier = (profiles.agents['df-ui-evaluator'] || {})[profile] || 'sonnet';
+  const model = profiles.models[tier] || tier;
 
-  // Read + base64-encode the screenshot for the Anthropic Messages API image content block.
   const b64 = fs.readFileSync(request.screenshot_path).toString('base64');
   const taxonomy = `defect types: ${DEFECT_TYPES.join(', ')}; severities: ${SEVERITIES.join(', ')}`;
-  const messages = [{
-    role: 'user',
-    content: [
-      { type: 'image', source: { type: 'base64', media_type: 'image/png', data: b64 } },
-      {
-        type: 'text',
-        text:
-          `Evaluate this UI screenshot for state "${request.state_id}".\n` +
-          `Expected: ${request.expected}\n` +
-          `Taxonomy — ${taxonomy}.\n` +
-          `Return ONLY Shape-C JSON: ` +
-          `{state_id,is_broken,defects:[{type,severity,region,rationale}],matches_expected,confidence,samples,votes}.`,
-      },
-    ],
-  }];
+  const body = {
+    model,
+    max_tokens: 1024,
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'image', source: { type: 'base64', media_type: 'image/png', data: b64 } },
+        {
+          type: 'text',
+          text:
+            `You are a strict UI-defect detector. Evaluate this screenshot for state ` +
+            `"${request.state_id}".\nExpected appearance: ${request.expected}\n` +
+            `Score DEVIATION from expected, not open-ended aesthetics. Taxonomy — ${taxonomy}.\n` +
+            `If it matches expected with no defects, return is_broken:false, defects:[].`,
+        },
+      ],
+    }],
+    output_config: { format: { type: 'json_schema', schema: visionPerceptualSchema() } },
+  };
+  return { model, body };
+}
 
-  // The actual fetch() to the Anthropic Messages API lives here on a genuine run.
-  // It is intentionally left as the impure seam and is NEVER reached in tests/verification.
-  // eslint-disable-next-line no-unused-vars
-  const apiRequest = { model, max_tokens: 1024, messages };
-  throw new Error(
-    'defaultVisionJudge is the live network boundary (model=' + model + '); ' +
-    'it is wired but only reachable on a genuine run, never in tests/verification.'
-  );
+/**
+ * PURE — turn an Anthropic Messages API response body into a single-sample Shape-C JudgeResult
+ * (state_id/samples:1/votes added here; perceptual fields from the model). Throws on a refusal
+ * stop_reason, a missing text block, or non-JSON text. Returns { result, usage, model }.
+ */
+function parseVisionResponse(apiBody, request) {
+  if (apiBody && apiBody.stop_reason === 'refusal') {
+    throw new Error('vision judge refused: ' + ((apiBody.stop_details || {}).category || 'unknown'));
+  }
+  const textBlock = ((apiBody && apiBody.content) || []).find(b => b && b.type === 'text');
+  if (!textBlock) throw new Error('vision response had no text block');
+  let p;
+  try { p = JSON.parse(textBlock.text); }
+  catch (e) { throw new Error('vision response text was not JSON: ' + e.message); }
+  const is_broken = p.is_broken === true;
+  const result = {
+    state_id: request.state_id,
+    is_broken,
+    defects: Array.isArray(p.defects) ? p.defects : [],
+    matches_expected: p.matches_expected === true,
+    confidence: typeof p.confidence === 'number' ? p.confidence : 0,
+    samples: 1, // ONE call = one sample; N-sample voting is the engine's job (aggregateVotes)
+    votes: is_broken ? { broken: 1, ok: 0 } : { broken: 0, ok: 1 },
+  };
+  return { result, usage: (apiBody && apiBody.usage) || null, model: apiBody && apiBody.model };
+}
+
+/**
+ * The single impure boundary — one synchronous curl to the Anthropic Messages API.
+ * SYNC on purpose: callVisionJudge invokes the judge fn synchronously (same contract as the
+ * offline judge), so an async fetch would break it; execFileSync('curl', …) keeps the contract.
+ * NEVER reached by tests/verification — callers opt in by passing this as `judge`. Returns a
+ * single-sample Shape-C JudgeResult. Throws (clear message) if no credential is configured.
+ */
+function defaultVisionJudge(request) {
+  const { body } = buildVisionRequest(request);
+  const base = process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com';
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const authToken = process.env.ANTHROPIC_AUTH_TOKEN;
+  if (!apiKey && !authToken) {
+    throw new Error(
+      'defaultVisionJudge: no credential — set ANTHROPIC_API_KEY (or ANTHROPIC_AUTH_TOKEN ' +
+      '+ ANTHROPIC_BASE_URL) to run the live vision judge.');
+  }
+  const headers = ['-H', 'content-type: application/json', '-H', 'anthropic-version: 2023-06-01'];
+  if (apiKey) headers.push('-H', 'x-api-key: ' + apiKey);
+  else headers.push('-H', 'authorization: Bearer ' + authToken, '-H', 'anthropic-beta: oauth-2025-04-20');
+  const { execFileSync } = require('node:child_process');
+  const out = execFileSync(
+    'curl',
+    ['-sS', '-X', 'POST', base + '/v1/messages', ...headers, '-d', JSON.stringify(body)],
+    { encoding: 'utf-8', maxBuffer: 20 * 1024 * 1024 });
+  let apiBody;
+  try { apiBody = JSON.parse(out); }
+  catch (e) { throw new Error('vision API non-JSON response: ' + String(out).slice(0, 200)); }
+  if (apiBody.type === 'error') throw new Error('vision API error: ' + JSON.stringify(apiBody.error));
+  return parseVisionResponse(apiBody, request).result;
 }
 
 // ─── df-tools subcommand handler ─────────────────────────────────────────────────
@@ -522,6 +613,9 @@ module.exports = {
   callVisionJudge,
   makeOfflineLabelEchoJudge,
   defaultVisionJudge,
+  buildVisionRequest,
+  parseVisionResponse,
+  visionPerceptualSchema,
   cmdVerifyFlutterUIEval,
   DEFECT_TYPES,
   SEVERITIES,

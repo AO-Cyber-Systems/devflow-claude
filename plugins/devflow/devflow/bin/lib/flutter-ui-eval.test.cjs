@@ -19,6 +19,8 @@ const {
   scoreRun,
   callVisionJudge,
   defaultVisionJudge,
+  buildVisionRequest,
+  parseVisionResponse,
   makeOfflineLabelEchoJudge,
   DEFECT_TYPES,
   SEVERITIES,
@@ -364,5 +366,99 @@ test.describe('defaultVisionJudge (impure boundary, never auto-invoked offline)'
     // screenshot_path points at a non-existent fixture path; the impure boundary either
     // throws on read or on the network seam — either way it is NOT silently invoked offline.
     assert.throws(() => defaultVisionJudge(request));
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// buildVisionRequest / parseVisionResponse — the PURE halves of the live judge (zero network)
+// ──────────────────────────────────────────────────────────────────────────────
+
+const REAL_PNG = path.join(__dirname, '__fixtures__', 'flutter-ui-eval', 'good-dashboard.png');
+
+test.describe('buildVisionRequest (pure request assembly)', () => {
+  test('Case B1 — assembles a base64 image block + expected-anchored prompt + json_schema format', () => {
+    const req = {
+      state_id: 'crm-contacts-populated',
+      screenshot_path: REAL_PNG,
+      expected: 'A populated contacts table; no empty-state.',
+      defect_types: DEFECT_TYPES,
+      severities: SEVERITIES,
+    };
+    const { model, body } = buildVisionRequest(req);
+
+    assert.strictEqual(typeof model, 'string');
+    assert.ok(model.length > 0, 'model resolves from df-ui-evaluator profile');
+    assert.strictEqual(body.model, model);
+
+    const img = body.messages[0].content[0];
+    assert.strictEqual(img.type, 'image');
+    assert.strictEqual(img.source.type, 'base64');
+    assert.strictEqual(img.source.media_type, 'image/png');
+    assert.ok(typeof img.source.data === 'string' && img.source.data.length > 0);
+
+    const txt = body.messages[0].content[1].text;
+    assert.ok(/strict UI-defect detector/i.test(txt));
+    assert.ok(txt.includes(req.expected), 'prompt anchors on expected');
+    assert.ok(txt.includes('crm-contacts-populated'));
+
+    // Response pinned to the perceptual schema (forces parseable JSON).
+    assert.strictEqual(body.output_config.format.type, 'json_schema');
+    const schema = body.output_config.format.schema;
+    assert.deepStrictEqual(schema.properties.defects.items.properties.type.enum, DEFECT_TYPES);
+    assert.deepStrictEqual(schema.properties.defects.items.properties.severity.enum, SEVERITIES);
+    assert.strictEqual(schema.additionalProperties, false);
+  });
+});
+
+test.describe('parseVisionResponse (pure response → Shape-C)', () => {
+  test('Case P1 — valid API body -> single-sample Shape-C that passes validateJudgeResult', () => {
+    const apiBody = {
+      model: 'claude-test',
+      stop_reason: 'end_turn',
+      usage: { input_tokens: 1200, output_tokens: 90 },
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          is_broken: true,
+          matches_expected: false,
+          confidence: 0.82,
+          defects: [{ type: 'overflow', severity: 'high', region: 'app-tab bar', rationale: 'clipped' }],
+        }),
+      }],
+    };
+    const { result, usage, model } = parseVisionResponse(apiBody, { state_id: 's1' });
+
+    assert.strictEqual(result.state_id, 's1');
+    assert.strictEqual(result.is_broken, true);
+    assert.strictEqual(result.samples, 1, 'one call = one sample');
+    assert.deepStrictEqual(result.votes, { broken: 1, ok: 0 });
+    assert.strictEqual(validateJudgeResult(result).valid, true, 'assembled Shape-C is valid');
+    assert.strictEqual(usage.input_tokens, 1200);
+    assert.strictEqual(model, 'claude-test');
+  });
+
+  test('Case P2 — not-broken body -> votes ok, validates', () => {
+    const apiBody = {
+      content: [{ type: 'text', text: JSON.stringify({ is_broken: false, matches_expected: true, confidence: 0.95, defects: [] }) }],
+    };
+    const { result } = parseVisionResponse(apiBody, { state_id: 's2' });
+    assert.strictEqual(result.is_broken, false);
+    assert.deepStrictEqual(result.votes, { broken: 0, ok: 1 });
+    assert.strictEqual(validateJudgeResult(result).valid, true);
+  });
+
+  test('Case P3 — refusal stop_reason -> throws (engine treats as review)', () => {
+    const apiBody = { stop_reason: 'refusal', stop_details: { category: 'cyber' }, content: [] };
+    assert.throws(() => parseVisionResponse(apiBody, { state_id: 's3' }), /refused/);
+  });
+
+  test('Case P4 — non-JSON text block -> throws', () => {
+    const apiBody = { content: [{ type: 'text', text: 'sorry, here is my analysis...' }] };
+    assert.throws(() => parseVisionResponse(apiBody, { state_id: 's4' }), /not JSON/);
+  });
+
+  test('Case P5 — no text block -> throws', () => {
+    const apiBody = { content: [{ type: 'image', source: {} }] };
+    assert.throws(() => parseVisionResponse(apiBody, { state_id: 's5' }), /no text/);
   });
 });
