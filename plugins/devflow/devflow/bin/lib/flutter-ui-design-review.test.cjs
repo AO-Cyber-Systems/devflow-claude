@@ -13,6 +13,8 @@ const {
   parseDesignReviewResponse,
   validateDesignReview,
   aggregateDesignReview,
+  formatDesignDebtReport,
+  cmdDesignReview,
 } = require('./flutter-ui-design-review.cjs');
 
 const REAL_PNG = path.join(__dirname, '__fixtures__', 'flutter-ui-eval', 'good-dashboard.png');
@@ -131,5 +133,92 @@ test.describe('aggregateDesignReview (advisory rollup)', () => {
     const agg = aggregateDesignReview([makeReview({ findings: [] }), null]);
     assert.strictEqual(agg.total, 0);
     assert.deepStrictEqual(agg.counts, { high: 0, medium: 0, low: 0 });
+  });
+});
+
+// ── formatDesignDebtReport (PURE — no LLM data; hand-built aggregate) ──────────
+test.describe('formatDesignDebtReport (pure markdown render)', () => {
+  test('D12 — markdown carries the high item FIRST, the counts, and every anchor', () => {
+    // aggregateDesignReview sorts high→low; feed it an unsorted set and let it sort.
+    const agg = aggregateDesignReview([
+      makeReview({ state_id: 'a', findings: [makeFinding({ priority: 'low', dimension: 'typography', anchor: 'Outfit bodySmall' })] }),
+      makeReview({ state_id: 'b', findings: [makeFinding({ priority: 'high', dimension: 'color_contrast', anchor: 'WCAG AA 4.5:1', observation: 'gold-on-white fails contrast', suggestion: 'darken to #B8862F' })] }),
+      makeReview({ state_id: 'c', findings: [makeFinding({ priority: 'medium', dimension: 'spacing_layout', anchor: 'EdenSpacing.space4=16' })] }),
+    ]);
+    const md = formatDesignDebtReport(agg, { manifest_path: '/tmp/m.json', model: 'claude-test', live: true });
+    // advisory framing present
+    assert.ok(/ADVISORY/i.test(md), 'report states it is advisory');
+    // counts rendered
+    assert.ok(md.includes('high: 1') && md.includes('medium: 1') && md.includes('low: 1'), 'priority counts present');
+    // the HIGH item appears before the LOW item in the debt list
+    const hiIdx = md.indexOf('WCAG AA 4.5:1');
+    const loIdx = md.indexOf('Outfit bodySmall');
+    assert.ok(hiIdx > -1 && loIdx > -1 && hiIdx < loIdx, 'high-priority anchor precedes low-priority anchor');
+    // the first debt entry is the high one
+    const firstEntry = md.indexOf('### 1.');
+    assert.ok(md.slice(firstEntry, firstEntry + 120).includes('[high]'), 'first listed debt item is high priority');
+    // every anchor is present
+    for (const a of ['WCAG AA 4.5:1', 'EdenSpacing.space4=16', 'Outfit bodySmall']) {
+      assert.ok(md.includes(a), 'anchor present: ' + a);
+    }
+  });
+  test('D13 — empty aggregate -> still renders advisory + zero counts, no crash', () => {
+    const md = formatDesignDebtReport(aggregateDesignReview([]), {});
+    assert.ok(/ADVISORY/i.test(md));
+    assert.ok(md.includes('high: 0') && md.includes('low: 0'));
+    assert.ok(/No design debt recorded/.test(md));
+  });
+});
+
+// ── cmdDesignReview OFFLINE (no --live / no key) — no network, writes a report ──
+test.describe('cmdDesignReview offline (no network)', () => {
+  const fs = require('node:fs');
+  const os = require('node:os');
+
+  test('D14 — no --live, no key: live:false + advisory:true, every state skipped, report written', () => {
+    // ensure no credential leaks into the offline assertion
+    const savedKey = process.env.ANTHROPIC_API_KEY;
+    const savedTok = process.env.ANTHROPIC_AUTH_TOKEN;
+    delete process.env.ANTHROPIC_API_KEY;
+    delete process.env.ANTHROPIC_AUTH_TOKEN;
+
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dr-test-'));
+    const manifest = {
+      design_system_path: 'design-system.md',
+      states: [
+        { state_id: 's1', surface: 'web', screenshot_path: REAL_PNG, design_intent: 'dense table' },
+        { state_id: 's2', surface: 'web', screenshot_path: REAL_PNG, design_intent: 'empty state' },
+      ],
+    };
+    fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify(manifest), 'utf-8');
+    fs.writeFileSync(path.join(dir, 'design-system.md'), 'Spacing: 4px grid.', 'utf-8');
+
+    // capture output() — it calls process.exit(0); intercept both stdout + exit.
+    let captured = '';
+    const realWrite = process.stdout.write.bind(process.stdout);
+    const realExit = process.exit.bind(process);
+    process.stdout.write = (s) => { captured += s; return true; };
+    process.exit = () => { throw new Error('__exit__'); };
+    try {
+      cmdDesignReview(dir, [path.join(dir, 'manifest.json'), '--raw'], true);
+    } catch (e) {
+      if (e.message !== '__exit__') throw e;
+    } finally {
+      process.stdout.write = realWrite;
+      process.exit = realExit;
+      if (savedKey !== undefined) process.env.ANTHROPIC_API_KEY = savedKey;
+      if (savedTok !== undefined) process.env.ANTHROPIC_AUTH_TOKEN = savedTok;
+    }
+
+    const out = JSON.parse(captured);
+    assert.strictEqual(out.live, false, 'no live run without --live/key');
+    assert.strictEqual(out.advisory, true, 'always advisory');
+    assert.strictEqual(out.judge, 'design-critic');
+    assert.strictEqual(out.total, 0, 'no findings collected offline');
+    assert.strictEqual(out.skipped.length, 2, 'every state skipped');
+    assert.ok(out.skipped.every(s => /live critique required/.test(s.reason)), 'clear skip reason');
+    // a report was written next to the manifest
+    assert.ok(fs.existsSync(path.join(dir, 'design-review-report.md')), 'markdown report written');
+    assert.ok(fs.existsSync(path.join(dir, 'design-review-report.json')), 'json report written');
   });
 });

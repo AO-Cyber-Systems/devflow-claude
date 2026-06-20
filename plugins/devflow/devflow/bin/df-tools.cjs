@@ -187,6 +187,7 @@ const { cmdFlutterUISetup } = require('./lib/flutter-ui-setup.cjs');
 const { cmdFlutterUIEvalBootstrap } = require('./lib/flutter-ui-eval-bootstrap.cjs');
 const { cmdVerifyFlutterStateCoverage } = require('./lib/flutter-state-coverage.cjs');
 const { cmdVerifyFlutterUIEval } = require('./lib/flutter-ui-eval.cjs');
+const { cmdDesignReview } = require('./lib/flutter-ui-design-review.cjs');
 const { cmdDetectNovelDomain } = require('./lib/novel-domain.cjs');
 const { cmdDetectBrownfieldMap } = require('./lib/brownfield-detector.cjs');
 const { cmdDetectFlutterUIScope } = require('./lib/flutter-ui-scope.cjs');
@@ -434,8 +435,11 @@ async function main() {
       } else if (subcommand === 'bootstrap') {
         // flutter-ui bootstrap [project-dir] [--raw]
         cmdFlutterUIEvalBootstrap(cwd, args[2], raw);
+      } else if (subcommand === 'design-review') {
+        // flutter-ui design-review <manifest> [--live] [--raw]
+        cmdDesignReview(cwd, args.slice(2), raw);
       } else {
-        error('Unknown flutter-ui subcommand. Available: setup, eval, bootstrap');
+        error('Unknown flutter-ui subcommand. Available: setup, eval, bootstrap, design-review');
       }
       break;
     }
