@@ -189,7 +189,9 @@ Proceed to `present_test`.
 
 Read Current Test section from UAT file.
 
-**Browser pre-verification (for UI tests):**
+**Browser pre-verification (for non-Flutter web UI tests):**
+
+> For Flutter projects, skip this `browser_*` pre-verification — Flutter web is verified through `flutter drive` + chromedriver and Flutter app through Maestro, both captured as evidence by the verifier agent (Steps 8c / 8b). The helpers below are for non-Flutter web only (Hugo, Next.js, static SPAs, Rails ERB).
 
 If the test involves a UI feature and a dev server is running (or can be started):
 
