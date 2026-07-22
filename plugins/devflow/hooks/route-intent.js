@@ -93,9 +93,12 @@ const INTENT_MAP = [
     skill: '/devflow:plan-objective',
     label: 'plan',
   },
-  // VERIFY: verify + (the)? + work-noun
+  // VERIFY: verify/validate + article + work-noun -- explicit verification intent only.
+  // 25-01 audit fix: previous test|check verbs fired 15x, followed 0x (audit item 5,
+  // verify-work 0/8 sessions -- worst follow rate). test|check are ordinary dev speech
+  // ("check the build", "test the feature"); verify|validate + article is explicit intent.
   {
-    rx: /\b(?:verify|test|validate|check)\s+(?:the\s+)?(?:work|build|objective|feature|implementation)\b/i,
+    rx: /\b(?:verify|validate)\s+(?:the|this)\s+(?:work|build|objective|feature|implementation)\b/i,
     skill: '/devflow:verify-work',
     label: 'verify',
   },
