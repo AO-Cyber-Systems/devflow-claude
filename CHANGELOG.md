@@ -6,6 +6,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-06-16
+
+### Added
+- **UI visual-evaluation layer**: a VLM-as-judge that scores rendered UI against per-state `expected` anchors, complementing functional/golden tests by catching first-time defects (overflow, blank-when-data-expected, misalignment) without baseline churn.
+  - Engine `bin/lib/flutter-ui-eval.cjs` — validateJudgeResult / aggregateVotes / scoreState (HIGH-severity-only gate) / scoreRun / injectable callVisionJudge; dogfood fixtures.
+  - CLI `df-tools verify flutter-ui-eval [--raw]` + `flutter-ui eval|bootstrap`; `df-ui-evaluator` model profile.
+  - Integration: `ui-evaluator` agent, `/devflow:ui-eval` skill, `ui-eval` workflow, verifier Step 8c (fail→gaps, pass→drop from human-verify), planner auto-emit + explicit "Visual-Eval Gate" call-out + session tasks for type:ui/stack:flutter objectives.
+  - `flutter-ui-eval-bootstrap.cjs` scaffolds the manifest/adapter/Playwright project into any stack:flutter repo.
+  - `scoreRun` honors per-state `expect:fail` (known_failing/resolved buckets) so known-broken states don't fail the run while open, but a new fail or an unexpected pass still surfaces.
+
+
 ## [2.3.0] - 2026-06-13
 
 ### Added

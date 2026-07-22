@@ -463,15 +463,15 @@ const FIRE_FIXTURES = [
   },
   {
     prompt: 'add a todo for the README cleanup',
-    expected_skill: '/devflow:add-todo',
+    expected_skill: '/devflow:todo add',
     label: 'add a todo',
-    why_fires: 'matches new add-todo rule: add + a + todo + for',
+    why_fires: 'matches new add-todo rule: add + a + todo + for (corrected to consolidated /devflow:todo add per 25-01 audit fix)',
   },
   {
     prompt: 'any todos',
-    expected_skill: '/devflow:check-todos',
+    expected_skill: '/devflow:todo list',
     label: 'any todos',
-    why_fires: 'matches new check-todos rule: any + todos',
+    why_fires: 'matches new check-todos rule: any + todos (corrected to consolidated /devflow:todo list per 25-01 audit fix)',
   },
   {
     prompt: 'verify this objective',
@@ -480,10 +480,16 @@ const FIRE_FIXTURES = [
     why_fires: 'matches new verify rule: verify + this + objective',
   },
   {
-    prompt: 'check the work',
+    prompt: 'verify the work',
     expected_skill: '/devflow:verify-work',
-    label: 'check the work (regression)',
-    why_fires: 'matches existing verify rule (regression confirmation)',
+    label: 'verify the work',
+    why_fires: 'matches tightened verify rule: verify + the + work (explicit verification intent, 25-01 audit fix)',
+  },
+  {
+    prompt: 'validate this feature',
+    expected_skill: '/devflow:verify-work',
+    label: 'validate this feature',
+    why_fires: 'matches tightened verify rule: validate + this + feature (explicit verification intent, 25-01 audit fix)',
   },
   {
     prompt: 'research how to use Vitest',
@@ -499,9 +505,9 @@ const FIRE_FIXTURES = [
   },
   {
     prompt: 'audit the milestone',
-    expected_skill: '/devflow:audit-milestone',
+    expected_skill: '/devflow:milestone audit',
     label: 'audit the milestone',
-    why_fires: 'matches new audit-milestone rule',
+    why_fires: 'matches new audit-milestone rule (corrected to consolidated /devflow:milestone audit per 25-01 audit fix)',
   },
   {
     prompt: 'sync to github',
@@ -511,15 +517,53 @@ const FIRE_FIXTURES = [
   },
   {
     prompt: 'make a new milestone',
-    expected_skill: '/devflow:new-milestone',
+    expected_skill: '/devflow:milestone new',
     label: 'make a new milestone',
-    why_fires: 'matches new new-milestone rule: make + a + new + milestone',
+    why_fires: 'matches new new-milestone rule: make + a + new + milestone (corrected to consolidated /devflow:milestone new per 25-01 audit fix)',
   },
   {
     prompt: 'discuss the objective',
     expected_skill: '/devflow:discuss-objective',
     label: 'discuss the objective',
     why_fires: 'matches new discuss-objective rule: discuss + the + objective',
+  },
+  // ─── 25-01: adoption broadening (audit item 6b) ──────────────────────────
+  // Realistic phrasings, hand-authored from audit evidence. Two per adoption target.
+  {
+    prompt: 'start a milestone for v2.0',
+    expected_skill: '/devflow:milestone new',
+    label: 'start a milestone for v2.0',
+    why_fires: 'matches broadened milestone-new rule: start + a + milestone + for',
+  },
+  {
+    prompt: 'list my todos',
+    expected_skill: '/devflow:todo list',
+    label: 'list my todos',
+    why_fires: 'matches broadened todo-list rule: list + my + todos',
+  },
+  {
+    prompt: 'sync the roadmap to github',
+    expected_skill: '/devflow:gh-sync',
+    label: 'sync the roadmap to github',
+    why_fires: 'matches broadened gh-sync rule: sync + (words) + to + github',
+  },
+  {
+    prompt: 'push this to github issues',
+    expected_skill: '/devflow:gh-sync',
+    label: 'push this to github issues',
+    why_fires: 'matches broadened gh-sync rule: push + this + to + github',
+  },
+  {
+    prompt: "let's talk through this objective",
+    expected_skill: '/devflow:discuss-objective',
+    label: "let's talk through this objective",
+    why_fires: 'matches broadened discuss-objective rule: talk through + this + objective',
+  },
+  {
+    prompt: 'walk me through the plan for the next objective',
+    expected_skill: '/devflow:discuss-objective',
+    label: 'walk me through the plan for the next objective',
+    why_fires: 'matches broadened discuss-objective rule: walk me through the plan',
   },
 ];
 
@@ -594,6 +638,22 @@ const NO_FIRE_FIXTURES = [
     prompt: 'should I sync to github',
     label: 'should-prefixed gh-sync question',
     why_no_fire: 'starts with "should" — Q&A interrogative skip (regression vs new gh-sync rule)',
+  },
+  // ─── 25-01: VERIFY tightening — check/test verbs dropped (audit item 5) ───
+  {
+    prompt: 'check the work',
+    label: 'check the work (moved from FIRE — 25-01 audit fix)',
+    why_no_fire: 'check/test verbs dropped from verify rule — generic dev speech, audit item 5 (fired 15x, followed 0x)',
+  },
+  {
+    prompt: 'check the build',
+    label: 'check the build',
+    why_no_fire: 'check/test verbs dropped from verify rule — generic dev speech, audit item 5',
+  },
+  {
+    prompt: 'test the feature',
+    label: 'test the feature',
+    why_no_fire: 'check/test verbs dropped from verify rule — generic dev speech, audit item 5',
   },
 ];
 

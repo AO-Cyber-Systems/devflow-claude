@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "aocyber",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "AO Cyber Systems plugins for Claude Code",
   "owner": {
     "name": "AO Cyber Systems",
@@ -11,7 +11,7 @@
     {
       "name": "devflow",
       "description": "Meta-prompting, context engineering, and spec-driven development system. 32 skills, 12 agents, wave-based parallelization, atomic commits, and persistent state across context resets.",
-      "version": "2.3.0",
+      "version": "2.4.0",
       "author": {
         "name": "AO Cyber Systems",
         "email": "dev@aocodex.ai"

@@ -1,0 +1,26 @@
+{
+  "objective": "UI-VISUAL-EVAL-JUDGE",
+  "note": "Hand-built dogfood manifest for the offline scoreRun rollup. Two states: one known-good, one intentionally-broken (overflow). The fake/offline judge keys off each capture file's label (good vs broken) — never the pixels. NO LLM-generated data.",
+  "samples": 3,
+  "flakeBudget": 1,
+  "states": [
+    {
+      "state_id": "good-dashboard",
+      "route": "/dashboard",
+      "data_state": "populated",
+      "viewport": { "width": 1280, "height": 800 },
+      "expected": "Dashboard shows a populated revenue chart and a non-empty table; no overflow, no blank regions.",
+      "capture_path": "./good-dashboard.capture.json",
+      "screenshot_path": "./good-dashboard.png"
+    },
+    {
+      "state_id": "broken-overflow",
+      "route": "/dashboard",
+      "data_state": "populated",
+      "viewport": { "width": 360, "height": 640 },
+      "expected": "Dashboard shows a populated revenue chart and a non-empty table; no overflow, no blank regions.",
+      "capture_path": "./broken-overflow.capture.json",
+      "screenshot_path": "./broken-overflow.png"
+    }
+  ]
+}

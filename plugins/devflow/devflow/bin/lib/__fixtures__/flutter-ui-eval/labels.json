@@ -1,0 +1,4 @@
+{
+  "good-dashboard": { "is_broken": false },
+  "broken-overflow": { "is_broken": true, "type": "overflow", "severity": "high" }
+}

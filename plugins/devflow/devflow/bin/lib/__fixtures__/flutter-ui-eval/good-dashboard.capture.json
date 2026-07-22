@@ -1,0 +1,13 @@
+{
+  "state_id": "good-dashboard",
+  "surface": "web",
+  "screenshot_path": "./good-dashboard.png",
+  "viewport": { "width": 1280, "height": 800 },
+  "captured_at": "2026-06-16T00:00:00.000Z",
+  "metadata": {
+    "console_errors": [],
+    "flutter_view_bbox": { "x": 0, "y": 0, "width": 1280, "height": 800 },
+    "fonts_ready": true,
+    "expected": "Dashboard shows a populated revenue chart and a non-empty table; no overflow, no blank regions."
+  }
+}

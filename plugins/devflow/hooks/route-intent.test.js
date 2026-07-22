@@ -55,7 +55,7 @@ describe('INTENT_MAP — exported shape', () => {
     }
   });
 
-  test('INTENT_MAP contains consolidated skills: build, debug, plan-objective, verify-work, status, status resume, status pause, objective add, new-project, research-objective, micro, execute-objective, todo add, quick', () => {
+  test('INTENT_MAP contains consolidated skills: build, debug, plan-objective, verify-work, status, status resume, status pause, objective add, new-project, research-objective, micro, execute-objective, todo add, quick, milestone new, milestone audit, todo list, gh-sync, discuss-objective', () => {
     const skills = new Set(INTENT_MAP.map(e => e.skill));
     const required = [
       '/devflow:build',
@@ -72,6 +72,11 @@ describe('INTENT_MAP — exported shape', () => {
       '/devflow:execute-objective',
       '/devflow:todo add',
       '/devflow:quick',
+      '/devflow:milestone new',
+      '/devflow:milestone audit',
+      '/devflow:todo list',
+      '/devflow:gh-sync',
+      '/devflow:discuss-objective',
     ];
     for (const skill of required) {
       assert.ok(skills.has(skill),
@@ -86,6 +91,10 @@ describe('INTENT_MAP — exported shape', () => {
       '/devflow:resume-work',
       '/devflow:pause-work',
       '/devflow:add-objective',
+      '/devflow:new-milestone',
+      '/devflow:add-todo',
+      '/devflow:check-todos',
+      '/devflow:audit-milestone',
     ];
     for (const dep of deprecated) {
       assert.ok(!skills.includes(dep),
