@@ -146,7 +146,7 @@ const INTENT_MAP = [
   // NEW-MILESTONE: must come BEFORE build to win for "make a new milestone".
   // Otherwise the build rule (make + a + \w+) wins via filter-first-match order.
   {
-    rx: /\b(?:make|create|start)\s+a\s+new\s+milestone\b/i,
+    rx: /\b(?:make|create|start|kick\s+off)\s+a\s+(?:new\s+)?milestone\b|\bnew\s+milestone\s+for\b/i,
     skill: '/devflow:milestone new',
     label: 'milestone-new',
     hint: 'create a new milestone',
@@ -207,9 +207,9 @@ const INTENT_MAP = [
     label: 'add-todo',
     hint: 'add a new todo item',
   },
-  // CHECK-TODOS: any todos / check (this|the|my) todos
+  // CHECK-TODOS: any todos / check (this|the|my) todos / list|show todos / what todos do I have
   {
-    rx: /\b(?:any\s+todos|check\s+(?:this|the|my)\s+todos?)\b/i,
+    rx: /\b(?:any\s+(?:open\s+)?todos|check\s+(?:this|the|my)\s+todos?|list\s+(?:the\s+|my\s+)?todos?|show\s+(?:me\s+)?(?:the\s+|my\s+)?todos?|what\s+todos?\s+(?:do\s+I\s+have|are\s+(?:open|left)))\b/i,
     skill: '/devflow:todo list',
     label: 'check-todos',
     hint: 'list outstanding todos',
@@ -235,16 +235,16 @@ const INTENT_MAP = [
     label: 'audit-milestone',
     hint: 'audit milestone state',
   },
-  // GH-SYNC: sync/push to github
+  // GH-SYNC: sync/push (words) to github|gh / sync the objectives|issues|roadmap|planning
   {
-    rx: /\b(?:sync|push)\s+to\s+github\b/i,
+    rx: /\b(?:sync|push)\s+(?:\w+\s+){0,3}to\s+(?:github|gh)\b|\bsync\s+(?:the\s+)?(?:objectives?|issues?|roadmap|planning)\b/i,
     skill: '/devflow:gh-sync',
     label: 'gh-sync',
     hint: 'sync planning state to GitHub',
   },
-  // DISCUSS-OBJECTIVE: discuss the/this objective
+  // DISCUSS-OBJECTIVE: discuss/talk through/walk me through/think through + the/this objective
   {
-    rx: /\bdiscuss\s+(?:the|this)\s+objective\b/i,
+    rx: /\b(?:discuss|talk\s+through|walk\s+me\s+through|think\s+through)\s+(?:the|this|an?)\s+(?:next\s+)?objective\b|\blet'?s\s+(?:talk|chat)\s+(?:about|through)\s+(?:the|this)\s+objective\b|\bwalk\s+me\s+through\s+the\s+plan\b/i,
     skill: '/devflow:discuss-objective',
     label: 'discuss-objective',
     hint: 'interactive objective discussion',
