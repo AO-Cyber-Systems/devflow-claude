@@ -262,14 +262,6 @@ Usage: `/devflow:cleanup`
 **`/devflow:help`**
 Show this command reference.
 
-**`/devflow:join-discord`**
-Join the DevFlow Discord community.
-
-- Get help, share what you're building, stay updated
-- Connect with other DevFlow users
-
-Usage: `/devflow:join-discord`
-
 ## Files & Structure
 
 ```
