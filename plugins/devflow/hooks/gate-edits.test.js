@@ -460,3 +460,185 @@ describe('env var escape hatch', () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// gates.editGate config knob (TRD 25-02) — .planning/config.json → warn|strict|off
+// ---------------------------------------------------------------------------
+
+describe('gates.editGate config — warn/strict/off', () => {
+  const { readEditGateMode, VALID_EDIT_GATE_MODES } = require('./gate-edits.js');
+
+  // ---- Unit: readEditGateMode() — pure fs, tmpdirs ----
+
+  test('readEditGateMode(null) → strict', () => {
+    assert.equal(readEditGateMode(null), 'strict');
+  });
+
+  test('planningDir with no config.json → strict', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gate-edits-mode-'));
+    try {
+      fs.mkdirSync(path.join(tmp, '.planning'));
+      assert.equal(readEditGateMode(path.join(tmp, '.planning')), 'strict');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('config.json with malformed JSON → strict', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gate-edits-mode-'));
+    try {
+      fs.mkdirSync(path.join(tmp, '.planning'));
+      fs.writeFileSync(path.join(tmp, '.planning', 'config.json'), '{ not valid json');
+      assert.equal(readEditGateMode(path.join(tmp, '.planning')), 'strict');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('config.json without gates key → strict', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gate-edits-mode-'));
+    try {
+      fs.mkdirSync(path.join(tmp, '.planning'));
+      fs.writeFileSync(path.join(tmp, '.planning', 'config.json'), JSON.stringify({ mode: 'yolo' }));
+      assert.equal(readEditGateMode(path.join(tmp, '.planning')), 'strict');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('gates.editGate: "banana" (unknown enum) → strict', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gate-edits-mode-'));
+    try {
+      fs.mkdirSync(path.join(tmp, '.planning'));
+      fs.writeFileSync(
+        path.join(tmp, '.planning', 'config.json'),
+        JSON.stringify({ gates: { editGate: 'banana' } })
+      );
+      assert.equal(readEditGateMode(path.join(tmp, '.planning')), 'strict');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('gates.editGate: "warn" → warn; "off" → off; "strict" → strict', () => {
+    for (const mode of ['warn', 'off', 'strict']) {
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gate-edits-mode-'));
+      try {
+        fs.mkdirSync(path.join(tmp, '.planning'));
+        fs.writeFileSync(
+          path.join(tmp, '.planning', 'config.json'),
+          JSON.stringify({ gates: { editGate: mode } })
+        );
+        assert.equal(readEditGateMode(path.join(tmp, '.planning')), mode, `Expected ${mode} to round-trip`);
+      } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
+    }
+  });
+
+  test('VALID_EDIT_GATE_MODES contains exactly strict, warn, off', () => {
+    assert.ok(VALID_EDIT_GATE_MODES instanceof Set);
+    assert.deepEqual([...VALID_EDIT_GATE_MODES].sort(), ['off', 'strict', 'warn']);
+  });
+
+  // ---- Subprocess e2e — ambient tmpdir, no markers, realistic Edit payload on a .cjs path ----
+
+  function makeTmpWithGateConfig(mode, { skillActive = false } = {}) {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gate-edits-cfg-'));
+    fs.mkdirSync(path.join(tmp, '.planning'));
+    if (mode !== undefined) {
+      fs.writeFileSync(
+        path.join(tmp, '.planning', 'config.json'),
+        JSON.stringify({ gates: { editGate: mode } })
+      );
+    }
+    if (skillActive) {
+      fs.writeFileSync(path.join(tmp, '.planning', '.skill-active'), JSON.stringify({
+        skill: 'build', started_at: new Date().toISOString(), pid: process.pid,
+      }));
+    }
+    return tmp;
+  }
+
+  test('e2e: editGate "warn" → permissionDecision "ask" with standard reason text', () => {
+    const tmp = makeTmpWithGateConfig('warn');
+    try {
+      const payload = realPreToolUsePayload({
+        tool_name: 'Edit',
+        file_path: path.join(tmp, 'src/x.cjs'),
+        cwd: tmp,
+      });
+      const { result } = runHook(payload, { cwd: tmp });
+      assert.ok(result.stdout.length > 0, 'Expected JSON output (ask)');
+      const out = JSON.parse(result.stdout);
+      assert.equal(out.hookSpecificOutput.permissionDecision, 'ask');
+      assert.match(out.hookSpecificOutput.permissionDecisionReason, /ambient mode/i);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('e2e: editGate "off" → empty stdout (no output at all)', () => {
+    const tmp = makeTmpWithGateConfig('off');
+    try {
+      const payload = realPreToolUsePayload({
+        tool_name: 'Edit',
+        file_path: path.join(tmp, 'src/x.cjs'),
+        cwd: tmp,
+      });
+      const { result } = runHook(payload, { cwd: tmp });
+      assert.equal(result.stdout, '', 'Expected empty stdout when editGate is off');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('e2e: editGate "strict" → permissionDecision "deny" (parity with no-config default)', () => {
+    const tmp = makeTmpWithGateConfig('strict');
+    try {
+      const payload = realPreToolUsePayload({
+        tool_name: 'Edit',
+        file_path: path.join(tmp, 'src/x.cjs'),
+        cwd: tmp,
+      });
+      const { result } = runHook(payload, { cwd: tmp });
+      assert.ok(result.stdout.length > 0, 'Expected JSON output (deny)');
+      const out = JSON.parse(result.stdout);
+      assert.equal(out.hookSpecificOutput.permissionDecision, 'deny');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('e2e: editGate "warn" + .skill-active marker present → empty stdout (allow precedence unaffected by mode)', () => {
+    const tmp = makeTmpWithGateConfig('warn', { skillActive: true });
+    try {
+      const payload = realPreToolUsePayload({
+        tool_name: 'Edit',
+        file_path: path.join(tmp, 'src/x.cjs'),
+        cwd: tmp,
+      });
+      const { result } = runHook(payload, { cwd: tmp });
+      assert.equal(result.stdout, '', 'Expected empty stdout — skill-active allow wins regardless of mode');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('e2e: no config.json at all → deny (parity check; pre-existing e2e must stay green untouched)', () => {
+    const tmp = makeTmp(false); // no config.json written
+    try {
+      const payload = realPreToolUsePayload({
+        tool_name: 'Edit',
+        file_path: path.join(tmp, 'src/x.cjs'),
+        cwd: tmp,
+      });
+      const { result } = runHook(payload, { cwd: tmp });
+      assert.ok(result.stdout.length > 0);
+      const out = JSON.parse(result.stdout);
+      assert.equal(out.hookSpecificOutput.permissionDecision, 'deny');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+});
