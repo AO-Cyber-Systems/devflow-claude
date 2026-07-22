@@ -13,6 +13,13 @@
  *      (single-turn, TTL-bounded). Phrases: "skip devflow", "just edit",
  *      "bypass devflow", "force edit".
  *   3. DEVFLOW_SKIP_EDIT_GATE=1 env var — debugging / manual escape hatch.
+ *   4. .planning/config.json → gates.editGate: "warn" | "strict" | "off"
+ *      (default "strict", unchanged from above). "warn" softens the deny into
+ *      permissionDecision 'ask' (visible but non-blocking) — see Prior behavior
+ *      note below. "off" disables the gate entirely for that project (hook
+ *      emits nothing, same as DEVFLOW_SKIP_EDIT_GATE=1). Any missing file/key,
+ *      malformed JSON, or unrecognized value falls back to "strict" — never
+ *      silently softens the gate.
  *
  * Permits edits to:
  *   - .planning/**        (planning artifacts are edited directly)

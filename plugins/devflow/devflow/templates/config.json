@@ -30,7 +30,8 @@
     "confirm_job": true,
     "execute_next_job": true,
     "issues_review": true,
-    "confirm_transition": true
+    "confirm_transition": true,
+    "editGate": "strict"
   },
   "safety": {
     "always_confirm_destructive": true,
