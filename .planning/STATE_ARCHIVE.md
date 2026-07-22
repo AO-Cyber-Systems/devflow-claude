@@ -78,6 +78,7 @@ STATE.md stays lean; this file grows over time.
 - [Objective 10-flutter-ui-verification-process]: TRD 10-04b: Bootstrap detector invoked in load_project_state (before task execution per Pitfall #10); flutter analyze uses baseline-diff not exit-code gate to avoid pre-existing warning false negatives
 - [Objective 10]: Used YAML-key-first parsing strategy in loadCatalog: each yaml block's first line identifies the library — more robust than heading-matching
 - [Objective 10]: setState patterns are all MEDIUM/LOW so setState misses route to advisories not blockers, matching flutter-state-patterns.md confidence model
+- [Objective 25-fleet-audit-fixes]: TRD 25-05 complete: kind: frontmatter set/created in 6 fleet PROJECT.md files (eden-circle, eden-biz/go, aodex/flutter, eden-libs/eden-platform-go, devflowops, aocore), one commit per repo (c3607da, b09154a5, 02c7689, 0dbd7da, 2dab915, 3f7f29951). Roadmap SC-6 (kind: half) satisfied.
 
 ## Performance Metrics
 

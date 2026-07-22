@@ -455,6 +455,11 @@
       "objective": "10",
       "summary": "setState patterns are all MEDIUM/LOW so setState misses route to advisories not blockers, matching flutter-state-patterns.md confidence model",
       "rationale": null
+    },
+    {
+      "objective": "25-fleet-audit-fixes",
+      "summary": "TRD 25-05 complete: kind: frontmatter set/created in 6 fleet PROJECT.md files (eden-circle, eden-biz/go, aodex/flutter, eden-libs/eden-platform-go, devflowops, aocore), one commit per repo (c3607da, b09154a5, 02c7689, 0dbd7da, 2dab915, 3f7f29951). Roadmap SC-6 (kind: half) satisfied.",
+      "rationale": null
     }
   ],
   "blockers": [],
