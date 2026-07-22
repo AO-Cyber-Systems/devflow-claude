@@ -791,6 +791,29 @@ TRDs:
 - [x] 10-07-TRD.md — Dogfood end-to-end integration test (REQ-10-03..07; caught + fixed cross-TRD parser bug in 10-05/10-06 via shared lib/trd-artifacts.cjs scanner)
 - [x] 10-08-TRD.md — api-contract.cjs SHA pinning helper (REQ-10-08)
 
+### Objective 25: Fleet audit fixes
+
+**Goal:** Close the 7 findings from the 2026-07-22 fleet-wide usage audit: fix phantom skill names and the noisy verify-work rule in route-intent.js, prune join-discord, add adoption router rules for milestone/todo/gh-sync/discuss-objective, add a per-repo edit-gate config knob, and align global + per-repo CLAUDE.md/PROJECT.md config (routing table, TDD-by-kind playbook, kind: frontmatter, opsCluster/eden-press CLAUDE.mds) so intent-model resolution engages fleet-wide.
+**Depends on:** Objective 24
+
+**Success criteria:**
+- [ ] route-intent.js references only skills that exist post-Phase-G; unit tests cover the corrected names
+- [ ] verify-work rule fires only on explicit objective-verification intent
+- [ ] join-discord skill removed; milestone/todo/gh-sync/discuss-objective have realistic router rules
+- [ ] gate-edits.js supports .planning/config.json gates.editGate (warn|strict|off), default strict
+- [ ] ~/.claude/CLAUDE.md routing table matches current skill surface (status, micro) and declares TDD-by-kind playbook
+- [ ] kind: set in 6 fleet PROJECT.mds; CLAUDE.md created for opsCluster + eden-press
+
+**TRDs:** 6 plans
+
+TRDs:
+- [ ] 25-01-route-intent-consolidation-TRD.md — phantom skill names + verify-work tightening + adoption router rules (items 1, 5, 6b)
+- [ ] 25-02-edit-gate-knob-TRD.md — gates.editGate warn|strict|off mechanism, default strict (item 7 mechanism)
+- [ ] 25-03-prune-join-discord-TRD.md — remove join-discord skill + live references (item 6a)
+- [ ] 25-04-global-claude-md-TRD.md — ~/.claude/CLAUDE.md routing table + TDD & Quality by-kind section (items 2, 3a, 6b global)
+- [ ] 25-05-fleet-kind-frontmatter-TRD.md — kind: in 6 fleet PROJECT.mds incl. aocore create (item 3b)
+- [ ] 25-06-fleet-claude-md-TRD.md — opsCluster + eden-press CLAUDE.md + eden-press editGate warn (items 4, 7 application)
+
 ---
 
 ## Original v1.2 plan — preserved as scope reference (now folded into objectives 10-13 above)
