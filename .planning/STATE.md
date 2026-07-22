@@ -2,14 +2,17 @@
 
 ## Project Reference
 
+See: .planning/PROJECT.md (updated 2026-07-22 after v1.2 milestone)
+
 **Building:** DevFlow Claude — meta-prompting plugin for Claude Code, evolving into program-aware coordination layer for AO-Cyber-Systems org
 **Core Value:** AI workflow orchestration + cross-repo program awareness for AI-assisted development
+**Current focus:** Planning next milestone (v1.3) — candidate scope carried in ROADMAP.md
 **Ecosystem:** AODex (Rails+Go API) + AOSentry (LLM Gateway) + Flutter (macOS Hub) + DevFlow (local platform CLI/daemon) + DevFlow Claude (this — Claude Code plugin)
 
 ## Current Position
 
-**Milestone:** v1.1 — DevFlow Coordination Layer (in flight)
-**Branch:** `feature/v1.1`
+**Milestone:** v1.2 — SHIPPED 2026-07-22 (v1.1 shipped 2026-05-06; both archived to .planning/milestones/)
+**Branch:** `main`
 **Objective complete:** 0 — Refine (kind, work) defaults table from codebase evidence (verified 2026-05-04, 443/443 tests, all 10 SC met)
 **Objective complete:** 1 — GitHub coordination layer (verified 2026-05-04, 563/563 tests, all 6 TRDs done, SC-9 + SC-10 met)
 **Objective complete:** 2 — Cross-repo awareness layer (verified 2026-05-04, 731/731 tests with integration flags, all 10 SC met, 7 TRDs done)
@@ -24,8 +27,7 @@
 **Objective complete:** 20 — Daemon polish bundle (verified 2026-05-06, 2053/2055 tests pass + 2 pre-existing failures unchanged + 34 skipped, all 5 TRDs done across 2 waves). Wave 1: 20-01 OS notifications + 20-02 auto-launch + 20-03 multi-project + 20-05 cross-shell (8 commits). Wave 2: 20-04 status-line indicator (2 commits, +25 new tests, statusline.test.js created fresh — first-ever test file for that hook). 10 commits across waves; all 5 daemon polish features (notifications, auto-launch, multi-project, status-line, cross-shell) shipped behind opt-in feature flags with byte-identical default-OFF behavior.
 **Objective complete:** 21 — Bidirectional GH sync + configurable defaults table (verified 2026-05-06, all 5 TRDs done across 2 waves). Wave 1: 21-01 gh-pull CLI (19 tests) + 21-04 defaults-table loader + 21-05 intent provenance. Wave 2: 21-02 sync-state tracking (22 tests, `lib/sync-state.cjs` with hashFrontmatter + recordSync) + 21-03 conflict resolution (25 tests, `lib/conflict.cjs` with detectConflict + 3-way diff + --resolve={disk,gh,merge} flag). Total ~114 new tests (~67 Wave 1 + 47 Wave 2). 11 atomic commits in Wave 2 (RED + GREEN per task pairs). All TDD TRDs followed test-first. `_readSyncStateRaw` stub from 21-01 cleanly removed; `cmdGhSyncObjectives`/`ghStatus` switched to `_runGh` test seam (back-compat preserved).
 **Objective complete:** 25 — Fleet audit fixes (verified 2026-07-22, 6/6 SC met, 6 TRDs done across 2 waves; 2681 tests / 8 pre-existing failures only; fleet: 6 kind: commits + opsCluster/eden-press CLAUDE.md + eden-press editGate warn; global ~/.claude/CLAUDE.md routing + TDD-by-kind playbook)
-**Branch:** `feature/v1.2-obj-12-bidirectional-gh-sync`
-**Status:** Milestone complete
+**Status:** v1.2 milestone complete — archived 2026-07-22; obj 25 UAT 8/8 pass
 
 ## Branch State (post-merge)
 
@@ -211,6 +213,6 @@
 
 ## Session Continuity
 
-Last session: 2026-07-22 — TRD 25-01 (route-intent.js fleet audit fixes) COMPLETE: 3 tasks, 6 atomic commits (RED/GREEN pairs). Phantom skill names corrected, VERIFY rule tightened, adoption rules broadened for milestone/todo/gh-sync/discuss-objective. route-intent.test.js 109/109 pass; full npm test 2611/2669 pass (8 pre-existing unrelated failures).
+Last session: 2026-07-22 — Objective 25 UAT complete (8/8 pass, `objectives/25-fleet-audit-fixes/25-UAT.md`) followed by v1.2 milestone completion: MILESTONES.md created (v1.1 + v1.2 entries), ROADMAP.md archived to `milestones/v1.2-ROADMAP.md` and replaced with compact milestone-grouped version, PROJECT.md evolution review done, tag `milestone/v1.2` created locally (not pushed; bare `v1.2` deliberately avoided — `v*` triggers release CI).
 Resume file: `.planning/SESSION_PICKUP.md`
-Stopped at: Completed 25-01-TRD.md (route-intent.js fleet audit fixes). Next: remaining objective-25 TRDs / orchestrator merge + ROADMAP reconciliation.
+Stopped at: v1.2 shipped. Next: `/devflow:milestone new` to plan v1.3 (candidate scope listed in ROADMAP.md).
