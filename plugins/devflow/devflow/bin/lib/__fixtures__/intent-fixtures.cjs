@@ -480,10 +480,16 @@ const FIRE_FIXTURES = [
     why_fires: 'matches new verify rule: verify + this + objective',
   },
   {
-    prompt: 'check the work',
+    prompt: 'verify the work',
     expected_skill: '/devflow:verify-work',
-    label: 'check the work (regression)',
-    why_fires: 'matches existing verify rule (regression confirmation)',
+    label: 'verify the work',
+    why_fires: 'matches tightened verify rule: verify + the + work (explicit verification intent, 25-01 audit fix)',
+  },
+  {
+    prompt: 'validate this feature',
+    expected_skill: '/devflow:verify-work',
+    label: 'validate this feature',
+    why_fires: 'matches tightened verify rule: validate + this + feature (explicit verification intent, 25-01 audit fix)',
   },
   {
     prompt: 'research how to use Vitest',
@@ -594,6 +600,22 @@ const NO_FIRE_FIXTURES = [
     prompt: 'should I sync to github',
     label: 'should-prefixed gh-sync question',
     why_no_fire: 'starts with "should" — Q&A interrogative skip (regression vs new gh-sync rule)',
+  },
+  // ─── 25-01: VERIFY tightening — check/test verbs dropped (audit item 5) ───
+  {
+    prompt: 'check the work',
+    label: 'check the work (moved from FIRE — 25-01 audit fix)',
+    why_no_fire: 'check/test verbs dropped from verify rule — generic dev speech, audit item 5 (fired 15x, followed 0x)',
+  },
+  {
+    prompt: 'check the build',
+    label: 'check the build',
+    why_no_fire: 'check/test verbs dropped from verify rule — generic dev speech, audit item 5',
+  },
+  {
+    prompt: 'test the feature',
+    label: 'test the feature',
+    why_no_fire: 'check/test verbs dropped from verify rule — generic dev speech, audit item 5',
   },
 ];
 
