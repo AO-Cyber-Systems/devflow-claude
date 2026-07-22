@@ -144,8 +144,8 @@ const INTENT_MAP = [
   // Otherwise the build rule (make + a + \w+) wins via filter-first-match order.
   {
     rx: /\b(?:make|create|start)\s+a\s+new\s+milestone\b/i,
-    skill: '/devflow:new-milestone',
-    label: 'new-milestone',
+    skill: '/devflow:milestone new',
+    label: 'milestone-new',
     hint: 'create a new milestone',
   },
   // BUILD (extension): ship-it, let's work-on, let's start, I want to build
@@ -200,14 +200,14 @@ const INTENT_MAP = [
   // ADD-TODO: add/create a todo for/item/about
   {
     rx: /\b(?:add|create)\s+a\s+todo\s+(?:for|item|about)\b/i,
-    skill: '/devflow:add-todo',
+    skill: '/devflow:todo add',
     label: 'add-todo',
     hint: 'add a new todo item',
   },
   // CHECK-TODOS: any todos / check (this|the|my) todos
   {
     rx: /\b(?:any\s+todos|check\s+(?:this|the|my)\s+todos?)\b/i,
-    skill: '/devflow:check-todos',
+    skill: '/devflow:todo list',
     label: 'check-todos',
     hint: 'list outstanding todos',
   },
@@ -228,7 +228,7 @@ const INTENT_MAP = [
   // AUDIT-MILESTONE: audit the milestone
   {
     rx: /\baudit\s+(?:the\s+)?milestone\b/i,
-    skill: '/devflow:audit-milestone',
+    skill: '/devflow:milestone audit',
     label: 'audit-milestone',
     hint: 'audit milestone state',
   },
