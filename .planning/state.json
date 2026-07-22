@@ -455,6 +455,11 @@
       "objective": "10",
       "summary": "setState patterns are all MEDIUM/LOW so setState misses route to advisories not blockers, matching flutter-state-patterns.md confidence model",
       "rationale": null
+    },
+    {
+      "objective": "25-fleet-audit-fixes",
+      "summary": "TRD 04 complete: global ~/.claude/CLAUDE.md routing table fixed (status/micro/4 adoption skills) + '## TDD & Quality' by-kind playbook section added; deriveOverrides yields only {_playbookDetected:true}; devflow-claude resolver config unchanged (strict->strict no-op)",
+      "rationale": null
     }
   ],
   "blockers": [],
