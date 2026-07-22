@@ -797,12 +797,12 @@ TRDs:
 **Depends on:** Objective 24
 
 **Success criteria:**
-- [ ] route-intent.js references only skills that exist post-Phase-G; unit tests cover the corrected names
-- [ ] verify-work rule fires only on explicit objective-verification intent
-- [ ] join-discord skill removed; milestone/todo/gh-sync/discuss-objective have realistic router rules
-- [ ] gate-edits.js supports .planning/config.json gates.editGate (warn|strict|off), default strict
-- [ ] ~/.claude/CLAUDE.md routing table matches current skill surface (status, micro) and declares TDD-by-kind playbook
-- [ ] kind: set in 6 fleet PROJECT.mds; CLAUDE.md created for opsCluster + eden-press
+- [x] route-intent.js references only skills that exist post-Phase-G; unit tests cover the corrected names
+- [x] verify-work rule fires only on explicit objective-verification intent
+- [x] join-discord skill removed; milestone/todo/gh-sync/discuss-objective have realistic router rules
+- [x] gate-edits.js supports .planning/config.json gates.editGate (warn|strict|off), default strict
+- [x] ~/.claude/CLAUDE.md routing table matches current skill surface (status, micro) and declares TDD-by-kind playbook
+- [x] kind: set in 6 fleet PROJECT.mds; CLAUDE.md created for opsCluster + eden-press
 
 **TRDs:** 6 plans
 
