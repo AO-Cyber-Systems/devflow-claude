@@ -463,15 +463,15 @@ const FIRE_FIXTURES = [
   },
   {
     prompt: 'add a todo for the README cleanup',
-    expected_skill: '/devflow:add-todo',
+    expected_skill: '/devflow:todo add',
     label: 'add a todo',
-    why_fires: 'matches new add-todo rule: add + a + todo + for',
+    why_fires: 'matches new add-todo rule: add + a + todo + for (corrected to consolidated /devflow:todo add per 25-01 audit fix)',
   },
   {
     prompt: 'any todos',
-    expected_skill: '/devflow:check-todos',
+    expected_skill: '/devflow:todo list',
     label: 'any todos',
-    why_fires: 'matches new check-todos rule: any + todos',
+    why_fires: 'matches new check-todos rule: any + todos (corrected to consolidated /devflow:todo list per 25-01 audit fix)',
   },
   {
     prompt: 'verify this objective',
@@ -499,9 +499,9 @@ const FIRE_FIXTURES = [
   },
   {
     prompt: 'audit the milestone',
-    expected_skill: '/devflow:audit-milestone',
+    expected_skill: '/devflow:milestone audit',
     label: 'audit the milestone',
-    why_fires: 'matches new audit-milestone rule',
+    why_fires: 'matches new audit-milestone rule (corrected to consolidated /devflow:milestone audit per 25-01 audit fix)',
   },
   {
     prompt: 'sync to github',
@@ -511,9 +511,9 @@ const FIRE_FIXTURES = [
   },
   {
     prompt: 'make a new milestone',
-    expected_skill: '/devflow:new-milestone',
+    expected_skill: '/devflow:milestone new',
     label: 'make a new milestone',
-    why_fires: 'matches new new-milestone rule: make + a + new + milestone',
+    why_fires: 'matches new new-milestone rule: make + a + new + milestone (corrected to consolidated /devflow:milestone new per 25-01 audit fix)',
   },
   {
     prompt: 'discuss the objective',
