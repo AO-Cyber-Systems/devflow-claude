@@ -807,11 +807,11 @@ TRDs:
 **TRDs:** 6 plans
 
 TRDs:
-- [ ] 25-01-route-intent-consolidation-TRD.md — phantom skill names + verify-work tightening + adoption router rules (items 1, 5, 6b)
-- [ ] 25-02-edit-gate-knob-TRD.md — gates.editGate warn|strict|off mechanism, default strict (item 7 mechanism)
-- [ ] 25-03-prune-join-discord-TRD.md — remove join-discord skill + live references (item 6a)
-- [ ] 25-04-global-claude-md-TRD.md — ~/.claude/CLAUDE.md routing table + TDD & Quality by-kind section (items 2, 3a, 6b global)
-- [ ] 25-05-fleet-kind-frontmatter-TRD.md — kind: in 6 fleet PROJECT.mds incl. aocore create (item 3b)
+- [x] 25-01-route-intent-consolidation-TRD.md — phantom skill names + verify-work tightening + adoption router rules (items 1, 5, 6b)
+- [x] 25-02-edit-gate-knob-TRD.md — gates.editGate warn|strict|off mechanism, default strict (item 7 mechanism)
+- [x] 25-03-prune-join-discord-TRD.md — remove join-discord skill + live references (item 6a)
+- [x] 25-04-global-claude-md-TRD.md — ~/.claude/CLAUDE.md routing table + TDD & Quality by-kind section (items 2, 3a, 6b global)
+- [x] 25-05-fleet-kind-frontmatter-TRD.md — kind: in 6 fleet PROJECT.mds incl. aocore create (item 3b)
 - [ ] 25-06-fleet-claude-md-TRD.md — opsCluster + eden-press CLAUDE.md + eden-press editGate warn (items 4, 7 application)
 
 ---
