@@ -527,6 +527,44 @@ const FIRE_FIXTURES = [
     label: 'discuss the objective',
     why_fires: 'matches new discuss-objective rule: discuss + the + objective',
   },
+  // ─── 25-01: adoption broadening (audit item 6b) ──────────────────────────
+  // Realistic phrasings, hand-authored from audit evidence. Two per adoption target.
+  {
+    prompt: 'start a milestone for v2.0',
+    expected_skill: '/devflow:milestone new',
+    label: 'start a milestone for v2.0',
+    why_fires: 'matches broadened milestone-new rule: start + a + milestone + for',
+  },
+  {
+    prompt: 'list my todos',
+    expected_skill: '/devflow:todo list',
+    label: 'list my todos',
+    why_fires: 'matches broadened todo-list rule: list + my + todos',
+  },
+  {
+    prompt: 'sync the roadmap to github',
+    expected_skill: '/devflow:gh-sync',
+    label: 'sync the roadmap to github',
+    why_fires: 'matches broadened gh-sync rule: sync + (words) + to + github',
+  },
+  {
+    prompt: 'push this to github issues',
+    expected_skill: '/devflow:gh-sync',
+    label: 'push this to github issues',
+    why_fires: 'matches broadened gh-sync rule: push + this + to + github',
+  },
+  {
+    prompt: "let's talk through this objective",
+    expected_skill: '/devflow:discuss-objective',
+    label: "let's talk through this objective",
+    why_fires: 'matches broadened discuss-objective rule: talk through + this + objective',
+  },
+  {
+    prompt: 'walk me through the plan for the next objective',
+    expected_skill: '/devflow:discuss-objective',
+    label: 'walk me through the plan for the next objective',
+    why_fires: 'matches broadened discuss-objective rule: walk me through the plan',
+  },
 ];
 
 // ─── A2: route-intent.js no-fire fixtures (5) ────────────────────────────────
