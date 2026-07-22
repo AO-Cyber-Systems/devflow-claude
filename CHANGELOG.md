@@ -6,9 +6,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-## [2.4.0] - 2026-06-16
+## [2.4.0] - 2026-07-22
 
 ### Added
+- **25-02**: `gates.editGate` config knob in gate-edits.js — per-repo `.planning/config.json` `gates.editGate: warn|strict|off`, default strict; `warn` converts ambient-edit deny to ask, `off` disables the gate (85d61b5)
 - **UI visual-evaluation layer**: a VLM-as-judge that scores rendered UI against per-state `expected` anchors, complementing functional/golden tests by catching first-time defects (overflow, blank-when-data-expected, misalignment) without baseline churn.
   - Engine `bin/lib/flutter-ui-eval.cjs` — validateJudgeResult / aggregateVotes / scoreState (HIGH-severity-only gate) / scoreRun / injectable callVisionJudge; dogfood fixtures.
   - CLI `df-tools verify flutter-ui-eval [--raw]` + `flutter-ui eval|bootstrap`; `df-ui-evaluator` model profile.
@@ -16,6 +17,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - `flutter-ui-eval-bootstrap.cjs` scaffolds the manifest/adapter/Playwright project into any stack:flutter repo.
   - `scoreRun` honors per-state `expect:fail` (known_failing/resolved buckets) so known-broken states don't fail the run while open, but a new fail or an unexpected pass still surfaces.
 
+### Fixed
+- **25-01**: correct 4 phantom pre-consolidation skill names in route-intent INTENT_MAP (new-milestone/add-todo/check-todos/audit-milestone → consolidated `/devflow:milestone new`, `/devflow:todo add`, `/devflow:todo list`, `/devflow:milestone audit` forms) (4065a8f)
+- **25-01**: tighten VERIFY routing rule to explicit `verify|validate + the|this + noun` intent — generic "check the build"/"test the feature" dev-speech no longer fires (218ae08)
+- **25-01**: broaden near-dead adoption router rules for milestone-new/todo-list/gh-sync/discuss-objective with realistic fixture-pinned phrasings (cffca14)
+
+### Removed
+- **25-03**: `join-discord` skill pruned — directory deleted, `/devflow:help` catalog entry and USER-GUIDE command-table row removed (9e3f52e, 92db50e)
 
 ## [2.3.0] - 2026-06-13
 
