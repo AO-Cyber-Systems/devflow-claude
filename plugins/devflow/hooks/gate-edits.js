@@ -75,6 +75,33 @@ function hasSkillActiveMarker(planningDir) {
 }
 
 /**
+ * Per-repo edit-gate severity knob (TRD 25-02).
+ * Valid values only — any missing file/key, malformed JSON, or unrecognized
+ * value falls back to 'strict'. Never silently soften the gate on a read failure.
+ */
+const VALID_EDIT_GATE_MODES = new Set(['strict', 'warn', 'off']);
+
+/**
+ * Reads `.planning/config.json` → `gates.editGate` ('warn'|'strict'|'off').
+ * Defaults to 'strict' on any missing/malformed/unrecognized input.
+ *
+ * @param {string|null} planningDir
+ * @returns {'strict'|'warn'|'off'}
+ */
+function readEditGateMode(planningDir) {
+  try {
+    if (!planningDir) return 'strict';
+    const configPath = path.join(planningDir, 'config.json');
+    if (!fs.existsSync(configPath)) return 'strict';
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    const mode = config.gates && config.gates.editGate;
+    return VALID_EDIT_GATE_MODES.has(mode) ? mode : 'strict';
+  } catch {
+    return 'strict';
+  }
+}
+
+/**
  * Core gate decision — pure function, no I/O.
  *
  * @param {object} opts
@@ -138,6 +165,9 @@ function main() {
   const filePath = (input.tool_input && input.tool_input.file_path) || '';
 
   const planningDir = findPlanningDir(process.cwd());
+  const editGateMode = readEditGateMode(planningDir);
+  if (editGateMode === 'off') return; // project opted out entirely
+
   const skillActive = hasSkillActiveMarker(planningDir);
   // Override phrase is signaled via .edit-override marker written by route-intent.js
   // (route-intent runs on UserPromptSubmit which has access to the prompt text;
@@ -148,11 +178,11 @@ function main() {
 
   if (result.decision === 'noop' || result.decision === 'allow') return;
 
-  // DENY — emit the structured hook output
+  // DENY (or ASK in 'warn' mode) — emit the structured hook output
   const out = {
     hookSpecificOutput: {
       hookEventName: 'PreToolUse',
-      permissionDecision: 'deny',
+      permissionDecision: editGateMode === 'warn' ? 'ask' : 'deny',
       permissionDecisionReason: result.reason,
     },
   };
@@ -173,4 +203,6 @@ module.exports = {
   hasOverridePhrase,
   shouldGate,
   findPlanningDir,
+  readEditGateMode,
+  VALID_EDIT_GATE_MODES,
 };
