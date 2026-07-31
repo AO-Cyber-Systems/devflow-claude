@@ -39,3 +39,6 @@ RAILROAD_ARCHITECTURE.md
 # Autonomous-mode runtime markers (objective 10) — session-local, not planning state
 .planning/.autonomous-resume-*
 .planning/.autonomous-retry-*
+
+# DevFlow ephemeral skill marker — must never be committed
+.planning/.skill-active
