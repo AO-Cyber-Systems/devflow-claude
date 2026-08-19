@@ -358,7 +358,7 @@ function makeOfflineLabelEchoJudge(labels, samples) {
  * must explicitly opt in by passing this fn as the `judge` to callVisionJudge on a genuine run.
  *
  * Model id provenance: resolved via the repo's own MODEL_PROFILES path
- *   (references/model-profiles.json -> models[ agents['df-ui-evaluator'][profile] ]).
+ *   (references/model-profiles.json -> models[ agents['ui-evaluator'][profile] ]).
  *   We do NOT hardcode an id from memory (knowledge-cutoff predates current ids).
  * Image-input format provenance: the Anthropic Messages API image content block
  *   ({ type:'image', source:{ type:'base64', media_type:'image/png', data:<b64> } }).
@@ -373,8 +373,18 @@ function defaultVisionJudge(request) {
   const profilesPath = path.join(__dirname, '..', '..', 'references', 'model-profiles.json');
   const profiles = JSON.parse(fs.readFileSync(profilesPath, 'utf-8'));
   const profile = process.env.DEVFLOW_MODEL_PROFILE || 'quality';
-  const tier = (profiles.agents['df-ui-evaluator'] || {})[profile] || 'opus';
+  // Agent keys are canonical without the df- prefix (TRD 28-02); accept both so
+  // a stale caller or an older profiles file still resolves.
+  const agentEntry = profiles.agents['ui-evaluator'] || profiles.agents['df-ui-evaluator'] || {};
+  const tier = agentEntry[profile] || 'opus';
   const model = profiles.models[tier];
+  if (!model) {
+    throw new Error(
+      `flutter-ui-eval: no model id for tier "${tier}" in references/model-profiles.json ` +
+      `(models: ${Object.keys(profiles.models || {}).join(', ') || 'none'}). ` +
+      `Refusing to call the vision judge without a resolved model.`
+    );
+  }
 
   // Read + base64-encode the screenshot for the Anthropic Messages API image content block.
   const b64 = fs.readFileSync(request.screenshot_path).toString('base64');

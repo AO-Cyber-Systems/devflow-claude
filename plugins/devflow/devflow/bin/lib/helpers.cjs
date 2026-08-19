@@ -9,6 +9,8 @@ const { execSync } = require('child_process');
 const MODEL_PROFILES_PATH = path.join(__dirname, '../../references/model-profiles.json');
 const _modelProfilesData = JSON.parse(fs.readFileSync(MODEL_PROFILES_PATH, 'utf-8'));
 const MODEL_PROFILES = _modelProfilesData.agents;
+// tier -> concrete API model id (live: flutter-ui-eval sends it to the Messages API)
+const MODEL_IDS = _modelProfilesData.models || {};
 
 // ─── Output / Error ──────────────────────────────────────────────────────────
 
@@ -136,6 +138,7 @@ function pathExistsInternal(cwd, targetPath) {
 module.exports = {
   MODEL_PROFILES_PATH,
   MODEL_PROFILES,
+  MODEL_IDS,
   output,
   error,
   parseIncludeFlag,
