@@ -214,6 +214,7 @@ const { analyze: analyzeContext } = require('./lib/context-audit.cjs');
 const { recordOverride, readOverrides } = require('./lib/override.cjs');
 const { analyze: analyzeSessions } = require('./lib/session-audit.cjs');
 const { exportTranscripts } = require('./lib/transcript-export.cjs');
+const { collect: collectTelemetry } = require('./lib/telemetry.cjs');
 const { cmdAwarenessRoute } = require('./lib/awareness-cli.cjs');
 const { cmdOrgAwarenessRoute } = require('./lib/org-awareness-cli.cjs');
 const { cmdDupDetectRoute } = require('./lib/dup-detect-cli.cjs');
@@ -251,7 +252,7 @@ async function main() {
   const cwd = process.cwd();
 
   if (!command) {
-    error('Usage: df-tools <command> [args] [--raw]\nCommands: state, context, override, session-audit, transcript-export, resolve-model, find-objective, commit, verify-summary, verify, detect, generate, frontmatter, template, generate-slug, current-timestamp, list-todos, verify-path-exists, config-ensure-section, awareness, benchmark, planning, init');
+    error('Usage: df-tools <command> [args] [--raw]\nCommands: state, context, override, session-audit, transcript-export, telemetry, resolve-model, find-objective, commit, verify-summary, verify, detect, generate, frontmatter, template, generate-slug, current-timestamp, list-todos, verify-path-exists, config-ensure-section, awareness, benchmark, planning, init');
   }
 
   switch (command) {
@@ -313,6 +314,23 @@ async function main() {
       } else {
         cmdStateLoad(cwd, raw);
       }
+      break;
+    }
+
+    case 'telemetry': {
+      // df-tools telemetry [--scan [--limit N]]
+      const { findPlanningDir: fpd } = require('./lib/skill-active.cjs');
+      const pdir = fpd(cwd);
+      let sessionReport;
+      if (args.includes('--scan')) {
+        const li2 = args.indexOf('--limit');
+        sessionReport = analyzeSessions(
+          [require('path').join(require('os').homedir(), '.claude', 'projects')],
+          { limit: li2 !== -1 && args[li2 + 1] ? parseInt(args[li2 + 1], 10) : 150 }
+        );
+      }
+      const rep = collectTelemetry({ planningDir: pdir, sessionReport });
+      console.log(JSON.stringify(rep, null, raw ? 0 : 2));
       break;
     }
 
