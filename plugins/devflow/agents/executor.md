@@ -2,7 +2,7 @@
 name: executor
 description: Executes planned tasks with atomic git commits, handles deviations, and manages checkpoints during builds.
 effort: xhigh
-tools: Read, Write, Edit, Bash, Grep, Glob, mcp__plugin_playwright_playwright__browser_navigate, mcp__plugin_playwright_playwright__browser_snapshot, mcp__plugin_playwright_playwright__browser_take_screenshot, mcp__plugin_playwright_playwright__browser_click, mcp__plugin_playwright_playwright__browser_fill_form, mcp__plugin_playwright_playwright__browser_wait_for, mcp__plugin_playwright_playwright__browser_tabs, mcp__plugin_playwright_playwright__browser_close, mcp__maestro__*
+tools: AskUserQuestion, TaskUpdate, TaskCreate, Read, Write, Edit, Bash, Grep, Glob, mcp__plugin_playwright_playwright__browser_navigate, mcp__plugin_playwright_playwright__browser_snapshot, mcp__plugin_playwright_playwright__browser_take_screenshot, mcp__plugin_playwright_playwright__browser_click, mcp__plugin_playwright_playwright__browser_fill_form, mcp__plugin_playwright_playwright__browser_wait_for, mcp__plugin_playwright_playwright__browser_tabs, mcp__plugin_playwright_playwright__browser_close, mcp__maestro__*
 color: yellow
 maxTurns: 50
 isolation: worktree
@@ -651,6 +651,32 @@ If a command is genuinely refused, split it rather than rephrasing it — the
 guard is a static check on shell structure, so a differently-worded compound
 command fails the same way. This is a harness-level guard, not a DevFlow hook:
 you cannot disable it, and `DEVFLOW_*` escape hatches do not apply.
+
+**Anchor every path to the worktree root.** 498 "file does not exist" errors in
+the 2026-08-18 audit were the agent addressing a file relative to a directory it
+was no longer in. You cannot `cd` (see above), so relative paths are ambiguous
+across calls. Resolve the root once and use absolute paths:
+
+```
+WORKTREE_ROOT=$(git rev-parse --show-toplevel)
+```
+
+then address files as `$WORKTREE_ROOT/go/internal/...`. When a tool call takes a
+path argument, pass it absolute.
+
+**Raise the timeout for builds and test suites.** The Bash tool defaults to 2
+minutes and 135 runs in the audit died on that ceiling — a killed suite tells
+you nothing and costs a full re-run. Pass an explicit `timeout` (milliseconds,
+max 600000) for anything that compiles or runs tests:
+
+| Command shape | Suggested timeout |
+|---|---|
+| `go build` / `npm run build` | 300000 (5 min) |
+| full test suite | 600000 (10 min) |
+| single focused test | default is fine |
+
+If a suite genuinely needs longer than 10 minutes, run it in the background and
+poll rather than blocking a single call on it.
 </worktree_command_discipline>
 
 <task_commit_protocol>

@@ -80,11 +80,16 @@ ROUTING DECISION TABLE:
   • Pause work                            → /devflow:status pause
 
 CONSOLIDATED SKILLS (Phase G, v1.2 obj 12):
+  /devflow:todo         add | list
+  /devflow:status       (no arg) | check | pause | resume
+
+USER-TYPED ONLY — you CANNOT invoke these via the Skill tool
+(disable-model-invocation: true, because they mutate planning state):
   /devflow:objective    add | remove
   /devflow:milestone    new | audit | complete | gaps
   /devflow:workstreams  setup | status | merge | run
-  /devflow:todo         add | list
-  /devflow:status       (no arg) | check | pause | resume
+Ask the user to type these, or use df-tools directly for the equivalent
+operation. Attempting the Skill tool on them fails.
 
 GATE: gate-edits.js will DENY direct Edit/Write/MultiEdit in ambient mode
 unless an active skill marker (.planning/.skill-active) is present, or the
@@ -164,12 +169,21 @@ function renderRoutingPreamble({ mode }) {
  * SessionStart hooks are hot-path — subprocess overhead is unacceptable.
  * Drift across versions is acceptable for the routing-table preamble.
  */
+// `userOnly` mirrors `disable-model-invocation: true` in the skill's own
+// frontmatter (TRD 30-02). These skills mutate planning state — `objective
+// remove` cascade-renumbers every objective above it — so requiring the user to
+// type them is deliberate, not a bug.
+//
+// The bug was advertising them to the model anyway: the routing preamble listed
+// them alongside invocable skills, producing 68 failed Skill-tool attempts
+// across 22 sessions in the 2026-08-18 audit. classifier.test.cjs asserts these
+// flags stay in sync with the actual frontmatter.
 const CONSOLIDATED_SKILLS = [
-  { name: 'objective',   subcommands: ['add', 'remove'] },
-  { name: 'milestone',   subcommands: ['new', 'audit', 'complete', 'gaps'] },
-  { name: 'workstreams', subcommands: ['setup', 'status', 'merge', 'run'] },
-  { name: 'todo',        subcommands: ['add', 'list'] },
-  { name: 'status',      subcommands: [null, 'check', 'pause', 'resume'] },
+  { name: 'objective',   subcommands: ['add', 'remove'], userOnly: true },
+  { name: 'milestone',   subcommands: ['new', 'audit', 'complete', 'gaps'], userOnly: true },
+  { name: 'workstreams', subcommands: ['setup', 'status', 'merge', 'run'], userOnly: true },
+  { name: 'todo',        subcommands: ['add', 'list'], userOnly: false },
+  { name: 'status',      subcommands: [null, 'check', 'pause', 'resume'], userOnly: false },
 ];
 
 // ─── Exports ──────────────────────────────────────────────────────────────────
