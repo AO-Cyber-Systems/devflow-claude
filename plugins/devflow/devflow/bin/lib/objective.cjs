@@ -323,7 +323,7 @@ function cmdObjectiveAdd(cwd, description, raw) {
   fs.writeFileSync(path.join(dirPath, '.gitkeep'), '');
 
   // Build objective entry
-  const objectiveEntry = `\n### Objective ${newObjectiveNum}: ${description}\n\n**Goal:** [To be planned]\n**Depends on:** Objective ${maxObjective}\n**Jobs:** 0 jobs\n\nJobs:\n- [ ] TBD (run /df:plan-objective ${newObjectiveNum} to break down)\n`;
+  const objectiveEntry = `\n### Objective ${newObjectiveNum}: ${description}\n\n**Goal:** [To be planned]\n**Depends on:** Objective ${maxObjective}\n**Jobs:** 0 jobs\n\nJobs:\n- [ ] TBD (run /devflow:plan-objective ${newObjectiveNum} to break down)\n`;
 
   // Find insertion point: before last "---" or at end
   let updatedContent;
