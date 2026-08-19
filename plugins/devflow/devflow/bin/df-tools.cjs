@@ -211,6 +211,7 @@ const {
 } = require('./lib/changelog.cjs');
 const { cmdSkillActive } = require('./lib/skill-active.cjs');
 const { analyze: analyzeContext } = require('./lib/context-audit.cjs');
+const { recordOverride, readOverrides } = require('./lib/override.cjs');
 const { cmdAwarenessRoute } = require('./lib/awareness-cli.cjs');
 const { cmdOrgAwarenessRoute } = require('./lib/org-awareness-cli.cjs');
 const { cmdDupDetectRoute } = require('./lib/dup-detect-cli.cjs');
@@ -248,7 +249,7 @@ async function main() {
   const cwd = process.cwd();
 
   if (!command) {
-    error('Usage: df-tools <command> [args] [--raw]\nCommands: state, context, resolve-model, find-objective, commit, verify-summary, verify, detect, generate, frontmatter, template, generate-slug, current-timestamp, list-todos, verify-path-exists, config-ensure-section, awareness, benchmark, planning, init');
+    error('Usage: df-tools <command> [args] [--raw]\nCommands: state, context, override, resolve-model, find-objective, commit, verify-summary, verify, detect, generate, frontmatter, template, generate-slug, current-timestamp, list-todos, verify-path-exists, config-ensure-section, awareness, benchmark, planning, init');
   }
 
   switch (command) {
@@ -310,6 +311,29 @@ async function main() {
       } else {
         cmdStateLoad(cwd, raw);
       }
+      break;
+    }
+
+    case 'override': {
+      // df-tools override --gate <name> --reason "<why>" | --list [--limit N]
+      const { findPlanningDir } = require('./lib/skill-active.cjs');
+      const pd = findPlanningDir(cwd);
+      const gi = args.indexOf('--gate');
+      const ri = args.indexOf('--reason');
+      const li = args.indexOf('--limit');
+      const limit = li !== -1 && args[li + 1] ? parseInt(args[li + 1], 10) : 20;
+      if (args.includes('--list')) {
+        const out = readOverrides({ planningDir: pd, limit });
+        console.log(JSON.stringify(out, null, raw ? 0 : 2));
+        break;
+      }
+      const res = recordOverride({
+        planningDir: pd,
+        gate: gi !== -1 ? args[gi + 1] : undefined,
+        reason: ri !== -1 ? args.slice(ri + 1).filter(a => !a.startsWith('--')).join(' ') : undefined,
+      });
+      if (!res.ok) error(res.message);
+      console.log(JSON.stringify(res, null, raw ? 0 : 2));
       break;
     }
 
