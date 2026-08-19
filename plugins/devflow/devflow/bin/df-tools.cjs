@@ -212,6 +212,8 @@ const {
 const { cmdSkillActive } = require('./lib/skill-active.cjs');
 const { analyze: analyzeContext } = require('./lib/context-audit.cjs');
 const { recordOverride, readOverrides } = require('./lib/override.cjs');
+const { analyze: analyzeSessions } = require('./lib/session-audit.cjs');
+const { exportTranscripts } = require('./lib/transcript-export.cjs');
 const { cmdAwarenessRoute } = require('./lib/awareness-cli.cjs');
 const { cmdOrgAwarenessRoute } = require('./lib/org-awareness-cli.cjs');
 const { cmdDupDetectRoute } = require('./lib/dup-detect-cli.cjs');
@@ -249,7 +251,7 @@ async function main() {
   const cwd = process.cwd();
 
   if (!command) {
-    error('Usage: df-tools <command> [args] [--raw]\nCommands: state, context, override, resolve-model, find-objective, commit, verify-summary, verify, detect, generate, frontmatter, template, generate-slug, current-timestamp, list-todos, verify-path-exists, config-ensure-section, awareness, benchmark, planning, init');
+    error('Usage: df-tools <command> [args] [--raw]\nCommands: state, context, override, session-audit, transcript-export, resolve-model, find-objective, commit, verify-summary, verify, detect, generate, frontmatter, template, generate-slug, current-timestamp, list-todos, verify-path-exists, config-ensure-section, awareness, benchmark, planning, init');
   }
 
   switch (command) {
@@ -311,6 +313,47 @@ async function main() {
       } else {
         cmdStateLoad(cwd, raw);
       }
+      break;
+    }
+
+    case 'transcript-export': {
+      // df-tools transcript-export [--root <dir>] [--out <file>] [--full <dir>] [--limit N]
+      const os2 = require('os'); const path2 = require('path');
+      const eroots = [];
+      for (let i = 1; i < args.length; i++) {
+        if (args[i] === '--root' && args[i + 1]) { eroots.push(args[i + 1]); i++; }
+      }
+      if (!eroots.length) eroots.push(path2.join(os2.homedir(), '.claude', 'projects'));
+      const oi = args.indexOf('--out');
+      const fi = args.indexOf('--full');
+      const ei = args.indexOf('--limit');
+      const res = exportTranscripts({
+        roots: eroots,
+        out: oi !== -1 && args[oi + 1] ? args[oi + 1]
+          : path2.join(os2.homedir(), '.claude', 'devflow', 'transcript-index.jsonl'),
+        fullDir: fi !== -1 ? args[fi + 1] : undefined,
+        limit: ei !== -1 && args[ei + 1] ? parseInt(args[ei + 1], 10) : undefined,
+      });
+      console.log(JSON.stringify(res, null, raw ? 0 : 2));
+      break;
+    }
+
+    case 'session-audit': {
+      // df-tools session-audit [--root <dir>] [--limit N] [--since YYYY-MM-DD]
+      const sroots = [];
+      for (let i = 1; i < args.length; i++) {
+        if (args[i] === '--root' && args[i + 1]) { sroots.push(args[i + 1]); i++; }
+      }
+      const sl = args.indexOf('--limit');
+      const ss = args.indexOf('--since');
+      if (!sroots.length) {
+        sroots.push(require('path').join(require('os').homedir(), '.claude', 'projects'));
+      }
+      const rep = analyzeSessions(sroots, {
+        limit: sl !== -1 && args[sl + 1] ? parseInt(args[sl + 1], 10) : undefined,
+        since: ss !== -1 ? args[ss + 1] : undefined,
+      });
+      console.log(JSON.stringify(rep, null, raw ? 0 : 2));
       break;
     }
 
