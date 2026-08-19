@@ -549,6 +549,29 @@ Quick reference — full details at @~/.claude/devflow/references/anti-patterns.
 | Compound Bash in a worktree | `;`, `&&`, pipes, `cd` prefix in one call | Split into separate Bash calls (see below) |
 </anti_patterns>
 
+<context_discipline>
+Full guidance: @~/.claude/devflow/references/context-discipline.md
+
+Two rules carry almost all of the benefit. Both are measured, not stylistic.
+
+**Locate first, then read narrowly.** `Read` is 49.9% of all tool-result context
+at 2,311 tokens per call; `Bash` served 7× the calls at 292. Use `rg -n` to find
+the line, then `Read` with `offset`/`limit` around it. Read a whole file only
+when you are about to rewrite it or it is genuinely small. Never re-read a file
+you already have in context and have not changed.
+
+**Do not write whole files into tool arguments.** A third of the window is text
+the agent writes into tool calls. Prefer a targeted `Edit` — it carries only the
+changed hunk, so a three-line change costs three lines. `Write` is for new
+files. Never use `cat > file <<'EOF'` to edit an existing file: it puts the
+entire body in context permanently, and it bypasses read-before-write and
+file-history tracking. (This was a workaround for the edit gate denying `Edit`;
+TRD 27-01 fixed that, so the workaround is now pure cost.)
+
+For a read-heavy survey ("find every call site of X"), prefer delegating to a
+subagent — its reads stay in its own window.
+</context_discipline>
+
 <escalation_protocol>
 Full policy: @~/.claude/devflow/references/escalation-policy.md
 

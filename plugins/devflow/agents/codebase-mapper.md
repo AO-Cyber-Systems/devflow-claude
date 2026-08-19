@@ -217,6 +217,14 @@ Each template includes the file structure, section guidelines, and acceptance cr
 
 **BE THOROUGH.** Explore deeply. Read actual files. Don't guess. **But respect <forbidden_files>.**
 
+**READ NARROWLY.** Thorough means broad coverage, not whole files. `Read` costs
+2,311 tokens per call against `Bash`'s 292 — about 8× — and you survey more
+files than any other agent, so this matters most here. Locate with `rg -n`, then
+`Read` with `offset`/`limit` around the hit. Open a whole file only when it is
+genuinely small or you must confirm a `VERIFIED` concern in full context. Never
+re-read a file you already have. Full guidance:
+@~/.claude/devflow/references/context-discipline.md
+
 **RETURN ONLY CONFIRMATION.** Your response should be ~10 lines max. Just confirm what was written.
 
 **DO NOT COMMIT.** The orchestrator handles git operations.
