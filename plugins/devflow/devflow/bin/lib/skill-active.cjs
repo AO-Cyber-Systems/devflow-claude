@@ -155,9 +155,13 @@ function markerPath(planningDir) {
  *   caller is inside a linked worktree; the marker is mirrored there so
  *   worktree-isolated agents can see it (TRD 27-01).
  * @param {number} [opts.ttlMs] - marker lifetime, defaults to DEFAULT_TTL_MS
+ * @param {number} [opts.ttlAnchorMs] - wall-clock anchor for expiry, defaults to
+ *   Date.now(). Separate from `now` on purpose: `now` is the recorded
+ *   started_at (often injected for determinism), while expiry must track the
+ *   real clock or an injected historical `now` would mint a stale marker.
  * @returns {{ ok: boolean, marker?: object, path?: string, paths?: string[], reason?: string, message?: string }}
  */
-function startSkill({ planningDir, skillName, pid, now, sharedDir, ttlMs }) {
+function startSkill({ planningDir, skillName, pid, now, sharedDir, ttlMs, ttlAnchorMs }) {
   if (!planningDir) {
     return {
       ok: false,
@@ -174,14 +178,17 @@ function startSkill({ planningDir, skillName, pid, now, sharedDir, ttlMs }) {
     };
   }
 
-  const startedMs = Date.parse(now);
+  // The TTL is a wall-clock safety bound, so it anchors to the REAL clock —
+  // deliberately NOT to `now`. Callers (micro.cjs, tests) inject `now` for a
+  // deterministic started_at; anchoring expiry to an injected historical value
+  // would mint a marker that is already expired the instant it is written.
+  // Pass ttlAnchorMs to make expiry deterministic in tests.
+  const anchorMs = Number.isFinite(ttlAnchorMs) ? ttlAnchorMs : Date.now();
   const payload = {
     skill: skillName.trim(),
     started_at: now,
     pid,
-    expires_at: new Date(
-      (Number.isFinite(startedMs) ? startedMs : Date.now()) + (ttlMs || DEFAULT_TTL_MS)
-    ).toISOString(),
+    expires_at: new Date(anchorMs + (ttlMs || DEFAULT_TTL_MS)).toISOString(),
   };
 
   // Write to every distinct location a reader might resolve: the caller's own

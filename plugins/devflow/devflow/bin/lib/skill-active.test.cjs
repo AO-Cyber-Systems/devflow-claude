@@ -86,7 +86,10 @@ describe('startSkill', () => {
   // Test 6: marker file content matches {skill, started_at, pid, expires_at} shape exactly
   // TRD 27-01 added expires_at so a crashed skill cannot hold the edit gate open forever.
   test('marker file content matches {skill, started_at, pid, expires_at} shape exactly', () => {
-    startSkill({ planningDir: env.planningDir, skillName: 'micro', pid: 42, now: '2026-05-04T12:00:00Z' });
+    startSkill({
+      planningDir: env.planningDir, skillName: 'micro', pid: 42,
+      now: '2026-05-04T12:00:00Z', ttlAnchorMs: Date.parse('2026-05-04T12:00:00Z'),
+    });
     const parsed = JSON.parse(fs.readFileSync(markerPath(env.planningDir), 'utf8'));
     assert.deepEqual(Object.keys(parsed).sort(), ['expires_at', 'pid', 'skill', 'started_at'].sort());
     assert.equal(parsed.skill, 'micro');
@@ -101,6 +104,7 @@ describe('startSkill', () => {
     startSkill({
       planningDir: env.planningDir, skillName: 'build', pid: 1,
       now: '2026-05-04T12:00:00Z', ttlMs: 60_000,
+      ttlAnchorMs: Date.parse('2026-05-04T12:00:00Z'),
     });
     const parsed = JSON.parse(fs.readFileSync(markerPath(env.planningDir), 'utf8'));
     assert.equal(parsed.expires_at, '2026-05-04T12:01:00.000Z');
@@ -161,7 +165,10 @@ describe('statusSkill', () => {
   // nowMs is pinned inside the marker's TTL window — with a real clock the
   // 2026-01-01 marker would (correctly) read as expired under TRD 27-01.
   test('returns active:true + marker JSON when present', () => {
-    startSkill({ planningDir: env.planningDir, skillName: 'build', pid: 99, now: '2026-01-01' });
+    startSkill({
+      planningDir: env.planningDir, skillName: 'build', pid: 99, now: '2026-01-01',
+      ttlAnchorMs: Date.parse('2026-01-01T00:00:00Z'),
+    });
     const result = statusSkill({
       planningDir: env.planningDir,
       nowMs: Date.parse('2026-01-01T01:00:00Z'),
@@ -177,6 +184,7 @@ describe('statusSkill', () => {
     startSkill({
       planningDir: env.planningDir, skillName: 'build', pid: 99,
       now: '2026-01-01T00:00:00Z', ttlMs: 60_000,
+      ttlAnchorMs: Date.parse('2026-01-01T00:00:00Z'),
     });
     const result = statusSkill({
       planningDir: env.planningDir,
