@@ -122,6 +122,36 @@ Node.js hooks declared in `plugins/devflow/hooks/hooks.json` and auto-registered
 
 Declares the marketplace and the plugins it ships. Users add the marketplace via `/plugin marketplace add AO-Cyber-Systems/devflow-claude` (or by absolute path for development).
 
+## Context management
+
+Full guidance: `plugins/devflow/devflow/references/context-discipline.md`. Kept
+there rather than here on purpose — this file is resident on every turn of every
+session (currently ~156 lines / ~3.2K tokens), so domain detail belongs in
+references and skills that load on invocation.
+
+Measured composition (see `df-tools context`): tool results 59%, **tool-call
+inputs 34%**, assistant text 6%, images 1.5%. `Read` is ~50% of tool-result
+tokens at 2,311 per call; `Bash` served 7× the calls at 292.
+
+Policy, stated deliberately rather than inherited as defaults:
+
+- **Do not tighten output caps.** `MAX_MCP_OUTPUT_TOKENS` (25K, warns at 10K) and
+  `BASH_MAX_OUTPUT_LENGTH` (50K) are not binding — the largest observed single
+  result is 26K and p99 is ~6K. Tightening buys nothing.
+- **Leave `ENABLE_TOOL_SEARCH` on its default** so MCP tool schemas stay deferred
+  and out of the window.
+- **Microcompaction and deferred loading already run.** They are the built-in
+  answer to context pressure; `/clear` and `/compact` are manual, lossy, and land
+  at the worst moment. Read narrowly from the start instead.
+- **The lever is behaviour, not configuration**: locate with `rg -n` and read with
+  `offset`/`limit`; prefer a targeted `Edit` over writing a whole file body into a
+  tool argument.
+
+`node ~/.claude/devflow/bin/df-tools.cjs context --limit 150` recomputes all of
+the above from session transcripts. It prices images per block (~1.5K tokens),
+**not** by base64 length — counting base64 chars over-states images ~25× and was
+the one real error in the original audit.
+
 ## Conventions
 
 - **Module format**: CommonJS (`.cjs`). The tool is designed to work as a CLI, not a library.

@@ -13,6 +13,7 @@
  *   state update <field> <value>       Update a STATE.md field
  *   state get [section]                Get STATE.md content or section
  *   state patch --field val ...        Batch update STATE.md fields
+ *   context [--root <dir>] [--limit N] Recompute context composition from transcripts
  *   resolve-model <agent-type>         Get model for agent based on profile
  *   find-objective <objective>                 Find objective directory by number
  *   commit <message> [--files f1 f2]   Commit planning docs
@@ -209,6 +210,7 @@ const {
   cmdChangelogUpdate, cmdChangelogCheck,
 } = require('./lib/changelog.cjs');
 const { cmdSkillActive } = require('./lib/skill-active.cjs');
+const { analyze: analyzeContext } = require('./lib/context-audit.cjs');
 const { cmdAwarenessRoute } = require('./lib/awareness-cli.cjs');
 const { cmdOrgAwarenessRoute } = require('./lib/org-awareness-cli.cjs');
 const { cmdDupDetectRoute } = require('./lib/dup-detect-cli.cjs');
@@ -246,7 +248,7 @@ async function main() {
   const cwd = process.cwd();
 
   if (!command) {
-    error('Usage: df-tools <command> [args] [--raw]\nCommands: state, resolve-model, find-objective, commit, verify-summary, verify, detect, generate, frontmatter, template, generate-slug, current-timestamp, list-todos, verify-path-exists, config-ensure-section, awareness, benchmark, planning, init');
+    error('Usage: df-tools <command> [args] [--raw]\nCommands: state, context, resolve-model, find-objective, commit, verify-summary, verify, detect, generate, frontmatter, template, generate-slug, current-timestamp, list-todos, verify-path-exists, config-ensure-section, awareness, benchmark, planning, init');
   }
 
   switch (command) {
@@ -308,6 +310,22 @@ async function main() {
       } else {
         cmdStateLoad(cwd, raw);
       }
+      break;
+    }
+
+    case 'context': {
+      // df-tools context [--root <dir>]... [--limit N] [--raw]
+      const roots = [];
+      for (let i = 1; i < args.length; i++) {
+        if (args[i] === '--root' && args[i + 1]) { roots.push(args[i + 1]); i++; }
+      }
+      const limIdx = args.indexOf('--limit');
+      const limit = limIdx !== -1 && args[limIdx + 1] ? parseInt(args[limIdx + 1], 10) : 0;
+      if (!roots.length) {
+        roots.push(require('path').join(require('os').homedir(), '.claude', 'projects'));
+      }
+      const summary = analyzeContext(roots, { limit: limit || undefined });
+      console.log(JSON.stringify(summary, null, raw ? 0 : 2));
       break;
     }
 
