@@ -70,15 +70,86 @@ function findPlanningDir(start) {
 }
 
 /**
- * Returns true if `<planningDir>/.skill-active` exists.
- * Only checks existence — does not parse the JSON content.
+ * Walk up from `start` to the nearest directory containing `.git`
+ * (a directory in a normal checkout, a file in a linked worktree).
+ */
+function findRepoRoot(start) {
+  let dir = start;
+  while (dir !== path.dirname(dir)) {
+    if (fs.existsSync(path.join(dir, '.git'))) return dir;
+    dir = path.dirname(dir);
+  }
+  return null;
+}
+
+/**
+ * The MAIN checkout's `.planning/`, resolved from anywhere inside a linked
+ * worktree. Returns null when unresolvable or absent.
+ *
+ * TRD 27-01 — `.planning/.skill-active` is gitignored (.gitignore:44), so a
+ * worktree checks out all tracked `.planning` files but NEVER the marker.
+ * Resolving only from cwd therefore denied every worktree-isolated agent —
+ * 77.2% of all edit-gate denials in the 2026-08-18 audit.
+ *
+ * Deliberately does not shell out to git: hooks run on every Edit/Write and
+ * must stay cheap and dependency-free.
+ */
+function sharedPlanningDir(start) {
+  const repoRoot = findRepoRoot(start);
+  if (!repoRoot) return null;
+
+  let mainRoot = repoRoot;
+  try {
+    // In a worktree, `.git` is a file: "gitdir: /main/.git/worktrees/<name>"
+    const raw = fs.readFileSync(path.join(repoRoot, '.git'), 'utf8');
+    const m = /^gitdir:\s*(.+)$/m.exec(String(raw));
+    if (m) {
+      const marker = `${path.sep}.git${path.sep}worktrees${path.sep}`;
+      const idx = m[1].trim().indexOf(marker);
+      if (idx !== -1) mainRoot = m[1].trim().slice(0, idx);
+    }
+  } catch {
+    // `.git` is a directory → already the main checkout
+  }
+
+  const p = path.join(mainRoot, '.planning');
+  return fs.existsSync(p) ? p : null;
+}
+
+/**
+ * True if a live `.skill-active` marker exists in EITHER the caller's own
+ * `.planning/` or the MAIN checkout's `.planning/`.
+ *
+ * A marker carrying an `expires_at` in the past does not count — a crashed
+ * skill must not hold the gate open forever. Markers written before TRD 27-01
+ * have no `expires_at` and never expire (back-compat).
  *
  * @param {string|null} planningDir
+ * @param {string|null} [sharedDir]
+ * @param {number} [nowMs]
  * @returns {boolean}
  */
-function hasSkillActiveMarker(planningDir) {
-  if (!planningDir) return false;
-  return fs.existsSync(path.join(planningDir, '.skill-active'));
+function hasSkillActiveMarker(planningDir, sharedDir, nowMs) {
+  const at = Number.isFinite(nowMs) ? nowMs : Date.now();
+  const dirs = [];
+  if (planningDir) dirs.push(planningDir);
+  if (sharedDir && sharedDir !== planningDir) dirs.push(sharedDir);
+
+  for (const dir of dirs) {
+    const p = path.join(dir, '.skill-active');
+    if (!fs.existsSync(p)) continue;
+    try {
+      const marker = JSON.parse(fs.readFileSync(p, 'utf8'));
+      if (marker && marker.expires_at) {
+        const t = Date.parse(marker.expires_at);
+        if (Number.isFinite(t) && at > t) continue; // expired — keep looking
+      }
+    } catch {
+      // Unparseable marker still counts as active (fail open — prior behavior)
+    }
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -109,6 +180,53 @@ function readEditGateMode(planningDir) {
 }
 
 /**
+ * True when `filePath` resolves outside `projectRoot`.
+ *
+ * Conservative by design: a relative path (whose meaning depends on the
+ * agent's cwd) or a missing root returns false, so the gate still applies.
+ * Only an unambiguous absolute path outside the project is exempted.
+ *
+ * @param {string|null} projectRoot
+ * @param {string} filePath
+ * @returns {boolean}
+ */
+function realpathDeep(p) {
+  // realpathSync fails on a path that does not exist yet (Write of a new file,
+  // possibly into a new directory). Resolve the deepest ancestor that DOES
+  // exist and re-append the remaining segments.
+  let cur = path.resolve(p);
+  const tail = [];
+  for (;;) {
+    try { return path.join(fs.realpathSync(cur), ...tail); } catch { /* keep walking up */ }
+    const parent = path.dirname(cur);
+    if (parent === cur) return path.resolve(p); // hit the root, nothing resolvable
+    tail.unshift(path.basename(cur));
+    cur = parent;
+  }
+}
+
+function isOutsideProject(projectRoot, filePath) {
+  if (!projectRoot || !filePath || !path.isAbsolute(filePath)) return false;
+
+  // Symlink-aware: on macOS `process.cwd()` reports /private/var/... while the
+  // tool payload carries /var/... (and likewise /tmp vs /private/tmp). Comparing
+  // raw strings would call an in-project file "outside" and silently open the
+  // gate, so compare every spelling we can resolve and treat "inside by any of
+  // them" as inside — the conservative direction.
+  const roots = new Set([path.resolve(projectRoot), realpathDeep(projectRoot)]);
+  const targets = new Set([path.resolve(filePath), realpathDeep(filePath)]);
+
+  for (const root of roots) {
+    for (const target of targets) {
+      const rel = path.relative(root, target);
+      const outside = rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel);
+      if (!outside) return false; // inside by at least one resolution — gate applies
+    }
+  }
+  return true;
+}
+
+/**
  * Core gate decision — pure function, no I/O.
  *
  * @param {object} opts
@@ -133,6 +251,14 @@ function shouldGate({ tool, filePath, planningDir, skillActive, overrideActive }
 
   // Non-DevFlow project — gate doesn't apply
   if (!planningDir) return { decision: 'noop' };
+
+  // TRD 27-02 — the target is not in this project at all (session scratchpad,
+  // /private/tmp, another repo). DevFlow's atomic-commit guarantee only covers
+  // files it can commit, so gating these buys nothing. 20.6% of all edit-gate
+  // denials in the 2026-08-18 audit were scratchpad/tmp writes.
+  if (isOutsideProject(path.dirname(planningDir), filePath)) {
+    return { decision: 'allow', reason: 'target outside project root' };
+  }
 
   // Escape hatch: active skill marker
   if (skillActive) return { decision: 'allow', reason: 'skill-active marker present' };
@@ -172,10 +298,13 @@ function main() {
   const filePath = (input.tool_input && input.tool_input.file_path) || '';
 
   const planningDir = findPlanningDir(process.cwd());
+  const sharedDir = sharedPlanningDir(process.cwd());
   const editGateMode = readEditGateMode(planningDir);
   if (editGateMode === 'off') return; // project opted out entirely
 
-  const skillActive = hasSkillActiveMarker(planningDir);
+  // TRD 27-01 — check the MAIN checkout's marker too, so worktree-isolated
+  // agents are not denied by a marker they can never see.
+  const skillActive = hasSkillActiveMarker(planningDir, sharedDir);
   // Override phrase is signaled via .edit-override marker written by route-intent.js
   // (route-intent runs on UserPromptSubmit which has access to the prompt text;
   //  PreToolUse payloads carry no user_message/prompt field — consume the marker instead)
@@ -207,6 +336,9 @@ if (require.main === module) main();
 module.exports = {
   OVERRIDE_PHRASES,
   hasSkillActiveMarker,
+  sharedPlanningDir,
+  findRepoRoot,
+  isOutsideProject,
   hasOverridePhrase,
   shouldGate,
   findPlanningDir,
