@@ -80,7 +80,7 @@ Jobs:
 | 25. Fleet audit fixes | v1.2 | 6/6 | Complete | 2026-07-22 |
 | 26. GitHub issue auto-build monitor | v1.3 | 0/6 | Planning | — |
 | 27. Gate correctness | v1.3 | 5/6 | Complete (1 deferred) | 2026-08-18 |
-| 28. Model tier binding and escalation | v1.3 | 0/6 | Planning | — |
+| 28. Model tier binding and escalation | v1.3 | 5/6 | Complete (1 deferred) | 2026-08-19 |
 | 29. Context discipline | v1.3 | 0/4 | Planning | — |
 | 30. Agent environment hygiene | v1.3 | 0/4 | Planning | — |
 | 31. Telemetry and retention | v1.3 | 0/3 | Planning | — |
@@ -102,14 +102,22 @@ Jobs:
 
 Evidence: 2709 tests / 2649 pass / 10 fail — identical failures to the pre-objective baseline (2681/2621/10). 28 tests added, 0 regressions.
 
-### Objective 28: Model tier binding and escalation
+### Objective 28: Model tier binding and escalation ✅
 
-**Goal:** [To be planned]
+**Goal:** Make the model profile table actually bind (it was inert for every skill caller), refresh the live model ids, and give DevFlow an escalation signal that is not raw tool-error rate.
 **Depends on:** Objective 27 (clean gate signal)
-**Jobs:** 0 jobs
+**Source:** Autonomy Blocker Audit, 2026-08-18
+**Jobs:** 5/6 complete
 
 Jobs:
-- [ ] TBD (run /df:plan-objective 28 to break down)
+- [x] 28-01 Model ids refreshed; models{} documented as live (`d469837`)
+- [x] 28-02 Profile table binds; resolution auditable, unknown agents loud (`d469837`)
+- [x] 28-03 effort declared per agent; reference regenerated (`55d1a82`)
+- [x] 28-04 No-progress guard — lib + PreToolUse hook (`c6c1a74`)
+- [x] 28-05 Escalation policy + executor request protocol (`ac7dc89`)
+- [ ] 28-06 Haiku replay eval — **deferred**, 63 Haiku turns is no basis to decide
+
+Evidence: 2748 tests / 2689 pass / 9 fail — same pre-existing daemon/timing failures. 39 tests added, 0 regressions.
 
 ### Objective 29: Context discipline
 
