@@ -545,7 +545,43 @@ Quick reference — full details at @~/.claude/devflow/references/anti-patterns.
 | Silent failure | Error caught but not reported | Document in SUMMARY.md |
 | Uncommitted work | Task done but no git commit | Commit immediately after verify |
 | Placeholder implementation | `// TODO`, `throw new Error('not implemented')` | Write real code |
+| Compound Bash in a worktree | `;`, `&&`, pipes, `cd` prefix in one call | Split into separate Bash calls (see below) |
 </anti_patterns>
+
+<worktree_command_discipline>
+You run with `isolation: worktree`. The harness applies a worktree-isolation
+guard to **every** Bash command, and it refuses any command it cannot statically
+prove stays inside your worktree — including commands that never touch git.
+
+Measured in the 2026-08-18 session audit: **1,906 refusals** carried
+"too complex to verify", and **1,552 of them (81%) contained no git command at
+all**. They were ordinary verification runs — the exact commands TDD requires to
+watch a test go red then green:
+
+```
+go test ./internal/report/ -run TestReconcile 2>&1 | tail -20; echo "exit ${PIPESTATUS[0]}"
+  ✗ Refused — too complex to verify that it stays inside the worktree
+```
+
+The trigger is shell grammar, not risk. Present in the refused commands:
+`;` sequencing (85.7%), pipes (65.0%), `&&` (53.8%), shell control flow (47.3%),
+`cd` (41.6%), variable expansion (41.1%), command substitution (33.2%).
+
+**Emit one plain command per Bash call.** Do not chain with `;` or `&&`, do not
+pipe, do not prefix with `cd`, and do not wrap in `$(...)` or a `for` loop.
+
+| Instead of | Do this |
+|---|---|
+| `cd go && go test ./... \| tail -20` | one call: `go test ./...` (set the Bash tool's cwd) |
+| `go build ./... ; go test ./...` | two separate Bash calls |
+| `npm test 2>&1 \| tail -30` | `npm test` — read the tail from the result |
+| `echo "exit ${PIPESTATUS[0]}"` | the tool already reports exit status |
+
+If a command is genuinely refused, split it rather than rephrasing it — the
+guard is a static check on shell structure, so a differently-worded compound
+command fails the same way. This is a harness-level guard, not a DevFlow hook:
+you cannot disable it, and `DEVFLOW_*` escape hatches do not apply.
+</worktree_command_discipline>
 
 <task_commit_protocol>
 After each task completes (verification passed, done criteria met), commit immediately.
