@@ -82,7 +82,7 @@ Jobs:
 | 27. Gate correctness | v1.3 | 5/6 | Complete (1 deferred) | 2026-08-18 |
 | 28. Model tier binding and escalation | v1.3 | 5/6 | Complete (1 deferred) | 2026-08-19 |
 | 29. Context discipline | v1.3 | 4/4 | Complete | 2026-08-19 |
-| 30. Agent environment hygiene | v1.3 | 0/4 | Planning | — |
+| 30. Agent environment hygiene | v1.3 | 4/4 | Complete | 2026-08-19 |
 | 31. Telemetry and retention | v1.3 | 0/3 | Planning | — |
 
 ### Objective 27: Gate correctness ✅
@@ -134,14 +134,20 @@ Jobs:
 
 Evidence: 2761 tests / 2701 pass / 10 fail — same pre-existing daemon/timing failures. 13 tests added, 0 regressions. Tool independently reproduces the audit (Read 53.6% @ 2,301 tok/call, images 1.4%, subagent p50 117K vs main 329K) and reports `read_share_ok: false` at 53.6% as the pre-change baseline.
 
-### Objective 30: Agent environment hygiene
+### Objective 30: Agent environment hygiene ✅
 
-**Goal:** [To be planned]
-**Depends on:** Objective 29
-**Jobs:** 0 jobs
+**Goal:** Close the long tail of environment friction from finding F-05 — agent tool allowlists that forbid what the prompt instructs, a routing table advertising skills the model cannot invoke, CWD drift, build timeouts, and overrides that leave no trace.
+**Depends on:** — (independent)
+**Source:** Autonomy Blocker Audit, 2026-08-18 — finding F-05
+**Jobs:** 4/4 complete
 
 Jobs:
-- [ ] TBD (run /df:plan-objective 30 to break down)
+- [x] 30-01 Agent allowlists cover what prompts call (`6037be7`)
+- [x] 30-02 Routing stops advertising un-invocable skills (`6037be7`)
+- [x] 30-03 Anchor paths to worktree root; raise build timeouts (`68bd573`)
+- [x] 30-04 Structured, logged gate overrides (`68bd573`)
+
+Evidence: 2797 tests / 2737 pass / 10 fail — same pre-existing daemon/timing failures. 29 tests added, 0 regressions.
 
 ### Objective 31: Telemetry and retention
 
