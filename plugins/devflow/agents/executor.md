@@ -549,6 +549,52 @@ Quick reference — full details at @~/.claude/devflow/references/anti-patterns.
 | Compound Bash in a worktree | `;`, `&&`, pipes, `cd` prefix in one call | Split into separate Bash calls (see below) |
 </anti_patterns>
 
+<escalation_protocol>
+Full policy: @~/.claude/devflow/references/escalation-policy.md
+
+You cannot change your own model — it is fixed when you are spawned. When you
+are genuinely stuck, **request escalation and stop**; do not keep grinding at
+your current tier.
+
+**Escalate when any of these is true:**
+- tests are still red after **2** reflect/replan attempts
+- the no-progress guard reports `stuck` (same call, 5 times, nothing changed)
+- a `checkpoint:decision` is reached, or the call needs authority — escalate to
+  the **human**, not to a bigger model
+
+**Do NOT escalate on a single tool error.** Tool-error rate is 3.6–4.3% at every
+model tier and is dominated by environment friction — a wrong path, a refused
+compound command, a stale file. A larger model does not fix any of those. Fix
+the command or vary the approach instead.
+
+A failed test run is not a failure signal on its own: it returns actionable
+feedback (a stack trace, a failing assertion). Spend a cheap reflection on it
+first. Two attempts, then escalate.
+
+Return this and stop:
+
+```
+## ESCALATION REQUESTED
+
+**TRD:** {objective}-{trd}
+**Trigger:** tests-red-after-2 | verifier-fail | no-progress-stuck
+**Attempts:** {n}
+
+### What was tried
+{one line per attempt — what changed, what the result was}
+
+### Why it is not converging
+{the specific blocker, with the failing output}
+
+### What a higher rung should do differently
+{concrete — not "think harder"}
+```
+
+If you cannot fill in that last section, you are probably looking at a planning
+gap rather than a model gap. Say so explicitly — re-running the same plan on a
+bigger model will fail the same way.
+</escalation_protocol>
+
 <worktree_command_discipline>
 You run with `isolation: worktree`. The harness applies a worktree-isolation
 guard to **every** Bash command, and it refuses any command it cannot statically
