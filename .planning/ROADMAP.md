@@ -81,7 +81,7 @@ Jobs:
 | 26. GitHub issue auto-build monitor | v1.3 | 0/6 | Planning | — |
 | 27. Gate correctness | v1.3 | 5/6 | Complete (1 deferred) | 2026-08-18 |
 | 28. Model tier binding and escalation | v1.3 | 5/6 | Complete (1 deferred) | 2026-08-19 |
-| 29. Context discipline | v1.3 | 0/4 | Planning | — |
+| 29. Context discipline | v1.3 | 4/4 | Complete | 2026-08-19 |
 | 30. Agent environment hygiene | v1.3 | 0/4 | Planning | — |
 | 31. Telemetry and retention | v1.3 | 0/3 | Planning | — |
 
@@ -119,14 +119,20 @@ Jobs:
 
 Evidence: 2748 tests / 2689 pass / 9 fail — same pre-existing daemon/timing failures. 39 tests added, 0 regressions.
 
-### Objective 29: Context discipline
+### Objective 29: Context discipline ✅
 
-**Goal:** [To be planned]
-**Depends on:** Objective 28
-**Jobs:** 0 jobs
+**Goal:** Cut the context DevFlow agents consume — targeting whole-file reads (49.9% of tool-result tokens) and full file bodies written into tool-call arguments (33.8% of the window) — and make the measurement repeatable so the improvement is observed rather than assumed.
+**Depends on:** Objective 27 (marker fix re-permits Edit)
+**Source:** Autonomy Blocker Audit, 2026-08-18 — finding F-10
+**Jobs:** 4/4 complete
 
 Jobs:
-- [ ] TBD (run /df:plan-objective 29 to break down)
+- [x] 29-01 Read narrowly — locate with rg, read with offset/limit (`e0a2c81`)
+- [x] 29-02 Prefer targeted Edit over whole-file tool arguments (`e0a2c81`)
+- [x] 29-03 Guardrail policy recorded; CLAUDE.md audited (~3.2K tok, not bloated) (`173c7f0`)
+- [x] 29-04 `df-tools context` — repeatable composition measurement (`173c7f0`)
+
+Evidence: 2761 tests / 2701 pass / 10 fail — same pre-existing daemon/timing failures. 13 tests added, 0 regressions. Tool independently reproduces the audit (Read 53.6% @ 2,301 tok/call, images 1.4%, subagent p50 117K vs main 329K) and reports `read_share_ok: false` at 53.6% as the pre-change baseline.
 
 ### Objective 30: Agent environment hygiene
 
