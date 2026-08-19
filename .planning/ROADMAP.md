@@ -62,6 +62,15 @@ Candidate scope carried forward from v1.2 deferrals:
 - Docs cleanup: stale USER-GUIDE.md rows (resume-work/progress/pause-work/add-objective)
 - 09-03 SUMMARY.md backfill (deliverables shipped, summary doc missing)
 
+### Objective 26: GitHub issue auto-build monitor
+
+**Goal:** Discover untracked GitHub issues in the current repo and drive qualifying ones through the full DevFlow pipeline (plan → execute → verify → PR) unattended, behind a trusted-author gate.
+**Depends on:** Objective 25
+**Jobs:** 0 jobs
+
+Jobs:
+- [ ] TBD (run /devflow:plan-objective 26 to break down)
+
 ## Progress
 
 | Objective | Milestone | Plans | Status | Completed |
@@ -69,3 +78,62 @@ Candidate scope carried forward from v1.2 deferrals:
 | 0–9, 6, 8, 24 (13 objectives) | v1.1 | 53/53 | Complete | 2026-05-06 |
 | 10–23 (15 objectives) | v1.2 | 71/71 | Complete | 2026-05-25 |
 | 25. Fleet audit fixes | v1.2 | 6/6 | Complete | 2026-07-22 |
+| 26. GitHub issue auto-build monitor | v1.3 | 0/6 | Planning | — |
+| 27. Gate correctness | v1.3 | 5/6 | Complete (1 deferred) | 2026-08-18 |
+| 28. Model tier binding and escalation | v1.3 | 0/6 | Planning | — |
+| 29. Context discipline | v1.3 | 0/4 | Planning | — |
+| 30. Agent environment hygiene | v1.3 | 0/4 | Planning | — |
+| 31. Telemetry and retention | v1.3 | 0/3 | Planning | — |
+
+### Objective 27: Gate correctness ✅
+
+**Goal:** Stop DevFlow's own gates from blocking DevFlow's own agents — close the three gate defects measured in the Autonomy Blocker Audit (1,048 edit-gate denials inside subagents, 280 on paths outside the repo, 446 commit-gate blocks from substring matching), and mitigate the harness worktree guard DevFlow cannot fix.
+**Depends on:** — (independent)
+**Source:** Autonomy Blocker Audit, 2026-08-18
+**Jobs:** 6/6 complete
+
+Jobs:
+- [x] 27-01 Marker resolves across git worktrees + TTL (`9571a11`, `ec83003`)
+- [x] 27-02 Targets outside the project root are never gated (`9571a11`)
+- [x] 27-04 Commit gate matches invocation, not substring (`c13d5db`)
+- [x] 27-05 Executor worktree command discipline — F-01 mitigation (`786752d`)
+- [x] 27-06 Stale hook inventory, model-profiles claim, `/df:` prefix (`5d0aed8`)
+- [ ] 27-03 Gate posture — **deferred by decision**, see SUMMARY.md
+
+Evidence: 2709 tests / 2649 pass / 10 fail — identical failures to the pre-objective baseline (2681/2621/10). 28 tests added, 0 regressions.
+
+### Objective 28: Model tier binding and escalation
+
+**Goal:** [To be planned]
+**Depends on:** Objective 27 (clean gate signal)
+**Jobs:** 0 jobs
+
+Jobs:
+- [ ] TBD (run /df:plan-objective 28 to break down)
+
+### Objective 29: Context discipline
+
+**Goal:** [To be planned]
+**Depends on:** Objective 28
+**Jobs:** 0 jobs
+
+Jobs:
+- [ ] TBD (run /df:plan-objective 29 to break down)
+
+### Objective 30: Agent environment hygiene
+
+**Goal:** [To be planned]
+**Depends on:** Objective 29
+**Jobs:** 0 jobs
+
+Jobs:
+- [ ] TBD (run /df:plan-objective 30 to break down)
+
+### Objective 31: Telemetry and retention
+
+**Goal:** [To be planned]
+**Depends on:** Objective 30
+**Jobs:** 0 jobs
+
+Jobs:
+- [ ] TBD (run /df:plan-objective 31 to break down)
