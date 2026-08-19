@@ -86,6 +86,15 @@
             "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/gate-edits.js"
           }
         ]
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/guard-no-progress.js"
+          }
+        ]
       }
     ]
   }
