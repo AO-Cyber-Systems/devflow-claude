@@ -83,7 +83,7 @@ Jobs:
 | 28. Model tier binding and escalation | v1.3 | 5/6 | Complete (1 deferred) | 2026-08-19 |
 | 29. Context discipline | v1.3 | 4/4 | Complete | 2026-08-19 |
 | 30. Agent environment hygiene | v1.3 | 4/4 | Complete | 2026-08-19 |
-| 31. Telemetry and retention | v1.3 | 0/3 | Planning | — |
+| 31. Telemetry and retention | v1.3 | 3/3 | Complete | 2026-08-19 |
 
 ### Objective 27: Gate correctness ✅
 
@@ -149,11 +149,17 @@ Jobs:
 
 Evidence: 2797 tests / 2737 pass / 10 fail — same pre-existing daemon/timing failures. 29 tests added, 0 regressions.
 
-### Objective 31: Telemetry and retention
+### Objective 31: Telemetry and retention ✅
 
-**Goal:** [To be planned]
-**Depends on:** Objective 30
-**Jobs:** 0 jobs
+**Goal:** Make objectives 27–30 verifiable rather than asserted — classify blocking events repeatably, preserve session evidence before retention deletes it, and turn the signals into advisories someone will actually read.
+**Depends on:** Objectives 27, 28, 30 (emit the signals this aggregates)
+**Source:** Autonomy Blocker Audit, 2026-08-18
+**Jobs:** 3/3 complete
 
 Jobs:
-- [ ] TBD (run /df:plan-objective 31 to break down)
+- [x] 31-03 `df-tools session-audit` — the programme's acceptance test (`51c7766`)
+- [x] 31-02 `df-tools transcript-export` — compact index before retention (`51c7766`)
+- [x] 31-01 `df-tools telemetry` — status-facing view with advisories (`81796d6`)
+
+Evidence: 2839 tests / 2780 pass / 9 fail — same pre-existing daemon/timing failures. 42 tests added, 0 regressions.
+**Caveat:** hooks run from the plugin cache, so 27–30 take effect only after a version bump + `sync-runtime`. Re-run `session-audit --since <release>` then — that comparison is the real verdict.
