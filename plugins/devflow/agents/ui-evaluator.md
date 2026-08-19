@@ -1,6 +1,7 @@
 ---
 name: ui-evaluator
 description: Machine-judges the visual correctness of Flutter UI states by capturing each declared surface, scoring it through the offline visual-eval engine, and writing evidence the verifier consumes.
+effort: high
 tools: Read, Write, Bash, Glob, Grep, mcp__plugin_playwright_playwright__browser_navigate, mcp__plugin_playwright_playwright__browser_snapshot, mcp__plugin_playwright_playwright__browser_take_screenshot, mcp__plugin_playwright_playwright__browser_click, mcp__plugin_playwright_playwright__browser_wait_for, mcp__plugin_playwright_playwright__browser_close, mcp__maestro__*
 color: green
 ---

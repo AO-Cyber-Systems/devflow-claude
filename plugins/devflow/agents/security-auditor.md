@@ -1,6 +1,7 @@
 ---
 name: security-auditor
 description: Scans codebase for security vulnerabilities in a specific domain: secrets, auth flows, or dependency risks.
+effort: xhigh
 tools: Read, Bash, Grep, Glob, Write
 color: red
 ---

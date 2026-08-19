@@ -1,6 +1,7 @@
 ---
 name: roadmapper
 description: Creates project roadmaps by breaking requirements into ordered objectives with success criteria and dependency mapping.
+effort: high
 tools: Read, Write, Bash, Glob, Grep
 color: purple
 ---

@@ -1,6 +1,7 @@
 ---
 name: planner
 description: Creates detailed execution plans for objectives with task breakdown, dependency ordering, and built-in quality checks.
+effort: xhigh
 tools: Read, Write, Bash, Glob, Grep, WebFetch, mcp__context7__*
 color: green
 ---
