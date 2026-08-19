@@ -6,6 +6,52 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-08-19
+
+Remediation of the **Autonomy Blocker Audit** (2026-08-18) — a measured study of
+2,746 Claude Code sessions / 438,941 assistant turns across two machines, which
+found 5,473 autonomy-blocking events affecting 56.4% of sessions.
+
+Objectives 27–31. The headline defect: DevFlow's own gates were blocking
+DevFlow's own agents. `.planning/.skill-active` is gitignored, so a git worktree
+checks out every tracked `.planning` file but never the marker — meaning **77.2%
+of all edit-gate denials hit sanctioned subagents**, and 71% of skill-invoking
+sessions were gated inside their own skill.
+
+> **Upgrade note:** hooks execute from the plugin cache, so these fixes take
+> effect only once this version is installed and `sync-runtime` re-mirrors.
+> Verify with `df-tools session-audit --since 2026-08-19`.
+
+### Added
+- **`df-tools session-audit`** — classifies autonomy-blocking events from session transcripts. This is the acceptance test for the whole programme: it separates `devflow_owned_events` from harness-owned ones so improvements can be measured rather than asserted (51c7766)
+- **`df-tools transcript-export`** — compact per-session index written before retention cleanup deletes transcripts. 60 sessions compress to ~19KB; 164 sessions were already lost before this existed. `--full` copies raw transcripts (51c7766)
+- **`df-tools context`** — recomputes context composition (tool results vs tool-call inputs vs images) and per-turn context distribution (173c7f0)
+- **`df-tools telemetry`** — one status-facing view over overrides, stuck-loop state and blocking events, emitting advisories rather than raw counts (81796d6)
+- **`df-tools override --gate <g> --reason <why>`** — structured, logged gate override replacing prose phrases and env vars. A reason is mandatory; five overrides of one gate surface as `needs_rescoping` (68bd573)
+- **No-progress guard** (`guard-no-progress.js`) — detects the same tool called with identical arguments repeatedly. Warns at 3, escalates to `ask` at 5, resets when the approach varies. Step limits fire only after the budget is spent; this inspects whether steps change anything (c6c1a74)
+- **Escalation policy** (`references/escalation-policy.md`) — trigger set, bounded burst with de-escalation, and a structured escalation-request protocol for the executor (ac7dc89)
+- **Reasoning `effort`** declared per agent. Note Haiku 4.5 rejects the parameter, so only the six agents that never resolve to the haiku tier can carry it — enforced by test (55d1a82)
+- **Context discipline reference** — read narrowly, and stop writing whole files into tool arguments (e0a2c81)
+
+### Fixed
+- **Edit gate denied worktree-isolated agents** — `.planning/.skill-active` is gitignored, so a worktree could never see the marker written by the main checkout. The gate now resolves the main checkout's `.planning/` by parsing the worktree's `.git` file, and markers carry an 8h TTL so a crashed skill cannot hold the gate open (9571a11, ec83003)
+- **Edit gate blocked writes outside the project** — 20.6% of denials targeted the session scratchpad or `/private/tmp`, which DevFlow cannot commit anyway. Path comparison is symlink-aware, since macOS reports cwd as `/private/var/...` while payloads carry `/var/...` (9571a11)
+- **Commit gate matched a substring, not an invocation** — any command whose *text* contained the raw-commit phrase was refused, including heredocs writing a file that merely mentions it. Now tokenised, with heredoc bodies and quoted arguments stripped first (c13d5db)
+- **Model profile table never bound for skill callers** — profile keys carried a `df-` prefix while three skills passed un-prefixed names, so every lookup silently fell back to `sonnet` regardless of the configured profile. Keys canonicalised, both spellings resolve, unknown agents now warn loudly, and resolution reports tier + concrete model id (d469837)
+- **Stale model ids** — `claude-opus-5` / `claude-sonnet-5` / `claude-haiku-4-5`. Not cosmetic: `flutter-ui-eval.cjs` sends this id to the Messages API for the vision judge (d469837)
+- **Agent allowlists forbade what prompts instructed** — the executor called `TaskCreate`, `TaskUpdate` and `AskUserQuestion` while declaring none of them (6037be7)
+- **Routing advertised skills the model cannot invoke** — `objective`, `milestone` and `workstreams` are `disable-model-invocation` by design because they mutate planning state. They now appear under an explicit USER-TYPED ONLY heading instead of beside invocable skills (6037be7)
+- **Stale documentation** — `CLAUDE.md` listed 8 hooks when 14 ship, and described `MODEL_PROFILES` as hard-coded when it loads from JSON. New objectives also emitted an obsolete `/df:` command prefix (5d0aed8)
+
+### Changed
+- Executor and verifier now carry worktree command discipline: the harness worktree guard refuses compound Bash commands it cannot statically verify — including git-less `go test` pipelines — so agents emit one plain command per call (786752d)
+- Executor anchors paths to the worktree root and raises timeouts for builds and test suites (68bd573)
+
+### Known limitations
+- The harness worktree-isolation guard (2,685 blocked events, the single largest category) is **not DevFlow code** and cannot be fixed here. 1,552 of its refusals contained no git command at all. Mitigated via agent command discipline; reported upstream.
+- TRD 27-03 (edit-gate posture) is parked as `DECISION-001` pending re-measurement — the data motivating a posture change predates the marker fix.
+- TRD 28-06 (Haiku replay eval) deferred: 63 Haiku turns in the corpus is no basis for placing agents on that tier, and 22.4% of subagent turns already exceed its 200K window.
+
 ## [2.4.0] - 2026-07-22
 
 ### Added
@@ -1954,6 +2000,7 @@ the gate that prevents the same slip going forward.
 [1.0.2]: https://github.com/glittercowboy/devflow/releases/tag/v1.0.2
 [1.0.1]: https://github.com/glittercowboy/devflow/releases/tag/v1.0.1
 [1.0.0]: https://github.com/glittercowboy/devflow/releases/tag/v1.0.0
+
 
 
 
