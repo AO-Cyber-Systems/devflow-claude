@@ -194,8 +194,8 @@ See: .planning/PROJECT.md (updated 2026-07-22 after v1.2 milestone)
 
 ### Quick Tasks Completed
 
-| # | Description | Date | Commit | Directory |
-|---|-------------|------|--------|-----------|
+| # | Description | Date | Commit | Status | Directory |
+|---|-------------|------|--------|--------|-----------|
 | 1 | Add release-on-tag GitHub Actions workflow | 2026-05-07 | 046eb34 | [1-add-release-on-tag-github-actions-workfl](./quick/1-add-release-on-tag-github-actions-workfl/) |
 | 2 | Extend tag gate to verify three-manifest version sync | 2026-05-07 | 455f1bf | [2-extend-tag-gate-to-verify-three-manifest](./quick/2-extend-tag-gate-to-verify-three-manifest/) |
 | 3 | add benchmark to df-tools usage Commands list | 2026-05-08 | e9c3ebc | devflow-claude |
@@ -210,6 +210,7 @@ See: .planning/PROJECT.md (updated 2026-07-22 after v1.2 milestone)
 | 12 | extend route-intent: broader-lexicon + matchIntent enrichment + disambig box + "Triggered by:" echo (15 new INTENT_MAP entries, 41 new tests) | 2026-05-24 | 4e32687 | [12-extend-route-intent-broader-lexicon-disambig-echo](./quick/12-extend-route-intent-broader-lexicon-disambig-echo/) |
 | 13 | add /devflow:flow skill for multi-step skill chaining | 2026-05-24 | 8898bf7 | devflow-claude |
 | 14 | Fix df-tools bugs: objective add slug/collision/flag-reject, commit pathspec isolation, verify trd field (dir numbered 3 pre-merge) | 2026-06-12 | 5fdedb2 | [3-fix-df-tools-bugs-objective-add-slug-col](./quick/3-fix-df-tools-bugs-objective-add-slug-col/) |
+| 15 | Make /devflow:objective model-invocable; gate `objective remove` cascade behind `--confirm` (dry-run by default) (dir numbered 13) | 2026-08-25 | bd12f42 | Verified | [13-make-objective-skill-model-invocable-add](./quick/13-make-objective-skill-model-invocable-add/) |
 
 ## Session Continuity
 
