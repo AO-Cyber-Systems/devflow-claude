@@ -6,7 +6,7 @@ const { test, describe, beforeEach, afterEach } = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const { execSync, spawnSync } = require('child_process');
 
 const TOOLS_PATH = path.join(__dirname, 'df-tools.cjs');
 
@@ -26,6 +26,20 @@ function runGsdTools(args, cwd = process.cwd()) {
       error: err.stderr?.toString().trim() || err.message,
     };
   }
+}
+
+// Like runGsdTools, but surfaces stderr on success too (execSync discards it).
+// Needed to assert on human-readable output emitted by a zero-exit run.
+function runGsdToolsStreams(args, cwd = process.cwd()) {
+  const r = spawnSync(process.execPath, [TOOLS_PATH, ...args.split(' ')], {
+    cwd,
+    encoding: 'utf-8',
+  });
+  return {
+    status: r.status,
+    stdout: (r.stdout || '').trim(),
+    stderr: (r.stderr || '').trim(),
+  };
 }
 
 // Create temp directory structure
@@ -1555,7 +1569,7 @@ describe('objective remove command', () => {
     fs.writeFileSync(path.join(p3, '03-02-JOB.md'), '# Job 2');
 
     // Remove objective 2
-    const result = runGsdTools('objective remove 2', tmpDir);
+    const result = runGsdTools('objective remove 2 --confirm', tmpDir);
     assert.ok(result.success, `Command failed: ${result.error}`);
 
     const output = JSON.parse(result.output);
@@ -1603,9 +1617,15 @@ describe('objective remove command', () => {
     assert.ok(!result.success, 'should fail without --force');
     assert.ok(result.error.includes('executed job'), 'error mentions executed jobs');
 
-    // Should succeed with --force
-    const forceResult = runGsdTools('objective remove 1 --force', tmpDir);
+    // Should succeed with --force (plus --confirm, which authorizes the cascade)
+    const forceResult = runGsdTools('objective remove 1 --force --confirm', tmpDir);
     assert.ok(forceResult.success, `Force remove failed: ${forceResult.error}`);
+    // A success-only assertion on a destructive command cannot tell a real
+    // deletion from a no-op dry run — assert the directory is actually gone.
+    assert.ok(
+      !fs.existsSync(path.join(tmpDir, '.planning', 'objectives', '01-test')),
+      '--force --confirm must actually delete the objective directory'
+    );
   });
 
   test('removes decimal objective directory without decimal sibling renumber (I2 drop — TRD 12-06)', () => {
@@ -1622,7 +1642,7 @@ describe('objective remove command', () => {
     fs.mkdirSync(path.join(tmpDir, '.planning', 'objectives', '06.2-fix-b'), { recursive: true });
     fs.mkdirSync(path.join(tmpDir, '.planning', 'objectives', '06.3-fix-c'), { recursive: true });
 
-    const result = runGsdTools('objective remove 6.2', tmpDir);
+    const result = runGsdTools('objective remove 6.2 --confirm', tmpDir);
     assert.ok(result.success, `Command failed: ${result.error}`);
 
     // 06.2 directory is deleted
@@ -1649,10 +1669,278 @@ describe('objective remove command', () => {
     fs.mkdirSync(path.join(tmpDir, '.planning', 'objectives', '01-a'), { recursive: true });
     fs.mkdirSync(path.join(tmpDir, '.planning', 'objectives', '02-b'), { recursive: true });
 
-    runGsdTools('objective remove 2', tmpDir);
+    runGsdTools('objective remove 2 --confirm', tmpDir);
 
     const state = fs.readFileSync(path.join(tmpDir, '.planning', 'STATE.md'), 'utf-8');
     assert.ok(state.includes('**Total Objectives:** 1'), 'total objectives should be decremented');
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // --confirm dry-run rail
+  //
+  // `objective remove` hard-deletes a directory and then cascade-renumbers every
+  // objective above it. It is dry-run by default: without --confirm it prints the
+  // plan and touches nothing. --force (executed-jobs override) and --confirm
+  // (cascade authorization) are independent.
+  // ───────────────────────────────────────────────────────────────────────────
+
+  // Hand-built fixtures — three integer objectives, 2 is the removal target.
+  function setupThreeObjectives(dir) {
+    fs.writeFileSync(
+      path.join(dir, '.planning', 'ROADMAP.md'),
+      `# Roadmap
+
+### Objective 1: Foundation
+**Goal:** Setup
+
+### Objective 2: Auth
+**Goal:** Authentication
+
+### Objective 3: Features
+**Goal:** Core features
+`
+    );
+    fs.writeFileSync(
+      path.join(dir, '.planning', 'STATE.md'),
+      `# State\n\n**Current Objective:** 1\n**Total Objectives:** 3\n`
+    );
+    fs.mkdirSync(path.join(dir, '.planning', 'objectives', '01-foundation'), { recursive: true });
+    const p2 = path.join(dir, '.planning', 'objectives', '02-auth');
+    fs.mkdirSync(p2, { recursive: true });
+    fs.writeFileSync(path.join(p2, '02-01-JOB.md'), '# Plan');
+    const p3 = path.join(dir, '.planning', 'objectives', '03-features');
+    fs.mkdirSync(p3, { recursive: true });
+    fs.writeFileSync(path.join(p3, '03-01-JOB.md'), '# Plan');
+    fs.writeFileSync(path.join(p3, '03-02-JOB.md'), '# Job 2');
+  }
+
+  // One objective carrying an executed SUMMARY.md — the --force rail's fixture.
+  function setupExecutedObjective(dir) {
+    const p1 = path.join(dir, '.planning', 'objectives', '01-test');
+    fs.mkdirSync(p1, { recursive: true });
+    fs.writeFileSync(path.join(p1, '01-01-JOB.md'), '# Plan');
+    fs.writeFileSync(path.join(p1, '01-01-SUMMARY.md'), '# Summary');
+    fs.writeFileSync(
+      path.join(dir, '.planning', 'ROADMAP.md'),
+      `# Roadmap\n### Objective 1: Test\n**Goal:** Test\n`
+    );
+  }
+
+  // Decimal fixture. The 07-later sibling is load-bearing: an all-06.x fixture
+  // cannot detect a missing isDecimal short-circuit, because every `dirInt > 6`
+  // test is false anyway. With 07-later present, a missing short-circuit renames
+  // it to 06-later and the assertion below goes red.
+  function setupDecimalObjectives(dir) {
+    fs.writeFileSync(
+      path.join(dir, '.planning', 'ROADMAP.md'),
+      `# Roadmap\n### Objective 6: Main\n### Objective 6.1: Fix A\n### Objective 6.2: Fix B\n### Objective 6.3: Fix C\n### Objective 7: Later\n`
+    );
+    for (const d of ['06-main', '06.1-fix-a', '06.2-fix-b', '06.3-fix-c', '07-later']) {
+      fs.mkdirSync(path.join(dir, '.planning', 'objectives', d), { recursive: true });
+    }
+  }
+
+  test('case 1 — without --confirm, nothing on disk changes', () => {
+    setupThreeObjectives(tmpDir);
+    const objectives = path.join(tmpDir, '.planning', 'objectives');
+    const roadmapPath = path.join(tmpDir, '.planning', 'ROADMAP.md');
+    const statePath = path.join(tmpDir, '.planning', 'STATE.md');
+    const roadmapBefore = fs.readFileSync(roadmapPath, 'utf-8');
+    const stateBefore = fs.readFileSync(statePath, 'utf-8');
+
+    const result = runGsdTools('objective remove 2', tmpDir);
+    assert.ok(result.success, `dry run should exit 0: ${result.error}`);
+
+    assert.ok(fs.existsSync(path.join(objectives, '02-auth')), '02-auth must survive a dry run');
+    assert.ok(
+      fs.existsSync(path.join(objectives, '03-features')),
+      '03-features must not be renumbered by a dry run'
+    );
+    assert.ok(
+      !fs.existsSync(path.join(objectives, '02-features')),
+      'no renumbered directory should appear'
+    );
+    assert.ok(
+      fs.existsSync(path.join(objectives, '03-features', '03-01-JOB.md')),
+      'inner job files must not be renamed'
+    );
+    assert.strictEqual(
+      fs.readFileSync(roadmapPath, 'utf-8'),
+      roadmapBefore,
+      'ROADMAP.md must be byte-identical after a dry run'
+    );
+    assert.strictEqual(
+      fs.readFileSync(statePath, 'utf-8'),
+      stateBefore,
+      'STATE.md must be byte-identical after a dry run'
+    );
+  });
+
+  test('case 2 — dry-run JSON carries the full plan', () => {
+    setupThreeObjectives(tmpDir);
+    const result = runGsdTools('objective remove 2', tmpDir);
+    assert.ok(result.success, `dry run should exit 0: ${result.error}`);
+
+    const out = JSON.parse(result.output);
+    assert.strictEqual(out.removed, '2');
+    assert.strictEqual(out.dry_run, true);
+    assert.strictEqual(out.confirmed, false);
+    assert.strictEqual(out.mutated, false);
+    assert.strictEqual(out.directory_deleted, null, 'nothing was deleted');
+    assert.strictEqual(out.target_directory, '02-auth', 'plan names the deletion target');
+    assert.strictEqual(out.roadmap_updated, false);
+    assert.strictEqual(out.state_updated, false);
+    assert.deepStrictEqual(out.renamed_directories, [{ from: '03-features', to: '02-features' }]);
+    assert.deepStrictEqual(out.renamed_files, [
+      { directory: '02-features', from: '03-01-JOB.md', to: '02-01-JOB.md' },
+      { directory: '02-features', from: '03-02-JOB.md', to: '02-02-JOB.md' },
+    ]);
+    assert.ok(out.hint && out.hint.includes('--confirm'), 'hint names --confirm');
+  });
+
+  test('case 3 — --confirm executes the plan', () => {
+    setupThreeObjectives(tmpDir);
+    const objectives = path.join(tmpDir, '.planning', 'objectives');
+
+    const result = runGsdTools('objective remove 2 --confirm', tmpDir);
+    assert.ok(result.success, `Command failed: ${result.error}`);
+
+    const out = JSON.parse(result.output);
+    assert.strictEqual(out.dry_run, false);
+    assert.strictEqual(out.confirmed, true);
+    assert.strictEqual(out.mutated, true);
+    assert.strictEqual(out.directory_deleted, '02-auth');
+
+    assert.ok(!fs.existsSync(path.join(objectives, '02-auth')), '02-auth deleted');
+    assert.ok(fs.existsSync(path.join(objectives, '02-features')), '03-features renumbered to 02');
+    assert.ok(!fs.existsSync(path.join(objectives, '03-features')), 'old 03-features gone');
+    assert.ok(
+      fs.existsSync(path.join(objectives, '02-features', '02-01-JOB.md')),
+      'inner job file renumbered'
+    );
+
+    const roadmap = fs.readFileSync(path.join(tmpDir, '.planning', 'ROADMAP.md'), 'utf-8');
+    assert.ok(roadmap.includes('Objective 2: Features'), 'ROADMAP renumbered');
+  });
+
+  test('case 4 — the printed plan deep-equals what execution actually did', () => {
+    setupThreeObjectives(tmpDir);
+    const dry = JSON.parse(runGsdTools('objective remove 2', tmpDir).output);
+    const done = JSON.parse(runGsdTools('objective remove 2 --confirm', tmpDir).output);
+
+    assert.deepStrictEqual(
+      done.renamed_directories,
+      dry.renamed_directories,
+      'directory renames must match the plan exactly, in order'
+    );
+    assert.deepStrictEqual(
+      done.renamed_files,
+      dry.renamed_files,
+      'file renames must match the plan exactly, in order'
+    );
+    assert.ok(done.renamed_files.length > 0, 'fixture must exercise file renames');
+    for (const f of done.renamed_files) {
+      assert.deepStrictEqual(
+        Object.keys(f).sort(),
+        ['directory', 'from', 'to'],
+        'both modes emit the same renamed_files element shape'
+      );
+    }
+  });
+
+  test('case 6 — --confirm alone does not bypass the executed-jobs rail', () => {
+    setupExecutedObjective(tmpDir);
+    const result = runGsdTools('objective remove 1 --confirm', tmpDir);
+    assert.ok(!result.success, '--confirm must not override the summaries refusal');
+    assert.ok(result.error.includes('executed job'), 'error mentions executed jobs');
+    assert.ok(
+      fs.existsSync(path.join(tmpDir, '.planning', 'objectives', '01-test')),
+      'directory survives the refusal'
+    );
+  });
+
+  test('case 7 — --force alone only dry-runs', () => {
+    setupExecutedObjective(tmpDir);
+    const result = runGsdTools('objective remove 1 --force', tmpDir);
+    assert.ok(result.success, `--force alone should exit 0: ${result.error}`);
+
+    const out = JSON.parse(result.output);
+    assert.strictEqual(out.dry_run, true);
+    assert.strictEqual(out.mutated, false);
+    assert.ok(
+      fs.existsSync(path.join(tmpDir, '.planning', 'objectives', '01-test')),
+      '--force does not authorize the destructive cascade'
+    );
+  });
+
+  test('case 8 — --force --confirm removes an executed objective', () => {
+    setupExecutedObjective(tmpDir);
+    const result = runGsdTools('objective remove 1 --force --confirm', tmpDir);
+    assert.ok(result.success, `both flags should succeed: ${result.error}`);
+
+    const out = JSON.parse(result.output);
+    assert.strictEqual(out.dry_run, false);
+    assert.strictEqual(out.mutated, true);
+    assert.strictEqual(out.directory_deleted, '01-test');
+    assert.ok(!fs.existsSync(path.join(tmpDir, '.planning', 'objectives', '01-test')));
+  });
+
+  test('case 9 — decimal removal leaves the 07- integer sibling alone', () => {
+    setupDecimalObjectives(tmpDir);
+    const objectives = path.join(tmpDir, '.planning', 'objectives');
+
+    const result = runGsdTools('objective remove 6.2 --confirm', tmpDir);
+    assert.ok(result.success, `Command failed: ${result.error}`);
+
+    assert.ok(!fs.existsSync(path.join(objectives, '06.2-fix-b')), '06.2 deleted');
+    assert.ok(fs.existsSync(path.join(objectives, '06.3-fix-c')), '06.3 unchanged');
+    assert.ok(
+      fs.existsSync(path.join(objectives, '07-later')),
+      '07-later must NOT be renumbered by a decimal removal'
+    );
+    assert.ok(!fs.existsSync(path.join(objectives, '06-later')), 'no integer cascade ran');
+
+    const out = JSON.parse(result.output);
+    assert.deepStrictEqual(out.renamed_directories, []);
+    assert.deepStrictEqual(out.renamed_files, []);
+  });
+
+  test('case 10 — decimal dry-run keeps the directory and plans no renames', () => {
+    setupDecimalObjectives(tmpDir);
+    const result = runGsdTools('objective remove 6.2', tmpDir);
+    assert.ok(result.success, `dry run should exit 0: ${result.error}`);
+
+    const out = JSON.parse(result.output);
+    assert.strictEqual(out.dry_run, true);
+    assert.strictEqual(out.target_directory, '06.2-fix-b');
+    assert.deepStrictEqual(out.renamed_directories, []);
+    assert.deepStrictEqual(out.renamed_files, []);
+    assert.ok(
+      fs.existsSync(path.join(tmpDir, '.planning', 'objectives', '06.2-fix-b')),
+      '06.2 survives a dry run'
+    );
+  });
+
+  test('case 11 — the plan is printed to stderr while stdout stays pure JSON', () => {
+    setupThreeObjectives(tmpDir);
+    const r = runGsdToolsStreams('objective remove 2', tmpDir);
+
+    assert.strictEqual(r.status, 0, `dry run should exit 0: ${r.stderr}`);
+    assert.ok(r.stderr.includes('DRY RUN'), 'stderr carries the DRY RUN banner');
+    assert.ok(r.stderr.includes('02-auth'), 'stderr names the directory to be deleted');
+    assert.ok(
+      r.stderr.includes('03-features -> 02-features'),
+      'stderr lists the directory rename as an old -> new pair'
+    );
+    assert.ok(
+      r.stderr.includes('03-01-JOB.md -> 02-01-JOB.md'),
+      'stderr lists a file rename as an old -> new pair'
+    );
+    assert.ok(r.stderr.includes('--confirm'), 'stderr tells the reader how to execute the plan');
+
+    // Proves stdout and the human-readable plan are not interleaved.
+    const out = JSON.parse(r.stdout);
+    assert.strictEqual(out.dry_run, true);
   });
 });
 
