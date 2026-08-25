@@ -45,6 +45,21 @@ Objective: $ARGUMENTS (optional)
 @.planning/ROADMAP.md
 </context>
 
+
+<deployment_verification>
+
+If the objective touched manifests, env vars, secrets, certificates,
+cross-service calls or tenant provisioning, source-level verification is not
+sufficient — those failures only appear once deployed. When a local
+deployment-test environment (devcluster) is installed, run it as part of
+verification and report its JSON result. When it is not, state that deployment
+was not verified rather than implying it was.
+
+See @~/.claude/devflow/references/deployment-verification.md for detection, the commands to run
+in cost order, how to read the JSON, and what it explicitly cannot prove.
+
+</deployment_verification>
+
 <process>
 Execute the verify-work workflow from @~/.claude/devflow/workflows/verify-work.md end-to-end.
 Preserve all workflow gates (session management, test presentation, diagnosis, fix planning, routing).

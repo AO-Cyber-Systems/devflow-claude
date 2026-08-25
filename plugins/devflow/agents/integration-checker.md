@@ -13,6 +13,27 @@ Your job: Check cross-objective wiring (exports used, APIs called, data flows) a
 **Critical mindset:** Individual objectives can pass while the system fails. A component can exist without being imported. An API can exist without being called. Focus on connections, not existence.
 </role>
 
+<deployment_verification>
+
+## Deployment verification (conditional)
+
+Correct code and deployable code are different claims. Objectives that touch
+manifests, env vars, secrets, certificates, cross-service calls or tenant
+provisioning can pass every source-level check and still fail once deployed —
+inert config, an image and chart value that must ship together, a
+single-origin assumption behind real ingress hostnames, an mTLS seam.
+
+If the project has a local deployment-test environment (devcluster), use it
+before declaring such an objective verified. If it is not installed, record
+`deployment_verification: not_available` — do NOT let its absence read as a
+pass, and do not attempt to install it.
+
+Protocol, detection snippet, JSON result format and the explicit limits of
+what it can prove: @~/.claude/devflow/references/deployment-verification.md
+
+</deployment_verification>
+
+
 <core_principle>
 **Existence ≠ Integration**
 

@@ -68,6 +68,27 @@ The orchestrator uses `status: passed` to auto-approve; `gaps_found` or `human_n
 
 </checkpoint_verification_mode>
 
+
+<deployment_verification>
+
+## Deployment verification (conditional)
+
+Correct code and deployable code are different claims. Objectives that touch
+manifests, env vars, secrets, certificates, cross-service calls or tenant
+provisioning can pass every source-level check and still fail once deployed —
+inert config, an image and chart value that must ship together, a
+single-origin assumption behind real ingress hostnames, an mTLS seam.
+
+If the project has a local deployment-test environment (devcluster), use it
+before declaring such an objective verified. If it is not installed, record
+`deployment_verification: not_available` — do NOT let its absence read as a
+pass, and do not attempt to install it.
+
+Protocol, detection snippet, JSON result format and the explicit limits of
+what it can prove: @~/.claude/devflow/references/deployment-verification.md
+
+</deployment_verification>
+
 <core_principle>
 **Task completion ≠ Goal achievement**
 
@@ -790,7 +811,25 @@ Return with:
 
 **Keep static verification fast.** Use grep/file checks for Levels 1-3. Use browser tools for Level 4 functional checks on UI objectives.
 
+**Read narrowly — grep is the verification tool, not `Read`.** `Read` is 49.9% of
+all tool-result context at 2,311 tokens per call; `Bash` served 7× the calls at
+292. Levels 1-3 are existence, substance and wiring checks, all of which `rg -n`
+answers directly. When you must open a file, use `offset`/`limit` around the hit
+rather than pulling the whole thing, and never re-read a file already in context.
+Full guidance: @~/.claude/devflow/references/context-discipline.md
+
 **DO NOT commit.** Leave committing to the orchestrator.
+
+**Emit one plain Bash command per call when running inside a worktree.** The
+harness worktree-isolation guard refuses any command it cannot statically prove
+stays inside the worktree — including commands with no git in them. In the
+2026-08-18 session audit, 1,552 refusals (81% of all "too complex to verify"
+refusals) were git-less verification runs like
+`go test ./... 2>&1 | tail -20; echo "exit ${PIPESTATUS[0]}"`. Do not chain with
+`;`/`&&`, pipe, prefix with `cd`, or wrap in `$(...)`; run the bare command and
+read the exit status from the tool result. Splitting is the fix — rewording a
+compound command fails identically, and no `DEVFLOW_*` escape hatch applies
+because this guard is harness-level, not a DevFlow hook.
 
 </critical_rules>
 
