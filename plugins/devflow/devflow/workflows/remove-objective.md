@@ -78,17 +78,35 @@ Proceed? (y/n)
 Wait for confirmation.
 </step>
 
-<step name="execute_removal">
-**Delegate the entire removal operation to df-tools:**
+<step name="preview_removal">
+**Run the dry run first and show the user the real plan.**
+
+`objective remove` is dry-run by default: without `--confirm` it deletes and renames nothing, prints the full plan to stderr, and exits 0.
 
 ```bash
-RESULT=$(node ~/.claude/devflow/bin/df-tools.cjs objective remove "${target}")
+node ~/.claude/devflow/bin/df-tools.cjs objective remove "${target}"
 ```
 
-If the objective has executed jobs (SUMMARY.md files), df-tools will error. Use `--force` only if the user confirms:
+The plan names the directory that would be deleted and every `old -> new` directory and file rename. Show it to the user verbatim — this is what backs the confirmation above with a machine-checked preview instead of a narrated one.
+
+If the objective has executed jobs (SUMMARY.md files), df-tools errors here regardless of `--confirm`. Add `--force` only if the user confirms removing executed work:
 
 ```bash
-RESULT=$(node ~/.claude/devflow/bin/df-tools.cjs objective remove "${target}" --force)
+node ~/.claude/devflow/bin/df-tools.cjs objective remove "${target}" --force
+```
+</step>
+
+<step name="execute_removal">
+**Delegate the entire removal operation to df-tools.** Only after the user has seen the dry-run plan, re-run it with `--confirm`:
+
+```bash
+RESULT=$(node ~/.claude/devflow/bin/df-tools.cjs objective remove "${target}" --confirm)
+```
+
+`--confirm` executes exactly the plan the dry run printed. For an objective with executed jobs, both flags are required — `--force` overrides the summaries refusal, `--confirm` authorizes the cascade:
+
+```bash
+RESULT=$(node ~/.claude/devflow/bin/df-tools.cjs objective remove "${target}" --force --confirm)
 ```
 
 The CLI handles:
@@ -99,6 +117,8 @@ The CLI handles:
 - Updating STATE.md (decrementing objective count)
 
 Extract from result: `removed`, `directory_deleted`, `renamed_directories`, `renamed_files`, `roadmap_updated`, `state_updated`.
+
+Both modes also return `dry_run`, `confirmed` and `mutated`. Check `mutated: true` before reporting success — a run without `--confirm` returns `mutated: false` and has changed nothing. `partial: true` on a confirmed run means the rename cascade aborted part-way and the tree needs fixing by hand.
 </step>
 
 <step name="commit">
@@ -140,6 +160,7 @@ Would you like to:
 
 <anti_patterns>
 
+- Don't pass `--confirm` before showing the user the dry-run plan
 - Don't remove completed objectives (have SUMMARY.md files) without --force
 - Don't remove current or past objectives
 - Don't manually renumber — use `df-tools objective remove` which handles all renumbering
