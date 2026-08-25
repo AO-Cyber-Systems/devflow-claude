@@ -82,10 +82,12 @@ ROUTING DECISION TABLE:
 CONSOLIDATED SKILLS (Phase G, v1.2 obj 12):
   /devflow:todo         add | list
   /devflow:status       (no arg) | check | pause | resume
+  /devflow:objective    add | remove
+                        (remove is dry-run by default — it prints the delete +
+                        renumber plan and changes nothing without --confirm)
 
 USER-TYPED ONLY — you CANNOT invoke these via the Skill tool
 (disable-model-invocation: true, because they mutate planning state):
-  /devflow:objective    add | remove
   /devflow:milestone    new | audit | complete | gaps
   /devflow:workstreams  setup | status | merge | run
 Ask the user to type these, or use df-tools directly for the equivalent
@@ -170,16 +172,21 @@ function renderRoutingPreamble({ mode }) {
  * Drift across versions is acceptable for the routing-table preamble.
  */
 // `userOnly` mirrors `disable-model-invocation: true` in the skill's own
-// frontmatter (TRD 30-02). These skills mutate planning state — `objective
-// remove` cascade-renumbers every objective above it — so requiring the user to
-// type them is deliberate, not a bug.
+// frontmatter (TRD 30-02). These skills mutate planning state, so requiring the
+// user to type them is deliberate, not a bug.
 //
 // The bug was advertising them to the model anyway: the routing preamble listed
 // them alongside invocable skills, producing 68 failed Skill-tool attempts
 // across 22 sessions in the 2026-08-18 audit. classifier.test.cjs asserts these
 // flags stay in sync with the actual frontmatter.
+//
+// `objective` moved to userOnly:false in quick job 13. Its rationale used to be
+// that `objective remove` cascade-renumbers every objective above it — that
+// cascade is now dry-run by default and mutates nothing without an explicit
+// `--confirm`, so the destructive path is gated by the flag rather than by
+// keeping the whole skill out of the model's reach.
 const CONSOLIDATED_SKILLS = [
-  { name: 'objective',   subcommands: ['add', 'remove'], userOnly: true },
+  { name: 'objective',   subcommands: ['add', 'remove'], userOnly: false },
   { name: 'milestone',   subcommands: ['new', 'audit', 'complete', 'gaps'], userOnly: true },
   { name: 'workstreams', subcommands: ['setup', 'status', 'merge', 'run'], userOnly: true },
   { name: 'todo',        subcommands: ['add', 'list'], userOnly: false },

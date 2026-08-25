@@ -6,7 +6,6 @@ description: |
   Use when explicitly requested.
   Note: 'insert' (decimal objectives) was removed in v1.2 — use 'add' instead.
 argument-hint: "<add|remove> [args...]"
-disable-model-invocation: true
 allowed-tools:
   - Read
   - Write
@@ -17,7 +16,13 @@ allowed-tools:
 <objective>
 Manage objectives in the current milestone roadmap. Routes by first argument:
 - `add <description>` — Add a new integer objective to the end of the milestone
-- `remove <number>` — Remove an unstarted objective and renumber siblings
+- `remove <number> [--force] [--confirm]` — Preview the removal + renumber plan.
+  Dry-run by default: without `--confirm` nothing is deleted or renamed.
+  `--confirm` authorizes the destructive cascade (delete the objective, then
+  renumber every subsequent objective's directory, the files inside it, and its
+  ROADMAP references).
+  `--force` separately overrides the refusal to remove an objective that has
+  executed SUMMARY.md jobs. Removing an executed objective needs BOTH flags.
 
 Replaces 3 sibling skills: add-objective, insert-objective, remove-objective.
 Note: decimal objectives (insert) were removed in v1.2 (TRD 12-06, I2 survey: 0% usage).

@@ -135,10 +135,10 @@ Result: Creates `.planning/quick/NNN-slug/JOB.md`, `.planning/quick/NNN-slug/SUM
 Manage objectives in the current milestone roadmap.
 
 - `add <description>` — Append a new integer objective
-- `remove <number>` — Remove an unstarted objective and renumber
+- `remove <number> [--force] [--confirm]` — Remove an unstarted objective and renumber. Dry-run by default: without `--confirm` it prints the delete + rename plan and changes nothing. `--force` separately overrides the refusal to remove an objective with executed jobs.
 
 Usage: `/devflow:objective add "Add admin dashboard"`
-Usage: `/devflow:objective remove 17`
+Usage: `/devflow:objective remove 17 --confirm`
 
 ### Parallel Workstreams
 
