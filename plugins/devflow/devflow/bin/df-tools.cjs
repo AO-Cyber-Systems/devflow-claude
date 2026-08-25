@@ -34,7 +34,7 @@
  *   objective next-decimal <objective>         Calculate next decimal objective number
  *   objective add <description>            Append new objective to roadmap + create dir
  *   objective insert <after> <description> Insert decimal objective after existing
- *   objective remove <objective> [--force]     Remove objective, renumber all subsequent
+ *   objective remove <objective> [--force] [--confirm]  Dry-run by default; --confirm executes delete + renumber
  *   objective complete <objective>             Mark objective done, update state + roadmap
  *
  * Roadmap Operations:
@@ -730,7 +730,8 @@ async function main() {
         cmdObjectiveInsert(cwd, args[2], args.slice(3).join(' '), raw);
       } else if (subcommand === 'remove') {
         const forceFlag = args.includes('--force');
-        cmdObjectiveRemove(cwd, args[2], { force: forceFlag }, raw);
+        const confirmFlag = args.includes('--confirm');
+        cmdObjectiveRemove(cwd, args[2], { force: forceFlag, confirm: confirmFlag }, raw);
       } else if (subcommand === 'complete') {
         cmdObjectiveComplete(cwd, args[2], raw);
       } else {

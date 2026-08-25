@@ -359,6 +359,123 @@ function cmdObjectiveInsert(cwd, afterObjective, description, raw) {
   process.exit(1);
 }
 
+/**
+ * Compute — without touching the filesystem — exactly what `objective remove`
+ * would delete and rename.
+ *
+ * cmdObjectiveRemove prints this plan in dry-run mode and CONSUMES it in
+ * --confirm mode, so the preview and the mutation cannot drift apart.
+ *
+ * PURE: performs zero fs mutations.
+ *
+ * Safe to call before the target directory is deleted: the rename filter is
+ * strictly `dirInt > removedInt` and the target sits at `=== removedInt`, so the
+ * target can never appear in the rename set either way.
+ */
+function computeRemovalPlan(objectivesDir, normalized, isDecimal, targetDir) {
+  const plan = {
+    target_directory: targetDir || null,
+    renamed_directories: [],
+    renamed_files: [],
+  };
+
+  // Decimal removal deletes the target only — sibling renumbering was dropped in
+  // TRD 12-06 (I2 survey: 0% usage). The rename set is empty by construction,
+  // which is what keeps an integer sibling like 07-later from being renumbered.
+  if (isDecimal) return plan;
+
+  const removedInt = parseInt(normalized, 10);
+
+  try {
+    const entries = fs.readdirSync(objectivesDir, { withFileTypes: true });
+    const dirs = entries.filter(e => e.isDirectory()).map(e => e.name).sort();
+
+    // Collect directories that need renumbering (integer objectives > removed, and their decimals)
+    const toRename = [];
+    for (const dir of dirs) {
+      const dm = dir.match(/^(\d+)(?:\.(\d+))?-(.+)$/);
+      if (!dm) continue;
+      const dirInt = parseInt(dm[1], 10);
+      if (dirInt > removedInt) {
+        toRename.push({
+          dir,
+          oldInt: dirInt,
+          decimal: dm[2] ? parseInt(dm[2], 10) : null,
+          slug: dm[3],
+        });
+      }
+    }
+
+    // Sort descending to avoid conflicts
+    toRename.sort((a, b) => {
+      if (a.oldInt !== b.oldInt) return b.oldInt - a.oldInt;
+      return (b.decimal || 0) - (a.decimal || 0);
+    });
+
+    for (const item of toRename) {
+      const newInt = item.oldInt - 1;
+      const newPadded = String(newInt).padStart(2, '0');
+      const oldPadded = String(item.oldInt).padStart(2, '0');
+      const decimalSuffix = item.decimal !== null ? `.${item.decimal}` : '';
+      const oldPrefix = `${oldPadded}${decimalSuffix}`;
+      const newPrefix = `${newPadded}${decimalSuffix}`;
+      const newDirName = `${newPrefix}-${item.slug}`;
+
+      plan.renamed_directories.push({ from: item.dir, to: newDirName });
+
+      // Planning runs before any rename, so this reads the OLD directory name.
+      // `directory` records where the file will live once its parent rename
+      // lands, so the executor can join a path without re-deriving anything.
+      const dirFiles = fs.readdirSync(path.join(objectivesDir, item.dir));
+      for (const f of dirFiles) {
+        if (f.startsWith(oldPrefix)) {
+          plan.renamed_files.push({
+            directory: newDirName,
+            from: f,
+            to: newPrefix + f.slice(oldPrefix.length),
+          });
+        }
+      }
+    }
+  } catch {}
+
+  return plan;
+}
+
+/** Human-readable rendering of a removal plan. Callers write this to stderr. */
+function renderPlanText(target, plan) {
+  const lines = [];
+  lines.push('DRY RUN — nothing has been modified.');
+  lines.push(`Plan for: objective remove ${target}`);
+  lines.push('');
+  lines.push(`Directory to delete: ${plan.target_directory || '(none found)'}`);
+  lines.push('');
+
+  if (plan.renamed_directories.length === 0) {
+    lines.push('Directories to rename: (none)');
+  } else {
+    lines.push(`Directories to rename (${plan.renamed_directories.length}):`);
+    for (const d of plan.renamed_directories) {
+      lines.push(`  ${d.from} -> ${d.to}`);
+    }
+  }
+  lines.push('');
+
+  if (plan.renamed_files.length === 0) {
+    lines.push('Files to rename: (none)');
+  } else {
+    lines.push(`Files to rename (${plan.renamed_files.length}):`);
+    for (const f of plan.renamed_files) {
+      lines.push(`  [${f.directory}] ${f.from} -> ${f.to}`);
+    }
+  }
+  lines.push('');
+  lines.push('ROADMAP.md and STATE.md would also be renumbered.');
+  lines.push('Re-run with --confirm to execute.');
+
+  return lines.join('\n') + '\n';
+}
+
 function cmdObjectiveRemove(cwd, targetObjective, options, raw) {
   if (!targetObjective) {
     error('objective number required for objective remove');
@@ -367,6 +484,7 @@ function cmdObjectiveRemove(cwd, targetObjective, options, raw) {
   const roadmapPath = path.join(cwd, '.planning', 'ROADMAP.md');
   const objectivesDir = path.join(cwd, '.planning', 'objectives');
   const force = options.force || false;
+  const confirm = options.confirm || false;
 
   if (!fs.existsSync(roadmapPath)) {
     error('ROADMAP.md not found');
@@ -384,7 +502,11 @@ function cmdObjectiveRemove(cwd, targetObjective, options, raw) {
     targetDir = dirs.find(d => d.startsWith(normalized + '-') || d === normalized);
   } catch {}
 
-  // Check for executed work (SUMMARY.md files)
+  // Check for executed work (SUMMARY.md files).
+  //
+  // ORDER IS LOAD-BEARING: this rail is evaluated BEFORE the --confirm
+  // short-circuit below. If the dry run returned first, removing an objective
+  // that has executed jobs would exit 0 instead of refusing with exit 1.
   if (targetDir && !force) {
     const targetPath = path.join(objectivesDir, targetDir);
     const files = fs.readdirSync(targetPath);
@@ -394,73 +516,76 @@ function cmdObjectiveRemove(cwd, targetObjective, options, raw) {
     }
   }
 
+  const plan = computeRemovalPlan(objectivesDir, normalized, isDecimal, targetDir);
+
+  // Dry run by default. --force overrides the executed-jobs rail above;
+  // --confirm authorizes the destructive cascade. The two are independent, and
+  // removing an objective that has executed jobs needs both.
+  if (!confirm) {
+    process.stderr.write(renderPlanText(targetObjective, plan));
+    output(
+      {
+        removed: targetObjective,
+        dry_run: true,
+        confirmed: false,
+        mutated: false,
+        directory_deleted: null,
+        target_directory: plan.target_directory,
+        renamed_directories: plan.renamed_directories,
+        renamed_files: plan.renamed_files,
+        roadmap_updated: false,
+        state_updated: false,
+        hint: 'Re-run with --confirm to execute this plan.',
+      },
+      raw
+    );
+    // output() calls process.exit — nothing below this point runs.
+  }
+
   // Delete target directory
   if (targetDir) {
     fs.rmSync(path.join(objectivesDir, targetDir), { recursive: true, force: true });
   }
 
-  // Renumber subsequent objectives
-  // Note: decimal-objective renumbering removed in TRD 12-06 (I2 survey: 0% usage).
+  // Renumber subsequent objectives by EXECUTING the plan. Never recompute the
+  // renames here: a second, independent computation is exactly how the printed
+  // plan and the actual mutation come apart.
   const renamedDirs = [];
   const renamedFiles = [];
+  let partial = false;
+  let failing = null;
 
-  if (!isDecimal) {
-    // Integer removal: renumber all subsequent integer objectives
-    const removedInt = parseInt(normalized, 10);
+  try {
+    for (const d of plan.renamed_directories) {
+      failing = `directory ${d.from} -> ${d.to}`;
+      fs.renameSync(path.join(objectivesDir, d.from), path.join(objectivesDir, d.to));
+      renamedDirs.push(d);
 
-    try {
-      const entries = fs.readdirSync(objectivesDir, { withFileTypes: true });
-      const dirs = entries.filter(e => e.isDirectory()).map(e => e.name).sort();
-
-      // Collect directories that need renumbering (integer objectives > removed, and their decimals)
-      const toRename = [];
-      for (const dir of dirs) {
-        const dm = dir.match(/^(\d+)(?:\.(\d+))?-(.+)$/);
-        if (!dm) continue;
-        const dirInt = parseInt(dm[1], 10);
-        if (dirInt > removedInt) {
-          toRename.push({
-            dir,
-            oldInt: dirInt,
-            decimal: dm[2] ? parseInt(dm[2], 10) : null,
-            slug: dm[3],
-          });
-        }
+      // Files are renamed immediately after their parent directory, matching the
+      // on-disk sequence this command has always used.
+      for (const f of plan.renamed_files) {
+        if (f.directory !== d.to) continue;
+        failing = `file ${f.directory}/${f.from} -> ${f.to}`;
+        fs.renameSync(
+          path.join(objectivesDir, f.directory, f.from),
+          path.join(objectivesDir, f.directory, f.to)
+        );
+        renamedFiles.push(f);
       }
-
-      // Sort descending to avoid conflicts
-      toRename.sort((a, b) => {
-        if (a.oldInt !== b.oldInt) return b.oldInt - a.oldInt;
-        return (b.decimal || 0) - (a.decimal || 0);
-      });
-
-      for (const item of toRename) {
-        const newInt = item.oldInt - 1;
-        const newPadded = String(newInt).padStart(2, '0');
-        const oldPadded = String(item.oldInt).padStart(2, '0');
-        const decimalSuffix = item.decimal !== null ? `.${item.decimal}` : '';
-        const oldPrefix = `${oldPadded}${decimalSuffix}`;
-        const newPrefix = `${newPadded}${decimalSuffix}`;
-        const newDirName = `${newPrefix}-${item.slug}`;
-
-        // Rename directory
-        fs.renameSync(path.join(objectivesDir, item.dir), path.join(objectivesDir, newDirName));
-        renamedDirs.push({ from: item.dir, to: newDirName });
-
-        // Rename files inside
-        const dirFiles = fs.readdirSync(path.join(objectivesDir, newDirName));
-        for (const f of dirFiles) {
-          if (f.startsWith(oldPrefix)) {
-            const newFileName = newPrefix + f.slice(oldPrefix.length);
-            fs.renameSync(
-              path.join(objectivesDir, newDirName, f),
-              path.join(objectivesDir, newDirName, newFileName)
-            );
-            renamedFiles.push({ from: f, to: newFileName });
-          }
-        }
-      }
-    } catch {}
+    }
+    failing = null;
+  } catch (err) {
+    // Failure semantics are deliberately unchanged: the cascade aborts at the
+    // failing rename, earlier renames stay applied, ROADMAP.md is still
+    // rewritten below, and the exit code stays 0. Making the cascade atomic is
+    // out of scope. The one thing added here is that it is no longer SILENT.
+    partial = true;
+    process.stderr.write(
+      `Warning: rename cascade aborted at ${failing} — ${(err && err.message) || err}\n` +
+        `Applied ${renamedDirs.length}/${plan.renamed_directories.length} directory renames ` +
+        `and ${renamedFiles.length}/${plan.renamed_files.length} file renames before failing.\n` +
+        'The objectives tree is now partially renumbered; fix the remaining names by hand.\n'
+    );
   }
 
   // Update ROADMAP.md
@@ -552,7 +677,12 @@ function cmdObjectiveRemove(cwd, targetObjective, options, raw) {
 
   const result = {
     removed: targetObjective,
+    dry_run: false,
+    confirmed: true,
+    mutated: true,
+    partial,
     directory_deleted: targetDir || null,
+    target_directory: plan.target_directory,
     renamed_directories: renamedDirs,
     renamed_files: renamedFiles,
     roadmap_updated: true,
