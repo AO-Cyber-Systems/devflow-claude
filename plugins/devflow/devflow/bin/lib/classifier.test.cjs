@@ -171,7 +171,10 @@ describe('CONSOLIDATED_SKILLS', () => {
       { name: 'todo',        subcommands: ['add', 'list'] },
       { name: 'status',      subcommands: [null, 'check', 'pause', 'resume'] },
     ];
-    assert.deepEqual(CONSOLIDATED_SKILLS, expected);
+    // Compare name+subcommands only. TRD 30-02 added a `userOnly` field; the
+    // snapshot this test guards is the SUBCOMMAND set, not the object shape.
+    const actual = CONSOLIDATED_SKILLS.map(({ name, subcommands }) => ({ name, subcommands }));
+    assert.deepEqual(actual, expected);
   });
 
   test('case 18: status.subcommands[0] is null (default subcommand semantics from 12-03)', () => {
@@ -246,5 +249,60 @@ describe('renderRoutingPreamble (17-03 extension)', () => {
     const result = renderRoutingPreamble({ mode: 'init-offer' });
     assert.ok(result.includes('/devflow:new-project --auto'), 'must mention /devflow:new-project --auto');
     assert.ok(result.includes('df-tools project-decline'), 'must mention df-tools project-decline');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TRD 30-02 — the routing table must not advertise skills the model cannot call
+//
+// The 2026-08-18 audit recorded 68 failed Skill-tool invocations across 22
+// sessions, all "cannot be used with Skill tool due to disable-model-invocation".
+// The flag is correct — those skills mutate planning state. The defect was the
+// routing preamble listing them as if they were invocable.
+// ---------------------------------------------------------------------------
+
+describe('TRD 30-02 — userOnly flags match actual skill frontmatter', () => {
+  const fsMod = require('fs');
+  const pathMod = require('path');
+  const SKILLS_DIR = pathMod.join(__dirname, '..', '..', '..', 'skills');
+
+  function isModelDisabled(skillName) {
+    const p = pathMod.join(SKILLS_DIR, skillName, 'SKILL.md');
+    if (!fsMod.existsSync(p)) return null;
+    const fm = fsMod.readFileSync(p, 'utf8').split('---')[1] || '';
+    return /^disable-model-invocation:\s*true/m.test(fm);
+  }
+
+  for (const entry of CONSOLIDATED_SKILLS) {
+    test(`${entry.name}: userOnly=${entry.userOnly} matches its frontmatter`, () => {
+      const disabled = isModelDisabled(entry.name);
+      assert.notEqual(disabled, null, `skills/${entry.name}/SKILL.md not found`);
+      assert.equal(
+        entry.userOnly, disabled,
+        `CONSOLIDATED_SKILLS says userOnly=${entry.userOnly} but ` +
+        `skills/${entry.name}/SKILL.md has disable-model-invocation=${disabled}`
+      );
+    });
+  }
+
+  test('the routing preamble marks user-only skills as un-invocable', () => {
+    const preamble = renderRoutingPreamble({ mode: 'ambient' });
+    assert.match(preamble, /USER-TYPED ONLY/,
+      'preamble must flag skills the model cannot invoke');
+    for (const entry of CONSOLIDATED_SKILLS.filter(e => e.userOnly)) {
+      const idx = preamble.indexOf(`/devflow:${entry.name}`);
+      assert.ok(idx > preamble.indexOf('USER-TYPED ONLY'),
+        `${entry.name} must appear under the USER-TYPED ONLY heading, not above it`);
+    }
+  });
+
+  test('invocable consolidated skills are NOT under the user-only heading', () => {
+    const preamble = renderRoutingPreamble({ mode: 'ambient' });
+    const cut = preamble.indexOf('USER-TYPED ONLY');
+    for (const entry of CONSOLIDATED_SKILLS.filter(e => !e.userOnly)) {
+      const idx = preamble.indexOf(`/devflow:${entry.name}`);
+      assert.ok(idx !== -1 && idx < cut,
+        `${entry.name} is invocable and must be listed above the user-only section`);
+    }
   });
 });

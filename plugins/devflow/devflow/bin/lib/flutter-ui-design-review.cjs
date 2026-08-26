@@ -60,12 +60,12 @@ function designReviewSchema() {
   };
 }
 
-// Resolve the vision model from the df-ui-evaluator profile (same source as the defect judge).
+// Resolve the vision model from the ui-evaluator profile (same source as the defect judge).
 function resolveCriticModel() {
   const p = path.join(__dirname, '..', '..', 'references', 'model-profiles.json');
   const profiles = JSON.parse(fs.readFileSync(p, 'utf-8'));
   const profile = process.env.DEVFLOW_MODEL_PROFILE || 'balanced';
-  const tier = (profiles.agents['df-ui-evaluator'] || {})[profile] || 'sonnet';
+  const tier = (profiles.agents['ui-evaluator'] || profiles.agents['df-ui-evaluator'] || {})[profile] || 'sonnet';
   return profiles.models[tier] || tier;
 }
 

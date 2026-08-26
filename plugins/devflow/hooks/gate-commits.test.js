@@ -219,3 +219,72 @@ describe('gate-commits — initialization gating', () => {
   });
 
 });
+
+// ---------------------------------------------------------------------------
+// TRD 27-04 — invocation-aware matching (was a substring test)
+//
+// Regression guard for the Autonomy Blocker Audit (2026-08-18): the gate fired
+// on any command whose text merely contained the raw-commit phrase. Reproduced
+// live — writing an analysis script that held the phrase as a regex literal was
+// refused, and the script had to be rewritten to concatenate the token.
+// ---------------------------------------------------------------------------
+
+const { invokesGitCommit, stripHeredocs, stripQuoted } = require('./gate-commits.js');
+
+describe('TRD 27-04 — invokesGitCommit()', () => {
+  const GATED = [
+    'git commit',
+    'git commit -m "msg"',
+    'git -C /repo commit -m x',
+    'git --no-pager commit',
+    'git -c user.name=x commit -m y',
+    'ls && git commit -m x',
+    'cd /repo; git commit --amend',
+  ];
+  for (const cmd of GATED) {
+    test(`gates a real invocation: ${cmd}`, () => {
+      assert.equal(invokesGitCommit(cmd), true);
+    });
+  }
+
+  const PASSED = [
+    'git status',
+    'git log --oneline',
+    'git commit-tree abc123',
+    'node ~/.claude/devflow/bin/df-tools.cjs commit "test: x"',
+    'echo "remember to git commit later"',
+    "grep -rn 'git commit' plugins/",
+  ];
+  for (const cmd of PASSED) {
+    test(`passes through a mention: ${cmd}`, () => {
+      assert.equal(invokesGitCommit(cmd), false);
+    });
+  }
+
+  test('heredoc body mentioning the phrase is NOT an invocation (the live repro)', () => {
+    const cmd = [
+      "cat > scan.cjs <<'SCANEOF'",
+      "const RULES = [",
+      "  ['devflow-commit-gate', /Raw `?git commit`? is blocked/i],",
+      "];",
+      'SCANEOF',
+    ].join('\n');
+    assert.equal(invokesGitCommit(cmd), false);
+  });
+
+  test('unquoted heredoc body is stripped too', () => {
+    const cmd = 'cat > f.sh <<EOF\ngit commit -m nope\nEOF';
+    assert.equal(invokesGitCommit(cmd), false);
+  });
+
+  test('a real invocation AFTER a heredoc is still gated', () => {
+    const cmd = "cat > f.txt <<'EOF'\nsome text\nEOF\ngit commit -m real";
+    assert.equal(invokesGitCommit(cmd), true);
+  });
+
+  test('stripHeredocs / stripQuoted are exported and pure', () => {
+    assert.equal(stripHeredocs("a <<'E'\nbody\nE\nb").includes('body'), false);
+    assert.equal(stripQuoted(`echo 'git commit'`).includes('git commit'), false);
+    assert.equal(stripQuoted('echo "git commit"').includes('git commit'), false);
+  });
+});

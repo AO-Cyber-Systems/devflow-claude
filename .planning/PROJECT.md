@@ -41,7 +41,11 @@ The brains go at plan time where overlap/duplication/shared-service decisions ac
 
 ### Continue executing — no manual paste
 
-When Claude hits a command it can't run itself (TTY-interactive, shell-flow, password-prompt), the system queues the handoff and Claude continues with parallel work. A daemon (Approach B, in flight) executes queued commands in the user's interactive shell and injects results back. The user never has to manually paste `! cmd`.
+When Claude hits a command it can't run itself (TTY-interactive, shell-flow, password-prompt), the system queues the handoff and Claude continues with parallel work. The devflow-watch daemon (shipped v1.1, PTY-backed since v1.2) executes queued commands in the user's interactive shell — including TTY-interactive auth flows — and injects results back. The user never has to manually paste `! cmd`. Three known PTY architectural gaps (dispatch-wrapper isatty, wrapper stdin race, detector late-match) are documented for v1.3+.
+
+### Ambient mode — routing is authoritative
+
+Since v1.2, DevFlow routing is enforcement, not advice: `route-intent.js` injects obligatory routing directives, `classify-session.js` classifies sessions at start, and `gate-edits.js` denies ambient edits by default (per-repo `gates.editGate: warn|strict|off` knob since obj 25). Skills arm a `.planning/.skill-active` marker to permit edits.
 
 ### Foundation first; adoption follows
 
@@ -95,3 +99,11 @@ devflow-claude/
 - Distribution is via Claude Code plugin marketplace; no npm publish
 - Three version files must stay in sync on every release
 - Plugin must work with both interactive Claude Code sessions and background subagent execution
+- Milestone names (v1.1, v1.2) are planning nomenclature, NOT release versions — release tags follow the plugin's own semver (v2.x); never tag a bare `v1.2`-style milestone name (release-on-tag CI triggers on `v*`)
+
+## Context
+
+Shipped v1.2 on 2026-07-22 (17 objectives, 83 plans). Plugin at version 2.4.0 (unreleased; last released tag v2.3.0). Test suite ~2680 tests with 8 known pre-existing flaky failures (daemon/PID timing in devflow-watch, handoff-e2e timeouts, one git-state-dependent awareness test). Fleet config aligned in obj 25: 6 repos carry `kind:` frontmatter, global `~/.claude/CLAUDE.md` carries the routing table + TDD-by-kind playbook, opsCluster/eden-press have CLAUDE.md files, eden-press runs `gates.editGate: warn`.
+
+---
+*Last updated: 2026-07-22 after v1.2 milestone*

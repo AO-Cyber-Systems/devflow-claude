@@ -3,7 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync, spawnSync } = require('child_process');
-const { output, error, safeReadFile, generateSlugInternal, pathExistsInternal, MODEL_PROFILES } = require('./helpers.cjs');
+const { output, error, safeReadFile, generateSlugInternal, pathExistsInternal, MODEL_PROFILES, MODEL_IDS } = require('./helpers.cjs');
 const { loadConfig } = require('./config.cjs');
 const { findObjectiveInternal } = require('./objective.cjs');
 const { getMilestoneInfo, getRoadmapObjectiveInternal } = require('./roadmap.cjs');
@@ -255,23 +255,50 @@ function _buildAwarenessPreview(cwd) {
   };
 }
 
+/**
+ * Canonicalise an agent key (TRD 28-02).
+ *
+ * Two spellings were in circulation: compound init commands passed `df-planner`
+ * while skills calling `df-tools resolve-model` passed `planner`. Profile keys
+ * carried the `df-` prefix, so every un-prefixed call missed the table and fell
+ * through to the hard-coded 'sonnet' default — silently, and regardless of the
+ * configured profile. Measured in the 2026-08-18 audit: resolve-model returned
+ * 'sonnet' with unknown_agent:true for all 7 agents the skills ask about.
+ *
+ * Profile keys are now canonical WITHOUT the prefix; both spellings resolve.
+ */
+function normalizeAgentKey(agentType) {
+  return String(agentType || '').replace(/^df-/, '');
+}
+
+/**
+ * Look up an agent's per-profile tier map, honouring project overrides.
+ * Returns null when the agent is genuinely unknown (so callers can be loud
+ * rather than silently defaulting).
+ */
+function agentTierMap(config, agentType) {
+  const key = normalizeAgentKey(agentType);
+  const merged = Object.assign(
+    {},
+    MODEL_PROFILES[key] || MODEL_PROFILES[`df-${key}`] || {},
+    config.agent_models?.[key] || config.agent_models?.[`df-${key}`] || {}
+  );
+  return Object.keys(merged).length ? merged : null;
+}
+
 function resolveModelInternal(cwd, agentType) {
   const config = loadConfig(cwd);
+  const key = normalizeAgentKey(agentType);
 
-  // Check per-agent override first (legacy key)
-  const override = config.model_overrides?.[agentType];
+  // Check per-agent override first (legacy key) — accept either spelling
+  const override = config.model_overrides?.[key] ?? config.model_overrides?.[`df-${key}`];
   if (override) {
     return override === 'opus' ? 'inherit' : override;
   }
 
-  // Merge package defaults with any per-project agent_models overrides
   const profile = config.model_profile || 'balanced';
-  const agentModels = Object.assign(
-    {},
-    MODEL_PROFILES[agentType] || {},
-    config.agent_models?.[agentType] || {}
-  );
-  if (Object.keys(agentModels).length === 0) return 'sonnet';
+  const agentModels = agentTierMap(config, key);
+  if (!agentModels) return 'sonnet';
   const resolved = agentModels[profile] || agentModels['balanced'] || 'sonnet';
   return resolved === 'opus' ? 'inherit' : resolved;
 }
@@ -285,22 +312,27 @@ function cmdResolveModel(cwd, agentType, raw) {
 
   const config = loadConfig(cwd);
   const profile = config.model_profile || 'balanced';
+  const key = normalizeAgentKey(agentType);
+  const agentModels = agentTierMap(config, key);
 
-  // Merge package defaults with any per-project agent_models overrides
-  const agentModels = Object.assign(
-    {},
-    MODEL_PROFILES[agentType] || {},
-    config.agent_models?.[agentType] || {}
-  );
-  if (Object.keys(agentModels).length === 0) {
-    const result = { model: 'sonnet', profile, unknown_agent: true };
+  if (!agentModels) {
+    // Be LOUD. This used to return 'sonnet' silently, which is how a whole-table
+    // key mismatch survived unnoticed — every caller looked like it was working.
+    process.stderr.write(
+      `df-tools resolve-model: unknown agent "${agentType}" — no entry in ` +
+      `references/model-profiles.json. Falling back to 'sonnet'; the configured ` +
+      `profile "${profile}" is NOT being applied.\n`
+    );
+    const result = { model: 'sonnet', profile, unknown_agent: true, requested: agentType };
     output(result, raw, 'sonnet');
     return;
   }
 
-  const resolved = agentModels[profile] || agentModels['balanced'] || 'sonnet';
-  const model = resolved === 'opus' ? 'inherit' : resolved;
-  const result = { model, profile };
+  const tier = agentModels[profile] || agentModels['balanced'] || 'sonnet';
+  const model = tier === 'opus' ? 'inherit' : tier;
+  // Report the tier and the concrete id alongside the alias so a resolution can
+  // actually be audited (TRD 28-02) — "inherit" alone hid which model ran.
+  const result = { model, profile, agent: key, tier, model_id: MODEL_IDS[tier] || null };
   output(result, raw, model);
 }
 

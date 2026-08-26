@@ -54,9 +54,10 @@ The central CLI utility used by ~50 skill and agent files. CommonJS module invok
 - **Model resolution** — `resolve-model <agent-type>` returns the model for an agent based on the active profile (quality/balanced/budget)
 - **Validation** — `validate consistency`, `validate health [--repair]`
 - **GitHub integration** (1.29+, opt-in via `.planning/config.json` `github` block) — `gh status`, `gh sync-objectives`, `gh comment`, `gh close-issue`, `gh sync-release`. Implemented in `lib/gh.cjs`; one-way push to GitHub via the `gh` CLI; planning files remain authoritative.
+- **Telemetry & audit** (2.5+) — `context` (context composition), `session-audit` (blocking-event classification; the acceptance test for objectives 27–30), `transcript-export` (compact per-session index before retention deletes transcripts), `telemetry` (one status-facing view with advisories), `override --gate <g> --reason <why>` (structured, logged gate override). Implemented in `lib/context-audit.cjs`, `lib/session-audit.cjs`, `lib/transcript-export.cjs`, `lib/telemetry.cjs`, `lib/override.cjs`.
 - **Changelog** (1.30+) — `changelog update --version vX.Y.Z [--from <ref> --to <ref>] [--dry-run]`, `changelog check <version>`. Implemented in `lib/changelog.cjs`; generates Keep-a-Changelog entries from conventional-commit history.
 
-Model profiles are hard-coded in a `MODEL_PROFILES` table mapping each agent to its opus/sonnet/haiku assignment per profile tier.
+Model profiles are loaded from `plugins/devflow/devflow/references/model-profiles.json` (via `bin/lib/helpers.cjs`), which maps each agent to its opus/sonnet/haiku assignment per profile tier. The JSON also pins the concrete model id for each tier — keep those ids current when models ship; a stale id resolves to a model that never runs.
 
 ### Skills (`plugins/devflow/skills/<name>/SKILL.md`)
 
@@ -96,6 +97,13 @@ Node.js hooks declared in `plugins/devflow/hooks/hooks.json` and auto-registered
 **Runtime sync:**
 - `sync-runtime.js` — SessionStart; mirrors `${CLAUDE_PLUGIN_ROOT}/devflow/` to `~/.claude/devflow/` when the bundled plugin version differs from the cached `.plugin-version`
 
+**Session context (SessionStart / UserPromptSubmit):**
+- `awareness-cache-populate.js` — SessionStart; warms the cross-repo awareness cache
+- `classify-session.js` — SessionStart; classifies the session for routing/telemetry
+- `inject-org-context.js` — injects org/initiative context at planning time
+- `inject-handoff-results.js` — surfaces completed handoff-watcher results back into the session
+- `route-results.js` — UserPromptSubmit; emits queued handoff command results
+
 **Observability (warn-only):**
 - `statusline.js` — StatusLine (declared in plugin.json `statusLine`); renders model, task, context usage
 - `verify-completion.js` — Stop; checks SUMMARY.md evidence
@@ -103,13 +111,47 @@ Node.js hooks declared in `plugins/devflow/hooks/hooks.json` and auto-registered
 
 **Enforcement (active gates):**
 - `route-intent.js` — UserPromptSubmit; injects skill-routing reminders when DevFlow project is detected
-- `gate-commits.js` — PreToolUse(Bash); blocks raw `git commit`. Escape: `DEVFLOW_ALLOW_RAW_COMMIT=1`
-- `gate-edits.js` — PreToolUse(Edit/Write/MultiEdit); **strict DENY by default** in ambient mode (DevFlow project + no skill active). Allows edits when `.planning/.skill-active` marker exists (set by executor), user prompt contains an override phrase (`skip devflow`, `just edit`, `bypass devflow`, `force edit`), or `DEVFLOW_SKIP_EDIT_GATE=1` env var. (Prior `DEVFLOW_STRICT_EDITS=1` behavior is now the default; escape hatch inverted to `DEVFLOW_SKIP_EDIT_GATE=1`.)
+- `gate-commits.js` — PreToolUse(Bash); blocks raw commit invocations. Detection is invocation-aware (TRD 27-04): heredoc bodies and quoted arguments are stripped first, so text that merely *mentions* the command is not gated. Escape: `DEVFLOW_ALLOW_RAW_COMMIT=1`
+- `gate-edits.js` — PreToolUse(Edit/Write/MultiEdit); **strict DENY by default** in ambient mode (DevFlow project + no skill active). Allows edits when a live `.planning/.skill-active` marker exists — resolved from **both** the local `.planning/` and the MAIN checkout's, so worktree-isolated agents are not denied by a gitignored marker they can never see (TRD 27-01) — or the user prompt contains an override phrase (`skip devflow`, `just edit`, `bypass devflow`, `force edit`), or `DEVFLOW_SKIP_EDIT_GATE=1` is set. Markers carry `expires_at` (8h default). Targets outside the project root (session scratchpad, `/private/tmp`) are never gated (TRD 27-02). Severity is per-project via `.planning/config.json` → `gates.editGate`: `strict` (default) | `warn` | `off`.
+- `gate-interactive.js` — PreToolUse(Bash); intercepts TTY-requiring commands and routes them to the handoff watcher
+- `guard-no-progress.js` — PreToolUse(all tools); detects the same tool called with identical arguments repeatedly. Warns on stderr at 3 repeats, escalates to `ask` at 5, resets whenever the agent varies its approach. Step limits cannot do this — they fire only after the budget is spent. Deliberately **not** wired to tool errors: those run 3.6–4.3% at every model tier and are dominated by environment friction (TRD 28-04). Escape: `DEVFLOW_SKIP_PROGRESS_GUARD=1`
 - `changelog-on-tag.js` — PreToolUse(Bash); blocks `git tag -a vX.Y.Z` if `CHANGELOG.md` lacks `## [X.Y.Z]`. Escape: `DEVFLOW_SKIP_CHANGELOG_GATE=1`
+
+**Not a DevFlow hook:** the worktree-isolation guard ("This agent is isolated in the worktree…") is a Claude Code harness guard. It refuses compound Bash commands it cannot statically verify — including ones with no git in them — and no `DEVFLOW_*` escape hatch applies. Agents mitigate it by emitting one plain command per Bash call (see `agents/executor.md` → `worktree_command_discipline`).
 
 ### Marketplace (`/.claude-plugin/marketplace.json`)
 
 Declares the marketplace and the plugins it ships. Users add the marketplace via `/plugin marketplace add AO-Cyber-Systems/devflow-claude` (or by absolute path for development).
+
+## Context management
+
+Full guidance: `plugins/devflow/devflow/references/context-discipline.md`. Kept
+there rather than here on purpose — this file is resident on every turn of every
+session (currently ~156 lines / ~3.2K tokens), so domain detail belongs in
+references and skills that load on invocation.
+
+Measured composition (see `df-tools context`): tool results 59%, **tool-call
+inputs 34%**, assistant text 6%, images 1.5%. `Read` is ~50% of tool-result
+tokens at 2,311 per call; `Bash` served 7× the calls at 292.
+
+Policy, stated deliberately rather than inherited as defaults:
+
+- **Do not tighten output caps.** `MAX_MCP_OUTPUT_TOKENS` (25K, warns at 10K) and
+  `BASH_MAX_OUTPUT_LENGTH` (50K) are not binding — the largest observed single
+  result is 26K and p99 is ~6K. Tightening buys nothing.
+- **Leave `ENABLE_TOOL_SEARCH` on its default** so MCP tool schemas stay deferred
+  and out of the window.
+- **Microcompaction and deferred loading already run.** They are the built-in
+  answer to context pressure; `/clear` and `/compact` are manual, lossy, and land
+  at the worst moment. Read narrowly from the start instead.
+- **The lever is behaviour, not configuration**: locate with `rg -n` and read with
+  `offset`/`limit`; prefer a targeted `Edit` over writing a whole file body into a
+  tool argument.
+
+`node ~/.claude/devflow/bin/df-tools.cjs context --limit 150` recomputes all of
+the above from session transcripts. It prices images per block (~1.5K tokens),
+**not** by base64 length — counting base64 chars over-states images ~25× and was
+the one real error in the original audit.
 
 ## Conventions
 

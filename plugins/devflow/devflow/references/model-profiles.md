@@ -6,19 +6,51 @@ Model profiles control which Claude model each DevFlow agent uses. This allows b
 
 ## Profile Definitions
 
-| Agent | `quality` | `balanced` | `budget` |
-|-------|-----------|------------|----------|
-| df-planner | opus | opus | sonnet |
-| df-roadmapper | opus | sonnet | sonnet |
-| df-executor | opus | sonnet | sonnet |
-| df-objective-researcher | opus | sonnet | haiku |
-| df-project-researcher | opus | sonnet | haiku |
-| df-research-synthesizer | sonnet | sonnet | haiku |
-| df-debugger | opus | sonnet | sonnet |
-| df-codebase-mapper | sonnet | haiku | haiku |
-| df-verifier | sonnet | sonnet | haiku |
-| df-job-checker | sonnet | sonnet | haiku |
-| df-integration-checker | sonnet | sonnet | haiku |
+| Agent | `quality` | `balanced` | `budget` | frontmatter `effort` |
+|-------|-----------|------------|----------|----------------------|
+| `planner` | opus | opus | sonnet | xhigh |
+| `roadmapper` | opus | sonnet | sonnet | high |
+| `executor` | opus | sonnet | sonnet | xhigh |
+| `objective-researcher` | opus | sonnet | haiku | — |
+| `project-researcher` | opus | sonnet | haiku | — |
+| `research-synthesizer` | sonnet | sonnet | haiku | — |
+| `debugger` | opus | sonnet | sonnet | xhigh |
+| `codebase-mapper` | sonnet | haiku | haiku | — |
+| `verifier` | sonnet | sonnet | haiku | — |
+| `job-checker` | sonnet | sonnet | haiku | — |
+| `integration-checker` | sonnet | sonnet | haiku | — |
+| `security-auditor` | opus | sonnet | sonnet | xhigh |
+| `ui-evaluator` | opus | sonnet | sonnet | high |
+
+Agent keys are canonical **without** a `df-` prefix. `df-tools resolve-model`
+normalises either spelling (TRD 28-02) — before that fix, un-prefixed callers
+missed the table entirely and silently fell back to `sonnet`.
+
+## Tier → model id
+
+`models{}` is live, not documentation: `flutter-ui-eval.cjs` reads it and sends
+the id to the Messages API for the vision judge. A stale id here is a runtime
+defect, not a cosmetic one.
+
+| Tier | Model id |
+|------|----------|
+| `opus` | `claude-opus-5` |
+| `sonnet` | `claude-sonnet-5` |
+| `haiku` | `claude-haiku-4-5` |
+
+The `opus` tier resolves to the Task alias `inherit`, so the agent keeps the
+session model rather than pinning one.
+
+## Why `effort` lives in frontmatter, not this table
+
+`Task()` takes no effort argument — reasoning effort is declared in each agent's
+own frontmatter, so it cannot vary by profile.
+
+**Haiku 4.5 rejects the `effort` parameter.** Any agent that can resolve to the
+`haiku` tier in *any* profile therefore must not declare `effort`, or that run
+fails. Only these six never reach haiku and can carry it: `planner`,
+`roadmapper`, `executor`, `debugger`, `security-auditor`, `ui-evaluator`.
+`model-profiles.test.cjs` enforces this.
 
 ## Profile Philosophy
 

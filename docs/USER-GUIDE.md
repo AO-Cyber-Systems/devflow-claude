@@ -161,7 +161,6 @@ A detailed reference for workflows, troubleshooting, and configuration. For quic
 | `/devflow:pause-work` | Save context handoff | Stopping mid-objective |
 | `/devflow:help` | Show all commands | Quick reference |
 | `/devflow:update` | Update DevFlow with changelog preview | Check for new versions |
-| `/devflow:join-discord` | Open Discord community invite | Questions or community |
 
 ### Objective Management
 

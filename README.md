@@ -28,7 +28,7 @@
 
 ## About
 
-DevFlow is a fork of [GSD (Get Shit Done)](https://github.com/gsd-build/get-shit-done) v1.20.4, rebranded and maintained by **AO Cyber Systems**. Full credit to the original GSD project and its creator for the architecture and workflow design.
+DevFlow is built and maintained by **AO Cyber Systems**.
 
 The complexity is in the system, not in your workflow. Behind the scenes: context engineering, XML prompt formatting, subagent orchestration, state management. What you see: a few commands that just work.
 
@@ -708,15 +708,10 @@ rm -rf ~/.claude/devflow
 
 ---
 
-## Attribution
-
-DevFlow is a fork of [GSD (Get Shit Done)](https://github.com/gsd-build/get-shit-done) v1.20.4 by [TÂCHES](https://github.com/glittercowboy). The original project's architecture, workflow design, and agent system form the foundation of DevFlow. Released under the MIT License.
-
----
-
 ## License
 
-MIT License. See [LICENSE](LICENSE) for details.
+MIT License. See [LICENSE](LICENSE) for details, including the copyright
+notices this project carries forward.
 
 ---
 

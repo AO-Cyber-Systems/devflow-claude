@@ -59,6 +59,78 @@ function findPlanningDir(start) {
   return null;
 }
 
+// ─── worktree-aware resolution (TRD 27-01) ───────────────────────────────────
+
+/**
+ * Default marker lifetime. A crashed skill must not leave the edit gate open
+ * forever; 8h comfortably exceeds a long build while still bounding the blast
+ * radius. Legacy markers with no `expires_at` never expire (back-compat).
+ */
+const DEFAULT_TTL_MS = 8 * 60 * 60 * 1000;
+
+/**
+ * Walk up from `start` to the nearest directory containing `.git`
+ * (a directory in a normal checkout, a file in a linked worktree).
+ */
+function findRepoRoot(start) {
+  let dir = start;
+  while (dir !== path.dirname(dir)) {
+    if (_runFs.existsSync(path.join(dir, '.git'))) return dir;
+    dir = path.dirname(dir);
+  }
+  return null;
+}
+
+/**
+ * Given a repo root, return the MAIN checkout's root.
+ *
+ * In a linked worktree, `.git` is a file containing
+ * `gitdir: /main/.git/worktrees/<name>` — so the main checkout is everything
+ * before `/.git/worktrees/`. In a normal checkout `.git` is a directory and
+ * readFileSync throws EISDIR, so the input is already the main root.
+ *
+ * Deliberately does not shell out to git (mirrors findPlanningDir's contract).
+ */
+function mainRepoRootFrom(repoRoot) {
+  if (!repoRoot) return null;
+  let raw;
+  try {
+    raw = _runFs.readFileSync(path.join(repoRoot, '.git'), 'utf8');
+  } catch {
+    return repoRoot; // .git is a directory → already the main checkout
+  }
+  const m = /^gitdir:\s*(.+)$/m.exec(String(raw));
+  if (!m) return repoRoot;
+  const marker = `${path.sep}.git${path.sep}worktrees${path.sep}`;
+  const idx = m[1].trim().indexOf(marker);
+  return idx === -1 ? repoRoot : m[1].trim().slice(0, idx);
+}
+
+/**
+ * The `.planning/` of the MAIN checkout, as seen from anywhere inside a
+ * worktree. Returns null when it cannot be resolved or does not exist.
+ *
+ * This is the fix for the audit's F-02: `.planning/.skill-active` is gitignored,
+ * so a worktree checks out `.planning/` WITHOUT the marker and every
+ * worktree-isolated agent was denied.
+ */
+function sharedPlanningDir(start) {
+  const mainRoot = mainRepoRootFrom(findRepoRoot(start));
+  if (!mainRoot) return null;
+  const p = path.join(mainRoot, '.planning');
+  return _runFs.existsSync(p) ? p : null;
+}
+
+/**
+ * True when a marker payload has an `expires_at` in the past.
+ * Markers without `expires_at` (written before TRD 27-01) never expire.
+ */
+function isExpired(marker, nowMs) {
+  if (!marker || !marker.expires_at) return false;
+  const t = Date.parse(marker.expires_at);
+  return Number.isFinite(t) && nowMs > t;
+}
+
 // ─── markerPath ───────────────────────────────────────────────────────────────
 
 /**
@@ -79,9 +151,17 @@ function markerPath(planningDir) {
  * @param {string|undefined} opts.skillName - skill name (caller-supplied, opaque)
  * @param {number} opts.pid - process PID (df-tools subprocess PID)
  * @param {string} opts.now - ISO8601 timestamp string (injected for testability)
- * @returns {{ ok: boolean, marker?: object, path?: string, reason?: string, message?: string }}
+ * @param {string|null} [opts.sharedDir] - MAIN checkout's .planning/ when the
+ *   caller is inside a linked worktree; the marker is mirrored there so
+ *   worktree-isolated agents can see it (TRD 27-01).
+ * @param {number} [opts.ttlMs] - marker lifetime, defaults to DEFAULT_TTL_MS
+ * @param {number} [opts.ttlAnchorMs] - wall-clock anchor for expiry, defaults to
+ *   Date.now(). Separate from `now` on purpose: `now` is the recorded
+ *   started_at (often injected for determinism), while expiry must track the
+ *   real clock or an injected historical `now` would mint a stale marker.
+ * @returns {{ ok: boolean, marker?: object, path?: string, paths?: string[], reason?: string, message?: string }}
  */
-function startSkill({ planningDir, skillName, pid, now }) {
+function startSkill({ planningDir, skillName, pid, now, sharedDir, ttlMs, ttlAnchorMs }) {
   if (!planningDir) {
     return {
       ok: false,
@@ -98,23 +178,39 @@ function startSkill({ planningDir, skillName, pid, now }) {
     };
   }
 
+  // The TTL is a wall-clock safety bound, so it anchors to the REAL clock —
+  // deliberately NOT to `now`. Callers (micro.cjs, tests) inject `now` for a
+  // deterministic started_at; anchoring expiry to an injected historical value
+  // would mint a marker that is already expired the instant it is written.
+  // Pass ttlAnchorMs to make expiry deterministic in tests.
+  const anchorMs = Number.isFinite(ttlAnchorMs) ? ttlAnchorMs : Date.now();
   const payload = {
     skill: skillName.trim(),
     started_at: now,
     pid,
+    expires_at: new Date(anchorMs + (ttlMs || DEFAULT_TTL_MS)).toISOString(),
   };
 
-  try {
-    _runFs.writeFileSync(markerPath(planningDir), JSON.stringify(payload, null, 2) + '\n', 'utf8');
-  } catch (e) {
-    return {
-      ok: false,
-      reason: 'write-failed',
-      message: e.message,
-    };
+  // Write to every distinct location a reader might resolve: the caller's own
+  // .planning/ and — when started from inside a linked worktree — the MAIN
+  // checkout's .planning/, so sibling worktree agents see the same marker.
+  const targets = [planningDir];
+  if (sharedDir && sharedDir !== planningDir) targets.push(sharedDir);
+
+  const written = [];
+  for (const dir of targets) {
+    try {
+      _runFs.writeFileSync(markerPath(dir), JSON.stringify(payload, null, 2) + '\n', 'utf8');
+      written.push(markerPath(dir));
+    } catch (e) {
+      // The caller's own .planning/ is required; the shared copy is best-effort.
+      if (dir === planningDir) {
+        return { ok: false, reason: 'write-failed', message: e.message };
+      }
+    }
   }
 
-  return { ok: true, marker: payload, path: markerPath(planningDir) };
+  return { ok: true, marker: payload, path: markerPath(planningDir), paths: written };
 }
 
 // ─── endSkill ─────────────────────────────────────────────────────────────────
@@ -126,8 +222,12 @@ function startSkill({ planningDir, skillName, pid, now }) {
  * @param {string|null} opts.planningDir - absolute path to .planning/ or null
  * @returns {{ ok: boolean, removed?: boolean, message?: string, reason?: string }}
  */
-function endSkill({ planningDir }) {
-  if (!planningDir) {
+function endSkill({ planningDir, sharedDir }) {
+  const targets = [];
+  if (planningDir) targets.push(planningDir);
+  if (sharedDir && sharedDir !== planningDir) targets.push(sharedDir);
+
+  if (!targets.length) {
     return {
       ok: false,
       reason: 'no-planning-dir',
@@ -135,19 +235,21 @@ function endSkill({ planningDir }) {
     };
   }
 
-  const p = markerPath(planningDir);
-
-  if (!_runFs.existsSync(p)) {
-    return { ok: true, removed: false, message: 'Marker did not exist (idempotent no-op)' };
+  let removed = false;
+  for (const dir of targets) {
+    const p = markerPath(dir);
+    if (!_runFs.existsSync(p)) continue;
+    try {
+      _runFs.unlinkSync(p);
+      removed = true;
+    } catch (e) {
+      return { ok: false, reason: 'unlink-failed', message: e.message };
+    }
   }
 
-  try {
-    _runFs.unlinkSync(p);
-  } catch (e) {
-    return { ok: false, reason: 'unlink-failed', message: e.message };
-  }
-
-  return { ok: true, removed: true };
+  return removed
+    ? { ok: true, removed: true }
+    : { ok: true, removed: false, message: 'Marker did not exist (idempotent no-op)' };
 }
 
 // ─── statusSkill ─────────────────────────────────────────────────────────────
@@ -159,23 +261,47 @@ function endSkill({ planningDir }) {
  * @param {string|null} opts.planningDir - absolute path to .planning/ or null
  * @returns {{ active: boolean, marker?: object|null, path?: string, reason?: string, parse_error?: string }}
  */
-function statusSkill({ planningDir }) {
-  if (!planningDir) {
+function statusSkill({ planningDir, sharedDir, nowMs }) {
+  const candidates = [];
+  if (planningDir) candidates.push(planningDir);
+  if (sharedDir && sharedDir !== planningDir) candidates.push(sharedDir);
+
+  if (!candidates.length) {
     return { active: false, reason: 'no-planning-dir' };
   }
 
-  const p = markerPath(planningDir);
+  const at = Number.isFinite(nowMs) ? nowMs : Date.now();
+  let expiredPath = null;
 
-  if (!_runFs.existsSync(p)) {
-    return { active: false };
+  for (const dir of candidates) {
+    const p = markerPath(dir);
+    if (!_runFs.existsSync(p)) continue;
+
+    let marker;
+    try {
+      marker = JSON.parse(_runFs.readFileSync(p, 'utf8'));
+    } catch (e) {
+      // Unparseable marker is still a marker — fail open, as before.
+      return { active: true, marker: null, path: p, parse_error: e.message };
+    }
+
+    if (isExpired(marker, at)) { expiredPath = p; continue; }
+    return { active: true, marker, path: p };
   }
 
-  try {
-    const raw = _runFs.readFileSync(p, 'utf8');
-    return { active: true, marker: JSON.parse(raw), path: p };
-  } catch (e) {
-    return { active: true, marker: null, path: p, parse_error: e.message };
-  }
+  return expiredPath
+    ? { active: false, reason: 'expired', path: expiredPath }
+    : { active: false };
+}
+
+/**
+ * Boolean convenience wrapper used by the edit gate.
+ * Resolves both the local and the MAIN-checkout marker and honours TTL.
+ */
+function isSkillActive({ cwd, nowMs }) {
+  const planningDir = findPlanningDir(cwd);
+  const sharedDir = sharedPlanningDir(cwd);
+  return statusSkill({ planningDir, sharedDir, nowMs }).active === true;
 }
 
 // ─── cmdSkillActive ───────────────────────────────────────────────────────────
@@ -190,6 +316,7 @@ function statusSkill({ planningDir }) {
  */
 function cmdSkillActive(cwd, args, raw) {
   const planningDir = findPlanningDir(cwd);
+  const sharedDir = sharedPlanningDir(cwd);
 
   // Support both --start and start (with and without -- prefix)
   const op = (args[0] || '').replace(/^--/, '');
@@ -198,6 +325,7 @@ function cmdSkillActive(cwd, args, raw) {
   if (op === 'start') {
     const result = startSkill({
       planningDir,
+      sharedDir,
       skillName,
       pid: process.pid,
       now: new Date().toISOString(),
@@ -211,7 +339,7 @@ function cmdSkillActive(cwd, args, raw) {
   }
 
   if (op === 'end') {
-    const result = endSkill({ planningDir });
+    const result = endSkill({ planningDir, sharedDir });
     if (!result.ok) {
       error(result.message || 'skill-active --end failed');
       return;
@@ -221,7 +349,7 @@ function cmdSkillActive(cwd, args, raw) {
   }
 
   if (op === 'status') {
-    const result = statusSkill({ planningDir });
+    const result = statusSkill({ planningDir, sharedDir });
     output(result, raw, JSON.stringify(result));
     return;
   }
@@ -236,8 +364,14 @@ module.exports = {
   startSkill,
   endSkill,
   statusSkill,
+  isSkillActive,
   findPlanningDir,
+  findRepoRoot,
+  mainRepoRootFrom,
+  sharedPlanningDir,
+  isExpired,
   markerPath,
+  DEFAULT_TTL_MS,
   _setRunFs,
   _resetMocks,
 };

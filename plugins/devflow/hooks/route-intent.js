@@ -93,9 +93,12 @@ const INTENT_MAP = [
     skill: '/devflow:plan-objective',
     label: 'plan',
   },
-  // VERIFY: verify + (the)? + work-noun
+  // VERIFY: verify/validate + article + work-noun -- explicit verification intent only.
+  // 25-01 audit fix: previous test|check verbs fired 15x, followed 0x (audit item 5,
+  // verify-work 0/8 sessions -- worst follow rate). test|check are ordinary dev speech
+  // ("check the build", "test the feature"); verify|validate + article is explicit intent.
   {
-    rx: /\b(?:verify|test|validate|check)\s+(?:the\s+)?(?:work|build|objective|feature|implementation)\b/i,
+    rx: /\b(?:verify|validate)\s+(?:the|this)\s+(?:work|build|objective|feature|implementation)\b/i,
     skill: '/devflow:verify-work',
     label: 'verify',
   },
@@ -143,9 +146,9 @@ const INTENT_MAP = [
   // NEW-MILESTONE: must come BEFORE build to win for "make a new milestone".
   // Otherwise the build rule (make + a + \w+) wins via filter-first-match order.
   {
-    rx: /\b(?:make|create|start)\s+a\s+new\s+milestone\b/i,
-    skill: '/devflow:new-milestone',
-    label: 'new-milestone',
+    rx: /\b(?:make|create|start|kick\s+off)\s+a\s+(?:new\s+)?milestone\b|\bnew\s+milestone\s+for\b/i,
+    skill: '/devflow:milestone new',
+    label: 'milestone-new',
     hint: 'create a new milestone',
   },
   // BUILD (extension): ship-it, let's work-on, let's start, I want to build
@@ -200,14 +203,14 @@ const INTENT_MAP = [
   // ADD-TODO: add/create a todo for/item/about
   {
     rx: /\b(?:add|create)\s+a\s+todo\s+(?:for|item|about)\b/i,
-    skill: '/devflow:add-todo',
+    skill: '/devflow:todo add',
     label: 'add-todo',
     hint: 'add a new todo item',
   },
-  // CHECK-TODOS: any todos / check (this|the|my) todos
+  // CHECK-TODOS: any todos / check (this|the|my) todos / list|show todos / what todos do I have
   {
-    rx: /\b(?:any\s+todos|check\s+(?:this|the|my)\s+todos?)\b/i,
-    skill: '/devflow:check-todos',
+    rx: /\b(?:any\s+(?:open\s+)?todos|check\s+(?:this|the|my)\s+todos?|list\s+(?:the\s+|my\s+)?todos?|show\s+(?:me\s+)?(?:the\s+|my\s+)?todos?|what\s+todos?\s+(?:do\s+I\s+have|are\s+(?:open|left)))\b/i,
+    skill: '/devflow:todo list',
     label: 'check-todos',
     hint: 'list outstanding todos',
   },
@@ -228,20 +231,20 @@ const INTENT_MAP = [
   // AUDIT-MILESTONE: audit the milestone
   {
     rx: /\baudit\s+(?:the\s+)?milestone\b/i,
-    skill: '/devflow:audit-milestone',
+    skill: '/devflow:milestone audit',
     label: 'audit-milestone',
     hint: 'audit milestone state',
   },
-  // GH-SYNC: sync/push to github
+  // GH-SYNC: sync/push (words) to github|gh / sync the objectives|issues|roadmap|planning
   {
-    rx: /\b(?:sync|push)\s+to\s+github\b/i,
+    rx: /\b(?:sync|push)\s+(?:\w+\s+){0,3}to\s+(?:github|gh)\b|\bsync\s+(?:the\s+)?(?:objectives?|issues?|roadmap|planning)\b/i,
     skill: '/devflow:gh-sync',
     label: 'gh-sync',
     hint: 'sync planning state to GitHub',
   },
-  // DISCUSS-OBJECTIVE: discuss the/this objective
+  // DISCUSS-OBJECTIVE: discuss/talk through/walk me through/think through + the/this objective
   {
-    rx: /\bdiscuss\s+(?:the|this)\s+objective\b/i,
+    rx: /\b(?:discuss|talk\s+through|walk\s+me\s+through|think\s+through)\s+(?:the|this|an?)\s+(?:next\s+)?objective\b|\blet'?s\s+(?:talk|chat)\s+(?:about|through)\s+(?:the|this)\s+objective\b|\bwalk\s+me\s+through\s+the\s+plan\b/i,
     skill: '/devflow:discuss-objective',
     label: 'discuss-objective',
     hint: 'interactive objective discussion',

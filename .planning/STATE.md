@@ -2,14 +2,17 @@
 
 ## Project Reference
 
+See: .planning/PROJECT.md (updated 2026-07-22 after v1.2 milestone)
+
 **Building:** DevFlow Claude — meta-prompting plugin for Claude Code, evolving into program-aware coordination layer for AO-Cyber-Systems org
 **Core Value:** AI workflow orchestration + cross-repo program awareness for AI-assisted development
+**Current focus:** Planning next milestone (v1.3) — candidate scope carried in ROADMAP.md
 **Ecosystem:** AODex (Rails+Go API) + AOSentry (LLM Gateway) + Flutter (macOS Hub) + DevFlow (local platform CLI/daemon) + DevFlow Claude (this — Claude Code plugin)
 
 ## Current Position
 
-**Milestone:** v1.1 — DevFlow Coordination Layer (in flight)
-**Branch:** `feature/v1.1`
+**Milestone:** v1.2 — SHIPPED 2026-07-22 (v1.1 shipped 2026-05-06; both archived to .planning/milestones/)
+**Branch:** `main`
 **Objective complete:** 0 — Refine (kind, work) defaults table from codebase evidence (verified 2026-05-04, 443/443 tests, all 10 SC met)
 **Objective complete:** 1 — GitHub coordination layer (verified 2026-05-04, 563/563 tests, all 6 TRDs done, SC-9 + SC-10 met)
 **Objective complete:** 2 — Cross-repo awareness layer (verified 2026-05-04, 731/731 tests with integration flags, all 10 SC met, 7 TRDs done)
@@ -23,8 +26,8 @@
 **Objective complete:** 19 — PTY handoff watcher (verified 2026-05-06, 1911/1940 tests pass + 2 pre-existing failures unchanged + 27 skipped, all 5 TRDs done, +7 new tests in Wave 3 [4 pass + 3 architectural-gap skips]. Architectural findings documented for v1.3+ follow-up.)
 **Objective complete:** 20 — Daemon polish bundle (verified 2026-05-06, 2053/2055 tests pass + 2 pre-existing failures unchanged + 34 skipped, all 5 TRDs done across 2 waves). Wave 1: 20-01 OS notifications + 20-02 auto-launch + 20-03 multi-project + 20-05 cross-shell (8 commits). Wave 2: 20-04 status-line indicator (2 commits, +25 new tests, statusline.test.js created fresh — first-ever test file for that hook). 10 commits across waves; all 5 daemon polish features (notifications, auto-launch, multi-project, status-line, cross-shell) shipped behind opt-in feature flags with byte-identical default-OFF behavior.
 **Objective complete:** 21 — Bidirectional GH sync + configurable defaults table (verified 2026-05-06, all 5 TRDs done across 2 waves). Wave 1: 21-01 gh-pull CLI (19 tests) + 21-04 defaults-table loader + 21-05 intent provenance. Wave 2: 21-02 sync-state tracking (22 tests, `lib/sync-state.cjs` with hashFrontmatter + recordSync) + 21-03 conflict resolution (25 tests, `lib/conflict.cjs` with detectConflict + 3-way diff + --resolve={disk,gh,merge} flag). Total ~114 new tests (~67 Wave 1 + 47 Wave 2). 11 atomic commits in Wave 2 (RED + GREEN per task pairs). All TDD TRDs followed test-first. `_readSyncStateRaw` stub from 21-01 cleanly removed; `cmdGhSyncObjectives`/`ghStatus` switched to `_runGh` test seam (back-compat preserved).
-**Branch:** `feature/v1.2-obj-12-bidirectional-gh-sync`
-**Status:** Milestone complete
+**Objective complete:** 25 — Fleet audit fixes (verified 2026-07-22, 6/6 SC met, 6 TRDs done across 2 waves; 2681 tests / 8 pre-existing failures only; fleet: 6 kind: commits + opsCluster/eden-press CLAUDE.md + eden-press editGate warn; global ~/.claude/CLAUDE.md routing + TDD-by-kind playbook)
+**Status:** v1.2 milestone complete — archived 2026-07-22; obj 25 UAT 8/8 pass
 
 ## Branch State (post-merge)
 
@@ -183,6 +186,8 @@
 - **Test-skip-on-architectural-gap pattern (TRD 19-05)** — `tryWaitForDoneRecord(projectRoot, id, 12000ms)` returns null on timeout instead of throwing; tests check for null and call t.skip with a diagnostic message. 12s threshold leaves headroom for the success path while bounding test runtime when hung. Pattern reusable for any e2e test that exercises a dispatch path with known fragility.
 - **TRD 10-09 complete (2026-05-25)** — `df-tools flutter-ui setup` subcommand shipped: 1-command Flutter UI adoption (detect → plan → dispatch-or-print → chain bootstrap → idempotent). New module `lib/flutter-ui-setup.cjs` (4 exports: detectMissingTools/buildInstallPlan/dispatchInstalls/cmdFlutterUISetup, ~280 LOC). Paired test file (~310 LOC, 12 cases / 4 fixture builders, all hand-built per CLAUDE.md TDD Playbook habit 4 — no LLM-generated test data). 14 atomic commits (RED/GREEN per case). Daemon-live path dispatches via handoff records (schema-validated `inputs:{secrets:[]}` empty-stand-in). No-daemon path prints commands + exits 1. Idempotency short-circuit returns `status:'already-set-up'` with zero side effects. Bootstrap chain forwards `checkBootstrapState({projectDir})` verbatim. chromedriver special-cased on darwin (`brew install --cask chromedriver`). 2438 total / 2379 pass / 9 pre-existing failures / 50 skip (delta from baseline: +12 tests, +12 passing, 0 new failures). Commits: 6938c8c, 39aadce, 2ca86cf, 8fc62cf, eb4eb9a, 1ac2584, bda826e, e93374e, 537e4f0, f2ffdcf, fb8e6f8, f6ca313, 8899511, 016c772. **Objective 10 — Flutter UI verification process — fully complete (10/10 TRDs).**
 
+- **TRD 25-01 complete (2026-07-22)** — Fixed the three route-intent.js defects from the 2026-07-22 fleet audit. (1) 4 phantom pre-consolidation skill names corrected: new-milestone→`milestone new`, add-todo→`todo add`, check-todos→`todo list`, audit-milestone→`milestone audit`. (2) VERIFY rule tightened from a 4-verb x 5-noun combinatorial regex (fired 15x, followed 0x — audit's widest gap) to `verify|validate + the|this + noun` explicit-intent-only; `check the build`/`test the feature`/`check the work` now pinned NO_FIRE. (3) Adoption rules broadened for milestone-new/todo-list/gh-sync/discuss-objective (all matched 0 prompts in 2 months) with realistic hand-authored phrasings, fixture-pinned. 3 TDD tasks, 6 atomic commits (RED/GREEN pairs): 5f7eaba/4065a8f, eabc371/218ae08, 018c598/cffca14. route-intent.test.js 109/109 pass. Full `npm test`: 2611/2669 pass, 8 pre-existing daemon/watch/awareness failures unrelated to this TRD (confirmed via baseline + isolated reproduction). Executed in an isolated worktree; ROADMAP.md `update-job-progress` deferred to orchestrator merge-time reconciliation.
+
 ## Blockers / Concerns
 
 - **`feature/v1.1-coordination` is duplicative** — same content as `feature/v1.1`. Should be deleted to avoid confusion. Its worktree at `/Users/markemerson/Source/devflow-claude-v11` can be removed.
@@ -208,6 +213,6 @@
 
 ## Session Continuity
 
-Last session: 2026-05-06 — Objective 20 COMPLETE: all 5 TRDs done across 2 waves. Wave 1: 20-01 OS notifications + 20-02 auto-launch + 20-03 multi-project + 20-05 cross-shell (5cb5fe0, bbb7b64, 914299c, 192dfc9, 39c653d, 22cf3ca, 786b36b — 8 commits). Wave 2: 20-04 status-line watcher segment (1740dfc test:, fb9d2c3 feat: — 2 commits, +25 tests, statusline.test.js created fresh, first-ever statusline test file). 2089 total / 2053 pass / 2 pre-existing failures unchanged / 34 skipped. All 5 daemon polish features shipped behind opt-in feature flags (default OFF — byte-identical existing-user behavior).
+Last session: 2026-07-22 — Objective 25 UAT complete (8/8 pass, `objectives/25-fleet-audit-fixes/25-UAT.md`) followed by v1.2 milestone completion: MILESTONES.md created (v1.1 + v1.2 entries), ROADMAP.md archived to `milestones/v1.2-ROADMAP.md` and replaced with compact milestone-grouped version, PROJECT.md evolution review done, tag `milestone/v1.2` created locally (not pushed; bare `v1.2` deliberately avoided — `v*` triggers release CI).
 Resume file: `.planning/SESSION_PICKUP.md`
-Stopped at: Completed 20-04-status-line-TRD.md (Wave 2 / Objective 20 DONE). Next: PR + auto-merge.
+Stopped at: v1.2 shipped. Next: `/devflow:milestone new` to plan v1.3 (candidate scope listed in ROADMAP.md).

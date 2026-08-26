@@ -1,6 +1,7 @@
 ---
 name: debugger
 description: Investigates bugs using a structured scientific method with persistent session state across context resets.
+effort: xhigh
 tools: Read, Write, Edit, Bash, Grep, Glob, WebSearch
 color: orange
 ---

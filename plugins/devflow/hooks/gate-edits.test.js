@@ -460,3 +460,366 @@ describe('env var escape hatch', () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// gates.editGate config knob (TRD 25-02) — .planning/config.json → warn|strict|off
+// ---------------------------------------------------------------------------
+
+describe('gates.editGate config — warn/strict/off', () => {
+  const { readEditGateMode, VALID_EDIT_GATE_MODES } = require('./gate-edits.js');
+
+  // ---- Unit: readEditGateMode() — pure fs, tmpdirs ----
+
+  test('readEditGateMode(null) → strict', () => {
+    assert.equal(readEditGateMode(null), 'strict');
+  });
+
+  test('planningDir with no config.json → strict', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gate-edits-mode-'));
+    try {
+      fs.mkdirSync(path.join(tmp, '.planning'));
+      assert.equal(readEditGateMode(path.join(tmp, '.planning')), 'strict');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('config.json with malformed JSON → strict', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gate-edits-mode-'));
+    try {
+      fs.mkdirSync(path.join(tmp, '.planning'));
+      fs.writeFileSync(path.join(tmp, '.planning', 'config.json'), '{ not valid json');
+      assert.equal(readEditGateMode(path.join(tmp, '.planning')), 'strict');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('config.json without gates key → strict', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gate-edits-mode-'));
+    try {
+      fs.mkdirSync(path.join(tmp, '.planning'));
+      fs.writeFileSync(path.join(tmp, '.planning', 'config.json'), JSON.stringify({ mode: 'yolo' }));
+      assert.equal(readEditGateMode(path.join(tmp, '.planning')), 'strict');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('gates.editGate: "banana" (unknown enum) → strict', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gate-edits-mode-'));
+    try {
+      fs.mkdirSync(path.join(tmp, '.planning'));
+      fs.writeFileSync(
+        path.join(tmp, '.planning', 'config.json'),
+        JSON.stringify({ gates: { editGate: 'banana' } })
+      );
+      assert.equal(readEditGateMode(path.join(tmp, '.planning')), 'strict');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('gates.editGate: "warn" → warn; "off" → off; "strict" → strict', () => {
+    for (const mode of ['warn', 'off', 'strict']) {
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gate-edits-mode-'));
+      try {
+        fs.mkdirSync(path.join(tmp, '.planning'));
+        fs.writeFileSync(
+          path.join(tmp, '.planning', 'config.json'),
+          JSON.stringify({ gates: { editGate: mode } })
+        );
+        assert.equal(readEditGateMode(path.join(tmp, '.planning')), mode, `Expected ${mode} to round-trip`);
+      } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
+    }
+  });
+
+  test('VALID_EDIT_GATE_MODES contains exactly strict, warn, off', () => {
+    assert.ok(VALID_EDIT_GATE_MODES instanceof Set);
+    assert.deepEqual([...VALID_EDIT_GATE_MODES].sort(), ['off', 'strict', 'warn']);
+  });
+
+  // ---- Subprocess e2e — ambient tmpdir, no markers, realistic Edit payload on a .cjs path ----
+
+  function makeTmpWithGateConfig(mode, { skillActive = false } = {}) {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gate-edits-cfg-'));
+    fs.mkdirSync(path.join(tmp, '.planning'));
+    if (mode !== undefined) {
+      fs.writeFileSync(
+        path.join(tmp, '.planning', 'config.json'),
+        JSON.stringify({ gates: { editGate: mode } })
+      );
+    }
+    if (skillActive) {
+      fs.writeFileSync(path.join(tmp, '.planning', '.skill-active'), JSON.stringify({
+        skill: 'build', started_at: new Date().toISOString(), pid: process.pid,
+      }));
+    }
+    return tmp;
+  }
+
+  test('e2e: editGate "warn" → permissionDecision "ask" with standard reason text', () => {
+    const tmp = makeTmpWithGateConfig('warn');
+    try {
+      const payload = realPreToolUsePayload({
+        tool_name: 'Edit',
+        file_path: path.join(tmp, 'src/x.cjs'),
+        cwd: tmp,
+      });
+      const { result } = runHook(payload, { cwd: tmp });
+      assert.ok(result.stdout.length > 0, 'Expected JSON output (ask)');
+      const out = JSON.parse(result.stdout);
+      assert.equal(out.hookSpecificOutput.permissionDecision, 'ask');
+      assert.match(out.hookSpecificOutput.permissionDecisionReason, /ambient mode/i);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('e2e: editGate "off" → empty stdout (no output at all)', () => {
+    const tmp = makeTmpWithGateConfig('off');
+    try {
+      const payload = realPreToolUsePayload({
+        tool_name: 'Edit',
+        file_path: path.join(tmp, 'src/x.cjs'),
+        cwd: tmp,
+      });
+      const { result } = runHook(payload, { cwd: tmp });
+      assert.equal(result.stdout, '', 'Expected empty stdout when editGate is off');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('e2e: editGate "strict" → permissionDecision "deny" (parity with no-config default)', () => {
+    const tmp = makeTmpWithGateConfig('strict');
+    try {
+      const payload = realPreToolUsePayload({
+        tool_name: 'Edit',
+        file_path: path.join(tmp, 'src/x.cjs'),
+        cwd: tmp,
+      });
+      const { result } = runHook(payload, { cwd: tmp });
+      assert.ok(result.stdout.length > 0, 'Expected JSON output (deny)');
+      const out = JSON.parse(result.stdout);
+      assert.equal(out.hookSpecificOutput.permissionDecision, 'deny');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('e2e: editGate "warn" + .skill-active marker present → empty stdout (allow precedence unaffected by mode)', () => {
+    const tmp = makeTmpWithGateConfig('warn', { skillActive: true });
+    try {
+      const payload = realPreToolUsePayload({
+        tool_name: 'Edit',
+        file_path: path.join(tmp, 'src/x.cjs'),
+        cwd: tmp,
+      });
+      const { result } = runHook(payload, { cwd: tmp });
+      assert.equal(result.stdout, '', 'Expected empty stdout — skill-active allow wins regardless of mode');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('e2e: no config.json at all → deny (parity check; pre-existing e2e must stay green untouched)', () => {
+    const tmp = makeTmp(false); // no config.json written
+    try {
+      const payload = realPreToolUsePayload({
+        tool_name: 'Edit',
+        file_path: path.join(tmp, 'src/x.cjs'),
+        cwd: tmp,
+      });
+      const { result } = runHook(payload, { cwd: tmp });
+      assert.ok(result.stdout.length > 0);
+      const out = JSON.parse(result.stdout);
+      assert.equal(out.hookSpecificOutput.permissionDecision, 'deny');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TRD 27-01 / 27-02 — worktree marker visibility + outside-project exemption
+//
+// Regression guard for the Autonomy Blocker Audit (2026-08-18):
+//   F-02 — `.planning/.skill-active` is gitignored, so a linked worktree checks
+//          out every tracked `.planning` file but NEVER the marker. Resolving
+//          only from cwd denied every worktree-isolated agent (77.2% of all
+//          edit-gate denials).
+//   F-03 — 20.6% of denials targeted the session scratchpad / /private/tmp,
+//          which DevFlow cannot commit and therefore has no reason to gate.
+// ---------------------------------------------------------------------------
+
+const { isOutsideProject, sharedPlanningDir } = require('./gate-edits.js');
+
+function git(args, cwd) {
+  const r = spawnSync('git', args, { cwd, encoding: 'utf8' });
+  if (r.status !== 0) throw new Error(`git ${args.join(' ')} failed: ${r.stderr}`);
+  return r.stdout;
+}
+
+// Build a real repo + linked worktree. Returns null when git is unavailable.
+function makeRepoWithWorktree({ markerInMain }) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'gate-edits-wt-'));
+  const main = path.join(root, 'main');
+  fs.mkdirSync(main);
+  try {
+    git(['init', '-q', '-b', 'main'], main);
+    git(['config', 'user.email', 't@t.test'], main);
+    git(['config', 'user.name', 'T'], main);
+    fs.mkdirSync(path.join(main, '.planning'));
+    fs.writeFileSync(path.join(main, '.planning', 'ROADMAP.md'), '# roadmap\n');
+    fs.writeFileSync(path.join(main, '.gitignore'), '.planning/.skill-active\n');
+    fs.mkdirSync(path.join(main, 'src'));
+    fs.writeFileSync(path.join(main, 'src', 'x.cjs'), '// x\n');
+    git(['add', '-A'], main);
+    git(['commit', '-qm', 'init'], main);
+
+    const wt = path.join(root, 'wt');
+    git(['worktree', 'add', '-q', '-b', 'agent', wt], main);
+
+    if (markerInMain) {
+      fs.writeFileSync(
+        path.join(main, '.planning', '.skill-active'),
+        JSON.stringify({ skill: 'build', started_at: new Date().toISOString(), pid: 1 })
+      );
+    }
+    return { root, main, wt };
+  } catch (e) {
+    fs.rmSync(root, { recursive: true, force: true });
+    return null; // git missing / sandboxed — caller skips
+  }
+}
+
+describe('TRD 27-01 — worktree-isolated agents see the main checkout marker', () => {
+  test('worktree checks out .planning/ but NOT the gitignored marker (the bug)', () => {
+    const env = makeRepoWithWorktree({ markerInMain: true });
+    if (!env) return; // git unavailable
+    try {
+      assert.ok(fs.existsSync(path.join(env.wt, '.planning', 'ROADMAP.md')),
+        'worktree should have tracked .planning files');
+      assert.equal(fs.existsSync(path.join(env.wt, '.planning', '.skill-active')), false,
+        'worktree must NOT have the gitignored marker — this is the root cause');
+    } finally {
+      fs.rmSync(env.root, { recursive: true, force: true });
+    }
+  });
+
+  test('sharedPlanningDir() resolves a worktree back to the MAIN checkout .planning', () => {
+    const env = makeRepoWithWorktree({ markerInMain: true });
+    if (!env) return;
+    try {
+      const resolved = sharedPlanningDir(env.wt);
+      assert.ok(resolved, 'expected a resolved shared planning dir');
+      assert.equal(fs.realpathSync(resolved), fs.realpathSync(path.join(env.main, '.planning')));
+    } finally {
+      fs.rmSync(env.root, { recursive: true, force: true });
+    }
+  });
+
+  test('e2e: edit inside a worktree is ALLOWED when the main checkout holds the marker', () => {
+    const env = makeRepoWithWorktree({ markerInMain: true });
+    if (!env) return;
+    try {
+      const payload = realPreToolUsePayload({
+        tool_name: 'Edit',
+        file_path: path.join(env.wt, 'src/x.cjs'),
+        cwd: env.wt,
+      });
+      const { result } = runHook(payload, { cwd: env.wt });
+      assert.equal(result.stdout, '',
+        'worktree agent must not be denied while a skill is active in the main checkout');
+    } finally {
+      fs.rmSync(env.root, { recursive: true, force: true });
+    }
+  });
+
+  test('e2e: edit inside a worktree is still DENIED when no marker exists anywhere', () => {
+    const env = makeRepoWithWorktree({ markerInMain: false });
+    if (!env) return;
+    try {
+      const payload = realPreToolUsePayload({
+        tool_name: 'Edit',
+        file_path: path.join(env.wt, 'src/x.cjs'),
+        cwd: env.wt,
+      });
+      const { result } = runHook(payload, { cwd: env.wt });
+      assert.ok(result.stdout.length > 0, 'ambient worktree edit must still be denied');
+      assert.equal(JSON.parse(result.stdout).hookSpecificOutput.permissionDecision, 'deny');
+    } finally {
+      fs.rmSync(env.root, { recursive: true, force: true });
+    }
+  });
+
+  test('an expired marker does not hold the gate open', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gate-edits-ttl-'));
+    try {
+      fs.mkdirSync(path.join(tmp, '.planning'));
+      fs.writeFileSync(path.join(tmp, '.planning', '.skill-active'), JSON.stringify({
+        skill: 'build',
+        started_at: '2026-01-01T00:00:00Z',
+        pid: 1,
+        expires_at: '2026-01-01T00:01:00Z',
+      }));
+      assert.equal(hasSkillActiveMarker(path.join(tmp, '.planning'), null, Date.now()), false);
+      // ...but is honoured while still inside its window
+      assert.equal(
+        hasSkillActiveMarker(path.join(tmp, '.planning'), null, Date.parse('2026-01-01T00:00:30Z')),
+        true
+      );
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('TRD 27-02 — targets outside the project root are not gated', () => {
+  test('isOutsideProject() distinguishes in-project from scratchpad paths', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gate-edits-out-'));
+    try {
+      assert.equal(isOutsideProject(tmp, path.join(tmp, 'src/a.cjs')), false, 'in-project');
+      assert.equal(isOutsideProject(tmp, '/private/tmp/claude-501/scratchpad/s.sh'), true, 'scratchpad');
+      // relative paths are ambiguous → stay gated (conservative)
+      assert.equal(isOutsideProject(tmp, 'src/a.cjs'), false, 'relative stays gated');
+      assert.equal(isOutsideProject(null, '/x/y.cjs'), false, 'no root → gate applies');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('e2e: writing to the session scratchpad is ALLOWED with no marker', () => {
+    const tmp = makeTmp(false);
+    try {
+      const payload = realPreToolUsePayload({
+        tool_name: 'Write',
+        file_path: '/private/tmp/claude-501/some-session/scratchpad/analysis.cjs',
+        cwd: tmp,
+      });
+      const { result } = runHook(payload, { cwd: tmp });
+      assert.equal(result.stdout, '', 'scratchpad writes must not be gated');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('e2e: in-project source write is still DENIED with no marker (no over-widening)', () => {
+    const tmp = makeTmp(false);
+    try {
+      const payload = realPreToolUsePayload({
+        tool_name: 'Write',
+        file_path: path.join(tmp, 'src/newfile.cjs'),
+        cwd: tmp,
+      });
+      const { result } = runHook(payload, { cwd: tmp });
+      assert.ok(result.stdout.length > 0, 'in-project ambient write must still be denied');
+      assert.equal(JSON.parse(result.stdout).hookSpecificOutput.permissionDecision, 'deny');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+});

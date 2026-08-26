@@ -78,6 +78,7 @@ STATE.md stays lean; this file grows over time.
 - [Objective 10-flutter-ui-verification-process]: TRD 10-04b: Bootstrap detector invoked in load_project_state (before task execution per Pitfall #10); flutter analyze uses baseline-diff not exit-code gate to avoid pre-existing warning false negatives
 - [Objective 10]: Used YAML-key-first parsing strategy in loadCatalog: each yaml block's first line identifies the library — more robust than heading-matching
 - [Objective 10]: setState patterns are all MEDIUM/LOW so setState misses route to advisories not blockers, matching flutter-state-patterns.md confidence model
+- [Objective 25-fleet-audit-fixes]: TRD 04 complete: global ~/.claude/CLAUDE.md routing table fixed (status/micro/4 adoption skills) + '## TDD & Quality' by-kind playbook section added; deriveOverrides yields only {_playbookDetected:true}; devflow-claude resolver config unchanged (strict->strict no-op)
 
 ## Performance Metrics
 

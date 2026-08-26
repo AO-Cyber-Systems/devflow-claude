@@ -83,14 +83,31 @@ describe('startSkill', () => {
     assert.ok(parsed);
   });
 
-  // Test 6: marker file content matches {skill, started_at, pid} shape exactly
-  test('marker file content matches {skill, started_at, pid} shape exactly', () => {
-    startSkill({ planningDir: env.planningDir, skillName: 'micro', pid: 42, now: '2026-05-04T12:00:00Z' });
+  // Test 6: marker file content matches {skill, started_at, pid, expires_at} shape exactly
+  // TRD 27-01 added expires_at so a crashed skill cannot hold the edit gate open forever.
+  test('marker file content matches {skill, started_at, pid, expires_at} shape exactly', () => {
+    startSkill({
+      planningDir: env.planningDir, skillName: 'micro', pid: 42,
+      now: '2026-05-04T12:00:00Z', ttlAnchorMs: Date.parse('2026-05-04T12:00:00Z'),
+    });
     const parsed = JSON.parse(fs.readFileSync(markerPath(env.planningDir), 'utf8'));
-    assert.deepEqual(Object.keys(parsed).sort(), ['pid', 'skill', 'started_at'].sort());
+    assert.deepEqual(Object.keys(parsed).sort(), ['expires_at', 'pid', 'skill', 'started_at'].sort());
     assert.equal(parsed.skill, 'micro');
     assert.equal(parsed.started_at, '2026-05-04T12:00:00Z');
     assert.equal(parsed.pid, 42);
+    // default TTL is 8h past started_at
+    assert.equal(parsed.expires_at, '2026-05-04T20:00:00.000Z');
+  });
+
+  // TRD 27-01: explicit ttlMs is honoured
+  test('startSkill honours an explicit ttlMs', () => {
+    startSkill({
+      planningDir: env.planningDir, skillName: 'build', pid: 1,
+      now: '2026-05-04T12:00:00Z', ttlMs: 60_000,
+      ttlAnchorMs: Date.parse('2026-05-04T12:00:00Z'),
+    });
+    const parsed = JSON.parse(fs.readFileSync(markerPath(env.planningDir), 'utf8'));
+    assert.equal(parsed.expires_at, '2026-05-04T12:01:00.000Z');
   });
 });
 
@@ -145,13 +162,48 @@ describe('statusSkill', () => {
   });
 
   // Test 11: returns active:true + marker JSON when present
+  // nowMs is pinned inside the marker's TTL window — with a real clock the
+  // 2026-01-01 marker would (correctly) read as expired under TRD 27-01.
   test('returns active:true + marker JSON when present', () => {
-    startSkill({ planningDir: env.planningDir, skillName: 'build', pid: 99, now: '2026-01-01' });
-    const result = statusSkill({ planningDir: env.planningDir });
+    startSkill({
+      planningDir: env.planningDir, skillName: 'build', pid: 99, now: '2026-01-01',
+      ttlAnchorMs: Date.parse('2026-01-01T00:00:00Z'),
+    });
+    const result = statusSkill({
+      planningDir: env.planningDir,
+      nowMs: Date.parse('2026-01-01T01:00:00Z'),
+    });
     assert.equal(result.active, true);
     assert.equal(result.marker.skill, 'build');
     assert.equal(result.marker.pid, 99);
     assert.ok(result.path);
+  });
+
+  // TRD 27-01: a marker past its expires_at is not active
+  test('returns active:false with reason expired once past expires_at', () => {
+    startSkill({
+      planningDir: env.planningDir, skillName: 'build', pid: 99,
+      now: '2026-01-01T00:00:00Z', ttlMs: 60_000,
+      ttlAnchorMs: Date.parse('2026-01-01T00:00:00Z'),
+    });
+    const result = statusSkill({
+      planningDir: env.planningDir,
+      nowMs: Date.parse('2026-01-01T00:02:00Z'),
+    });
+    assert.equal(result.active, false);
+    assert.equal(result.reason, 'expired');
+  });
+
+  // TRD 27-01: markers written before this change carry no expires_at and must
+  // keep working — never narrow behaviour on a legacy marker.
+  test('legacy marker without expires_at never expires', () => {
+    fs.writeFileSync(
+      markerPath(env.planningDir),
+      JSON.stringify({ skill: 'legacy', started_at: '2020-01-01T00:00:00Z', pid: 7 })
+    );
+    const result = statusSkill({ planningDir: env.planningDir, nowMs: Date.now() });
+    assert.equal(result.active, true);
+    assert.equal(result.marker.skill, 'legacy');
   });
 
   // Test 12: returns active:false + reason no-planning-dir when planningDir null

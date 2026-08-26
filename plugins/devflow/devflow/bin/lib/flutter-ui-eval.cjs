@@ -358,7 +358,7 @@ function makeOfflineLabelEchoJudge(labels, samples) {
  * must explicitly opt in by passing this fn as the `judge` to callVisionJudge on a genuine run.
  *
  * Model id provenance: resolved via the repo's own MODEL_PROFILES path
- *   (references/model-profiles.json -> models[ agents['df-ui-evaluator'][profile] ]).
+ *   (references/model-profiles.json -> models[ agents['ui-evaluator'][profile] ]).
  *   We do NOT hardcode an id from memory (knowledge-cutoff predates current ids).
  * Image-input format provenance: the Anthropic Messages API image content block
  *   ({ type:'image', source:{ type:'base64', media_type:'image/png', data:<b64> } }).
@@ -401,7 +401,7 @@ function visionPerceptualSchema() {
 
 /**
  * PURE — build the Anthropic Messages API request body for one screenshot. Resolves the model
- * from model-profiles.json (df-ui-evaluator → tier → models[tier]); base64-encodes the screenshot;
+ * from model-profiles.json (ui-evaluator → tier → models[tier]); base64-encodes the screenshot;
  * anchors the prompt on request.expected + the taxonomy; pins the response to the perceptual schema.
  * Reads the screenshot file (deterministic given the path) so it's offline-testable with a real PNG.
  * @returns {{model:string, body:object}}
@@ -410,7 +410,7 @@ function buildVisionRequest(request) {
   const profilesPath = path.join(__dirname, '..', '..', 'references', 'model-profiles.json');
   const profiles = JSON.parse(fs.readFileSync(profilesPath, 'utf-8'));
   const profile = process.env.DEVFLOW_MODEL_PROFILE || 'balanced'; // judge runs hot → cost tier by default
-  const tier = (profiles.agents['df-ui-evaluator'] || {})[profile] || 'sonnet';
+  const tier = (profiles.agents['ui-evaluator'] || profiles.agents['df-ui-evaluator'] || {})[profile] || 'sonnet';
   const model = profiles.models[tier] || tier;
 
   const b64 = fs.readFileSync(request.screenshot_path).toString('base64');
