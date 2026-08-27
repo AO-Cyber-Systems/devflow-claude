@@ -565,6 +565,56 @@ Rollup shape: `{ verdict: 'pass'|'pass-with-reviews'|'fail', counts, reviews[], 
 
 For non-Flutter objectives: skip this subroutine.
 
+### Step 8d: Advisory design review (ADVISORY — NEVER GATES)
+
+After the Step 8c defect gate, run a lightweight ADVISORY design-critique pass over this objective's Flutter UI surfaces. **This step is the opposite of Step 8c: it can NEVER gate, fail, or change the pass/fail verdict.** Where Step 8c's defect judge answers "is this surface BROKEN?" and a fail produces a `gaps:` entry, Step 8d's design critic answers "is this GOOD design?" and only ever records ADVISORY notes + candidate todos for FUTURE UI objectives. Do NOT touch or duplicate the Step 8c gating logic.
+
+**Gate:** run ONLY when the objective has >=1 TRD with `type: ui` + `stack: flutter`. Otherwise skip silently.
+
+**Cadence:** the heavy first-run design sweep is the user-invoked `/devflow:design-review` (ranked design-debt backlog). Step 8d is the lightweight follow-up — a thin advisory pass on each UI objective's surfaces, so design debt keeps surfacing as the project grows without a full re-sweep each time.
+
+**Run the advisory critic arm (only when a manifest AND a credential exist):**
+
+```bash
+# Locate the objective's design-review manifest (same manifest the ui_eval gate uses):
+#   .planning/objectives/<obj>/evidence/ui_eval/manifest.json  OR  flutter/ui_eval/manifests/*.json
+DESIGN_MANIFEST="<resolved manifest path>"
+
+# A credential is required for the live critique (ANTHROPIC_API_KEY, or ANTHROPIC_AUTH_TOKEN+ANTHROPIC_BASE_URL).
+if [ -n "$DESIGN_MANIFEST" ] && [ -f "$DESIGN_MANIFEST" ] && { [ -n "$ANTHROPIC_API_KEY" ] || [ -n "$ANTHROPIC_AUTH_TOKEN" ]; }; then
+  DESIGN=$(node ~/.claude/devflow/bin/df-tools.cjs flutter-ui design-review "$DESIGN_MANIFEST" --live --raw)
+else
+  # No manifest OR no credential → NOTE and continue. NEVER block.
+  DESIGN='{"advisory":true,"skipped":"design-review skipped (no manifest/credential)"}'
+fi
+```
+
+Rollup shape (when it runs): `{ advisory:true, total, counts:{high,medium,low}, byDimension, debt[]?, skipped[], report_path }`. `advisory:true` is ALWAYS set — there is NEVER a verdict.
+
+**Route the advisory output (the load-bearing never-gates contract):**
+
+- If `design-review skipped (no manifest/credential)` → record an **advisory note** `design-review skipped (no manifest/credential)` and continue. NOT a gap. NOT a fail.
+- High/medium-priority debt items → record them as **advisory notes** in the verification output AND route them to the objective-work loop as **candidate todos** for FUTURE UI objectives (see below). They DO **NOT** create `gaps:` entries, DO **NOT** appear in the Step 11 `gaps:` block, and DO **NOT** change the Step 10 status. Low-priority debt is recorded in the report only.
+- On `{ error: ... }` (manifest not found / invalid) → record an advisory note and fall through. NEVER a hard fail.
+
+**Routing high-priority debt → candidate todos (reuse the existing todo mechanism):**
+
+Use the SAME capture path as `/devflow:add-todo`. For each `high` (and optionally `medium`) debt item, write a todo file under `.planning/todos/pending/` and commit it via df-tools — exactly the mechanism the add-todo workflow uses:
+
+```bash
+mkdir -p .planning/todos/pending
+slug=$(node ~/.claude/devflow/bin/df-tools.cjs generate-slug "design debt <state_id> <dimension>" --raw)
+# Write .planning/todos/pending/<date>-<slug>.md with area: ui, the debt anchor/observation/suggestion,
+# and a note that it is a candidate for a FUTURE UI-polish objective (NOT a blocker for THIS one).
+node ~/.claude/devflow/bin/df-tools.cjs commit "docs: capture design-debt todo - <state_id> <dimension>" --files .planning/todos/pending/<date>-<slug>.md
+```
+
+These candidate todos are scope for a future UI-polish objective; they do not block the current objective and never appear in its gap output.
+
+**In the verifier's final report**, add an `## Advisory Design Review` section listing the high/medium debt items (or "skipped — no manifest/credential") and the `report_path`. Clearly mark it ADVISORY. The Step 10 status and Step 11 `gaps:` block are computed WITHOUT any input from Step 8d.
+
+For non-Flutter objectives: skip this subroutine.
+
 
 ## Step 9: Identify Human Verification Needs
 

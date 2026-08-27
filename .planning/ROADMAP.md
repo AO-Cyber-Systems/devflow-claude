@@ -163,3 +163,40 @@ Jobs:
 
 Evidence: 2839 tests / 2780 pass / 9 fail — same pre-existing daemon/timing failures. 42 tests added, 0 regressions.
 **Caveat:** hooks run from the plugin cache, so 27–30 take effect only after a version bump + `sync-runtime`. Re-run `session-audit --since <release>` then — that comparison is the real verdict.
+
+
+### Objective 32: Visual-eval default path tells the truth
+
+**Goal:** The default `df-tools verify flutter-ui-eval` invocation stops reporting green for states nothing judged. A `state_id` absent from `labels.json` must resolve to review or fail — never pass — and the offline path must stop emitting a fabricated `confidence` for a comparison it never performed.
+**Depends on:** PR #68 (`feat/ui-visual-eval`) — adds the real `--judge live` vision judge this objective builds on. **Branch decision: stack, do not wait.** Work on `fix/ui-eval-default-honesty` cut from `feat/ui-visual-eval` and PR'd back into it, so #68 ships the judge and the honest default path together.
+**Source:** AO-Cyber-Systems/aodex#485 (OPEN). Umbrella: AO-Cyber-Systems/eden-biz#683 (Phase 1).
+**TRDs:** 4 plans in 4 waves (sequential — all four edit `flutter-ui-eval.cjs`)
+
+Why: #485 audited the shipped gate and found `makeOfflineLabelEchoJudge` reads only `state_id` — it never opens `screenshot_path`, never reads `expected`. A missing label defaults to `{ is_broken: false }`. Reported impact: **40 states passing, 34 of which had never been judged by anything.** PR #68 supplies the judge; this objective makes the DEFAULT path honest.
+
+Reproduced during planning against the current tree: an unlabelled state reports `"verdict": "pass"`; a stub-shaped state reports `"reviews": [null]`; and a run scoring `verdict: "fail"` exits 0.
+
+TRDs:
+- [ ] 32-01-TRD.md — Wave 1: a state nothing judged stops reporting pass (#485 defect 1, the headline)
+- [ ] 32-02-TRD.md — Wave 2: offline path stops fabricating confidence; every state nameable (#485 defect 2)
+- [ ] 32-03-TRD.md — Wave 3: judge selection explicit; default declares itself advisory (#485 defect 3)
+- [ ] 32-04-TRD.md — Wave 4: a failing run exits non-zero (found in planning; severable)
+
+
+### Objective 33: The visual gate actually runs in CI
+
+**Goal:** Verifier Step 8c invokes the visual-eval engine with something the engine can load, so the gate executes instead of routing to SKIPPED. Today it is structurally unreachable and has judged nothing, ever.
+**Depends on:** Objective 32 (makes the gate's output and exit code honest). 33 makes it RUN — both are required before "the visual gate works" is true. **Branch decision: stack.** Work on `fix/ui-eval-gate-runs` cut from `fix/ui-eval-default-honesty` (obj 32) at its tip, PR'd into `feat/ui-visual-eval` — 32-03 and 33-03 both rewrite verifier.md Step 8c, and 33 is the last writer.
+**Source:** Found while planning objective 32. Umbrella: AO-Cyber-Systems/eden-biz#683 (Phase 1). Related: AO-Cyber-Systems/aodex#485.
+**Jobs:** 3 TRDs in 3 waves (sequential — 33-02 and 33-03 edit files objective 32 also edits)
+
+Why: `agents/verifier.md` Step 8c calls `df-tools verify flutter-ui-eval "$OBJECTIVE" --raw`, passing an objective **id**. The handler's first argument is a **manifest path** (`loadManifest(manifestPath)` → `fs.readFileSync`). Reproduced: `verify flutter-ui-eval 32 --raw` → `{"error":"manifest/captureResults not found","path":"32"}`. Step 8c's own contract then routes any `{error}` to `SKIPPED … NEVER a hard fail` — so the gate silently no-ops on every objective. It reports skipped rather than false-green, which is why #485 did not catch it, but CI coverage of the visual gate is currently **zero**.
+
+Jobs:
+- [ ] 33-01-TRD.md — Wave 1: one lookup, in code — objective id to manifest, four honest statuses (`not_applicable`/`absent`/`invalid`/`resolved`)
+- [ ] 33-02-TRD.md — Wave 2: the load-bearing fix — the invocation Step 8c actually contains resolves to something the engine can load
+- [ ] 33-03-TRD.md — Wave 3: what the gate does when it runs and finds nothing (MISSING vs gap vs silent skip) + Step 8c routing
+
+Decision recorded in OBJECTIVE.md: **resolution is owned by the handler, not the prose** (option c, implemented as b). Two prose documents already drifted apart on this lookup; the side that owns it is the side that cannot drift, so it moves into code once. The load-bearing test then EXECUTES the invocation extracted from `verifier.md` itself — it pins behaviour, not a string.
+
+Manifest-less policy: `not_applicable` skips silently (existing gate preserved), `absent` is **MISSING** — the surface stays on the human-verification list plus a todo, escalating to a gap only when `visual_gate: true` — and `invalid` gaps loudly. Replacing a gate that never runs with a gate that always gaps would just get it disabled.

@@ -1,7 +1,6 @@
 ---
 name: planner
 description: Creates detailed execution plans for objectives with task breakdown, dependency ordering, and built-in quality checks.
-effort: xhigh
 tools: Read, Write, Bash, Glob, Grep, WebFetch, mcp__context7__*
 color: green
 ---
@@ -907,6 +906,38 @@ If `DETECTED == "true"`:
 5. **If detected=false:** proceed normally. No Flutter UI fields added; the rest of `break_into_tasks` is unchanged.
 
 6. **Failsafe:** If the detector returns `{ detected: false, error: ... }` (e.g., no pubspec, no .planning/objectives, etc.), treat as detected=false and proceed normally. Do NOT block planning on detector errors.
+
+7. **Auto-note the ADVISORY design-review pass (Phase B).** When flutter-ui scope is detected,
+   ALSO note an ADVISORY design-review pass for the objective — PARALLEL to the ui-eval visual
+   gate above, but with a CRUCIALLY DIFFERENT contract: the design-review pass is **advisory and
+   NEVER gates.** Where the ui-eval visual gate (verifier Step 8c) can FAIL the objective on a
+   broken surface, the design-review pass (verifier Step 8d) only ever records advisory design-debt
+   notes + candidate todos for FUTURE UI objectives — it can never change THIS objective's verdict.
+   The decision is the pure `decideDesignReviewDefault` in
+   `bin/lib/flutter-ui-eval-planner-default.cjs` (enable iff detected). It ALWAYS returns
+   `advisory:true` and `gating:false`; a non-ui objective gets `enabled:false` (and still
+   `advisory:true`/`gating:false`).
+
+   **Write it as a VISIBLE call-out, distinct from the visual gate.** When
+   `decideDesignReviewDefault` returns `enabled:true`, it returns a `callout` string and a
+   `tasks` array (author the design-review manifest; run the `/devflow:design-review` advisory
+   sweep). Write a `## Advisory Design Review (auto-noted)` section into the plan output containing
+   the returned `callout` line followed by the `tasks` rendered as a checklist, e.g.:
+
+   ```markdown
+   ## Advisory Design Review (auto-noted)
+
+   <callout line from decideDesignReviewDefault — explicitly ADVISORY, never gates>
+
+   - [ ] <tasks[0].subject> — <tasks[0].description>
+   - [ ] <tasks[1].subject> — <tasks[1].description>
+   ```
+
+   **Cadence (document this in the section):** the heavy first-run sweep is the user-invoked
+   `/devflow:design-review`; thereafter a lightweight advisory pass runs on each UI objective's
+   surfaces (verifier Step 8d). High-priority design debt becomes candidate todos / scope for future
+   UI-polish objectives — NEVER a blocker for the current objective. A non-ui objective
+   (`enabled:false`) writes NO such section.
 </step>
 
 <step name="build_dependency_graph">

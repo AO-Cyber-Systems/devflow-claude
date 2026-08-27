@@ -368,51 +368,148 @@ function makeOfflineLabelEchoJudge(labels, samples) {
  * @param {object} request — the assembled judge request from callVisionJudge.
  * @returns {Promise<object>} a Shape-C-ish value (validated by callVisionJudge's caller).
  */
-function defaultVisionJudge(request) {
-  // Resolve the concrete vision model id from model-profiles.json (NOT hardcoded).
+// Shape-C PERCEPTUAL schema — the fields the VISION MODEL produces for one screenshot.
+// The aggregate fields (state_id/samples/votes) are added by parseVisionResponse, not the
+// model. output_config.format pins the response to this schema so the text block is parseable
+// JSON (supported on the 4.x family; json_schema requires additionalProperties:false + enums).
+function visionPerceptualSchema() {
+  return {
+    type: 'object',
+    additionalProperties: false,
+    required: ['is_broken', 'defects', 'matches_expected', 'confidence'],
+    properties: {
+      is_broken: { type: 'boolean' },
+      matches_expected: { type: 'boolean' },
+      confidence: { type: 'number' },
+      defects: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['type', 'severity', 'region', 'rationale'],
+          properties: {
+            type: { type: 'string', enum: DEFECT_TYPES },
+            severity: { type: 'string', enum: SEVERITIES },
+            region: { type: 'string' },
+            rationale: { type: 'string' },
+          },
+        },
+      },
+    },
+  };
+}
+
+/**
+ * PURE — build the Anthropic Messages API request body for one screenshot. Resolves the model
+ * from model-profiles.json (ui-evaluator → tier → models[tier]); base64-encodes the screenshot;
+ * anchors the prompt on request.expected + the taxonomy; pins the response to the perceptual schema.
+ * Reads the screenshot file (deterministic given the path) so it's offline-testable with a real PNG.
+ * @returns {{model:string, body:object}}
+ */
+function buildVisionRequest(request) {
   const profilesPath = path.join(__dirname, '..', '..', 'references', 'model-profiles.json');
   const profiles = JSON.parse(fs.readFileSync(profilesPath, 'utf-8'));
-  const profile = process.env.DEVFLOW_MODEL_PROFILE || 'quality';
-  // Agent keys are canonical without the df- prefix (TRD 28-02); accept both so
-  // a stale caller or an older profiles file still resolves.
-  const agentEntry = profiles.agents['ui-evaluator'] || profiles.agents['df-ui-evaluator'] || {};
-  const tier = agentEntry[profile] || 'opus';
-  const model = profiles.models[tier];
-  if (!model) {
-    throw new Error(
-      `flutter-ui-eval: no model id for tier "${tier}" in references/model-profiles.json ` +
-      `(models: ${Object.keys(profiles.models || {}).join(', ') || 'none'}). ` +
-      `Refusing to call the vision judge without a resolved model.`
-    );
-  }
+  const profile = process.env.DEVFLOW_MODEL_PROFILE || 'balanced'; // judge runs hot → cost tier by default
+  const tier = (profiles.agents['ui-evaluator'] || profiles.agents['df-ui-evaluator'] || {})[profile] || 'sonnet';
+  const model = profiles.models[tier] || tier;
 
-  // Read + base64-encode the screenshot for the Anthropic Messages API image content block.
   const b64 = fs.readFileSync(request.screenshot_path).toString('base64');
   const taxonomy = `defect types: ${DEFECT_TYPES.join(', ')}; severities: ${SEVERITIES.join(', ')}`;
-  const messages = [{
-    role: 'user',
-    content: [
-      { type: 'image', source: { type: 'base64', media_type: 'image/png', data: b64 } },
-      {
-        type: 'text',
-        text:
-          `Evaluate this UI screenshot for state "${request.state_id}".\n` +
-          `Expected: ${request.expected}\n` +
-          `Taxonomy — ${taxonomy}.\n` +
-          `Return ONLY Shape-C JSON: ` +
-          `{state_id,is_broken,defects:[{type,severity,region,rationale}],matches_expected,confidence,samples,votes}.`,
-      },
-    ],
-  }];
+  const body = {
+    model,
+    max_tokens: 1024,
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'image', source: { type: 'base64', media_type: 'image/png', data: b64 } },
+        {
+          type: 'text',
+          text:
+            `You are a strict UI-defect detector. Evaluate this screenshot for state ` +
+            `"${request.state_id}".\nExpected appearance: ${request.expected}\n` +
+            `Score DEVIATION from expected, not open-ended aesthetics. Taxonomy — ${taxonomy}.\n` +
+            `If it matches expected with no defects, return is_broken:false, defects:[].`,
+        },
+      ],
+    }],
+    output_config: { format: { type: 'json_schema', schema: visionPerceptualSchema() } },
+  };
+  return { model, body };
+}
 
-  // The actual fetch() to the Anthropic Messages API lives here on a genuine run.
-  // It is intentionally left as the impure seam and is NEVER reached in tests/verification.
-  // eslint-disable-next-line no-unused-vars
-  const apiRequest = { model, max_tokens: 1024, messages };
-  throw new Error(
-    'defaultVisionJudge is the live network boundary (model=' + model + '); ' +
-    'it is wired but only reachable on a genuine run, never in tests/verification.'
-  );
+/**
+ * PURE — turn an Anthropic Messages API response body into a single-sample Shape-C JudgeResult
+ * (state_id/samples:1/votes added here; perceptual fields from the model). Throws on a refusal
+ * stop_reason, a missing text block, or non-JSON text. Returns { result, usage, model }.
+ */
+function parseVisionResponse(apiBody, request) {
+  if (apiBody && apiBody.stop_reason === 'refusal') {
+    throw new Error('vision judge refused: ' + ((apiBody.stop_details || {}).category || 'unknown'));
+  }
+  const textBlock = ((apiBody && apiBody.content) || []).find(b => b && b.type === 'text');
+  if (!textBlock) throw new Error('vision response had no text block');
+  let p;
+  try { p = JSON.parse(textBlock.text); }
+  catch (e) { throw new Error('vision response text was not JSON: ' + e.message); }
+  const is_broken = p.is_broken === true;
+  const result = {
+    state_id: request.state_id,
+    is_broken,
+    defects: Array.isArray(p.defects) ? p.defects : [],
+    matches_expected: p.matches_expected === true,
+    confidence: typeof p.confidence === 'number' ? p.confidence : 0,
+    samples: 1, // ONE call = one sample; N-sample voting is the engine's job (aggregateVotes)
+    votes: is_broken ? { broken: 1, ok: 0 } : { broken: 0, ok: 1 },
+  };
+  return { result, usage: (apiBody && apiBody.usage) || null, model: apiBody && apiBody.model };
+}
+
+/**
+ * The single impure boundary — one synchronous curl to the Anthropic Messages API.
+ * SYNC on purpose: callVisionJudge invokes the judge fn synchronously (same contract as the
+ * offline judge), so an async fetch would break it; execFileSync('curl', …) keeps the contract.
+ * NEVER reached by tests/verification — callers opt in by passing this as `judge`. Returns a
+ * single-sample Shape-C JudgeResult. Throws (clear message) if no credential is configured.
+ */
+// One real Anthropic Messages call. Returns { result, usage, model } so the CLI proof-run can
+// measure per-page token cost; defaultVisionJudge below is the thin judge-fn wrapper over it.
+// Shared Anthropic Messages API boundary (ONE synchronous curl). Both modes ride this:
+// the defect judge (liveVisionCall) and the design critic (flutter-ui-design-review.cjs) — so
+// there is a single network/auth/error path, not two that drift. Returns the parsed apiBody.
+function anthropicMessagesCall(body) {
+  const base = process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com';
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const authToken = process.env.ANTHROPIC_AUTH_TOKEN;
+  if (!apiKey && !authToken) {
+    throw new Error(
+      'no credential — set ANTHROPIC_API_KEY (or ANTHROPIC_AUTH_TOKEN ' +
+      '+ ANTHROPIC_BASE_URL) to run the live vision call.');
+  }
+  const headers = ['-H', 'content-type: application/json', '-H', 'anthropic-version: 2023-06-01'];
+  if (apiKey) headers.push('-H', 'x-api-key: ' + apiKey);
+  else headers.push('-H', 'authorization: Bearer ' + authToken, '-H', 'anthropic-beta: oauth-2025-04-20');
+  const { execFileSync } = require('node:child_process');
+  const out = execFileSync(
+    'curl',
+    ['-sS', '-X', 'POST', base + '/v1/messages', ...headers, '-d', JSON.stringify(body)],
+    { encoding: 'utf-8', maxBuffer: 20 * 1024 * 1024 });
+  let apiBody;
+  try { apiBody = JSON.parse(out); }
+  catch (e) { throw new Error('vision API non-JSON response: ' + String(out).slice(0, 200)); }
+  if (apiBody.type === 'error') throw new Error('vision API error: ' + JSON.stringify(apiBody.error));
+  return apiBody;
+}
+
+function liveVisionCall(request) {
+  const { body } = buildVisionRequest(request);
+  return parseVisionResponse(anthropicMessagesCall(body), request);
+}
+
+// The injectable judge-fn: returns a single-sample Shape-C JudgeResult (the contract callVisionJudge
+// expects). SYNC on purpose (callVisionJudge calls the judge synchronously). NEVER reached by
+// tests/verification — callers opt in by passing this as `judge`.
+function defaultVisionJudge(request) {
+  return liveVisionCall(request).result;
 }
 
 // ─── df-tools subcommand handler ─────────────────────────────────────────────────
@@ -436,8 +533,8 @@ function cmdVerifyFlutterUIEval(cwd, args, raw) {
 
   if (!manifestArg || list.includes('--help')) {
     output({
-      usage: 'verify flutter-ui-eval <manifest|captureResults> [--raw]  |  flutter-ui eval <manifest|captureResults> [--raw]',
-      description: 'Score a UI visual-eval manifest through the offline scoreState/scoreRun pipeline (offline label-echo judge; NO network). Emits a scoreRun rollup.',
+      usage: 'verify flutter-ui-eval <manifest|captureResults> [--raw] [--judge live] [--samples N]',
+      description: 'Score a UI visual-eval manifest. Default: offline label-echo judge (deterministic, NO network). --judge live runs the REAL Anthropic vision judge (needs ANTHROPIC_API_KEY, or ANTHROPIC_AUTH_TOKEN+ANTHROPIC_BASE_URL) N times/state → real N-sample voting (flake) + per-page token cost.',
       ok: true,
     }, raw);
     return;
@@ -460,6 +557,9 @@ function cmdVerifyFlutterUIEval(cwd, args, raw) {
   const manifestDir = path.dirname(absManifest);
   const samples = typeof manifest.samples === 'number' ? manifest.samples : 3;
   const flakeBudget = typeof manifest.flakeBudget === 'number' ? manifest.flakeBudget : 1;
+  const liveJudge = list.indexOf('--judge') >= 0 && list[list.indexOf('--judge') + 1] === 'live';
+  const sIdx = list.indexOf('--samples');
+  const nSamples = sIdx >= 0 ? Math.max(1, parseInt(list[sIdx + 1], 10) || samples) : samples;
 
   // Hand-built labels alongside the manifest drive the OFFLINE judge (no pixels, no network).
   const labelsPath = path.join(manifestDir, 'labels.json');
@@ -470,6 +570,8 @@ function cmdVerifyFlutterUIEval(cwd, args, raw) {
 
   const stateResults = [];
   const stateDetail = [];
+  const usageTotal = { input_tokens: 0, output_tokens: 0 };
+  let liveModel = null;
 
   for (const st of manifest.states) {
     // Load the Shape-B capture for this state (relative to the manifest dir).
@@ -484,15 +586,49 @@ function cmdVerifyFlutterUIEval(cwd, args, raw) {
       capture = { state_id: st.state_id, surface: st.surface, screenshot_path: st.screenshot_path, metadata: { expected: st.expected } };
     }
 
-    // Run the INJECTED offline judge through the real callVisionJudge -> validateJudgeResult.
+    if (liveJudge) {
+      // LIVE: N INDEPENDENT real vision calls per state → genuine N-sample voting (flake) +
+      // per-page token cost. A refusal / credential / network error downgrades the state to review.
+      const sp = (capture && capture.screenshot_path) || st.screenshot_path;
+      const screenshot_path = sp && !path.isAbsolute(sp) ? path.join(manifestDir, sp) : sp;
+      const request = { state_id: st.state_id, surface: st.surface, screenshot_path, expected: st.expected, defect_types: DEFECT_TYPES, severities: SEVERITIES };
+      const liveSamples = [];
+      let liveErr = null;
+      for (let i = 0; i < nSamples; i++) {
+        try {
+          const r = liveVisionCall(request);
+          liveSamples.push(r.result);
+          if (r.usage) { usageTotal.input_tokens += r.usage.input_tokens || 0; usageTotal.output_tokens += r.usage.output_tokens || 0; }
+          if (r.model) liveModel = r.model;
+        } catch (e) { liveErr = e.message; break; }
+      }
+      if (liveErr || liveSamples.length === 0) {
+        stateResults.push({ state_id: st.state_id, verdict: 'review', advisories: [liveErr || 'no live samples'], expect: st.expect });
+        stateDetail.push({ state_id: st.state_id, verdict: 'review', is_broken: null, defects: [], errors: [liveErr || 'no live samples'] });
+        continue;
+      }
+      const agg = aggregateVotes(liveSamples);
+      const stateScore = scoreState({ samples: liveSamples });
+      stateResults.push({ state_id: st.state_id, verdict: stateScore.verdict, advisories: stateScore.advisories, expect: st.expect });
+      stateDetail.push({
+        state_id: st.state_id,
+        verdict: stateScore.verdict,
+        is_broken: agg.is_broken,
+        flake: agg.split === true || agg.tie === true, // the N samples disagreed → flaky judgment
+        votes: agg.votes,
+        defects: liveSamples.flatMap(s => s.defects || []),
+        advisories: stateScore.advisories,
+      });
+      continue;
+    }
+
+    // OFFLINE (default): deterministic label-echo judge through callVisionJudge (no network).
     const judged = callVisionJudge({ capture, expected: st.expected, judge: offlineJudge });
     if (!judged.valid) {
       stateResults.push({ state_id: st.state_id, verdict: 'review', advisories: judged.errors, expect: st.expect });
       stateDetail.push({ state_id: st.state_id, verdict: 'review', is_broken: null, defects: [], errors: judged.errors });
       continue;
     }
-
-    // Replicate to N identical samples (offline judge is deterministic) and score the state.
     const sampleSet = Array.from({ length: samples }, () => judged.result);
     const stateScore = scoreState({ samples: sampleSet });
     stateResults.push({ state_id: st.state_id, verdict: stateScore.verdict, advisories: stateScore.advisories, expect: st.expect });
@@ -509,9 +645,10 @@ function cmdVerifyFlutterUIEval(cwd, args, raw) {
 
   output({
     manifest_path: absManifest,
-    network: false,            // OFFLINE label-echo judge — machine-checkable no-network guarantee
-    judge: 'offline-label-echo',
-    samples,
+    network: liveJudge,                                  // true only on the live path
+    judge: liveJudge ? 'live-vision' : 'offline-label-echo',
+    model: liveJudge ? liveModel : undefined,
+    samples: liveJudge ? nSamples : samples,
     flakeBudget,
     verdict: rollup.verdict,
     counts: rollup.counts,
@@ -519,6 +656,7 @@ function cmdVerifyFlutterUIEval(cwd, args, raw) {
     fails: rollup.fails,
     known_failing: rollup.known_failing, // expect:fail states still failing — tracked, not a new regression
     resolved: rollup.resolved,           // expect:fail states now passing — likely fixed; drop the known_broken flag
+    usage: liveJudge ? usageTotal : undefined,           // per-run token totals for cost estimation
     states: stateDetail,
   }, raw);
 }
@@ -532,6 +670,11 @@ module.exports = {
   callVisionJudge,
   makeOfflineLabelEchoJudge,
   defaultVisionJudge,
+  liveVisionCall,
+  anthropicMessagesCall,
+  buildVisionRequest,
+  parseVisionResponse,
+  visionPerceptualSchema,
   cmdVerifyFlutterUIEval,
   DEFECT_TYPES,
   SEVERITIES,

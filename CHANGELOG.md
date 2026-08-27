@@ -56,6 +56,15 @@ sessions were gated inside their own skill.
 
 ### Added
 - **25-02**: `gates.editGate` config knob in gate-edits.js — per-repo `.planning/config.json` `gates.editGate: warn|strict|off`, default strict; `warn` converts ambient-edit deny to ask, `off` disables the gate (85d61b5)
+
+### Added
+- **UI design-review layer (advisory)**: a design-critic mode of the UI visual-eval boundary that scores a rendered screen's DEVIATION from the project design system (tokens), UX heuristics, and per-page `design_intent` — answering "is this GOOD design, and how to improve it?". ADVISORY ONLY — it NEVER gates an objective (distinct from the defect judge at verifier Step 8c, which DOES gate).
+  - **Phase A** — engine `bin/lib/flutter-ui-design-review.cjs` (buildDesignReviewRequest / parseDesignReviewResponse / validateDesignReview / aggregateDesignReview / formatDesignDebtReport / runDesignReview); CLI `df-tools flutter-ui design-review <manifest> [--live] [--raw]` (one critique per state, writes prioritized `design-review-report.{md,json}`, offline/no-key → states skipped, no crash); `/devflow:design-review` skill + `design-review` workflow (heavy first-run ranked design-debt sweep).
+  - **Phase B** — verifier Step 8d (advisory design-review pass on each type:ui/stack:flutter objective's surfaces AFTER the Step 8c defect gate; high/medium debt → advisory notes + candidate todos for FUTURE UI objectives via the existing `/devflow:add-todo` mechanism; NEVER a `gaps:` entry, NEVER alters the verdict); planner `decideDesignReviewDefault` auto-note (`advisory:true`/`gating:false` invariant) + the `## Advisory Design Review (auto-noted)` plan call-out. Cadence: heavy first-run sweep via `/devflow:design-review`; thereafter a lightweight advisory pass per UI objective.
+
+## [2.4.0] - 2026-06-16
+
+### Added
 - **UI visual-evaluation layer**: a VLM-as-judge that scores rendered UI against per-state `expected` anchors, complementing functional/golden tests by catching first-time defects (overflow, blank-when-data-expected, misalignment) without baseline churn.
   - Engine `bin/lib/flutter-ui-eval.cjs` — validateJudgeResult / aggregateVotes / scoreState (HIGH-severity-only gate) / scoreRun / injectable callVisionJudge; dogfood fixtures.
   - CLI `df-tools verify flutter-ui-eval [--raw]` + `flutter-ui eval|bootstrap`; `df-ui-evaluator` model profile.
