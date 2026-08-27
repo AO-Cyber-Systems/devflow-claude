@@ -224,6 +224,12 @@ Checked (read-only, does not constitute performing the action):
 ```
 gh secret list --repo AO-Cyber-Systems/devflow-claude
 → (exit 0, empty output — no repository secrets configured)
+
+SCOPE CAVEAT (added at integration): this proves only that no REPOSITORY secret exists.
+`gh secret list --org AO-Cyber-Systems` returns HTTP 403 ("must be an org admin or have the
+actions secrets fine-grained permission"), so an ORG-level ANTHROPIC_API_KEY may exist and be
+invisible to this account. Objective 33 must not assume the credential is absent — it must
+check from inside a CI run (where org secrets are injected), not from a developer machine.
 ```
 
 **Consequence, stated plainly:** `gate: 'binding'` is reachable **only on a machine with a credential exported locally** (as demonstrated manually during this TRD, minus the credential). It is **not** reachable in CI today, and Step 8c's own invocation in verifier.md was deliberately left calling the default (advisory) path — so no CI run of this verifier currently produces, or could produce, a `gate: 'binding'` pass. Every CI ui-eval run remains `advisory`-only until a human either (a) provisions the secret with `gh secret set ANTHROPIC_API_KEY --repo AO-Cyber-Systems/devflow-claude` and confirms which workflow exposes it to the ui-eval step, or (b) explicitly accepts the deferral recorded here.
