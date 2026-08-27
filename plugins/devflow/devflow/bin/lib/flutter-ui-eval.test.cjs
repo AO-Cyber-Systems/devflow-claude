@@ -495,6 +495,75 @@ test.describe('callVisionJudge — unjudged is distinguishable from a malformed/
   });
 });
 
+// ──────────────────────────────────────────────────────────────────────────────
+// Evidence-tagged judge results (32-02, aodex#485 defect 2) — C1-C4.
+//
+// The offline label-echo judge previously returned confidence:0.99 and
+// matches_expected for EVERY state, having read only the state_id — a fabricated
+// score for a comparison it never performed. These cases pin: an offline result
+// declares its basis (evidence:'label') and emits NEITHER confidence NOR
+// matches_expected; a live/vision result MUST carry both; the legacy shape (no
+// evidence field at all) keeps validating exactly as it did before this TRD.
+// ──────────────────────────────────────────────────────────────────────────────
+
+test.describe('evidence-tagged judge results (32-02, aodex#485 defect 2)', () => {
+  test('Case C1 — offline judge result for a LABELLED state carries evidence:"label" and has NO confidence/matches_expected', () => {
+    const labels = { 'known-good': { is_broken: false } };
+    const judge = makeOfflineLabelEchoJudge(labels, 3);
+
+    const result = judge({ state_id: 'known-good', surface: 'web', screenshot_path: 'x.png' });
+
+    assert.strictEqual(result.evidence, 'label', 'offline result declares its basis');
+    // Assert KEY ABSENCE (`in`), not `=== undefined` — a present-but-undefined key still
+    // serialises into JSON output as a missing field and would hide the intent.
+    assert.strictEqual('confidence' in result, false,
+      'must NOT fabricate a confidence score for a comparison never performed');
+    assert.strictEqual('matches_expected' in result, false,
+      'must NOT fabricate matches_expected for a comparison never performed');
+  });
+
+  test('Case C2 — validateJudgeResult ACCEPTS the label-evidence result (absence of confidence/matches_expected is not an error)', () => {
+    const labels = { 'known-good': { is_broken: false } };
+    const judge = makeOfflineLabelEchoJudge(labels, 3);
+    const result = judge({ state_id: 'known-good', surface: 'web', screenshot_path: 'x.png' });
+
+    const v = validateJudgeResult(result);
+    assert.strictEqual(v.valid, true, `expected valid, got errors: ${JSON.stringify(v.errors)}`);
+    assert.deepStrictEqual(v.errors, []);
+  });
+
+  test('Case C2b — validateJudgeResult REJECTS an evidence:"label" result that fabricates confidence/matches_expected anyway', () => {
+    const withFabricatedScore = makeJudgeResult({ evidence: 'label' }); // carries confidence+matches_expected
+    const v = validateJudgeResult(withFabricatedScore);
+    assert.strictEqual(v.valid, false, 'a label judge has no score — presence must be rejected, not silently tolerated');
+    assert.ok(v.errors.some(e => /confidence/.test(e)));
+    assert.ok(v.errors.some(e => /matches_expected/.test(e)));
+  });
+
+  test('Case C3 — validateJudgeResult REJECTS an evidence:"vision" result that omits confidence or matches_expected', () => {
+    const missingConfidence = makeJudgeResult({ evidence: 'vision' });
+    delete missingConfidence.confidence;
+    const r1 = validateJudgeResult(missingConfidence);
+    assert.strictEqual(r1.valid, false, 'a real comparison must report its confidence score');
+    assert.ok(r1.errors.some(e => /confidence/.test(e)));
+
+    const missingMatches = makeJudgeResult({ evidence: 'vision' });
+    delete missingMatches.matches_expected;
+    const r2 = validateJudgeResult(missingMatches);
+    assert.strictEqual(r2.valid, false, 'a real comparison must report matches_expected');
+    assert.ok(r2.errors.some(e => /matches_expected/.test(e)));
+  });
+
+  test('Case C4 — a legacy result (confidence + matches_expected, NO evidence field) still validates EXACTLY as before (back-compat)', () => {
+    const legacy = makeJudgeResult(); // the existing fixture default — no evidence field at all
+    assert.strictEqual('evidence' in legacy, false,
+      'pins the legacy shape this case depends on: the fixture default carries no evidence field');
+    const v = validateJudgeResult(legacy);
+    assert.strictEqual(v.valid, true, 'the existing 60 tests depend on this legacy path staying valid');
+    assert.deepStrictEqual(v.errors, []);
+  });
+});
+
 test.describe('parseVisionResponse (pure response → Shape-C)', () => {
   test('Case P1 — valid API body -> single-sample Shape-C that passes validateJudgeResult', () => {
     const apiBody = {
