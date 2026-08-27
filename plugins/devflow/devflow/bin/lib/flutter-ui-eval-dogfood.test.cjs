@@ -14,7 +14,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { execSync } = require('node:child_process');
+const { execSync, spawnSync } = require('node:child_process');
 
 const DF_TOOLS = path.join(__dirname, '..', 'df-tools.cjs');
 const FIXTURE_DIR = path.join(__dirname, '__fixtures__', 'flutter-ui-eval');
@@ -344,5 +344,155 @@ test.describe('Case G1-G5 — judge selection is explicit; the rollup declares i
     assert.match(out, /advisory/i, '--help must state the default is advisory');
     assert.match(out, /--judge live/, '--help must name --judge live as the path to a binding gate');
     assert.match(out, /binding/i, '--help must state that the binding gate is opt-in');
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Case X1-X4 (32-04, discovered during planning, NOT in aodex#485) — the process's own
+// exit code must reflect the run's verdict, or a CI step running this command is green
+// regardless of what it found. Measured live before this fix:
+//   node df-tools.cjs verify flutter-ui-eval <fixture manifest> --raw > /dev/null 2>&1; echo $?
+//   -> 0   (while the rollup itself reports verdict:"fail")
+//
+// spawnSync is used directly here (not the shared runJSON/runRaw helpers) so X1-X4 can
+// assert on {stdout, status} together without any throw-on-nonzero behavior getting in the
+// way of pinning the contract itself.
+// ──────────────────────────────────────────────────────────────────────────────
+
+test.describe('Case X1-X4 — a failing run exits non-zero (32-04)', () => {
+
+  test('Case X1 — a manifest scoring verdict:fail (the checked-in fixture) exits NON-ZERO, and stdout is still fully parseable rollup JSON', () => {
+    const result = spawnSync('node', [DF_TOOLS, 'verify', 'flutter-ui-eval', MANIFEST, '--raw'], { encoding: 'utf-8' });
+    assert.notStrictEqual(result.status, 0,
+      'a run scoring `fail` must exit non-zero or no CI step can gate on it');
+    const rollup = JSON.parse(result.stdout);
+    assert.strictEqual(rollup.verdict, 'fail', 'sanity: this fixture must actually score fail');
+  });
+
+  test.describe('Case X2 — a manifest scoring verdict:pass exits 0', () => {
+    let tmpDir;
+
+    test.before(() => {
+      tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ui-eval-x2-'));
+      fs.writeFileSync(
+        path.join(tmpDir, 'labels.json'),
+        JSON.stringify({ 'only-good': { is_broken: false } }, null, 2),
+        'utf-8',
+      );
+      fs.copyFileSync(
+        path.join(FIXTURE_DIR, 'good-dashboard.png'),
+        path.join(tmpDir, 'only-good.png'),
+      );
+      fs.writeFileSync(
+        path.join(tmpDir, 'manifest.json'),
+        JSON.stringify({
+          objective: 'UI-VISUAL-EVAL-JUDGE-X2',
+          note: 'Hermetic temp manifest (X2) — one labelled, not-broken state -> verdict pass.',
+          samples: 3,
+          flakeBudget: 1,
+          states: [
+            {
+              state_id: 'only-good',
+              route: '/x',
+              data_state: 'populated',
+              viewport: { width: 1280, height: 800 },
+              expected: 'shows x cleanly, no defects',
+              screenshot_path: './only-good.png',
+            },
+          ],
+        }, null, 2),
+        'utf-8',
+      );
+    });
+
+    test.after(() => {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    test('Case X2 — a run scoring pass exits 0', () => {
+      const manifestPath = path.join(tmpDir, 'manifest.json');
+      const result = spawnSync('node', [DF_TOOLS, 'verify', 'flutter-ui-eval', manifestPath, '--raw'], { encoding: 'utf-8' });
+      const rollup = JSON.parse(result.stdout);
+      assert.strictEqual(rollup.verdict, 'pass', 'sanity: this fixture must actually score pass');
+      assert.strictEqual(result.status, 0, 'a clean pass must exit 0');
+    });
+  });
+
+  test.describe('Case X3 — a manifest scoring verdict:pass-with-reviews exits 0 (a review is not a failure)', () => {
+    let tmpDir;
+
+    test.before(() => {
+      tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ui-eval-x3-'));
+      // Only ONE state is labelled; the second is deliberately absent from labels.json so
+      // it lands in unjudged[] (aodex#485/32-01) -> rollup.verdict:'pass-with-reviews'
+      // (scoreRun: fails.length===0, reviews.length(0) <= flakeBudget, unjudged.length>0).
+      fs.writeFileSync(
+        path.join(tmpDir, 'labels.json'),
+        JSON.stringify({ 'labelled-good': { is_broken: false } }, null, 2),
+        'utf-8',
+      );
+      fs.copyFileSync(
+        path.join(FIXTURE_DIR, 'good-dashboard.png'),
+        path.join(tmpDir, 'labelled-good.png'),
+      );
+      fs.copyFileSync(
+        path.join(FIXTURE_DIR, 'good-dashboard.png'),
+        path.join(tmpDir, 'unlabelled-review.png'),
+      );
+      fs.writeFileSync(
+        path.join(tmpDir, 'manifest.json'),
+        JSON.stringify({
+          objective: 'UI-VISUAL-EVAL-JUDGE-X3',
+          note: 'Hermetic temp manifest (X3) — one labelled pass + one unjudged -> pass-with-reviews.',
+          samples: 3,
+          flakeBudget: 1,
+          states: [
+            {
+              state_id: 'labelled-good',
+              route: '/x',
+              data_state: 'populated',
+              viewport: { width: 1280, height: 800 },
+              expected: 'shows x cleanly, no defects',
+              screenshot_path: './labelled-good.png',
+            },
+            {
+              state_id: 'unlabelled-review',
+              route: '/y',
+              data_state: 'populated',
+              viewport: { width: 1280, height: 800 },
+              expected: 'shows y cleanly, no defects',
+              screenshot_path: './unlabelled-review.png',
+            },
+          ],
+        }, null, 2),
+        'utf-8',
+      );
+    });
+
+    test.after(() => {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    test('Case X3 — a run scoring pass-with-reviews exits 0', () => {
+      const manifestPath = path.join(tmpDir, 'manifest.json');
+      const result = spawnSync('node', [DF_TOOLS, 'verify', 'flutter-ui-eval', manifestPath, '--raw'], { encoding: 'utf-8' });
+      const rollup = JSON.parse(result.stdout);
+      assert.strictEqual(rollup.verdict, 'pass-with-reviews',
+        'sanity: this fixture must actually score pass-with-reviews');
+      assert.strictEqual(result.status, 0,
+        'a review is a request for a human look, not a regression — must exit 0');
+    });
+  });
+
+  test('Case X4 — a not-found manifest path exits 0 (verifier.md Step 8c: SKIPPED, never a hard fail)', () => {
+    const result = spawnSync(
+      'node',
+      [DF_TOOLS, 'verify', 'flutter-ui-eval', '/nonexistent/32-04-manifest.json', '--raw'],
+      { encoding: 'utf-8' },
+    );
+    const parsed = JSON.parse(result.stdout);
+    assert.strictEqual(parsed.error, 'manifest/captureResults not found', 'sanity: the error path was reached');
+    assert.strictEqual(result.status, 0,
+      'a missing manifest must never become a hard CI failure — verifier.md Step 8c routes this to SKIPPED, not a crash');
   });
 });
