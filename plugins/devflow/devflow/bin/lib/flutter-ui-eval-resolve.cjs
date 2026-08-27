@@ -233,6 +233,91 @@ function lookupManifest(cwd, info, uiTrds, visualGate) {
   };
 }
 
+// ─── classifyUIEvalOutcome — the pure routing policy (TRD 33-03) ──────────────
+//
+// resolveUIEvalTarget answers "what did we find on disk". This function answers "what does
+// that mean for the verifier" — a separate, PRODUCT decision that will change over time
+// (e.g. the visual_gate ratchet widening), while the filesystem fact above it will not.
+//
+// The failure mode this function is designed against: replacing a gate that never runs
+// with a gate that always gaps is worse, because people disable it. `absent` therefore
+// routes to 'missing' — loud enough that nobody thinks the surface was checked, quiet
+// enough that the existing backlog does not turn red overnight — with a ratchet that
+// flips it to 'gap' once the objective declares `visual_gate: true`.
+//
+// House style mirrors decideUIEvalDefault (flutter-ui-eval-planner-default.cjs): plain
+// object in, plain object out, never throws, failsafe-permissive on garbage input.
+
+/**
+ * Pure routing policy. Given what resolveUIEvalTarget found, decide what the verifier does.
+ * Never throws; unknown input routes to 'missing' (the safe answer: assume nothing was
+ * judged, so the human check must stay queued).
+ *
+ * @param {{resolution?, visual_gate?, reason?, searched?, manifest_path?, ui_trds?, objective_dir?}} target
+ * @returns {{route: 'skip'|'missing'|'gap'|'score',
+ *            silent: boolean,
+ *            keeps_human_verification: boolean,
+ *            note?: string, gap?: string, todo?: string}}
+ */
+function classifyUIEvalOutcome(target) {
+  try {
+    const resolution = target && target.resolution;
+
+    if (resolution === 'not_applicable') {
+      // The ONLY silent route. Step 8c's existing "run ONLY when this objective has a
+      // Flutter UI TRD" gate is why this stays quiet on every non-Flutter objective.
+      return { route: 'skip', silent: true, keeps_human_verification: false };
+    }
+
+    if (resolution === 'absent') {
+      const searched = Array.isArray(target.searched) ? target.searched : [];
+      if (target.visual_gate === true) {
+        // The ratchet: an objective planned after the gate became auto-required has no
+        // excuse for shipping without a manifest.
+        return {
+          route: 'gap',
+          silent: false,
+          keeps_human_verification: true,
+          gap: 'objective declares visual_gate: true but has no ui-eval manifest',
+        };
+      }
+      // The central product decision this TRD exists to make: MISSING, not skipped and
+      // not gapped. Nothing judged this surface, so the human check stays queued — but the
+      // absence is recorded, loudly, rather than disappearing the way aodex#485 did.
+      return {
+        route: 'missing',
+        silent: false,
+        keeps_human_verification: true,
+        note: `no ui-eval manifest found; searched: ${searched.join(', ')}`,
+        todo: `author a ui_eval manifest for ${target.objective_dir || 'this objective'}`,
+      };
+    }
+
+    if (resolution === 'invalid') {
+      // A manifest-shaped file exists but is unusable. A defect, not an absence — must
+      // never be indistinguishable from 'absent' (33-01's whole point, restated in policy).
+      return {
+        route: 'gap',
+        silent: false,
+        keeps_human_verification: true,
+        gap: `ui-eval manifest present but unloadable: ${target.reason || 'unknown parse error'}`,
+      };
+    }
+
+    if (resolution === 'resolved') {
+      // Scoring semantics (verdict/gate/binding routing) belong to objective 32's rules at
+      // Step 8c — this function does not second-guess them and adds nothing else.
+      return { route: 'score', silent: false, keeps_human_verification: true };
+    }
+
+    // Failsafe: unknown/garbage resolution. Never throw; assume nothing was judged.
+    return { route: 'missing', silent: false, keeps_human_verification: true };
+  } catch (_) {
+    // Never throw at the caller, matching resolveUIEvalTarget's own contract.
+    return { route: 'missing', silent: false, keeps_human_verification: true };
+  }
+}
+
 // ─── Public API ────────────────────────────────────────────────────────────────
 
 /**
@@ -275,4 +360,4 @@ function resolveUIEvalTarget(cwd, arg) {
   }
 }
 
-module.exports = { resolveUIEvalTarget };
+module.exports = { resolveUIEvalTarget, classifyUIEvalOutcome };
