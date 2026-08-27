@@ -25,7 +25,20 @@ function runRaw(argStr, opts = {}) {
   return execSync(`node ${DF_TOOLS} ${argStr}`, { encoding: 'utf-8', ...opts });
 }
 function runJSON(argStr) {
-  return JSON.parse(runRaw(`${argStr} --raw`));
+  // 32-04: a scoreRun verdict:'fail' now exits non-zero (see Case X1 below), so bare
+  // execSync's default throw-on-nonzero is no longer the right tool here — every dogfood
+  // case that legitimately drives the checked-in fixture manifest (which scores 'fail' BY
+  // DESIGN — it contains a deliberately-broken state) would otherwise crash on the exit
+  // code instead of asserting on the rollup content. Catching the throw and parsing
+  // `err.stdout` (execSync still attaches the child's stdout to a thrown error) preserves
+  // EVERY existing content assertion unchanged for D2/DF1/DF2/DF3/N1/C5/G1/G2 — only HOW a
+  // non-zero exit is tolerated changes, never what is asserted about the rollup.
+  try {
+    return JSON.parse(runRaw(`${argStr} --raw`));
+  } catch (err) {
+    if (err.stdout) return JSON.parse(err.stdout);
+    throw err;
+  }
 }
 
 test.describe('flutter-ui-eval CLI dogfood (UI-VISUAL-EVAL-JUDGE-02)', () => {
@@ -315,8 +328,17 @@ test.describe('Case G1-G5 — judge selection is explicit; the rollup declares i
     delete strippedEnv.ANTHROPIC_API_KEY;
     delete strippedEnv.ANTHROPIC_AUTH_TOKEN;
     delete strippedEnv.ANTHROPIC_BASE_URL;
-    const out = execSync(`node ${DF_TOOLS} verify flutter-ui-eval ${MANIFEST} --judge live --raw`,
-      { encoding: 'utf-8', env: strippedEnv });
+    // 32-04: this credential-less live run asserts verdict:'fail' below (2 reviews > the
+    // 2-state fixture's flakeBudget of 1), which now exits non-zero — this call site does
+    // NOT go through runJSON (it needs a custom `env`), so it needs the same tolerant
+    // capture directly. Content assertions are unchanged; only the exit-code handling moves.
+    let out;
+    try {
+      out = execSync(`node ${DF_TOOLS} verify flutter-ui-eval ${MANIFEST} --judge live --raw`,
+        { encoding: 'utf-8', env: strippedEnv });
+    } catch (err) {
+      out = err.stdout;
+    }
     const rollup = JSON.parse(out);
     // Every state downgrades to 'review' with no credential (verified during planning) —
     // but `gate` must still read 'binding': the caller asked for the live path, and gate is

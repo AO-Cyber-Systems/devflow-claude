@@ -602,6 +602,40 @@ function defaultVisionJudge(request) {
  * @param {string[]}      args — args after the subcommand (path and/or flags)
  * @param {boolean}       raw  — --raw passthrough to output()
  */
+/**
+ * 32-04: write the FINAL scoreRun rollup and set the process's own exit code from its
+ * verdict — a `fail` verdict must exit non-zero, or a CI step running this command is
+ * green regardless of what it found (aodex#485, discovered during 32-04 planning).
+ *
+ * This mirrors helpers.cjs's `output()` JSON-serialize + 50KB-tmpfile-fallback behavior
+ * exactly, but deliberately does NOT reuse `output()` for this one call site: `output()`
+ * is shared by ~40 other df-tools commands and calls `process.exit(0)` unconditionally,
+ * which (a) is out of this TRD's scope to change and (b) would hardcode 0 regardless of
+ * the verdict even if it weren't. `process.exitCode` (not `process.exit()`) is used
+ * deliberately per the TRD's own gotcha: `process.exit()` can truncate a buffered stdout
+ * write before it fully flushes; setting `exitCode` lets Node exit naturally once the
+ * write completes, so a failing run's rollup JSON is still fully readable (X1).
+ *
+ * Only `verdict: 'fail'` sets a non-zero exit code — `pass` and `pass-with-reviews` both
+ * exit 0 (X2, X3). The not-found/invalid-manifest paths above this function are untouched
+ * and continue to exit 0 via `output()` (X4) — verifier.md Step 8c routes that shape to
+ * SKIPPED, never a hard CI failure.
+ *
+ * @param {object} result — the assembled rollup payload (same shape `output()` would take)
+ * @param {'pass'|'pass-with-reviews'|'fail'} verdict — drives the exit code
+ */
+function outputRollup(result, verdict) {
+  const json = JSON.stringify(result, null, 2);
+  if (json.length > 50000) {
+    const tmpPath = path.join(require('os').tmpdir(), `df-ui-eval-${Date.now()}.json`);
+    fs.writeFileSync(tmpPath, json, 'utf-8');
+    process.stdout.write('@file:' + tmpPath);
+  } else {
+    process.stdout.write(json);
+  }
+  process.exitCode = verdict === 'fail' ? 1 : 0;
+}
+
 function cmdVerifyFlutterUIEval(cwd, args, raw) {
   const list = Array.isArray(args) ? args : [args].filter(Boolean);
   const positional = list.filter(a => a && !a.startsWith('--'));
@@ -778,7 +812,8 @@ function cmdVerifyFlutterUIEval(cwd, args, raw) {
 
   const rollup = scoreRun(stateResults, { flakeBudget, unjudgedPolicy });
 
-  output({
+  // 32-04: the process's own exit code now reflects the verdict — see outputRollup() above.
+  outputRollup({
     manifest_path: absManifest,
     network: liveJudge,                                  // true only on the live path
     judge: liveJudge ? 'live-vision' : 'offline-label-echo',
@@ -799,7 +834,7 @@ function cmdVerifyFlutterUIEval(cwd, args, raw) {
     unjudged: rollup.unjudged,           // aodex#485: states nothing examined — own bucket, never reviews[]
     usage: liveJudge ? usageTotal : undefined,           // per-run token totals for cost estimation
     states: stateDetail,
-  }, raw);
+  }, rollup.verdict);
 }
 
 module.exports = {
