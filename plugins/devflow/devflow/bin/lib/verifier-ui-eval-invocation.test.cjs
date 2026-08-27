@@ -12,12 +12,22 @@
 // invoked with the real command string taken out of the real agent prompt):
 //   V4 (extraction guard, written FIRST — it guards V1)
 //   V1 (the load-bearing case — RED task; only V4+V1 exist until GREEN task adds V2/V3)
-//   V2 (resolved + a real scoreRun rollup)                         [added in GREEN task]
-//   V3 (absent, exit 0, searched[] non-empty)                      [added in GREEN task]
+//   V2 (resolved BY OBJECTIVE ID + a real scoreRun verdict, correct exit code)
+//   V3 (absent, exit 0, searched[] non-empty)
+//   V5 (invalid — a manifest-shaped file exists but is unparseable, exit 0)
+//   V6 (not_applicable — a real objective with no type:ui+stack:flutter TRD, exit 0)
+//   D-ID (`flutter-ui eval <objective-id>` resolves too — same handler, other CLI arm)
 //
 // RED (task 1): V1 is OBSERVED to fail against the pre-fix handler, returning the legacy
 // `{"error":"manifest/captureResults not found",...}` payload — recorded verbatim in
 // 33-02-SUMMARY.md and in the task 1 commit body.
+//
+// V2 is the coordinator-requested gap-closer: V1 alone only pins that `resolution` is ONE
+// of the four honest statuses — it passes even if the fixture resolves to `not_applicable`,
+// which proves nothing about whether an objective id can actually reach a scored manifest.
+// V2 is the case that pins the objective's headline claim: BY OBJECTIVE ID, the engine
+// loads and scores a real manifest. V5/V6 pin the other two non-scoring outcomes by their
+// own exit codes so the four-way mapping is asserted, not assumed.
 
 const test = require('node:test');
 const assert = require('node:assert');
@@ -54,7 +64,25 @@ function frontmatterBlock(fm) {
   return lines.join('\n');
 }
 
-function makeFixtureObjective({ id, slug = 'verifier-invocation-fixture', manifestJSON, labelsJSON } = {}) {
+// Manifest/labels GENERATORS (fixture_strategy: generators, CLAUDE.md habit 4) — build the
+// JSON from parameters, never a hand-pasted blob. `loadManifest` only requires a `states`
+// array; the offline label-echo judge only requires a `state_id`-keyed labels.json.
+function buildManifestJSON({ states, samples = 1, flakeBudget = 0 } = {}) {
+  return JSON.stringify({ objective: 'v2-fixture', samples, flakeBudget, states }, null, 2);
+}
+function buildLabelsJSON(entries) {
+  const labels = {};
+  for (const [stateId, isBroken] of entries) labels[stateId] = { is_broken: isBroken };
+  return JSON.stringify(labels, null, 2);
+}
+function cleanState(stateId) {
+  return { state_id: stateId, surface: 'web', screenshot_path: `./${stateId}.png`, expected: `${stateId} renders cleanly, no defects` };
+}
+
+function makeFixtureObjective({
+  id, slug = 'verifier-invocation-fixture', ui = true,
+  manifestJSON, manifestRaw, labelsJSON,
+} = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'verifier-ui-eval-'));
   TMP_DIRS.push(root);
 
@@ -64,20 +92,32 @@ function makeFixtureObjective({ id, slug = 'verifier-invocation-fixture', manife
 
   fs.writeFileSync(
     path.join(objectiveDir, `${id}-01-TRD.md`),
-    frontmatterBlock({ objective: objectiveDirName, trd: '"01"', type: 'ui', stack: 'flutter' }),
+    ui
+      ? frontmatterBlock({ objective: objectiveDirName, trd: '"01"', type: 'ui', stack: 'flutter' })
+      : frontmatterBlock({ objective: objectiveDirName, trd: '"01"', type: 'auto' }),
     'utf-8',
   );
 
-  if (manifestJSON !== undefined) {
+  const content = manifestRaw !== undefined ? manifestRaw : manifestJSON;
+  if (content !== undefined) {
     const tier2Dir = path.join(objectiveDir, 'evidence', 'ui_eval');
     fs.mkdirSync(tier2Dir, { recursive: true });
-    fs.writeFileSync(path.join(tier2Dir, 'manifest.json'), manifestJSON, 'utf-8');
+    fs.writeFileSync(path.join(tier2Dir, 'manifest.json'), content, 'utf-8');
     if (labelsJSON !== undefined) {
       fs.writeFileSync(path.join(tier2Dir, 'labels.json'), labelsJSON, 'utf-8');
     }
   }
 
   return { root, objectiveId: id };
+}
+
+// Runs the CLI and tolerates a non-zero exit (a scored `fail` verdict legitimately exits
+// non-zero, per 32-04) — every V2/V5/V6/D-ID case needs BOTH the parsed payload and the
+// real exit code, so this always reads status directly rather than throw-on-nonzero.
+function runCLI(argv, opts = {}) {
+  const { spawnSync } = require('node:child_process');
+  const result = spawnSync('node', [DF_TOOLS, ...argv], { encoding: 'utf-8', ...opts });
+  return { parsed: JSON.parse(result.stdout), status: result.status };
 }
 
 test.after(() => {
@@ -151,6 +191,89 @@ test.describe('verifier-ui-eval-invocation (TRD 33-02, aodex#485 defect 5)', () 
       ['not_applicable', 'absent', 'invalid', 'resolved'].includes(parsed.resolution),
       `resolution must be one of the four honest statuses, got: ${parsed.resolution}`,
     );
+  });
+
+  // Case V2 -- the objective's headline claim, pinned: BY OBJECTIVE ID (not a path), the
+  // engine loads and scores a REAL manifest. V1 alone only pins that `resolution` is one
+  // of the four honest statuses -- it would pass even if the fixture resolved to
+  // `not_applicable`. V2 is the case that actually proves "something the engine can load".
+  test('Case V2 -- an objective id resolves to `resolved` and a real scored verdict, correct exit code', () => {
+    const { root, objectiveId } = makeFixtureObjective({
+      id: '78',
+      slug: 'v2-fixture',
+      manifestJSON: buildManifestJSON({ states: [cleanState('only-good')] }),
+      labelsJSON: buildLabelsJSON([['only-good', false]]),
+    });
+
+    const { parsed, status } = runCLI(['verify', 'flutter-ui-eval', objectiveId, '--raw'], { cwd: root });
+
+    assert.strictEqual(parsed.resolution, 'resolved', 'an objective id with a manifest must resolve');
+    assert.strictEqual(typeof parsed.verdict, 'string', 'a resolved target must carry a real scoreRun verdict');
+    assert.strictEqual(parsed.verdict, 'pass', 'sanity: this fixture is built to score clean');
+    assert.strictEqual(status, 0, 'a clean pass must exit 0');
+  });
+
+  // Case V3 -- applicable objective, no manifest anywhere -> absent. Runs and reports; does
+  // not crash, does not silently vanish, and names every location it looked.
+  test('Case V3 -- an applicable objective with no manifest resolves to `absent`, exit 0, searched[] non-empty', () => {
+    const { root, objectiveId } = makeFixtureObjective({ id: '79', slug: 'v3-fixture' });
+
+    const { parsed, status } = runCLI(['verify', 'flutter-ui-eval', objectiveId, '--raw'], { cwd: root });
+
+    assert.strictEqual(parsed.resolution, 'absent');
+    assert.strictEqual(parsed.ok, true, 'absent is ok:true -- never the legacy { error, ok:false } shape');
+    assert.ok(Array.isArray(parsed.searched) && parsed.searched.length > 0, 'searched[] must name every location checked');
+    assert.strictEqual(status, 0, 'an unrun gate is not a judged failure -- must never become a hard CI failure');
+  });
+
+  // Case V5 -- a manifest-shaped file exists but is unparseable -> invalid, distinguishable
+  // from absent (33-01's whole point), exit 0 (an unrun/broken gate is still never a hard
+  // fail at THIS layer -- 33-03 decides routing policy, not this TRD).
+  test('Case V5 -- a broken manifest.json resolves to `invalid` (distinct from absent), exit 0', () => {
+    const { root, objectiveId } = makeFixtureObjective({
+      id: '80',
+      slug: 'v5-fixture',
+      manifestRaw: '{ this is not valid JSON',
+    });
+
+    const { parsed, status } = runCLI(['verify', 'flutter-ui-eval', objectiveId, '--raw'], { cwd: root });
+
+    assert.strictEqual(parsed.resolution, 'invalid');
+    assert.strictEqual(parsed.ok, true, 'invalid is ok:true -- never the legacy { error, ok:false } shape');
+    assert.notStrictEqual(parsed.resolution, 'absent', 'a broken file must never read as "nothing here yet"');
+    assert.strictEqual(status, 0);
+  });
+
+  // Case V6 -- a real objective with no type:ui+stack:flutter TRD -> not_applicable, exit 0.
+  // Distinct from X4's "id does not resolve to any directory at all" -- this fixture's
+  // directory EXISTS, it just is not a Flutter UI objective.
+  test('Case V6 -- a non-UI objective resolves to `not_applicable`, exit 0', () => {
+    const { root, objectiveId } = makeFixtureObjective({ id: '81', slug: 'v6-fixture', ui: false });
+
+    const { parsed, status } = runCLI(['verify', 'flutter-ui-eval', objectiveId, '--raw'], { cwd: root });
+
+    assert.strictEqual(parsed.resolution, 'not_applicable');
+    assert.strictEqual(parsed.ok, true);
+    assert.strictEqual(status, 0);
+  });
+
+  // Case D-ID -- the OTHER CLI arm (`flutter-ui eval`, what the verifier workflow actually
+  // invokes per plugins/devflow/agents/verifier.md Step 8c's df-tools.cjs command) resolves
+  // an objective id too. Reuses V2's exact fixture shape so the assertion is "both arms
+  // reach the SAME handler with the SAME result", not a second independent behavior.
+  test('Case D-ID -- `flutter-ui eval <objective-id>` resolves too (same handler, the arm the workflow uses)', () => {
+    const { root, objectiveId } = makeFixtureObjective({
+      id: '82',
+      slug: 'd-id-fixture',
+      manifestJSON: buildManifestJSON({ states: [cleanState('only-good')] }),
+      labelsJSON: buildLabelsJSON([['only-good', false]]),
+    });
+
+    const { parsed, status } = runCLI(['flutter-ui', 'eval', objectiveId, '--raw'], { cwd: root });
+
+    assert.strictEqual(parsed.resolution, 'resolved', '`flutter-ui eval` must route to the same resolveUIEvalTarget-backed handler');
+    assert.strictEqual(parsed.verdict, 'pass');
+    assert.strictEqual(status, 0);
   });
 
 });
