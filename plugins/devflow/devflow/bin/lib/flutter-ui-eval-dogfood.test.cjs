@@ -278,3 +278,71 @@ test.describe('Case A1 — a manifest state keyed `id` is attributable by name (
     assert.deepStrictEqual(rollup.unjudged, ['mislabeled-state']);
   });
 });
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Case G1-G5 (aodex#485 defect 3, 32-03) — judge selection is explicit, and the
+// rollup declares its own STANDING via a new `gate` field: 'binding' only on the
+// live path, 'advisory' everywhere else. Only a `binding` pass may retire a
+// surface from human verification (verifier.md Step 8c, wired outside this file).
+//
+// G3 is deliberately run with ANTHROPIC_API_KEY/ANTHROPIC_AUTH_TOKEN/ANTHROPIC_BASE_URL
+// stripped from the child env — a credential-less live run downgrades every state to
+// 'review' (verified during planning), but `gate` reads the CALLER'S request ('live'),
+// not the run's outcome. Zero network cost, zero credential dependency, fully deterministic.
+// ──────────────────────────────────────────────────────────────────────────────
+
+test.describe('Case G1-G5 — judge selection is explicit; the rollup declares its own gate standing (32-03)', () => {
+
+  test('Case G1 — default invocation (no --judge) declares gate:"advisory"; still network:false + offline judge', () => {
+    const rollup = runJSON(`verify flutter-ui-eval ${MANIFEST}`);
+    assert.strictEqual(rollup.gate, 'advisory', 'a labels lookup must not present itself as a gate');
+    assert.strictEqual(rollup.network, false);
+    assert.strictEqual(rollup.judge, 'offline-label-echo');
+  });
+
+  test('Case G2 — --judge labels selects the offline path explicitly: same rollup shape, gate:"advisory"', () => {
+    const rollup = runJSON(`verify flutter-ui-eval ${MANIFEST} --judge labels`);
+    assert.strictEqual(rollup.gate, 'advisory');
+    assert.strictEqual(rollup.network, false);
+    assert.strictEqual(rollup.judge, 'offline-label-echo');
+  });
+
+  test('Case G3 — --judge live declares gate:"binding" (the run\'s STANDING, asserted credential-less)', () => {
+    // Strip credentials so this test cannot make a real network call even if a developer
+    // has ANTHROPIC_API_KEY exported in their shell — the whole point of this case is that
+    // it is free, deterministic, and CI-safe.
+    const strippedEnv = { ...process.env };
+    delete strippedEnv.ANTHROPIC_API_KEY;
+    delete strippedEnv.ANTHROPIC_AUTH_TOKEN;
+    delete strippedEnv.ANTHROPIC_BASE_URL;
+    const out = execSync(`node ${DF_TOOLS} verify flutter-ui-eval ${MANIFEST} --judge live --raw`,
+      { encoding: 'utf-8', env: strippedEnv });
+    const rollup = JSON.parse(out);
+    // Every state downgrades to 'review' with no credential (verified during planning) —
+    // but `gate` must still read 'binding': the caller asked for the live path, and gate is
+    // the run's standing, not its outcome.
+    assert.strictEqual(rollup.gate, 'binding', 'gate reflects the requested path, not the credential-less outcome');
+    assert.strictEqual(rollup.network, true);
+    assert.strictEqual(rollup.judge, 'live-vision');
+    assert.strictEqual(rollup.verdict, 'fail', 'credential-less: 2 reviews > flakeBudget 1 on this 2-state fixture');
+  });
+
+  test('Case G4 — an unrecognised --judge value is rejected with a usage error, not a silent offline fallthrough', () => {
+    assert.throws(() => {
+      execSync(`node ${DF_TOOLS} verify flutter-ui-eval ${MANIFEST} --judge nonsense --raw`, { encoding: 'utf-8' });
+    }, (err) => {
+      assert.ok(err.status && err.status !== 0, `expected a non-zero exit for an unrecognised --judge value, got ${err.status}`);
+      const stderr = err.stderr || '';
+      assert.match(stderr, /--judge/, `usage error should mention --judge, got: ${stderr}`);
+      assert.match(stderr, /live|labels/i, `usage error should name the valid values, got: ${stderr}`);
+      return true;
+    });
+  });
+
+  test('Case G5 — --help usage text states the default is advisory and the gate requires --judge live', () => {
+    const out = runRaw('verify flutter-ui-eval --help');
+    assert.match(out, /advisory/i, '--help must state the default is advisory');
+    assert.match(out, /--judge live/, '--help must name --judge live as the path to a binding gate');
+    assert.match(out, /binding/i, '--help must state that the binding gate is opt-in');
+  });
+});
