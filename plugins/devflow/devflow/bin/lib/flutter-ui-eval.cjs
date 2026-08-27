@@ -28,8 +28,10 @@
 const fs = require('fs');
 const path = require('path');
 // `output` is used by the df-tools handler wired in TRD-02; TRD-01's pure fns return values.
+// `error` (32-03) rejects an unrecognised --judge value with a usage error (stderr + exit 1)
+// rather than letting it silently fall through to the offline path.
 // eslint-disable-next-line no-unused-vars
-const { output } = require('./helpers.cjs');
+const { output, error } = require('./helpers.cjs');
 
 // ─── Contract enums ──────────────────────────────────────────────────────────
 
@@ -607,11 +609,27 @@ function cmdVerifyFlutterUIEval(cwd, args, raw) {
 
   if (!manifestArg || list.includes('--help')) {
     output({
-      usage: 'verify flutter-ui-eval <manifest|captureResults> [--raw] [--judge live] [--samples N]',
-      description: 'Score a UI visual-eval manifest. Default: offline label-echo judge (deterministic, NO network). --judge live runs the REAL Anthropic vision judge (needs ANTHROPIC_API_KEY, or ANTHROPIC_AUTH_TOKEN+ANTHROPIC_BASE_URL) N times/state → real N-sample voting (flake) + per-page token cost.',
+      usage: 'verify flutter-ui-eval <manifest|captureResults> [--raw] [--judge live|labels] [--samples N]',
+      description: 'Score a UI visual-eval manifest. Default (no --judge, or --judge labels): offline label-echo judge (deterministic, NO network) — this is an ADVISORY labels lookup, not a visual gate; its rollup carries gate:"advisory" and CANNOT clear a surface from human verification. --judge live runs the REAL Anthropic vision judge (needs ANTHROPIC_API_KEY, or ANTHROPIC_AUTH_TOKEN+ANTHROPIC_BASE_URL) N times/state -> real N-sample voting (flake) + per-page token cost; its rollup carries gate:"binding" — the ONLY standing that may retire a surface from human verification. An unrecognised --judge value is rejected with a usage error.',
       ok: true,
     }, raw);
     return;
+  }
+
+  // aodex#485 defect 3: judge selection is explicit, never a silent fallthrough. Absent
+  // --judge means 'labels' (the pre-existing default path, unchanged in behaviour) — but the
+  // VALUE must always be one of the two recognised modes, so a typo can never be misread as
+  // "run the offline path" when the caller actually meant to ask for the live gate.
+  const judgeIdx = list.indexOf('--judge');
+  const judgeArg = judgeIdx >= 0 ? list[judgeIdx + 1] : undefined;
+  let judgeMode;
+  if (judgeArg === undefined) {
+    judgeMode = 'labels';
+  } else if (judgeArg === 'live' || judgeArg === 'labels') {
+    judgeMode = judgeArg;
+  } else {
+    error(`unrecognised --judge value '${judgeArg}' — expected 'live' or 'labels' (bare invocation defaults to 'labels'); refusing to silently fall through to the offline path`);
+    return; // unreachable — error() calls process.exit(1); kept for readability/testability
   }
 
   const absManifest = path.isAbsolute(manifestArg) ? manifestArg : path.join(cwd, manifestArg);
@@ -634,7 +652,13 @@ function cmdVerifyFlutterUIEval(cwd, args, raw) {
   // aodex#485: default 'review' keeps a fully-labelled manifest byte-identical to pre-fix
   // behaviour; a consumer (e.g. CI) can opt into 'fail' via the manifest to hard-gate.
   const unjudgedPolicy = manifest.unjudgedPolicy === 'fail' ? 'fail' : 'review';
-  const liveJudge = list.indexOf('--judge') >= 0 && list[list.indexOf('--judge') + 1] === 'live';
+  const liveJudge = judgeMode === 'live';
+  // `gate` is the run's STANDING — what authority its verdict carries — not its outcome.
+  // Only 'binding' (the live path) may retire a surface from human verification; 'advisory'
+  // (the default/labels path) is a labels lookup and must never claim that authority, even
+  // on a clean pass. See verifier.md Step 8c and OBJECTIVE.md "Decision: what the default
+  // judge does" for the full reasoning (aodex#485 defect 3).
+  const gate = liveJudge ? 'binding' : 'advisory';
   const sIdx = list.indexOf('--samples');
   const nSamples = sIdx >= 0 ? Math.max(1, parseInt(list[sIdx + 1], 10) || samples) : samples;
 
@@ -758,6 +782,10 @@ function cmdVerifyFlutterUIEval(cwd, args, raw) {
     manifest_path: absManifest,
     network: liveJudge,                                  // true only on the live path
     judge: liveJudge ? 'live-vision' : 'offline-label-echo',
+    // aodex#485 defect 3: the run's STANDING, distinct from `judge`/`network` (what ran /
+    // did it touch the network). 'binding' ONLY on --judge live; 'advisory' otherwise —
+    // regardless of this run's verdict. See verifier.md Step 8c for the consuming rule.
+    gate,
     model: liveJudge ? liveModel : undefined,
     samples: liveJudge ? nSamples : samples,
     flakeBudget,
