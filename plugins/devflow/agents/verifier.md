@@ -553,13 +553,15 @@ Machine-judge visual correctness of every captured Flutter UI surface BEFORE esc
 UI_EVAL=$(node ~/.claude/devflow/bin/df-tools.cjs verify flutter-ui-eval "$OBJECTIVE" --raw)
 ```
 
-Rollup shape: `{ verdict: 'pass'|'pass-with-reviews'|'fail', counts, reviews[], fails[], states[] }` from the OFFLINE label-echo judge (network:false). Each `states[]` entry: `{ state_id, verdict: 'pass'|'review'|'fail', is_broken, defects[], errors[] }`.
+Rollup shape: `{ verdict: 'pass'|'pass-with-reviews'|'fail', gate: 'binding'|'advisory', counts, reviews[], fails[], unjudged[], states[] }`. `gate` is the run's STANDING — what authority its verdict carries, independent of outcome. `gate: 'binding'` ONLY when the engine ran with `--judge live` (a real vision comparison per state). `gate: 'advisory'` on the default invocation (no `--judge`, or `--judge labels`) — the offline label-echo judge (network:false), which is a labels LOOKUP, not a visual gate, and must never be treated as one regardless of how clean its verdict is. Each `states[]` entry: `{ state_id, verdict: 'pass'|'review'|'fail', is_broken, defects[], errors[], evidence: 'vision'|'label' }`.
 
 **Route per verdict (the load-bearing contract):**
 
 - Any state in `fails[]` (verdict `fail`) → append a `gaps:` entry: the defect type/severity + the screenshot evidence path under `.planning/objectives/<obj>/evidence/ui_eval/<state_id>.png`.
 - `verdict: pass-with-reviews` OR any state in `reviews[]` → append `notes:` entries + a partial section; that surface STAYS on the Step 9 human-verification list.
-- `verdict: pass` (no fails, no reviews) → REMOVE that surface from the Step 9 `human_verification:` list. This is the payoff: machine-judged visual correctness drops off the human queue.
+- Any state in `unjudged[]` (aodex#485 — nothing examined it, distinct from a genuine judge disagreement) → append a `notes:` entry naming it as never judged; that surface STAYS on the Step 9 human-verification list regardless of `gate` or the run's overall verdict.
+- `gate: 'binding'` AND `verdict: pass` (no fails, no reviews, no unjudged) → REMOVE that surface from the Step 9 `human_verification:` list. **This is the ONLY route that may retire a human visual check.** The payoff — machine-judged visual correctness drops off the human queue — requires a binding gate; an offline pass alone never earns it.
+- `gate: 'advisory'` → NEVER removes a surface from the Step 9 list, whatever the verdict. Even a clean `verdict: pass` on the default (offline label-echo) path is a labels lookup, not a machine judgment of the pixels — append a `notes:` entry (e.g. "advisory pass — offline label-echo judge, not machine-verified against a binding gate") and leave the surface queued for human visual verification.
 
 **On `{ error: ... }` (no manifest found / invalid):** record `? SKIPPED (no ui-eval manifest)` and fall through to Step 9 unchanged. NEVER a hard fail.
 
@@ -619,7 +621,7 @@ For non-Flutter objectives: skip this subroutine.
 ## Step 9: Identify Human Verification Needs
 
 Items that pass functional verification (Step 8a web or 8b Flutter/Maestro) can be removed from the human verification list. Only flag items that:
-- **Surfaces that Step 8c scored `pass` are visual-correctness-verified by the machine judge and MUST NOT appear in this human-verification list.** Only Step 8c `review`/SKIPPED surfaces escalate here for visual UX.
+- **Surfaces that Step 8c scored `pass` UNDER `gate: 'binding'` (a real `--judge live` comparison) are visual-correctness-verified by the machine judge and MUST NOT appear in this human-verification list.** A `pass` under `gate: 'advisory'` (the default offline label-echo path) is a labels lookup, not a machine judgment — it STAYS on this list. Step 8c `review`/`unjudged`/SKIPPED surfaces also escalate here for visual UX.
 - Cannot be verified via automation (performance feel, accessibility nuance, animation smoothness, haptics)
 - Failed automated verification in a way that needs human judgment
 - Involve external service integration (Stripe checkout, email delivery, push notifications)
