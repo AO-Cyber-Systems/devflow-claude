@@ -92,12 +92,37 @@ function validateJudgeResult(obj) {
   if (!Array.isArray(obj.defects)) {
     errors.push('field defects must be an array');
   }
-  if (typeof obj.matches_expected !== 'boolean') {
-    errors.push('field matches_expected must be a boolean');
+
+  // Evidence-aware scoring-field requirements (32-02, aodex#485 defect 2: the offline
+  // judge used to fabricate confidence:0.99/matches_expected for a comparison it never
+  // performed). Branch on `obj.evidence`:
+  //   'vision' -> a real comparison happened -> confidence/matches_expected REQUIRED
+  //   'label'  -> a label lookup, not a comparison -> confidence/matches_expected FORBIDDEN
+  //   absent   -> legacy shape (pre-32-02 callers) -> byte-for-byte original behaviour
+  if (obj.evidence === 'vision') {
+    if (typeof obj.matches_expected !== 'boolean') {
+      errors.push('field matches_expected must be a boolean');
+    }
+    if (typeof obj.confidence !== 'number') {
+      errors.push('field confidence must be a number');
+    }
+  } else if (obj.evidence === 'label') {
+    if ('matches_expected' in obj) {
+      errors.push('field matches_expected must be absent for evidence:"label" (no comparison was performed)');
+    }
+    if ('confidence' in obj) {
+      errors.push('field confidence must be absent for evidence:"label" (no comparison was performed)');
+    }
+  } else {
+    // Legacy path (no evidence field) — byte-for-byte the pre-32-02 required-field rules.
+    if (typeof obj.matches_expected !== 'boolean') {
+      errors.push('field matches_expected must be a boolean');
+    }
+    if (typeof obj.confidence !== 'number') {
+      errors.push('field confidence must be a number');
+    }
   }
-  if (typeof obj.confidence !== 'number') {
-    errors.push('field confidence must be a number');
-  }
+
   if (typeof obj.samples !== 'number') {
     errors.push('field samples must be a number');
   }
@@ -383,8 +408,10 @@ function makeOfflineLabelEchoJudge(labels, samples) {
       state_id: request.state_id,
       is_broken: broken,
       defects,
-      matches_expected: !broken,
-      confidence: 0.99,
+      // 32-02 (aodex#485 defect 2): a label lookup is not a perceptual comparison — no
+      // confidence/matches_expected. `evidence: 'label'` states the basis instead of
+      // fabricating a score for a comparison this judge never performed.
+      evidence: 'label',
       samples,
       votes: broken ? { broken: samples, ok: 0 } : { broken: 0, ok: samples },
     };
@@ -502,6 +529,9 @@ function parseVisionResponse(apiBody, request) {
     defects: Array.isArray(p.defects) ? p.defects : [],
     matches_expected: p.matches_expected === true,
     confidence: typeof p.confidence === 'number' ? p.confidence : 0,
+    // 32-02: tag every live result here (not at the call site) so it is tagged regardless
+    // of caller — a real comparison happened, so confidence/matches_expected are earned.
+    evidence: 'vision',
     samples: 1, // ONE call = one sample; N-sample voting is the engine's job (aggregateVotes)
     votes: is_broken ? { broken: 1, ok: 0 } : { broken: 0, ok: 1 },
   };
