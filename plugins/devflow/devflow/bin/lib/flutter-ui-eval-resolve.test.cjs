@@ -17,7 +17,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const { resolveUIEvalTarget } = require('./flutter-ui-eval-resolve.cjs');
+const { resolveUIEvalTarget, classifyUIEvalOutcome } = require('./flutter-ui-eval-resolve.cjs');
 
 // ─── Fixture builder (hand-built factory, CLAUDE.md habit 4 — no generated data) ──────
 //
@@ -351,6 +351,101 @@ test('Case M8 — manifest is present on every resolved result and undefined on 
   const naResult = resolveUIEvalTarget(naTree.cwd, '33');
   assert.strictEqual(naResult.resolution, 'not_applicable');
   assert.strictEqual(naResult.manifest, undefined, 'not_applicable must NOT carry a manifest field');
+});
+
+// ─── classifyUIEvalOutcome — the pure routing policy (TRD 33-03) ─────────────
+//
+// resolveUIEvalTarget answers "what did we find"; classifyUIEvalOutcome answers "what does
+// that mean". Pure function, plain object in, plain object out, never throws (mirrors
+// decideUIEvalDefault's house style in flutter-ui-eval-planner-default.cjs).
+//
+// Start with C2 — the objective's central product decision ('absent' is MISSING, not a
+// silent skip and not a gap) — before the other five routes.
+
+test('Case C2 — absent + visual_gate:false -> missing, keeps human verification, NOT skip, NOT gap', () => {
+  const result = classifyUIEvalOutcome({
+    resolution: 'absent',
+    visual_gate: false,
+    searched: ['/a/evidence/ui_eval/manifest.json', '/a/ui_eval/manifests/*.manifest.json'],
+    objective_dir: '33-fixture',
+  });
+
+  assert.strictEqual(result.route, 'missing');
+  assert.notStrictEqual(result.route, 'skip', "'absent' must never be a silent skip — that is this objective's central bug");
+  assert.notStrictEqual(result.route, 'gap', "'absent' without the ratchet must not gap the backlog");
+  assert.strictEqual(result.keeps_human_verification, true);
+  assert.strictEqual(result.silent, false);
+  assert.ok(typeof result.note === 'string' && result.note.length > 0, 'must carry a note naming the searched locations');
+  assert.ok(typeof result.todo === 'string' && result.todo.length > 0, 'must carry a todo to author the manifest');
+});
+
+test('Case C1 — not_applicable -> skip, silent, no VERIFICATION.md entry', () => {
+  const result = classifyUIEvalOutcome({ resolution: 'not_applicable' });
+
+  assert.strictEqual(result.route, 'skip');
+  assert.strictEqual(result.silent, true, 'not_applicable is the ONLY silent route');
+  assert.strictEqual(result.keeps_human_verification, false);
+});
+
+test('Case C3 — absent + visual_gate:true -> gap (the ratchet)', () => {
+  const result = classifyUIEvalOutcome({
+    resolution: 'absent',
+    visual_gate: true,
+    searched: ['/a/evidence/ui_eval/manifest.json'],
+    objective_dir: '33-fixture',
+  });
+
+  assert.strictEqual(result.route, 'gap');
+  assert.strictEqual(result.silent, false);
+  assert.strictEqual(result.keeps_human_verification, true);
+  assert.ok(typeof result.gap === 'string' && result.gap.length > 0);
+});
+
+test('Case C4 — invalid -> gap, carries reason, distinguishable from absent (C2)', () => {
+  const result = classifyUIEvalOutcome({ resolution: 'invalid', reason: 'Unexpected token in JSON' });
+
+  assert.strictEqual(result.route, 'gap');
+  assert.strictEqual(result.silent, false);
+  assert.strictEqual(result.keeps_human_verification, true);
+  assert.ok(result.gap.includes('Unexpected token in JSON'), 'the parse reason must be carried into the gap text');
+
+  // The distinguishability assertion this case exists for: invalid's route ('gap') must
+  // differ from an UNGATED absent's route ('missing') — invalid and absent must never be
+  // indistinguishable (the defect this objective closes one layer down).
+  const absentResult = classifyUIEvalOutcome({ resolution: 'absent', visual_gate: false, searched: [] });
+  assert.notStrictEqual(result.route, absentResult.route, "'invalid' and 'absent' (no ratchet) must route differently");
+});
+
+test('Case C5 — resolved -> score, and the policy adds nothing else', () => {
+  const result = classifyUIEvalOutcome({ resolution: 'resolved' });
+
+  assert.strictEqual(result.route, 'score');
+  assert.strictEqual(result.silent, false);
+  assert.strictEqual(result.keeps_human_verification, true);
+  assert.strictEqual(result.note, undefined, 'score must not add a note — scoring semantics belong to objective 32');
+  assert.strictEqual(result.gap, undefined, 'score must not add a gap — that is decided downstream by the verdict rules');
+  assert.strictEqual(result.todo, undefined);
+});
+
+test('Case C6 — garbage/unknown resolution -> missing (failsafe), never a throw', () => {
+  let result;
+  assert.doesNotThrow(() => {
+    result = classifyUIEvalOutcome({ resolution: 'some-future-status-nobody-invented-yet' });
+  });
+  assert.strictEqual(result.route, 'missing');
+  assert.strictEqual(result.keeps_human_verification, true);
+
+  let undefinedResult;
+  assert.doesNotThrow(() => {
+    undefinedResult = classifyUIEvalOutcome(undefined);
+  });
+  assert.strictEqual(undefinedResult.route, 'missing');
+
+  let nullResult;
+  assert.doesNotThrow(() => {
+    nullResult = classifyUIEvalOutcome(null);
+  });
+  assert.strictEqual(nullResult.route, 'missing');
 });
 
 // ─── Regression guard (must stay green) ───────────────────────────────────────
