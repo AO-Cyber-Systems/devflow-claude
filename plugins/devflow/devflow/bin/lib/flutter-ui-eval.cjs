@@ -651,6 +651,22 @@ function cmdVerifyFlutterUIEval(cwd, args, raw) {
   let liveModel = null;
 
   for (const st of manifest.states) {
+    // 32-02 (A1): resolve the state's id, preferring the canonical `state_id` key. Fall
+    // back to `st.id` (the shape buildManifestStub used to emit, pre-32-02) ONLY when
+    // `state_id` is absent — and NEVER silently: an advisory records that the manifest
+    // used a non-canonical key, so the shape mismatch stays visible rather than becoming
+    // a permanent, invisible second-accepted-shape. Without this, an unnameable state
+    // (`state_id: undefined`) rolls up as `null` in reviews[]/unjudged[] — a finding
+    // nobody can act on.
+    const idAdvisories = [];
+    let stateId = st.state_id;
+    if (stateId === undefined && st.id !== undefined) {
+      stateId = st.id;
+      idAdvisories.push(
+        `manifest state used non-canonical key 'id' (value: '${st.id}') instead of 'state_id' — resolved via fallback`,
+      );
+    }
+
     // Load the Shape-B capture for this state (relative to the manifest dir).
     let capture = null;
     if (st.capture_path) {
@@ -660,7 +676,7 @@ function cmdVerifyFlutterUIEval(cwd, args, raw) {
       if (fs.existsSync(capPath)) capture = JSON.parse(fs.readFileSync(capPath, 'utf-8'));
     }
     if (!capture) {
-      capture = { state_id: st.state_id, surface: st.surface, screenshot_path: st.screenshot_path, metadata: { expected: st.expected } };
+      capture = { state_id: stateId, surface: st.surface, screenshot_path: st.screenshot_path, metadata: { expected: st.expected } };
     }
 
     if (liveJudge) {
@@ -668,7 +684,7 @@ function cmdVerifyFlutterUIEval(cwd, args, raw) {
       // per-page token cost. A refusal / credential / network error downgrades the state to review.
       const sp = (capture && capture.screenshot_path) || st.screenshot_path;
       const screenshot_path = sp && !path.isAbsolute(sp) ? path.join(manifestDir, sp) : sp;
-      const request = { state_id: st.state_id, surface: st.surface, screenshot_path, expected: st.expected, defect_types: DEFECT_TYPES, severities: SEVERITIES };
+      const request = { state_id: stateId, surface: st.surface, screenshot_path, expected: st.expected, defect_types: DEFECT_TYPES, severities: SEVERITIES };
       const liveSamples = [];
       let liveErr = null;
       for (let i = 0; i < nSamples; i++) {
@@ -680,21 +696,25 @@ function cmdVerifyFlutterUIEval(cwd, args, raw) {
         } catch (e) { liveErr = e.message; break; }
       }
       if (liveErr || liveSamples.length === 0) {
-        stateResults.push({ state_id: st.state_id, verdict: 'review', advisories: [liveErr || 'no live samples'], expect: st.expect });
-        stateDetail.push({ state_id: st.state_id, verdict: 'review', is_broken: null, defects: [], errors: [liveErr || 'no live samples'] });
+        stateResults.push({ state_id: stateId, verdict: 'review', advisories: [...idAdvisories, liveErr || 'no live samples'], expect: st.expect });
+        stateDetail.push({ state_id: stateId, verdict: 'review', is_broken: null, defects: [], errors: [...idAdvisories, liveErr || 'no live samples'] });
         continue;
       }
       const agg = aggregateVotes(liveSamples);
       const stateScore = scoreState({ samples: liveSamples });
-      stateResults.push({ state_id: st.state_id, verdict: stateScore.verdict, advisories: stateScore.advisories, expect: st.expect });
+      stateResults.push({ state_id: stateId, verdict: stateScore.verdict, advisories: [...idAdvisories, ...stateScore.advisories], expect: st.expect });
       stateDetail.push({
-        state_id: st.state_id,
+        state_id: stateId,
         verdict: stateScore.verdict,
         is_broken: agg.is_broken,
         flake: agg.split === true || agg.tie === true, // the N samples disagreed → flaky judgment
         votes: agg.votes,
         defects: liveSamples.flatMap(s => s.defects || []),
-        advisories: stateScore.advisories,
+        // Every live sample is tagged evidence:'vision' by parseVisionResponse; the
+        // rollup surfaces the same tag so a consumer never has to cross-reference the
+        // run-level `judge` field to know a real comparison happened for THIS state.
+        evidence: 'vision',
+        advisories: [...idAdvisories, ...stateScore.advisories],
       });
       continue;
     }
@@ -707,24 +727,28 @@ function cmdVerifyFlutterUIEval(cwd, args, raw) {
       // `unjudged: true` so scoreRun buckets it separately from a genuine judge-disagreement
       // review, and named explicitly in the advisory so the reason is never mistaken for a
       // malformed-payload validation error.
-      stateResults.push({ state_id: st.state_id, verdict: 'review', advisories: judged.errors, expect: st.expect, unjudged: true });
-      stateDetail.push({ state_id: st.state_id, verdict: 'review', is_broken: null, defects: [], errors: judged.errors, advisories: judged.errors, unjudged: true });
+      stateResults.push({ state_id: stateId, verdict: 'review', advisories: [...idAdvisories, ...judged.errors], expect: st.expect, unjudged: true });
+      stateDetail.push({ state_id: stateId, verdict: 'review', is_broken: null, defects: [], errors: judged.errors, advisories: [...idAdvisories, ...judged.errors], unjudged: true });
       continue;
     }
     if (!judged.valid) {
-      stateResults.push({ state_id: st.state_id, verdict: 'review', advisories: judged.errors, expect: st.expect });
-      stateDetail.push({ state_id: st.state_id, verdict: 'review', is_broken: null, defects: [], errors: judged.errors });
+      stateResults.push({ state_id: stateId, verdict: 'review', advisories: [...idAdvisories, ...judged.errors], expect: st.expect });
+      stateDetail.push({ state_id: stateId, verdict: 'review', is_broken: null, defects: [], errors: judged.errors, advisories: idAdvisories });
       continue;
     }
     const sampleSet = Array.from({ length: samples }, () => judged.result);
     const stateScore = scoreState({ samples: sampleSet });
-    stateResults.push({ state_id: st.state_id, verdict: stateScore.verdict, advisories: stateScore.advisories, expect: st.expect });
+    stateResults.push({ state_id: stateId, verdict: stateScore.verdict, advisories: [...idAdvisories, ...stateScore.advisories], expect: st.expect });
     stateDetail.push({
-      state_id: st.state_id,
+      state_id: stateId,
       verdict: stateScore.verdict,
       is_broken: judged.result.is_broken,
       defects: judged.result.defects,
-      advisories: stateScore.advisories,
+      // 32-02: surface the judge result's own evidence tag ('label' on this default
+      // offline path) so a consumer reading ONE state's detail can see the basis of its
+      // verdict without cross-referencing the run-level `judge` field.
+      evidence: judged.result.evidence,
+      advisories: [...idAdvisories, ...stateScore.advisories],
     });
   }
 
