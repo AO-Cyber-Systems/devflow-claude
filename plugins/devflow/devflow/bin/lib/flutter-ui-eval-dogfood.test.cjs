@@ -507,13 +507,25 @@ test.describe('Case X1-X4 — a failing run exits non-zero (32-04)', () => {
   });
 
   test('Case X4 — a not-found manifest path exits 0 (verifier.md Step 8c: SKIPPED, never a hard fail)', () => {
+    // Objective 33-02, disclosed deviation: this case ORIGINALLY asserted the legacy
+    // collapsed-error payload (`parsed.error === 'manifest/captureResults not found'`) as
+    // correct behaviour. That payload IS the defect objective 33 exists to close — Step 8c
+    // silently reads any `{ error }` shape as SKIPPED, which is how the visual gate went
+    // unreachable for months (aodex#485 defect 5). The behaviour this case actually cares
+    // about — a not-found target must never become a hard CI failure — is unchanged and
+    // still asserted below via `result.status === 0`; only the SHAPE of the non-scoring
+    // payload changed, from an unnamed `{ error, ok:false }` to a named
+    // `{ resolution:'not_applicable', ok:true }` (33-01's resolveUIEvalTarget). Nothing
+    // about "never a hard fail" was weakened — the payload that used to prove it was itself
+    // the bug.
     const result = spawnSync(
       'node',
       [DF_TOOLS, 'verify', 'flutter-ui-eval', '/nonexistent/32-04-manifest.json', '--raw'],
       { encoding: 'utf-8' },
     );
     const parsed = JSON.parse(result.stdout);
-    assert.strictEqual(parsed.error, 'manifest/captureResults not found', 'sanity: the error path was reached');
+    assert.strictEqual(parsed.resolution, 'not_applicable', 'sanity: the non-scoring path was reached');
+    assert.strictEqual(parsed.ok, true, 'a non-scoring resolution is ok:true, not the legacy ok:false { error }');
     assert.strictEqual(result.status, 0,
       'a missing manifest must never become a hard CI failure — verifier.md Step 8c routes this to SKIPPED, not a crash');
   });

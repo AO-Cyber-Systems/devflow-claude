@@ -666,19 +666,41 @@ function cmdVerifyFlutterUIEval(cwd, args, raw) {
     return; // unreachable — error() calls process.exit(1); kept for readability/testability
   }
 
-  const absManifest = path.isAbsolute(manifestArg) ? manifestArg : path.join(cwd, manifestArg);
-  if (!fs.existsSync(absManifest)) {
-    output({ error: 'manifest/captureResults not found', path: manifestArg, ok: false }, raw);
+  // aodex#485 defect 5 / objective 33: the argument may be an objective id (the shape
+  // verifier.md Step 8c's prose has always passed) OR a manifest/captureResults path (the
+  // shape every pre-33 caller — PR #68, objective 32's four TRDs — has always passed).
+  // ONE implementation resolves both: 33-01's resolveUIEvalTarget. Do not re-implement
+  // fs.existsSync/path.join resolution here — that duplication is exactly how Step 8c's
+  // invocation went unreachable for months.
+  const { resolveUIEvalTarget } = require('./flutter-ui-eval-resolve.cjs');
+  const target = resolveUIEvalTarget(cwd, manifestArg);
+
+  if (target.resolution !== 'resolved') {
+    // not_applicable | absent | invalid — named, ok:true, exit 0. NEVER `{ error }`.
+    // CRITICAL: ok:true here (not ok:false) — `{ ok:false }` is how Step 8c currently
+    // decides something errored; these three outcomes must be routed APART by 33-03, not
+    // flattened into one SKIPPED branch under a new field name. Only a missing argument
+    // (above, the --help/usage branch) stays `ok:false`.
+    // CRITICAL: process.exitCode stays 0 (the function returns before outputRollup, whose
+    // verdict-based exit-code logic never runs) — an unrun gate is not a judged failure.
+    // `status`/`not_applicable` vocabulary matches flutter-state-coverage.cjs:240.
+    output({
+      resolution: target.resolution,
+      reason: target.reason,
+      objective_dir: target.objective_dir,
+      manifest_path: target.manifest_path,
+      searched: target.searched,
+      ui_trds: target.ui_trds,
+      visual_gate: target.visual_gate,
+      ok: true,
+    }, raw);
     return;
   }
 
-  let manifest;
-  try {
-    manifest = loadManifest(absManifest);
-  } catch (e) {
-    output({ error: 'invalid manifest: ' + e.message, path: absManifest, ok: false }, raw);
-    return;
-  }
+  const absManifest = target.manifest_path;
+  const manifest = target.manifest; // 33-01 Case M8: present on EVERY resolved result —
+  // do NOT re-read/re-parse the file here; that would duplicate the resolver's own work
+  // and re-create the drift this objective closes.
 
   const manifestDir = path.dirname(absManifest);
   const samples = typeof manifest.samples === 'number' ? manifest.samples : 3;
@@ -814,6 +836,11 @@ function cmdVerifyFlutterUIEval(cwd, args, raw) {
 
   // 32-04: the process's own exit code now reflects the verdict — see outputRollup() above.
   outputRollup({
+    // objective 33: names the SAME outcome the non-scoring branch above names via
+    // `resolution` — a caller can switch on one field regardless of which branch ran.
+    // NOT to be confused with `resolved` below (an existing, unrelated field: the list of
+    // expect:fail states that now pass).
+    resolution: 'resolved',
     manifest_path: absManifest,
     network: liveJudge,                                  // true only on the live path
     judge: liveJudge ? 'live-vision' : 'offline-label-echo',
