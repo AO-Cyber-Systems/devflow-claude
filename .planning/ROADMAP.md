@@ -163,3 +163,21 @@ Jobs:
 
 Evidence: 2839 tests / 2780 pass / 9 fail — same pre-existing daemon/timing failures. 42 tests added, 0 regressions.
 **Caveat:** hooks run from the plugin cache, so 27–30 take effect only after a version bump + `sync-runtime`. Re-run `session-audit --since <release>` then — that comparison is the real verdict.
+
+
+### Objective 32: Visual-eval default path tells the truth
+
+**Goal:** The default `df-tools verify flutter-ui-eval` invocation stops reporting green for states nothing judged. A `state_id` absent from `labels.json` must resolve to review or fail — never pass — and the offline path must stop emitting a fabricated `confidence` for a comparison it never performed.
+**Depends on:** PR #68 (`feat/ui-visual-eval`) — adds the real `--judge live` vision judge this objective builds on. **Branch decision: stack, do not wait.** Work on `fix/ui-eval-default-honesty` cut from `feat/ui-visual-eval` and PR'd back into it, so #68 ships the judge and the honest default path together.
+**Source:** AO-Cyber-Systems/aodex#485 (OPEN). Umbrella: AO-Cyber-Systems/eden-biz#683 (Phase 1).
+**TRDs:** 4 plans in 4 waves (sequential — all four edit `flutter-ui-eval.cjs`)
+
+Why: #485 audited the shipped gate and found `makeOfflineLabelEchoJudge` reads only `state_id` — it never opens `screenshot_path`, never reads `expected`. A missing label defaults to `{ is_broken: false }`. Reported impact: **40 states passing, 34 of which had never been judged by anything.** PR #68 supplies the judge; this objective makes the DEFAULT path honest.
+
+Reproduced during planning against the current tree: an unlabelled state reports `"verdict": "pass"`; a stub-shaped state reports `"reviews": [null]`; and a run scoring `verdict: "fail"` exits 0.
+
+TRDs:
+- [ ] 32-01-TRD.md — Wave 1: a state nothing judged stops reporting pass (#485 defect 1, the headline)
+- [ ] 32-02-TRD.md — Wave 2: offline path stops fabricating confidence; every state nameable (#485 defect 2)
+- [ ] 32-03-TRD.md — Wave 3: judge selection explicit; default declares itself advisory (#485 defect 3)
+- [ ] 32-04-TRD.md — Wave 4: a failing run exits non-zero (found in planning; severable)
