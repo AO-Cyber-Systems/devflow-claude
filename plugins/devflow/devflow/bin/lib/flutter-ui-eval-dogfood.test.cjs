@@ -87,6 +87,18 @@ test.describe('flutter-ui-eval CLI dogfood (UI-VISUAL-EVAL-JUDGE-02)', () => {
     assert.strictEqual(rollup.network, false);
     assert.strictEqual(rollup.judge, 'offline-label-echo');
   });
+
+  test('Case C5 — every state in the rollup carries an evidence basis (offline path -> "label")', () => {
+    // 32-02 (aodex#485 defect 2): a consumer reading a single state's rollup detail must be
+    // able to see what basis the verdict rests on, without also reading the run-level
+    // `judge` field. Every state on the default (offline) path must declare evidence:'label'.
+    const rollup = runJSON(`verify flutter-ui-eval ${MANIFEST}`);
+    assert.ok(Array.isArray(rollup.states) && rollup.states.length > 0, 'rollup has per-state detail');
+    for (const s of rollup.states) {
+      assert.strictEqual(s.evidence, 'label',
+        `state ${s.state_id} must carry evidence:'label' on the offline default path`);
+    }
+  });
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -183,5 +195,86 @@ test.describe('Case U1 — a state absent from labels.json must not report pass 
     const good = rollup.states.find(s => s.state_id === 'good-dashboard');
     assert.ok(good, 'good-dashboard state present in rollup');
     assert.strictEqual(good.verdict, 'pass', 'a labelled state still reports pass');
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Case A1 (32-02) — a manifest state keyed `id` (the shape the planner's own
+// buildManifestStub emits) must be attributable by name in the rollup.
+//
+// Reproduced live against the unmodified engine: a state keyed `id` instead of
+// `state_id` resolves to request.state_id === undefined. The offline judge's label
+// lookup then misses (no label is ever keyed "undefined"), so it falls into the
+// unjudged marker path -- BEFORE the fix, `st.state_id` (undefined) is threaded
+// straight through into stateResults/stateDetail/scoreRun, so `rollup.unjudged`
+// comes back `[null]` (JSON.stringify serializes an array-position `undefined` as
+// `null`) and the per-state detail carries no name at all -- a finding nobody can
+// act on. No `null` may appear in EITHER `reviews[]` or `unjudged[]` after the fix,
+// and the per-state detail must carry a non-null `state_id` plus an advisory
+// naming the non-canonical key.
+// ──────────────────────────────────────────────────────────────────────────────
+
+test.describe('Case A1 — a manifest state keyed `id` is attributable by name (32-02)', () => {
+  let tmpDir;
+
+  test.before(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ui-eval-a1-'));
+
+    // Deliberately empty labels.json — isolates the attribution defect from judging;
+    // this state is ALSO unjudged (no label), same as U1, but the point under test here
+    // is whether it gets a NAME in the rollup, not whether it gets judged.
+    fs.writeFileSync(path.join(tmpDir, 'labels.json'), JSON.stringify({}, null, 2), 'utf-8');
+    fs.copyFileSync(
+      path.join(FIXTURE_DIR, 'good-dashboard.png'),
+      path.join(tmpDir, 'mislabeled-state.png'),
+    );
+
+    fs.writeFileSync(
+      path.join(tmpDir, 'manifest.json'),
+      JSON.stringify({
+        objective: 'UI-VISUAL-EVAL-JUDGE-A1',
+        note: 'Hand-built temp manifest (A1) — one state keyed `id` instead of `state_id`.',
+        samples: 3,
+        flakeBudget: 1,
+        states: [
+          {
+            id: 'mislabeled-state', // NOT state_id — the exact shape buildManifestStub emits
+            route: '/x',
+            data_state: 'populated',
+            expected: 'shows x',
+            screenshot_path: './mislabeled-state.png',
+          },
+        ],
+      }, null, 2),
+      'utf-8',
+    );
+  });
+
+  test.after(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  test('Case A1 — a state keyed `id` is named (no null) in the rollup, with an advisory on the non-canonical key', () => {
+    const manifestPath = path.join(tmpDir, 'manifest.json');
+    const rollup = runJSON(`verify flutter-ui-eval ${manifestPath}`);
+
+    // No null entries in EITHER name-keyed bucket.
+    assert.ok(!rollup.reviews.includes(null), 'reviews[] must contain no null entries');
+    assert.ok(!rollup.unjudged.includes(null), 'unjudged[] must contain no null entries');
+
+    // The state is nameable in the per-state detail.
+    assert.strictEqual(rollup.states.length, 1);
+    const st = rollup.states[0];
+    assert.strictEqual(st.state_id, 'mislabeled-state',
+      'the state must be attributable by name even though the manifest used `id`');
+
+    // An advisory records that the key was non-canonical (the shape mismatch stays visible;
+    // the fallback must NOT be silent).
+    const allAdvisories = [...(st.advisories || []), ...(st.errors || [])];
+    assert.ok(allAdvisories.some(a => /non-canonical|state_id/i.test(a) && /id/.test(a)),
+      `expected an advisory naming the non-canonical key, got: ${JSON.stringify(allAdvisories)}`);
+
+    // And the state IS named in the unjudged[] bucket it lands in (since labels.json is empty).
+    assert.deepStrictEqual(rollup.unjudged, ['mislabeled-state']);
   });
 });
