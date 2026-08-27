@@ -6,6 +6,45 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.6.0] - 2026-08-27
+
+The shipped visual-eval gate did not judge anything, and the one production
+caller never reached it. Objectives 32 and 33, closing
+AO-Cyber-Systems/aodex#485.
+
+> **Upgrade note:** this release exists partly *because* 2.5.0 could not deliver
+> its own successor. The visual-eval fixes were merged to `main` while the
+> manifest still declared `2.5.0` — the same version already in the plugin cache.
+> `sync-runtime` mirrors only when the version differs, and its content sentinel
+> checks that `bin/df-tools.cjs` exists rather than that the mirror matches the
+> source, so a stale-but-present mirror passes. The work was unreachable until
+> this bump. Verify after installing:
+> `grep -c resolveUIEvalTarget ~/.claude/devflow/bin/lib/flutter-ui-eval.cjs`
+> must be non-zero, and `~/.claude/devflow/bin/lib/flutter-ui-eval-resolve.cjs`
+> must exist.
+
+### Fixed
+- **A state nothing judged reported `pass`** — `makeOfflineLabelEchoJudge` defaulted a `state_id` absent from `labels.json` to `{ is_broken: false }`. This is aodex#485's headline defect: 40 states reported passing, 34 of which nothing had ever examined. Unjudged states now resolve to `review` and land in their own `unjudged[]` rollup bucket — deliberately not `reviews[]`, which is flake-budgeted and would have let a single unjudged state roll up clean (obj 32-01)
+- **The offline judge fabricated a score** — it returned `matches_expected` and `confidence: 0.99` for a comparison it never performed, having read only the `state_id`. It now emits neither and tags `evidence: 'label'` instead. `confidence` could not simply be dropped: `validateJudgeResult` required it, so removal would have failed every offline state into `review`. Validation is now evidence-aware — `vision` requires the scoring fields, `label` forbids them, and the legacy no-`evidence` shape keeps its original rules byte-for-byte (obj 32-02)
+- **An offline pass could retire a human visual check** — verifier Step 8c removed a surface from the Step 9 `human_verification:` list on a bare `verdict: pass`, so a labels lookup could cancel the human review that would have caught what it never looked at. Only `gate: 'binding' AND verdict: pass` may now retire a check; `advisory` never does, and `unjudged[]` states stay queued regardless of gate or verdict (obj 32-03)
+- **A failing run exited 0** — a CI step calling the gate saw success no matter what it found. `verdict: fail` now exits 1; `pass`/`pass-with-reviews` exit 0; the not-found/invalid shapes still exit 0 so Step 8c's "never a hard fail" contract holds. Uses `process.exitCode` rather than `process.exit()` so the rollup JSON flushes before exit (obj 32-04)
+- **The gate never ran at all** — verifier Step 8c invoked `verify flutter-ui-eval "$OBJECTIVE"`, passing an objective id where a manifest path was expected. It returned `{ error: 'manifest/captureResults not found' }`, exited 0, and routed to SKIPPED. Every fix above was inert in production until this was corrected (obj 33-02)
+- **`buildManifestStub` emitted the key the engine cannot read** — the planner's stub seeded states keyed `id` while the engine reads `state_id`, so a stub-derived manifest resolved `state_id: undefined` for every state. The hand-built test fixture used `state_id`, matching the engine rather than the generator, which is why the suite never saw it (obj 32-02)
+- **`workflows/ui-eval.md` documented `*.yaml` manifests** — the engine parses JSON and bootstrap writes `*.manifest.json` (obj 33-03)
+
+### Added
+- **`flutter-ui-eval-resolve.cjs`** — `resolveUIEvalTarget(cwd, arg)` accepts a manifest path *or* an objective id and returns one of four honest statuses: `resolved`, `absent`, `invalid`, `not_applicable`. A `.yaml` manifest resolves to `invalid`, never `absent` — "the file is right there but unparseable" and "nothing here" are different facts, and collapsing them is how the original defect stayed invisible (obj 33-01)
+- **`gate: 'binding' | 'advisory'`** on the rollup — the run's standing, independent of its verdict. `binding` only on `--judge live`; the offline default is a labels lookup and says so (obj 32-03)
+- **`evidence: 'vision' | 'label'`** on every judged state, so a consumer reading one state's detail need not cross-reference the run-level `judge` field (obj 32-02)
+- **Four-resolution routing in verifier Step 8c** — `absent` reports `? MISSING` and keeps the surface on the human list; `invalid` raises a `gaps:` entry, because a broken gate is a defect rather than an absence (obj 33-03)
+- **`--judge` value validation** — an unrecognised value is now a usage error instead of a silent fallback to the offline judge (obj 32-03)
+
+### Known limitations
+- **`gate: 'binding'` requires credentials that may not exist.** It needs `--judge live` and `ANTHROPIC_API_KEY` (or `ANTHROPIC_AUTH_TOKEN` + `ANTHROPIC_BASE_URL`). No repository secret is configured on this repo; org-level secrets return HTTP 403 to a non-admin, so their absence cannot be concluded from a developer machine and must be checked from inside a CI run. Until then every run is `advisory` and none can retire a human check.
+- **The vision judge is not proven against a live model.** All tests inject a deterministic fake at `callVisionJudge`. That proves the resolve → load → score → route → exit-code pipeline end to end; it does not prove a real vision model returns well-formed Shape-C.
+- **This repo has no objective with a `type: ui` + `stack: flutter` TRD**, so the gate correctly resolves `not_applicable` here. It reaches `resolved` only against a Flutter consumer repo or a synthetic fixture.
+
+
 ## [2.5.0] - 2026-08-19
 
 Remediation of the **Autonomy Blocker Audit** (2026-08-18) — a measured study of
