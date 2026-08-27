@@ -213,22 +213,27 @@ function scoreState({ samples } = {}) {
  *     a review count exceeding the budget is itself escalated to fail)
  *   - else → 'pass'
  *
- * @param {Array<{state_id:string, verdict:string}>} results
+ * @param {Array<{state_id:string, verdict:string, unjudged?:boolean}>} results
  * @param {object} [opts]
  * @param {number} [opts.flakeBudget=1] — max tolerated reviews before escalation to fail
- * @returns {{verdict:'pass'|'pass-with-reviews'|'fail', counts:object, reviews:string[], fails:string[]}}
+ * @param {'review'|'fail'} [opts.unjudgedPolicy='review'] — what an unjudged state does to
+ *   the run verdict. Default 'review' keeps a fully-labelled manifest byte-identical to
+ *   pre-fix behaviour; a consumer (e.g. CI) can opt into 'fail' to hard-gate on it.
+ * @returns {{verdict:'pass'|'pass-with-reviews'|'fail', counts:object, reviews:string[], fails:string[], unjudged:string[]}}
  */
 function scoreRun(results, opts = {}) {
   if (!Array.isArray(results)) {
     throw new Error('scoreRun requires a results array');
   }
   const flakeBudget = typeof opts.flakeBudget === 'number' ? opts.flakeBudget : 1;
+  const unjudgedPolicy = opts.unjudgedPolicy === 'fail' ? 'fail' : 'review';
 
   const counts = { pass: 0, fail: 0, review: 0 };
   const reviews = [];          // UNEXPECTED reviews (expect=pass) — count against the flake budget
   const fails = [];            // NEW/unexpected failures (expect=pass) — the regression signal
   const known_failing = [];    // expect=fail AND still fail/review — a tracked known-broken state, NOT a new regression
   const resolved = [];         // expect=fail BUT now passes — likely fixed; drop its known_broken flag
+  const unjudged = [];         // aodex#485: states nothing examined — a PEER bucket, never reviews[]
 
   for (const r of results) {
     // A state may declare its expected verdict (default 'pass'). known_broken states
@@ -240,6 +245,16 @@ function scoreRun(results, opts = {}) {
     if (r.verdict === 'fail') counts.fail += 1;
     else if (r.verdict === 'review') counts.review += 1;
     else counts.pass += 1;
+
+    if (r.unjudged === true) {
+      // Excluded from reviews[]/fails[]/known_failing[]/resolved[] ON PURPOSE: the flake
+      // budget (`reviews.length > flakeBudget`) exists for judge nondeterminism, not for
+      // absence of judgment. Routing an unjudged state into reviews[] would let ONE
+      // unjudged state roll up 'pass-with-reviews' under the default budget of 1 —
+      // aodex#485 recurring at N=1.
+      unjudged.push(r.state_id);
+      continue;
+    }
 
     if (expect === 'fail') {
       if (r.verdict === 'pass') resolved.push(r.state_id);
@@ -256,13 +271,16 @@ function scoreRun(results, opts = {}) {
     verdict = 'fail'; // a NEW/unexpected failure
   } else if (reviews.length > flakeBudget) {
     verdict = 'fail'; // unexpected reviews exceeded the flake budget → escalate
-  } else if (reviews.length > 0) {
+  } else if (unjudged.length > 0 && unjudgedPolicy === 'fail') {
+    verdict = 'fail'; // consumer opted into hard-gating on any unjudged state
+  } else if (reviews.length > 0 || unjudged.length > 0) {
+    // A run can never be clean 'pass' while something was never looked at.
     verdict = 'pass-with-reviews';
   } else {
     verdict = 'pass';
   }
 
-  return { verdict, counts, reviews, fails, known_failing, resolved };
+  return { verdict, counts, reviews, fails, known_failing, resolved, unjudged };
 }
 
 // ─── Injectable vision-judge boundary (impure; default real impl in TRD-02) ─────
@@ -301,6 +319,19 @@ function callVisionJudge({ capture, expected, judge } = {}) {
   };
 
   const raw = judge(request); // injected fake in TRD-01; real Claude vision call in TRD-02
+
+  // aodex#485: "nothing examined this state" must be distinguishable from "the judge
+  // returned a malformed/disagreeing payload". Route an explicit unjudged marker BEFORE
+  // validateJudgeResult so it is not swallowed as a generic validation-error review —
+  // that swallow is exactly how the original defect hid at the next layer down.
+  if (raw && typeof raw === 'object' && raw.unjudged === true) {
+    return {
+      valid: false,
+      unjudged: true,
+      errors: [raw.reason || `unjudged: no label for state_id '${request.state_id}' — nothing examined this state`],
+    };
+  }
+
   const validation = validateJudgeResult(raw);
   if (!validation.valid) {
     return { valid: false, errors: validation.errors };
@@ -325,7 +356,20 @@ function callVisionJudge({ capture, expected, judge } = {}) {
 function makeOfflineLabelEchoJudge(labels, samples) {
   const fn = function offlineLabelEchoJudge(request) {
     fn.calls.push(request);
-    const label = (labels && labels[request.state_id]) || { is_broken: false };
+    const hasLabel = !!(labels && Object.prototype.hasOwnProperty.call(labels, request.state_id));
+    if (!hasLabel) {
+      // aodex#485, the headline defect: a state_id absent from labels.json must NOT fall
+      // through to a fabricated { is_broken: false } (the judge's default answer to a
+      // question it was never asked was "looks fine" — that is the exact bug). Signal
+      // "nothing examined this state" explicitly so the caller can never mistake it for
+      // a not-broken verdict.
+      return {
+        state_id: request.state_id,
+        unjudged: true,
+        reason: `unjudged: no label for state_id '${request.state_id}' in labels.json — nothing examined this state`,
+      };
+    }
+    const label = labels[request.state_id];
     const broken = label.is_broken === true;
     const defects = broken
       ? [{
@@ -557,6 +601,9 @@ function cmdVerifyFlutterUIEval(cwd, args, raw) {
   const manifestDir = path.dirname(absManifest);
   const samples = typeof manifest.samples === 'number' ? manifest.samples : 3;
   const flakeBudget = typeof manifest.flakeBudget === 'number' ? manifest.flakeBudget : 1;
+  // aodex#485: default 'review' keeps a fully-labelled manifest byte-identical to pre-fix
+  // behaviour; a consumer (e.g. CI) can opt into 'fail' via the manifest to hard-gate.
+  const unjudgedPolicy = manifest.unjudgedPolicy === 'fail' ? 'fail' : 'review';
   const liveJudge = list.indexOf('--judge') >= 0 && list[list.indexOf('--judge') + 1] === 'live';
   const sIdx = list.indexOf('--samples');
   const nSamples = sIdx >= 0 ? Math.max(1, parseInt(list[sIdx + 1], 10) || samples) : samples;
@@ -624,6 +671,16 @@ function cmdVerifyFlutterUIEval(cwd, args, raw) {
 
     // OFFLINE (default): deterministic label-echo judge through callVisionJudge (no network).
     const judged = callVisionJudge({ capture, expected: st.expected, judge: offlineJudge });
+    if (judged.unjudged) {
+      // aodex#485: a state_id absent from labels.json — nothing examined this state.
+      // Routed to review (never pass, never fail — see OBJECTIVE.md Decision), flagged
+      // `unjudged: true` so scoreRun buckets it separately from a genuine judge-disagreement
+      // review, and named explicitly in the advisory so the reason is never mistaken for a
+      // malformed-payload validation error.
+      stateResults.push({ state_id: st.state_id, verdict: 'review', advisories: judged.errors, expect: st.expect, unjudged: true });
+      stateDetail.push({ state_id: st.state_id, verdict: 'review', is_broken: null, defects: [], errors: judged.errors, advisories: judged.errors, unjudged: true });
+      continue;
+    }
     if (!judged.valid) {
       stateResults.push({ state_id: st.state_id, verdict: 'review', advisories: judged.errors, expect: st.expect });
       stateDetail.push({ state_id: st.state_id, verdict: 'review', is_broken: null, defects: [], errors: judged.errors });
@@ -641,7 +698,7 @@ function cmdVerifyFlutterUIEval(cwd, args, raw) {
     });
   }
 
-  const rollup = scoreRun(stateResults, { flakeBudget });
+  const rollup = scoreRun(stateResults, { flakeBudget, unjudgedPolicy });
 
   output({
     manifest_path: absManifest,
@@ -650,12 +707,14 @@ function cmdVerifyFlutterUIEval(cwd, args, raw) {
     model: liveJudge ? liveModel : undefined,
     samples: liveJudge ? nSamples : samples,
     flakeBudget,
+    unjudgedPolicy,
     verdict: rollup.verdict,
     counts: rollup.counts,
     reviews: rollup.reviews,
     fails: rollup.fails,
     known_failing: rollup.known_failing, // expect:fail states still failing — tracked, not a new regression
     resolved: rollup.resolved,           // expect:fail states now passing — likely fixed; drop the known_broken flag
+    unjudged: rollup.unjudged,           // aodex#485: states nothing examined — own bucket, never reviews[]
     usage: liveJudge ? usageTotal : undefined,           // per-run token totals for cost estimation
     states: stateDetail,
   }, raw);
