@@ -277,3 +277,86 @@ test.describe('verifier-ui-eval-invocation (TRD 33-02, aodex#485 defect 5)', () 
   });
 
 });
+
+// ─── Step 8c prose (TRD 33-03) — grep-structural, in the shape of flutter-ui-scope.test.cjs's
+// Cases P1-P5. These pin the HUMAN-READABLE projection of classifyUIEvalOutcome's routing
+// table to the actual agent prose, so a paragraph in Step 8d can never satisfy an assertion
+// about Step 8c (narrowed to the same slice V1/V4 already use), and so the routing table
+// cannot quietly collapse back to one SKIPPED line the way it did before this objective.
+
+test.describe('verifier.md Step 8c routing content (obj 33)', () => {
+  function step8cSlice() {
+    const md = fs.readFileSync(VERIFIER_MD, 'utf-8');
+    const startIdx = md.indexOf('### Step 8c');
+    const endIdx = md.indexOf('### Step 8d');
+    assert.ok(startIdx !== -1, 'verifier.md must contain a "### Step 8c" heading');
+    assert.ok(endIdx !== -1 && endIdx > startIdx, 'verifier.md must contain a "### Step 8d" heading after Step 8c');
+    return md.slice(startIdx, endIdx);
+  }
+
+  test('Case S1 — Step 8c names all four resolutions', () => {
+    const step8c = step8cSlice();
+    for (const resolution of ['not_applicable', 'absent', 'invalid', 'resolved']) {
+      assert.ok(
+        step8c.includes(`\`${resolution}\``),
+        `Step 8c must name resolution '${resolution}' — the routing table cannot omit a branch`,
+      );
+    }
+  });
+
+  test('Case S2 — Step 8c documents the silent skip for not_applicable', () => {
+    const step8c = step8cSlice();
+    assert.match(step8c, /not_applicable[\s\S]{0,200}[Ss]kip silently/, 'not_applicable must route to a silent skip');
+  });
+
+  test('Case S3 — Step 8c documents that absent keeps the surface on the human-verification list, and is NOT SKIPPED', () => {
+    const step8c = step8cSlice();
+    assert.match(
+      step8c,
+      /absent[\s\S]{0,400}human_verification/,
+      'absent must be documented near a human_verification mention — the surface must stay queued',
+    );
+    assert.match(step8c, /MISSING/, "the word MISSING must appear — 'absent' is not recorded as SKIPPED");
+    // The word SKIPPED is reserved for not_applicable (the old collapsed contract). It must
+    // not appear anywhere near an 'absent'/MISSING description in the rewritten routing table.
+    const missingIdx = step8c.indexOf('MISSING');
+    assert.ok(missingIdx !== -1);
+    const windowAroundMissing = step8c.slice(Math.max(0, missingIdx - 200), missingIdx + 200);
+    assert.ok(
+      !/SKIPPED/.test(windowAroundMissing),
+      'the MISSING branch must not be described using the word SKIPPED — that is the bug this objective closes',
+    );
+  });
+
+  test('Case S4 — Step 8c documents that invalid produces a gaps: entry', () => {
+    const step8c = step8cSlice();
+    assert.match(step8c, /invalid[\s\S]{0,200}gaps:/, 'invalid must route to a gaps: entry — a defect, not an absence');
+  });
+
+  test('Case S5 — Step 8c documents the visual_gate ratchet by name', () => {
+    const step8c = step8cSlice();
+    assert.match(step8c, /visual_gate/, 'the visual_gate ratchet must be named in Step 8c prose');
+  });
+
+  test('Case S6 (last-writer guard) — objective 32-03\'s binding clearance rule survives 33\'s rewrite', () => {
+    const step8c = step8cSlice();
+    // Match on 'binding' + 'human_verification' rather than a verbatim sentence — the TRD's
+    // own instruction, in case 32-03's exact wording differs from what planning assumed.
+    assert.match(step8c, /binding/, "objective 32-03's binding clearance rule must survive — 'binding' not found");
+    assert.match(
+      step8c,
+      /human_verification/,
+      "objective 32-03's binding clearance rule must survive — 'human_verification' not found",
+    );
+    assert.match(
+      step8c,
+      /binding[\s\S]{0,400}REMOVE|REMOVE[\s\S]{0,400}binding/,
+      "the binding-gated REMOVE-from-human-verification rule must still be present and still conditioned on 'binding'",
+    );
+  });
+
+  test('Case S-exactly-one — Step 8c still contains exactly ONE `verify flutter-ui-eval` invocation (guards V4)', () => {
+    const matches = extractStep8cInvocations();
+    assert.strictEqual(matches.length, 1, 'adding the routing table must not introduce a second invocation');
+  });
+});
