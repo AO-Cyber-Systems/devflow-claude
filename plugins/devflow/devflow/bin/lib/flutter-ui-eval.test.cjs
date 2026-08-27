@@ -410,6 +410,160 @@ test.describe('buildVisionRequest (pure request assembly)', () => {
   });
 });
 
+// ──────────────────────────────────────────────────────────────────────────────
+// Unjudged-state resolution (aodex#485) — U2-U4, unit level (drilled in from Case
+// U1 at the CLI level in flutter-ui-eval-dogfood.test.cjs).
+// ──────────────────────────────────────────────────────────────────────────────
+
+test.describe('makeOfflineLabelEchoJudge — unjudged marker (aodex#485)', () => {
+  test('Case U2 — an unlabelled state_id returns an unjudged marker, NOT a fabricated pass', () => {
+    const labels = { 'known-good': { is_broken: false } };
+    const judge = makeOfflineLabelEchoJudge(labels, 3);
+
+    const result = judge({ state_id: 'never-labelled', surface: 'web', screenshot_path: 'x.png' });
+
+    assert.strictEqual(result.unjudged, true, 'lookup miss must be flagged unjudged');
+    assert.strictEqual(result.is_broken, undefined,
+      'must NOT fabricate an is_broken:false JudgeResult for a state nothing looked at');
+    assert.ok(typeof result.reason === 'string' && result.reason.length > 0);
+
+    // A labelled state on the SAME judge instance is unaffected — the fix is targeted.
+    const labelled = judge({ state_id: 'known-good', surface: 'web', screenshot_path: 'y.png' });
+    assert.strictEqual(labelled.unjudged, undefined);
+    assert.strictEqual(labelled.is_broken, false);
+  });
+});
+
+test.describe('scoreRun — unjudged bucket excluded from the flake budget (aodex#485)', () => {
+  test('Case U3 — an unjudged result lands in unjudged[], stays OUT of reviews[], and is not absorbed by the flake budget', () => {
+    const results = [
+      { state_id: 'a', verdict: 'pass', advisories: [] },
+      { state_id: 'b', verdict: 'review', advisories: [], unjudged: true },
+    ];
+    // flakeBudget:1 would normally tolerate one review as 'pass-with-reviews' with room to
+    // spare — the point of U3 is that an unjudged state does not even reach that bucket.
+    const run = scoreRun(results, { flakeBudget: 1 });
+
+    assert.deepStrictEqual(run.unjudged, ['b'], 'the unjudged state_id is named in its own bucket');
+    assert.deepStrictEqual(run.reviews, [], 'unjudged states must NEVER enter reviews[]');
+    assert.notStrictEqual(run.verdict, 'pass', 'one unjudged state must not slide through as a clean pass');
+  });
+
+  test('Case U3b — unjudgedPolicy:"fail" escalates the run to a hard fail', () => {
+    const results = [
+      { state_id: 'a', verdict: 'pass', advisories: [] },
+      { state_id: 'b', verdict: 'review', advisories: [], unjudged: true },
+    ];
+    const run = scoreRun(results, { flakeBudget: 1, unjudgedPolicy: 'fail' });
+    assert.strictEqual(run.verdict, 'fail');
+    assert.deepStrictEqual(run.unjudged, ['b']);
+  });
+
+  test('Case U3c — a fully-judged run with zero unjudged states is unaffected (R1 unit-level guard)', () => {
+    const results = [
+      { state_id: 'a', verdict: 'pass', advisories: [] },
+      { state_id: 'b', verdict: 'fail', advisories: [] },
+    ];
+    const run = scoreRun(results, { flakeBudget: 1 });
+    assert.deepStrictEqual(run.unjudged, []);
+    assert.strictEqual(run.verdict, 'fail');
+  });
+});
+
+test.describe('callVisionJudge — unjudged is distinguishable from a malformed/disagreeing payload (aodex#485)', () => {
+  test('Case U4 — the unjudged rejection is flagged distinctly from a generic validation-error rejection', () => {
+    const capture = makeCaptureResult({ state_id: 'ghost-state' });
+
+    // No label at all for 'ghost-state' -> the offline judge returns the unjudged marker.
+    const offlineJudge = makeOfflineLabelEchoJudge({}, 3);
+    const unjudged = callVisionJudge({ capture, judge: offlineJudge });
+    assert.strictEqual(unjudged.valid, false);
+    assert.strictEqual(unjudged.unjudged, true);
+    assert.ok(unjudged.errors.some(e => /unjudged/i.test(e)),
+      'the unjudged advisory must say nothing examined the state');
+
+    // A judge that DID attempt a judgment but returned a malformed payload — a genuine
+    // "something looked and the payload/verdict is untrustworthy" case. Must NOT be
+    // flagged unjudged; a consumer needs to tell these two apart (see done criteria).
+    const garbageJudge = makeFakeVisionJudge({ garbage: true });
+    const malformed = callVisionJudge({ capture, judge: garbageJudge });
+    assert.strictEqual(malformed.valid, false);
+    assert.strictEqual(malformed.unjudged, undefined,
+      'a malformed-but-attempted judgment must NOT be flagged unjudged');
+    assert.ok(!malformed.errors.some(e => /unjudged/i.test(e)),
+      'a validation-error advisory must not read like "nothing looked at this"');
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Evidence-tagged judge results (32-02, aodex#485 defect 2) — C1-C4.
+//
+// The offline label-echo judge previously returned confidence:0.99 and
+// matches_expected for EVERY state, having read only the state_id — a fabricated
+// score for a comparison it never performed. These cases pin: an offline result
+// declares its basis (evidence:'label') and emits NEITHER confidence NOR
+// matches_expected; a live/vision result MUST carry both; the legacy shape (no
+// evidence field at all) keeps validating exactly as it did before this TRD.
+// ──────────────────────────────────────────────────────────────────────────────
+
+test.describe('evidence-tagged judge results (32-02, aodex#485 defect 2)', () => {
+  test('Case C1 — offline judge result for a LABELLED state carries evidence:"label" and has NO confidence/matches_expected', () => {
+    const labels = { 'known-good': { is_broken: false } };
+    const judge = makeOfflineLabelEchoJudge(labels, 3);
+
+    const result = judge({ state_id: 'known-good', surface: 'web', screenshot_path: 'x.png' });
+
+    assert.strictEqual(result.evidence, 'label', 'offline result declares its basis');
+    // Assert KEY ABSENCE (`in`), not `=== undefined` — a present-but-undefined key still
+    // serialises into JSON output as a missing field and would hide the intent.
+    assert.strictEqual('confidence' in result, false,
+      'must NOT fabricate a confidence score for a comparison never performed');
+    assert.strictEqual('matches_expected' in result, false,
+      'must NOT fabricate matches_expected for a comparison never performed');
+  });
+
+  test('Case C2 — validateJudgeResult ACCEPTS the label-evidence result (absence of confidence/matches_expected is not an error)', () => {
+    const labels = { 'known-good': { is_broken: false } };
+    const judge = makeOfflineLabelEchoJudge(labels, 3);
+    const result = judge({ state_id: 'known-good', surface: 'web', screenshot_path: 'x.png' });
+
+    const v = validateJudgeResult(result);
+    assert.strictEqual(v.valid, true, `expected valid, got errors: ${JSON.stringify(v.errors)}`);
+    assert.deepStrictEqual(v.errors, []);
+  });
+
+  test('Case C2b — validateJudgeResult REJECTS an evidence:"label" result that fabricates confidence/matches_expected anyway', () => {
+    const withFabricatedScore = makeJudgeResult({ evidence: 'label' }); // carries confidence+matches_expected
+    const v = validateJudgeResult(withFabricatedScore);
+    assert.strictEqual(v.valid, false, 'a label judge has no score — presence must be rejected, not silently tolerated');
+    assert.ok(v.errors.some(e => /confidence/.test(e)));
+    assert.ok(v.errors.some(e => /matches_expected/.test(e)));
+  });
+
+  test('Case C3 — validateJudgeResult REJECTS an evidence:"vision" result that omits confidence or matches_expected', () => {
+    const missingConfidence = makeJudgeResult({ evidence: 'vision' });
+    delete missingConfidence.confidence;
+    const r1 = validateJudgeResult(missingConfidence);
+    assert.strictEqual(r1.valid, false, 'a real comparison must report its confidence score');
+    assert.ok(r1.errors.some(e => /confidence/.test(e)));
+
+    const missingMatches = makeJudgeResult({ evidence: 'vision' });
+    delete missingMatches.matches_expected;
+    const r2 = validateJudgeResult(missingMatches);
+    assert.strictEqual(r2.valid, false, 'a real comparison must report matches_expected');
+    assert.ok(r2.errors.some(e => /matches_expected/.test(e)));
+  });
+
+  test('Case C4 — a legacy result (confidence + matches_expected, NO evidence field) still validates EXACTLY as before (back-compat)', () => {
+    const legacy = makeJudgeResult(); // the existing fixture default — no evidence field at all
+    assert.strictEqual('evidence' in legacy, false,
+      'pins the legacy shape this case depends on: the fixture default carries no evidence field');
+    const v = validateJudgeResult(legacy);
+    assert.strictEqual(v.valid, true, 'the existing 60 tests depend on this legacy path staying valid');
+    assert.deepStrictEqual(v.errors, []);
+  });
+});
+
 test.describe('parseVisionResponse (pure response → Shape-C)', () => {
   test('Case P1 — valid API body -> single-sample Shape-C that passes validateJudgeResult', () => {
     const apiBody = {

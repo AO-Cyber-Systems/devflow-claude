@@ -28,8 +28,10 @@
 const fs = require('fs');
 const path = require('path');
 // `output` is used by the df-tools handler wired in TRD-02; TRD-01's pure fns return values.
+// `error` (32-03) rejects an unrecognised --judge value with a usage error (stderr + exit 1)
+// rather than letting it silently fall through to the offline path.
 // eslint-disable-next-line no-unused-vars
-const { output } = require('./helpers.cjs');
+const { output, error } = require('./helpers.cjs');
 
 // ─── Contract enums ──────────────────────────────────────────────────────────
 
@@ -92,12 +94,37 @@ function validateJudgeResult(obj) {
   if (!Array.isArray(obj.defects)) {
     errors.push('field defects must be an array');
   }
-  if (typeof obj.matches_expected !== 'boolean') {
-    errors.push('field matches_expected must be a boolean');
+
+  // Evidence-aware scoring-field requirements (32-02, aodex#485 defect 2: the offline
+  // judge used to fabricate confidence:0.99/matches_expected for a comparison it never
+  // performed). Branch on `obj.evidence`:
+  //   'vision' -> a real comparison happened -> confidence/matches_expected REQUIRED
+  //   'label'  -> a label lookup, not a comparison -> confidence/matches_expected FORBIDDEN
+  //   absent   -> legacy shape (pre-32-02 callers) -> byte-for-byte original behaviour
+  if (obj.evidence === 'vision') {
+    if (typeof obj.matches_expected !== 'boolean') {
+      errors.push('field matches_expected must be a boolean');
+    }
+    if (typeof obj.confidence !== 'number') {
+      errors.push('field confidence must be a number');
+    }
+  } else if (obj.evidence === 'label') {
+    if ('matches_expected' in obj) {
+      errors.push('field matches_expected must be absent for evidence:"label" (no comparison was performed)');
+    }
+    if ('confidence' in obj) {
+      errors.push('field confidence must be absent for evidence:"label" (no comparison was performed)');
+    }
+  } else {
+    // Legacy path (no evidence field) — byte-for-byte the pre-32-02 required-field rules.
+    if (typeof obj.matches_expected !== 'boolean') {
+      errors.push('field matches_expected must be a boolean');
+    }
+    if (typeof obj.confidence !== 'number') {
+      errors.push('field confidence must be a number');
+    }
   }
-  if (typeof obj.confidence !== 'number') {
-    errors.push('field confidence must be a number');
-  }
+
   if (typeof obj.samples !== 'number') {
     errors.push('field samples must be a number');
   }
@@ -213,22 +240,27 @@ function scoreState({ samples } = {}) {
  *     a review count exceeding the budget is itself escalated to fail)
  *   - else → 'pass'
  *
- * @param {Array<{state_id:string, verdict:string}>} results
+ * @param {Array<{state_id:string, verdict:string, unjudged?:boolean}>} results
  * @param {object} [opts]
  * @param {number} [opts.flakeBudget=1] — max tolerated reviews before escalation to fail
- * @returns {{verdict:'pass'|'pass-with-reviews'|'fail', counts:object, reviews:string[], fails:string[]}}
+ * @param {'review'|'fail'} [opts.unjudgedPolicy='review'] — what an unjudged state does to
+ *   the run verdict. Default 'review' keeps a fully-labelled manifest byte-identical to
+ *   pre-fix behaviour; a consumer (e.g. CI) can opt into 'fail' to hard-gate on it.
+ * @returns {{verdict:'pass'|'pass-with-reviews'|'fail', counts:object, reviews:string[], fails:string[], unjudged:string[]}}
  */
 function scoreRun(results, opts = {}) {
   if (!Array.isArray(results)) {
     throw new Error('scoreRun requires a results array');
   }
   const flakeBudget = typeof opts.flakeBudget === 'number' ? opts.flakeBudget : 1;
+  const unjudgedPolicy = opts.unjudgedPolicy === 'fail' ? 'fail' : 'review';
 
   const counts = { pass: 0, fail: 0, review: 0 };
   const reviews = [];          // UNEXPECTED reviews (expect=pass) — count against the flake budget
   const fails = [];            // NEW/unexpected failures (expect=pass) — the regression signal
   const known_failing = [];    // expect=fail AND still fail/review — a tracked known-broken state, NOT a new regression
   const resolved = [];         // expect=fail BUT now passes — likely fixed; drop its known_broken flag
+  const unjudged = [];         // aodex#485: states nothing examined — a PEER bucket, never reviews[]
 
   for (const r of results) {
     // A state may declare its expected verdict (default 'pass'). known_broken states
@@ -240,6 +272,16 @@ function scoreRun(results, opts = {}) {
     if (r.verdict === 'fail') counts.fail += 1;
     else if (r.verdict === 'review') counts.review += 1;
     else counts.pass += 1;
+
+    if (r.unjudged === true) {
+      // Excluded from reviews[]/fails[]/known_failing[]/resolved[] ON PURPOSE: the flake
+      // budget (`reviews.length > flakeBudget`) exists for judge nondeterminism, not for
+      // absence of judgment. Routing an unjudged state into reviews[] would let ONE
+      // unjudged state roll up 'pass-with-reviews' under the default budget of 1 —
+      // aodex#485 recurring at N=1.
+      unjudged.push(r.state_id);
+      continue;
+    }
 
     if (expect === 'fail') {
       if (r.verdict === 'pass') resolved.push(r.state_id);
@@ -256,13 +298,16 @@ function scoreRun(results, opts = {}) {
     verdict = 'fail'; // a NEW/unexpected failure
   } else if (reviews.length > flakeBudget) {
     verdict = 'fail'; // unexpected reviews exceeded the flake budget → escalate
-  } else if (reviews.length > 0) {
+  } else if (unjudged.length > 0 && unjudgedPolicy === 'fail') {
+    verdict = 'fail'; // consumer opted into hard-gating on any unjudged state
+  } else if (reviews.length > 0 || unjudged.length > 0) {
+    // A run can never be clean 'pass' while something was never looked at.
     verdict = 'pass-with-reviews';
   } else {
     verdict = 'pass';
   }
 
-  return { verdict, counts, reviews, fails, known_failing, resolved };
+  return { verdict, counts, reviews, fails, known_failing, resolved, unjudged };
 }
 
 // ─── Injectable vision-judge boundary (impure; default real impl in TRD-02) ─────
@@ -301,6 +346,19 @@ function callVisionJudge({ capture, expected, judge } = {}) {
   };
 
   const raw = judge(request); // injected fake in TRD-01; real Claude vision call in TRD-02
+
+  // aodex#485: "nothing examined this state" must be distinguishable from "the judge
+  // returned a malformed/disagreeing payload". Route an explicit unjudged marker BEFORE
+  // validateJudgeResult so it is not swallowed as a generic validation-error review —
+  // that swallow is exactly how the original defect hid at the next layer down.
+  if (raw && typeof raw === 'object' && raw.unjudged === true) {
+    return {
+      valid: false,
+      unjudged: true,
+      errors: [raw.reason || `unjudged: no label for state_id '${request.state_id}' — nothing examined this state`],
+    };
+  }
+
   const validation = validateJudgeResult(raw);
   if (!validation.valid) {
     return { valid: false, errors: validation.errors };
@@ -325,7 +383,20 @@ function callVisionJudge({ capture, expected, judge } = {}) {
 function makeOfflineLabelEchoJudge(labels, samples) {
   const fn = function offlineLabelEchoJudge(request) {
     fn.calls.push(request);
-    const label = (labels && labels[request.state_id]) || { is_broken: false };
+    const hasLabel = !!(labels && Object.prototype.hasOwnProperty.call(labels, request.state_id));
+    if (!hasLabel) {
+      // aodex#485, the headline defect: a state_id absent from labels.json must NOT fall
+      // through to a fabricated { is_broken: false } (the judge's default answer to a
+      // question it was never asked was "looks fine" — that is the exact bug). Signal
+      // "nothing examined this state" explicitly so the caller can never mistake it for
+      // a not-broken verdict.
+      return {
+        state_id: request.state_id,
+        unjudged: true,
+        reason: `unjudged: no label for state_id '${request.state_id}' in labels.json — nothing examined this state`,
+      };
+    }
+    const label = labels[request.state_id];
     const broken = label.is_broken === true;
     const defects = broken
       ? [{
@@ -339,8 +410,10 @@ function makeOfflineLabelEchoJudge(labels, samples) {
       state_id: request.state_id,
       is_broken: broken,
       defects,
-      matches_expected: !broken,
-      confidence: 0.99,
+      // 32-02 (aodex#485 defect 2): a label lookup is not a perceptual comparison — no
+      // confidence/matches_expected. `evidence: 'label'` states the basis instead of
+      // fabricating a score for a comparison this judge never performed.
+      evidence: 'label',
       samples,
       votes: broken ? { broken: samples, ok: 0 } : { broken: 0, ok: samples },
     };
@@ -458,6 +531,9 @@ function parseVisionResponse(apiBody, request) {
     defects: Array.isArray(p.defects) ? p.defects : [],
     matches_expected: p.matches_expected === true,
     confidence: typeof p.confidence === 'number' ? p.confidence : 0,
+    // 32-02: tag every live result here (not at the call site) so it is tagged regardless
+    // of caller — a real comparison happened, so confidence/matches_expected are earned.
+    evidence: 'vision',
     samples: 1, // ONE call = one sample; N-sample voting is the engine's job (aggregateVotes)
     votes: is_broken ? { broken: 1, ok: 0 } : { broken: 0, ok: 1 },
   };
@@ -526,6 +602,40 @@ function defaultVisionJudge(request) {
  * @param {string[]}      args — args after the subcommand (path and/or flags)
  * @param {boolean}       raw  — --raw passthrough to output()
  */
+/**
+ * 32-04: write the FINAL scoreRun rollup and set the process's own exit code from its
+ * verdict — a `fail` verdict must exit non-zero, or a CI step running this command is
+ * green regardless of what it found (aodex#485, discovered during 32-04 planning).
+ *
+ * This mirrors helpers.cjs's `output()` JSON-serialize + 50KB-tmpfile-fallback behavior
+ * exactly, but deliberately does NOT reuse `output()` for this one call site: `output()`
+ * is shared by ~40 other df-tools commands and calls `process.exit(0)` unconditionally,
+ * which (a) is out of this TRD's scope to change and (b) would hardcode 0 regardless of
+ * the verdict even if it weren't. `process.exitCode` (not `process.exit()`) is used
+ * deliberately per the TRD's own gotcha: `process.exit()` can truncate a buffered stdout
+ * write before it fully flushes; setting `exitCode` lets Node exit naturally once the
+ * write completes, so a failing run's rollup JSON is still fully readable (X1).
+ *
+ * Only `verdict: 'fail'` sets a non-zero exit code — `pass` and `pass-with-reviews` both
+ * exit 0 (X2, X3). The not-found/invalid-manifest paths above this function are untouched
+ * and continue to exit 0 via `output()` (X4) — verifier.md Step 8c routes that shape to
+ * SKIPPED, never a hard CI failure.
+ *
+ * @param {object} result — the assembled rollup payload (same shape `output()` would take)
+ * @param {'pass'|'pass-with-reviews'|'fail'} verdict — drives the exit code
+ */
+function outputRollup(result, verdict) {
+  const json = JSON.stringify(result, null, 2);
+  if (json.length > 50000) {
+    const tmpPath = path.join(require('os').tmpdir(), `df-ui-eval-${Date.now()}.json`);
+    fs.writeFileSync(tmpPath, json, 'utf-8');
+    process.stdout.write('@file:' + tmpPath);
+  } else {
+    process.stdout.write(json);
+  }
+  process.exitCode = verdict === 'fail' ? 1 : 0;
+}
+
 function cmdVerifyFlutterUIEval(cwd, args, raw) {
   const list = Array.isArray(args) ? args : [args].filter(Boolean);
   const positional = list.filter(a => a && !a.startsWith('--'));
@@ -533,31 +643,78 @@ function cmdVerifyFlutterUIEval(cwd, args, raw) {
 
   if (!manifestArg || list.includes('--help')) {
     output({
-      usage: 'verify flutter-ui-eval <manifest|captureResults> [--raw] [--judge live] [--samples N]',
-      description: 'Score a UI visual-eval manifest. Default: offline label-echo judge (deterministic, NO network). --judge live runs the REAL Anthropic vision judge (needs ANTHROPIC_API_KEY, or ANTHROPIC_AUTH_TOKEN+ANTHROPIC_BASE_URL) N times/state → real N-sample voting (flake) + per-page token cost.',
+      usage: 'verify flutter-ui-eval <manifest|captureResults> [--raw] [--judge live|labels] [--samples N]',
+      description: 'Score a UI visual-eval manifest. Default (no --judge, or --judge labels): offline label-echo judge (deterministic, NO network) — this is an ADVISORY labels lookup, not a visual gate; its rollup carries gate:"advisory" and CANNOT clear a surface from human verification. --judge live runs the REAL Anthropic vision judge (needs ANTHROPIC_API_KEY, or ANTHROPIC_AUTH_TOKEN+ANTHROPIC_BASE_URL) N times/state -> real N-sample voting (flake) + per-page token cost; its rollup carries gate:"binding" — the ONLY standing that may retire a surface from human verification. An unrecognised --judge value is rejected with a usage error.',
       ok: true,
     }, raw);
     return;
   }
 
-  const absManifest = path.isAbsolute(manifestArg) ? manifestArg : path.join(cwd, manifestArg);
-  if (!fs.existsSync(absManifest)) {
-    output({ error: 'manifest/captureResults not found', path: manifestArg, ok: false }, raw);
+  // aodex#485 defect 3: judge selection is explicit, never a silent fallthrough. Absent
+  // --judge means 'labels' (the pre-existing default path, unchanged in behaviour) — but the
+  // VALUE must always be one of the two recognised modes, so a typo can never be misread as
+  // "run the offline path" when the caller actually meant to ask for the live gate.
+  const judgeIdx = list.indexOf('--judge');
+  const judgeArg = judgeIdx >= 0 ? list[judgeIdx + 1] : undefined;
+  let judgeMode;
+  if (judgeArg === undefined) {
+    judgeMode = 'labels';
+  } else if (judgeArg === 'live' || judgeArg === 'labels') {
+    judgeMode = judgeArg;
+  } else {
+    error(`unrecognised --judge value '${judgeArg}' — expected 'live' or 'labels' (bare invocation defaults to 'labels'); refusing to silently fall through to the offline path`);
+    return; // unreachable — error() calls process.exit(1); kept for readability/testability
+  }
+
+  // aodex#485 defect 5 / objective 33: the argument may be an objective id (the shape
+  // verifier.md Step 8c's prose has always passed) OR a manifest/captureResults path (the
+  // shape every pre-33 caller — PR #68, objective 32's four TRDs — has always passed).
+  // ONE implementation resolves both: 33-01's resolveUIEvalTarget. Do not re-implement
+  // fs.existsSync/path.join resolution here — that duplication is exactly how Step 8c's
+  // invocation went unreachable for months.
+  const { resolveUIEvalTarget } = require('./flutter-ui-eval-resolve.cjs');
+  const target = resolveUIEvalTarget(cwd, manifestArg);
+
+  if (target.resolution !== 'resolved') {
+    // not_applicable | absent | invalid — named, ok:true, exit 0. NEVER `{ error }`.
+    // CRITICAL: ok:true here (not ok:false) — `{ ok:false }` is how Step 8c currently
+    // decides something errored; these three outcomes must be routed APART by 33-03, not
+    // flattened into one SKIPPED branch under a new field name. Only a missing argument
+    // (above, the --help/usage branch) stays `ok:false`.
+    // CRITICAL: process.exitCode stays 0 (the function returns before outputRollup, whose
+    // verdict-based exit-code logic never runs) — an unrun gate is not a judged failure.
+    // `status`/`not_applicable` vocabulary matches flutter-state-coverage.cjs:240.
+    output({
+      resolution: target.resolution,
+      reason: target.reason,
+      objective_dir: target.objective_dir,
+      manifest_path: target.manifest_path,
+      searched: target.searched,
+      ui_trds: target.ui_trds,
+      visual_gate: target.visual_gate,
+      ok: true,
+    }, raw);
     return;
   }
 
-  let manifest;
-  try {
-    manifest = loadManifest(absManifest);
-  } catch (e) {
-    output({ error: 'invalid manifest: ' + e.message, path: absManifest, ok: false }, raw);
-    return;
-  }
+  const absManifest = target.manifest_path;
+  const manifest = target.manifest; // 33-01 Case M8: present on EVERY resolved result —
+  // do NOT re-read/re-parse the file here; that would duplicate the resolver's own work
+  // and re-create the drift this objective closes.
 
   const manifestDir = path.dirname(absManifest);
   const samples = typeof manifest.samples === 'number' ? manifest.samples : 3;
   const flakeBudget = typeof manifest.flakeBudget === 'number' ? manifest.flakeBudget : 1;
-  const liveJudge = list.indexOf('--judge') >= 0 && list[list.indexOf('--judge') + 1] === 'live';
+  // aodex#485: default 'review' keeps a fully-labelled manifest byte-identical to pre-fix
+  // behaviour; a consumer (e.g. CI) can opt into 'fail' via the manifest to hard-gate.
+  const unjudgedPolicy = manifest.unjudgedPolicy === 'fail' ? 'fail' : 'review';
+  const liveJudge = judgeMode === 'live';
+  // `gate` is the run's STANDING — what authority its verdict carries — not its outcome.
+  // Only 'binding' (the live path) may retire a surface from human verification; 'advisory'
+  // (the default/labels path) is a labels lookup and must never claim that authority, even
+  // on a clean pass. See verifier.md Step 8c and OBJECTIVE.md "Decision: what the default
+  // judge does" for the full reasoning (aodex#485 defect 3).
+  const gate = liveJudge ? 'binding' : 'advisory';
   const sIdx = list.indexOf('--samples');
   const nSamples = sIdx >= 0 ? Math.max(1, parseInt(list[sIdx + 1], 10) || samples) : samples;
 
@@ -574,6 +731,22 @@ function cmdVerifyFlutterUIEval(cwd, args, raw) {
   let liveModel = null;
 
   for (const st of manifest.states) {
+    // 32-02 (A1): resolve the state's id, preferring the canonical `state_id` key. Fall
+    // back to `st.id` (the shape buildManifestStub used to emit, pre-32-02) ONLY when
+    // `state_id` is absent — and NEVER silently: an advisory records that the manifest
+    // used a non-canonical key, so the shape mismatch stays visible rather than becoming
+    // a permanent, invisible second-accepted-shape. Without this, an unnameable state
+    // (`state_id: undefined`) rolls up as `null` in reviews[]/unjudged[] — a finding
+    // nobody can act on.
+    const idAdvisories = [];
+    let stateId = st.state_id;
+    if (stateId === undefined && st.id !== undefined) {
+      stateId = st.id;
+      idAdvisories.push(
+        `manifest state used non-canonical key 'id' (value: '${st.id}') instead of 'state_id' — resolved via fallback`,
+      );
+    }
+
     // Load the Shape-B capture for this state (relative to the manifest dir).
     let capture = null;
     if (st.capture_path) {
@@ -583,7 +756,7 @@ function cmdVerifyFlutterUIEval(cwd, args, raw) {
       if (fs.existsSync(capPath)) capture = JSON.parse(fs.readFileSync(capPath, 'utf-8'));
     }
     if (!capture) {
-      capture = { state_id: st.state_id, surface: st.surface, screenshot_path: st.screenshot_path, metadata: { expected: st.expected } };
+      capture = { state_id: stateId, surface: st.surface, screenshot_path: st.screenshot_path, metadata: { expected: st.expected } };
     }
 
     if (liveJudge) {
@@ -591,7 +764,7 @@ function cmdVerifyFlutterUIEval(cwd, args, raw) {
       // per-page token cost. A refusal / credential / network error downgrades the state to review.
       const sp = (capture && capture.screenshot_path) || st.screenshot_path;
       const screenshot_path = sp && !path.isAbsolute(sp) ? path.join(manifestDir, sp) : sp;
-      const request = { state_id: st.state_id, surface: st.surface, screenshot_path, expected: st.expected, defect_types: DEFECT_TYPES, severities: SEVERITIES };
+      const request = { state_id: stateId, surface: st.surface, screenshot_path, expected: st.expected, defect_types: DEFECT_TYPES, severities: SEVERITIES };
       const liveSamples = [];
       let liveErr = null;
       for (let i = 0; i < nSamples; i++) {
@@ -603,62 +776,92 @@ function cmdVerifyFlutterUIEval(cwd, args, raw) {
         } catch (e) { liveErr = e.message; break; }
       }
       if (liveErr || liveSamples.length === 0) {
-        stateResults.push({ state_id: st.state_id, verdict: 'review', advisories: [liveErr || 'no live samples'], expect: st.expect });
-        stateDetail.push({ state_id: st.state_id, verdict: 'review', is_broken: null, defects: [], errors: [liveErr || 'no live samples'] });
+        stateResults.push({ state_id: stateId, verdict: 'review', advisories: [...idAdvisories, liveErr || 'no live samples'], expect: st.expect });
+        stateDetail.push({ state_id: stateId, verdict: 'review', is_broken: null, defects: [], errors: [...idAdvisories, liveErr || 'no live samples'] });
         continue;
       }
       const agg = aggregateVotes(liveSamples);
       const stateScore = scoreState({ samples: liveSamples });
-      stateResults.push({ state_id: st.state_id, verdict: stateScore.verdict, advisories: stateScore.advisories, expect: st.expect });
+      stateResults.push({ state_id: stateId, verdict: stateScore.verdict, advisories: [...idAdvisories, ...stateScore.advisories], expect: st.expect });
       stateDetail.push({
-        state_id: st.state_id,
+        state_id: stateId,
         verdict: stateScore.verdict,
         is_broken: agg.is_broken,
         flake: agg.split === true || agg.tie === true, // the N samples disagreed → flaky judgment
         votes: agg.votes,
         defects: liveSamples.flatMap(s => s.defects || []),
-        advisories: stateScore.advisories,
+        // Every live sample is tagged evidence:'vision' by parseVisionResponse; the
+        // rollup surfaces the same tag so a consumer never has to cross-reference the
+        // run-level `judge` field to know a real comparison happened for THIS state.
+        evidence: 'vision',
+        advisories: [...idAdvisories, ...stateScore.advisories],
       });
       continue;
     }
 
     // OFFLINE (default): deterministic label-echo judge through callVisionJudge (no network).
     const judged = callVisionJudge({ capture, expected: st.expected, judge: offlineJudge });
+    if (judged.unjudged) {
+      // aodex#485: a state_id absent from labels.json — nothing examined this state.
+      // Routed to review (never pass, never fail — see OBJECTIVE.md Decision), flagged
+      // `unjudged: true` so scoreRun buckets it separately from a genuine judge-disagreement
+      // review, and named explicitly in the advisory so the reason is never mistaken for a
+      // malformed-payload validation error.
+      stateResults.push({ state_id: stateId, verdict: 'review', advisories: [...idAdvisories, ...judged.errors], expect: st.expect, unjudged: true });
+      stateDetail.push({ state_id: stateId, verdict: 'review', is_broken: null, defects: [], errors: judged.errors, advisories: [...idAdvisories, ...judged.errors], unjudged: true });
+      continue;
+    }
     if (!judged.valid) {
-      stateResults.push({ state_id: st.state_id, verdict: 'review', advisories: judged.errors, expect: st.expect });
-      stateDetail.push({ state_id: st.state_id, verdict: 'review', is_broken: null, defects: [], errors: judged.errors });
+      stateResults.push({ state_id: stateId, verdict: 'review', advisories: [...idAdvisories, ...judged.errors], expect: st.expect });
+      stateDetail.push({ state_id: stateId, verdict: 'review', is_broken: null, defects: [], errors: judged.errors, advisories: idAdvisories });
       continue;
     }
     const sampleSet = Array.from({ length: samples }, () => judged.result);
     const stateScore = scoreState({ samples: sampleSet });
-    stateResults.push({ state_id: st.state_id, verdict: stateScore.verdict, advisories: stateScore.advisories, expect: st.expect });
+    stateResults.push({ state_id: stateId, verdict: stateScore.verdict, advisories: [...idAdvisories, ...stateScore.advisories], expect: st.expect });
     stateDetail.push({
-      state_id: st.state_id,
+      state_id: stateId,
       verdict: stateScore.verdict,
       is_broken: judged.result.is_broken,
       defects: judged.result.defects,
-      advisories: stateScore.advisories,
+      // 32-02: surface the judge result's own evidence tag ('label' on this default
+      // offline path) so a consumer reading ONE state's detail can see the basis of its
+      // verdict without cross-referencing the run-level `judge` field.
+      evidence: judged.result.evidence,
+      advisories: [...idAdvisories, ...stateScore.advisories],
     });
   }
 
-  const rollup = scoreRun(stateResults, { flakeBudget });
+  const rollup = scoreRun(stateResults, { flakeBudget, unjudgedPolicy });
 
-  output({
+  // 32-04: the process's own exit code now reflects the verdict — see outputRollup() above.
+  outputRollup({
+    // objective 33: names the SAME outcome the non-scoring branch above names via
+    // `resolution` — a caller can switch on one field regardless of which branch ran.
+    // NOT to be confused with `resolved` below (an existing, unrelated field: the list of
+    // expect:fail states that now pass).
+    resolution: 'resolved',
     manifest_path: absManifest,
     network: liveJudge,                                  // true only on the live path
     judge: liveJudge ? 'live-vision' : 'offline-label-echo',
+    // aodex#485 defect 3: the run's STANDING, distinct from `judge`/`network` (what ran /
+    // did it touch the network). 'binding' ONLY on --judge live; 'advisory' otherwise —
+    // regardless of this run's verdict. See verifier.md Step 8c for the consuming rule.
+    gate,
     model: liveJudge ? liveModel : undefined,
     samples: liveJudge ? nSamples : samples,
     flakeBudget,
+    unjudgedPolicy,
     verdict: rollup.verdict,
     counts: rollup.counts,
     reviews: rollup.reviews,
     fails: rollup.fails,
     known_failing: rollup.known_failing, // expect:fail states still failing — tracked, not a new regression
     resolved: rollup.resolved,           // expect:fail states now passing — likely fixed; drop the known_broken flag
+    unjudged: rollup.unjudged,           // aodex#485: states nothing examined — own bucket, never reviews[]
     usage: liveJudge ? usageTotal : undefined,           // per-run token totals for cost estimation
     states: stateDetail,
-  }, raw);
+  }, rollup.verdict);
 }
 
 module.exports = {

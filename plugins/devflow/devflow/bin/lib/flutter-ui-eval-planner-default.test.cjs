@@ -8,8 +8,14 @@
 
 const test = require('node:test');
 const assert = require('node:assert');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { execSync } = require('node:child_process');
 
-const { decideUIEvalDefault } = require('./flutter-ui-eval-planner-default.cjs');
+const { decideUIEvalDefault, buildManifestStub } = require('./flutter-ui-eval-planner-default.cjs');
+
+const DF_TOOLS = path.join(__dirname, '..', 'df-tools.cjs');
 
 // ─── Hand-built scope fixtures (mirror flutter-ui-scope.cjs detectFlutterUIScope shape) ───
 function uiScope(overrides = {}) {
@@ -25,7 +31,15 @@ function failsafeScope() {
   return { detected: false, error: 'no inputs' };
 }
 
-const REQUIRED_STATE_KEYS = ['id', 'route', 'data_state', 'expected'];
+// 32-02 DELIBERATE CHANGE: was ['id', ...]. That literal 'id' key encoded the exact defect
+// this TRD closes -- buildManifestStub emitted `id` while the engine (flutter-ui-eval.cjs)
+// reads `st.state_id` everywhere, so a stub-derived manifest resolved state_id:undefined,
+// missed the label lookup, and (pre-32-01) fell through to a fabricated not-broken pass.
+// This is a plausible mechanism behind aodex#485's headline count (34 unjudged states
+// reporting green). The hand-built fixture manifest used `state_id` (matching the ENGINE,
+// not the generator), which is exactly why 66 green tests never caught the mismatch. See
+// Case A2/A2b below and the SUMMARY's "sixth defect" note.
+const REQUIRED_STATE_KEYS = ['state_id', 'route', 'data_state', 'expected'];
 
 test.describe('decideUIEvalDefault — P5 planner auto-emit default', () => {
   test('P1: detected ui scope → emit:true, visual_gate:true, manifest_stub is a Shape-A matrix', () => {
@@ -132,5 +146,71 @@ test.describe('decideUIEvalDefault — P5 planner auto-emit default', () => {
     assert.strictEqual(r.manifest_stub.objective, 'UI-OBJ', 'manifest_stub objective unchanged');
     assert.strictEqual(typeof r.callout, 'string');
     assert.ok(Array.isArray(r.tasks));
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Case A2 / A2b (32-02) — buildManifestStub must emit the key the ENGINE reads.
+//
+// Found during 32-02: buildManifestStub emitted `id`, flutter-ui-eval.cjs's
+// cmdVerifyFlutterUIEval reads `st.state_id` everywhere. A stub-derived manifest
+// therefore resolved state_id:undefined -- a SIXTH defect, distinct from the five in
+// aodex#485, and plausibly the mechanism behind #485's headline count: pre-32-01, that
+// same undefined key missed the label lookup and fell through `|| { is_broken: false }`
+// straight to a fabricated pass. The checked-in fixture manifest.json was hand-written
+// using `state_id` (matching the CONSUMER, not the generator), which is exactly why 66
+// green tests never saw the mismatch.
+//
+// A2 pins the key by name; A2b feeds the stub's ACTUAL output through the engine's own
+// CLI path (df-tools verify flutter-ui-eval) so the generator and the consumer can never
+// drift apart again without a visible, load-bearing test failure.
+// ──────────────────────────────────────────────────────────────────────────────
+
+test.describe('buildManifestStub — emits the key the engine reads (32-02)', () => {
+  test('Case A2 — buildManifestStub().states[0] carries a state_id property (not `id`)', () => {
+    const stub = buildManifestStub('OBJ');
+    assert.ok(Object.prototype.hasOwnProperty.call(stub.states[0], 'state_id'),
+      'the engine reads st.state_id; the stub must emit that exact key');
+    assert.ok(!Object.prototype.hasOwnProperty.call(stub.states[0], 'id'),
+      'the stub must not ALSO carry the old `id` key (no silent dual-shape drift)');
+  });
+
+  test("Case A2b — the stub, fed through the ENGINE's own CLI path, is attributable with NO fallback advisory", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ui-eval-stub-'));
+    try {
+      const stub = buildManifestStub('A2B-OBJ');
+      const seed = stub.states[0];
+      // Fill the placeholder value on WHICHEVER key the stub actually emits -- do NOT
+      // manually add a `state_id` property here, or this test would pass even if the
+      // stub still emitted the old `id` key (masking the exact defect under test).
+      const idKey = Object.prototype.hasOwnProperty.call(seed, 'state_id') ? 'state_id' : 'id';
+      seed[idKey] = 'stub-seed-state';
+      seed.screenshot_path = './seed.png';
+
+      fs.writeFileSync(
+        path.join(tmpDir, 'labels.json'),
+        JSON.stringify({ 'stub-seed-state': { is_broken: false } }, null, 2),
+        'utf-8',
+      );
+      fs.writeFileSync(path.join(tmpDir, 'seed.png'), 'stub-pixel-placeholder', 'utf-8');
+      fs.writeFileSync(path.join(tmpDir, 'manifest.json'), JSON.stringify(stub, null, 2), 'utf-8');
+
+      const out = execSync(
+        `node ${DF_TOOLS} verify flutter-ui-eval ${path.join(tmpDir, 'manifest.json')} --raw`,
+        { encoding: 'utf-8' },
+      );
+      const rollup = JSON.parse(out);
+
+      assert.strictEqual(rollup.states.length, 1, 'the stub-derived manifest has exactly one state');
+      assert.strictEqual(rollup.states[0].state_id, 'stub-seed-state',
+        'a stub-derived manifest must be attributable by the engine WITHOUT needing the id-fallback');
+      assert.strictEqual(rollup.states[0].verdict, 'pass', 'the labelled seed state judges normally');
+
+      const advisories = [...(rollup.states[0].advisories || []), ...(rollup.states[0].errors || [])];
+      assert.ok(!advisories.some(a => /non-canonical/i.test(a)),
+        'the canonical (fixed) stub path must never trigger the id-fallback advisory');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 });

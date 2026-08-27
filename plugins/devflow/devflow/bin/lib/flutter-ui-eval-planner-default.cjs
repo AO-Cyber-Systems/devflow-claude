@@ -33,7 +33,11 @@ function buildManifestStub(objective) {
     flakeBudget: 1,
     states: [
       {
-        id: '<state-id>',
+        // 32-02: was `id`, while the engine (flutter-ui-eval.cjs cmdVerifyFlutterUIEval)
+        // reads `st.state_id` everywhere -- the generator and the consumer disagreed
+        // (aodex#485 defect #6, a plausible mechanism behind the headline unjudged count).
+        // Emit the key the engine actually reads.
+        state_id: '<state-id>',
         route: '/<route>',
         data_state: 'populated',
         expected: '<describe the correct appearance for this state>',

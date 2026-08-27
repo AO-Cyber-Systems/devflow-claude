@@ -547,21 +547,36 @@ Machine-judge visual correctness of every captured Flutter UI surface BEFORE esc
 
 **Gate:** run ONLY when the objective has >=1 TRD with `type: ui` + `stack: flutter`. Otherwise skip silently (mirror the REQ-10-06 non-Flutter skip).
 
-**Call the engine arm and parse the scoreRun rollup:**
+**Call the engine arm:**
 
 ```bash
 UI_EVAL=$(node ~/.claude/devflow/bin/df-tools.cjs verify flutter-ui-eval "$OBJECTIVE" --raw)
 ```
 
-Rollup shape: `{ verdict: 'pass'|'pass-with-reviews'|'fail', counts, reviews[], fails[], states[] }` from the OFFLINE label-echo judge (network:false). Each `states[]` entry: `{ state_id, verdict: 'pass'|'review'|'fail', is_broken, defects[], errors[] }`.
+The engine resolves `"$OBJECTIVE"` to a manifest — or explains why it could not — via `resolveUIEvalTarget` (`bin/lib/flutter-ui-eval-resolve.cjs`), and reports one of four honest `resolution` values. **Route by `resolution` first — only a `resolved` result carries a scoreRun rollup at all.**
 
-**Route per verdict (the load-bearing contract):**
+**Route by `resolution` (the load-bearing contract):**
+
+| `resolution` | Meaning | Action |
+|---|---|---|
+| `not_applicable` | No TRD in this objective is `type: ui` + `stack: flutter` | **Skip silently.** No VERIFICATION.md entry, no note, exit 0. Unchanged behaviour for non-Flutter objectives. |
+| `absent` | UI TRDs exist; no manifest at any location in `searched[]` | **`? MISSING (no ui-eval manifest)`** — append a `notes:` entry naming `searched[]`, **KEEP the surface on the Step 9 `human_verification:` list**, and record a todo to author the manifest. Nothing judged this surface, so a human still must. **Escalate to a `gaps:` entry when the objective declares `visual_gate: true`** (the ratchet: an objective planned after the gate became auto-required has no excuse). |
+| `invalid` | A manifest was found but could not be loaded | **`gaps:` entry** carrying the parse reason. A broken gate is a defect, not an absence — never report it as MISSING. |
+| `resolved` | Manifest loaded and scored | Route the scoreRun rollup per the verdict rules below. |
+
+**Never a hard fail on `not_applicable` or `absent`.** Only `invalid` and a judged `fail` produce gaps.
+
+**Parse the scoreRun rollup (`resolution: 'resolved'` only):**
+
+Rollup shape: `{ verdict: 'pass'|'pass-with-reviews'|'fail', gate: 'binding'|'advisory', counts, reviews[], fails[], unjudged[], states[] }`. `gate` is the run's STANDING — what authority its verdict carries, independent of outcome. `gate: 'binding'` ONLY when the engine ran with `--judge live` (a real vision comparison per state). `gate: 'advisory'` on the default invocation (no `--judge`, or `--judge labels`) — the offline label-echo judge (network:false), which is a labels LOOKUP, not a visual gate, and must never be treated as one regardless of how clean its verdict is. Each `states[]` entry: `{ state_id, verdict: 'pass'|'review'|'fail', is_broken, defects[], errors[], evidence: 'vision'|'label' }`.
+
+**Route per verdict (the load-bearing contract, `resolution: 'resolved'` only):**
 
 - Any state in `fails[]` (verdict `fail`) → append a `gaps:` entry: the defect type/severity + the screenshot evidence path under `.planning/objectives/<obj>/evidence/ui_eval/<state_id>.png`.
 - `verdict: pass-with-reviews` OR any state in `reviews[]` → append `notes:` entries + a partial section; that surface STAYS on the Step 9 human-verification list.
-- `verdict: pass` (no fails, no reviews) → REMOVE that surface from the Step 9 `human_verification:` list. This is the payoff: machine-judged visual correctness drops off the human queue.
-
-**On `{ error: ... }` (no manifest found / invalid):** record `? SKIPPED (no ui-eval manifest)` and fall through to Step 9 unchanged. NEVER a hard fail.
+- Any state in `unjudged[]` (aodex#485 — nothing examined it, distinct from a genuine judge disagreement) → append a `notes:` entry naming it as never judged; that surface STAYS on the Step 9 human-verification list regardless of `gate` or the run's overall verdict.
+- `gate: 'binding'` AND `verdict: pass` (no fails, no reviews, no unjudged) → REMOVE that surface from the Step 9 `human_verification:` list. **This is the ONLY route that may retire a human visual check.** The payoff — machine-judged visual correctness drops off the human queue — requires a binding gate; an offline pass alone never earns it.
+- `gate: 'advisory'` → NEVER removes a surface from the Step 9 list, whatever the verdict. Even a clean `verdict: pass` on the default (offline label-echo) path is a labels lookup, not a machine judgment of the pixels — append a `notes:` entry (e.g. "advisory pass — offline label-echo judge, not machine-verified against a binding gate") and leave the surface queued for human visual verification.
 
 For non-Flutter objectives: skip this subroutine.
 
@@ -619,7 +634,7 @@ For non-Flutter objectives: skip this subroutine.
 ## Step 9: Identify Human Verification Needs
 
 Items that pass functional verification (Step 8a web or 8b Flutter/Maestro) can be removed from the human verification list. Only flag items that:
-- **Surfaces that Step 8c scored `pass` are visual-correctness-verified by the machine judge and MUST NOT appear in this human-verification list.** Only Step 8c `review`/SKIPPED surfaces escalate here for visual UX.
+- **Surfaces that Step 8c scored `pass` UNDER `gate: 'binding'` (a real `--judge live` comparison) are visual-correctness-verified by the machine judge and MUST NOT appear in this human-verification list.** A `pass` under `gate: 'advisory'` (the default offline label-echo path) is a labels lookup, not a machine judgment — it STAYS on this list. Step 8c `review`/`unjudged`/SKIPPED surfaces also escalate here for visual UX.
 - Cannot be verified via automation (performance feel, accessibility nuance, animation smoothness, haptics)
 - Failed automated verification in a way that needs human judgment
 - Involve external service integration (Stripe checkout, email delivery, push notifications)

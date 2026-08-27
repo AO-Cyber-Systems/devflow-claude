@@ -30,12 +30,17 @@ INIT=$(node ~/.claude/devflow/bin/df-tools.cjs init verify-work "${ARGUMENTS}" 2
 OBJECTIVE_DIR=$(echo "$INIT" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{console.log(JSON.parse(s).objective_dir||"")}catch{console.log("")}})')
 ```
 
-Locate the manifest, in priority order:
-1. A manifest path passed directly in `$ARGUMENTS` (ends in `.yaml`/`.yml`/`.json`).
-2. The objective's own manifest stub: `.planning/objectives/<obj>/evidence/ui_eval/manifest.yaml`.
-3. The consumer repo's manifests: `flutter/ui_eval/manifests/*.yaml`.
+Manifest resolution is performed by the engine — `df-tools verify flutter-ui-eval` accepts
+either a manifest path **or an objective id** and resolves it via `resolveUIEvalTarget`
+(`bin/lib/flutter-ui-eval-resolve.cjs`), in this order:
 
-If no manifest is found, record `SKIPPED (no ui-eval manifest)` and exit cleanly — never a hard fail.
+1. An explicit path passed in `$ARGUMENTS` that names an existing file.
+2. `.planning/objectives/<obj>/evidence/ui_eval/manifest.json`
+3. `ui_eval/manifests/*.manifest.json` (and `flutter/ui_eval/manifests/*.manifest.json`)
+
+**The engine reads JSON, not YAML.** A `.yaml` manifest resolves to `invalid`, not to
+"absent" — it is reported, not ignored. Do not re-implement this lookup in the agent prose;
+pass the objective id and read `resolution` off the result.
 </step>
 
 <step name="capture">
@@ -62,10 +67,15 @@ UI_EVAL=$(node ~/.claude/devflow/bin/df-tools.cjs verify flutter-ui-eval "<manif
 # (equivalent arm: node ~/.claude/devflow/bin/df-tools.cjs flutter-ui eval "<manifest-path>" --raw)
 ```
 
-Rollup shape: `{ verdict: 'pass'|'pass-with-reviews'|'fail', counts, reviews[], fails[], states[] }`.
+Rollup shape (only present when `resolution: 'resolved'`): `{ verdict: 'pass'|'pass-with-reviews'|'fail', counts, reviews[], fails[], states[] }`.
 Each `states[]` entry: `{ state_id, verdict: 'pass'|'review'|'fail', is_broken, defects[], errors[] }`.
 
-On `{ error: ... }` (manifest not found / invalid) → record `SKIPPED (no ui-eval manifest)` and fall through; never a hard fail.
+Route by the engine's `resolution` field (the authoritative table is verifier.md Step 8c):
+- `not_applicable` → skip silently, exit 0.
+- `absent` → MISSING — keep the surface on the human-verification list, record a todo to author the manifest.
+- `invalid` → `gaps:` entry.
+- `resolved` → score per the rollup above.
+Never a hard fail on `not_applicable` or `absent`; only `invalid` and a judged `fail` produce gaps.
 </step>
 
 <step name="judge">
