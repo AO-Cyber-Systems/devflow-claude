@@ -1,0 +1,22 @@
+version: 2
+
+updates:
+  # MCP Ruby SDK servers — the two Gemfiles that carried the mcp advisories.
+  - package-ecosystem: "bundler"
+    directory: "/plugins/aosentry-mcp/mcp_servers/management"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: "bundler"
+    directory: "/plugins/aosentry-mcp/mcp_servers/media"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+
+  # Root Node package — the only tracked npm manifest in the repo.
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
