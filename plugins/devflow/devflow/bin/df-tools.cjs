@@ -13,7 +13,6 @@
  *   state update <field> <value>       Update a STATE.md field
  *   state get [section]                Get STATE.md content or section
  *   state patch --field val ...        Batch update STATE.md fields
- *   context [--root <dir>] [--limit N] Recompute context composition from transcripts
  *   resolve-model <agent-type>         Get model for agent based on profile
  *   find-objective <objective>                 Find objective directory by number
  *   commit <message> [--files f1 f2]   Commit planning docs
@@ -188,6 +187,7 @@ const { cmdFlutterUISetup } = require('./lib/flutter-ui-setup.cjs');
 const { cmdFlutterUIEvalBootstrap } = require('./lib/flutter-ui-eval-bootstrap.cjs');
 const { cmdVerifyFlutterStateCoverage } = require('./lib/flutter-state-coverage.cjs');
 const { cmdVerifyFlutterUIEval } = require('./lib/flutter-ui-eval.cjs');
+const { cmdDesignReview } = require('./lib/flutter-ui-design-review.cjs');
 const { cmdDetectNovelDomain } = require('./lib/novel-domain.cjs');
 const { cmdDetectBrownfieldMap } = require('./lib/brownfield-detector.cjs');
 const { cmdDetectFlutterUIScope } = require('./lib/flutter-ui-scope.cjs');
@@ -210,11 +210,6 @@ const {
   cmdChangelogUpdate, cmdChangelogCheck,
 } = require('./lib/changelog.cjs');
 const { cmdSkillActive } = require('./lib/skill-active.cjs');
-const { analyze: analyzeContext } = require('./lib/context-audit.cjs');
-const { recordOverride, readOverrides } = require('./lib/override.cjs');
-const { analyze: analyzeSessions } = require('./lib/session-audit.cjs');
-const { exportTranscripts } = require('./lib/transcript-export.cjs');
-const { collect: collectTelemetry } = require('./lib/telemetry.cjs');
 const { cmdAwarenessRoute } = require('./lib/awareness-cli.cjs');
 const { cmdOrgAwarenessRoute } = require('./lib/org-awareness-cli.cjs');
 const { cmdDupDetectRoute } = require('./lib/dup-detect-cli.cjs');
@@ -252,7 +247,7 @@ async function main() {
   const cwd = process.cwd();
 
   if (!command) {
-    error('Usage: df-tools <command> [args] [--raw]\nCommands: state, context, override, session-audit, transcript-export, telemetry, resolve-model, find-objective, commit, verify-summary, verify, detect, generate, frontmatter, template, generate-slug, current-timestamp, list-todos, verify-path-exists, config-ensure-section, awareness, benchmark, planning, init');
+    error('Usage: df-tools <command> [args] [--raw]\nCommands: state, resolve-model, find-objective, commit, verify-summary, verify, detect, generate, frontmatter, template, generate-slug, current-timestamp, list-todos, verify-path-exists, config-ensure-section, awareness, benchmark, planning, init');
   }
 
   switch (command) {
@@ -314,103 +309,6 @@ async function main() {
       } else {
         cmdStateLoad(cwd, raw);
       }
-      break;
-    }
-
-    case 'telemetry': {
-      // df-tools telemetry [--scan [--limit N]]
-      const { findPlanningDir: fpd } = require('./lib/skill-active.cjs');
-      const pdir = fpd(cwd);
-      let sessionReport;
-      if (args.includes('--scan')) {
-        const li2 = args.indexOf('--limit');
-        sessionReport = analyzeSessions(
-          [require('path').join(require('os').homedir(), '.claude', 'projects')],
-          { limit: li2 !== -1 && args[li2 + 1] ? parseInt(args[li2 + 1], 10) : 150 }
-        );
-      }
-      const rep = collectTelemetry({ planningDir: pdir, sessionReport });
-      console.log(JSON.stringify(rep, null, raw ? 0 : 2));
-      break;
-    }
-
-    case 'transcript-export': {
-      // df-tools transcript-export [--root <dir>] [--out <file>] [--full <dir>] [--limit N]
-      const os2 = require('os'); const path2 = require('path');
-      const eroots = [];
-      for (let i = 1; i < args.length; i++) {
-        if (args[i] === '--root' && args[i + 1]) { eroots.push(args[i + 1]); i++; }
-      }
-      if (!eroots.length) eroots.push(path2.join(os2.homedir(), '.claude', 'projects'));
-      const oi = args.indexOf('--out');
-      const fi = args.indexOf('--full');
-      const ei = args.indexOf('--limit');
-      const res = exportTranscripts({
-        roots: eroots,
-        out: oi !== -1 && args[oi + 1] ? args[oi + 1]
-          : path2.join(os2.homedir(), '.claude', 'devflow', 'transcript-index.jsonl'),
-        fullDir: fi !== -1 ? args[fi + 1] : undefined,
-        limit: ei !== -1 && args[ei + 1] ? parseInt(args[ei + 1], 10) : undefined,
-      });
-      console.log(JSON.stringify(res, null, raw ? 0 : 2));
-      break;
-    }
-
-    case 'session-audit': {
-      // df-tools session-audit [--root <dir>] [--limit N] [--since YYYY-MM-DD]
-      const sroots = [];
-      for (let i = 1; i < args.length; i++) {
-        if (args[i] === '--root' && args[i + 1]) { sroots.push(args[i + 1]); i++; }
-      }
-      const sl = args.indexOf('--limit');
-      const ss = args.indexOf('--since');
-      if (!sroots.length) {
-        sroots.push(require('path').join(require('os').homedir(), '.claude', 'projects'));
-      }
-      const rep = analyzeSessions(sroots, {
-        limit: sl !== -1 && args[sl + 1] ? parseInt(args[sl + 1], 10) : undefined,
-        since: ss !== -1 ? args[ss + 1] : undefined,
-      });
-      console.log(JSON.stringify(rep, null, raw ? 0 : 2));
-      break;
-    }
-
-    case 'override': {
-      // df-tools override --gate <name> --reason "<why>" | --list [--limit N]
-      const { findPlanningDir } = require('./lib/skill-active.cjs');
-      const pd = findPlanningDir(cwd);
-      const gi = args.indexOf('--gate');
-      const ri = args.indexOf('--reason');
-      const li = args.indexOf('--limit');
-      const limit = li !== -1 && args[li + 1] ? parseInt(args[li + 1], 10) : 20;
-      if (args.includes('--list')) {
-        const out = readOverrides({ planningDir: pd, limit });
-        console.log(JSON.stringify(out, null, raw ? 0 : 2));
-        break;
-      }
-      const res = recordOverride({
-        planningDir: pd,
-        gate: gi !== -1 ? args[gi + 1] : undefined,
-        reason: ri !== -1 ? args.slice(ri + 1).filter(a => !a.startsWith('--')).join(' ') : undefined,
-      });
-      if (!res.ok) error(res.message);
-      console.log(JSON.stringify(res, null, raw ? 0 : 2));
-      break;
-    }
-
-    case 'context': {
-      // df-tools context [--root <dir>]... [--limit N] [--raw]
-      const roots = [];
-      for (let i = 1; i < args.length; i++) {
-        if (args[i] === '--root' && args[i + 1]) { roots.push(args[i + 1]); i++; }
-      }
-      const limIdx = args.indexOf('--limit');
-      const limit = limIdx !== -1 && args[limIdx + 1] ? parseInt(args[limIdx + 1], 10) : 0;
-      if (!roots.length) {
-        roots.push(require('path').join(require('os').homedir(), '.claude', 'projects'));
-      }
-      const summary = analyzeContext(roots, { limit: limit || undefined });
-      console.log(JSON.stringify(summary, null, raw ? 0 : 2));
       break;
     }
 
@@ -537,8 +435,11 @@ async function main() {
       } else if (subcommand === 'bootstrap') {
         // flutter-ui bootstrap [project-dir] [--raw]
         cmdFlutterUIEvalBootstrap(cwd, args[2], raw);
+      } else if (subcommand === 'design-review') {
+        // flutter-ui design-review <manifest> [--live] [--raw]
+        cmdDesignReview(cwd, args.slice(2), raw);
       } else {
-        error('Unknown flutter-ui subcommand. Available: setup, eval, bootstrap');
+        error('Unknown flutter-ui subcommand. Available: setup, eval, bootstrap, design-review');
       }
       break;
     }

@@ -33,7 +33,11 @@ function buildManifestStub(objective) {
     flakeBudget: 1,
     states: [
       {
-        id: '<state-id>',
+        // 32-02: was `id`, while the engine (flutter-ui-eval.cjs cmdVerifyFlutterUIEval)
+        // reads `st.state_id` everywhere -- the generator and the consumer disagreed
+        // (aodex#485 defect #6, a plausible mechanism behind the headline unjudged count).
+        // Emit the key the engine actually reads.
+        state_id: '<state-id>',
         route: '/<route>',
         data_state: 'populated',
         expected: '<describe the correct appearance for this state>',
@@ -90,7 +94,67 @@ function decideUIEvalDefault(input) {
   };
 }
 
+/**
+ * Pure decision fn — does the planner auto-note the ADVISORY design-review pass for this objective?
+ *
+ * Phase B of the UI design-review layer. PARALLEL to decideUIEvalDefault's visual gate, but
+ * crucially DIFFERENT in contract: the design-review pass is ADVISORY and NEVER gates. Where the
+ * ui-eval visual gate (Step 8c) can FAIL an objective on a broken surface, the design-review pass
+ * (Step 8d) only ever records advisory notes / candidate todos for FUTURE UI objectives — it can
+ * never change the current objective's verdict.
+ *
+ * Emit iff `scope.detected === true`. Non-ui / failsafe / missing scope → disabled, never throws.
+ *
+ * @param {{ scope?: object, objective?: string }} [input]
+ *   scope — a flutter-ui-scope detectFlutterUIScope result.
+ *   objective — objective id (flows into the callout; defaults to a placeholder).
+ * @returns {{ enabled: boolean, advisory: boolean, gating: boolean, callout?: string, tasks?: object[] }}
+ *   On emit: { enabled:true, advisory:true, gating:false, callout, tasks }.
+ *   Otherwise: { enabled:false, advisory:true, gating:false } — advisory:true/gating:false are
+ *   INVARIANT (the design-review pass can never gate, whether enabled or not).
+ */
+function decideDesignReviewDefault(input) {
+  const { scope, objective } = input || {};
+
+  // INVARIANT: the design-review pass is advisory & non-gating regardless of emit.
+  // Gate: enable ONLY when flutter-ui scope was positively detected. Failsafe-permissive.
+  if (!scope || scope.detected !== true) {
+    return { enabled: false, advisory: true, gating: false };
+  }
+
+  const obj = objective || "<TODO: objective>";
+  return {
+    enabled: true,
+    advisory: true, // design critique is qualitative — it NEVER gates
+    gating: false,  // EXPLICIT: distinct from the defect judge at Step 8c, which DOES gate
+    // A terse, factual line for the user-facing plan output. Mirrors the visual-gate callout but
+    // makes the ADVISORY / never-gates contract explicit so a reviewer can't confuse it with 8c.
+    callout:
+      "\u{1F3A8} Advisory design-review pass noted for " +
+      obj +
+      " (type:ui/stack:flutter detected): the verifier runs df-tools flutter-ui design-review " +
+      "(Step 8d) on this objective's surfaces. ADVISORY ONLY — it never gates/fails the objective; " +
+      "high-priority design debt becomes candidate todos for future UI work. Heavy first-run sweep " +
+      "via /devflow:design-review; thereafter a lightweight advisory pass per UI objective.",
+    tasks: [
+      {
+        subject: "Author design-review manifest for " + obj,
+        description:
+          "Fill the design-review manifest states (state_id/surface/screenshot_path/design_intent) + " +
+          "design_system_path anchor — the advisory critique reuses the ui_eval screenshots.",
+      },
+      {
+        subject: "Run /devflow:design-review advisory sweep for " + obj,
+        description:
+          "Heavy first-run design-debt sweep; high-priority debt → candidate todos for future UI " +
+          "objectives. ADVISORY — never gates this objective.",
+      },
+    ],
+  };
+}
+
 module.exports = {
   decideUIEvalDefault,
+  decideDesignReviewDefault,
   buildManifestStub,
 };

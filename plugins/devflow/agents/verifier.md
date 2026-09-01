@@ -568,21 +568,86 @@ Machine-judge visual correctness of every captured Flutter UI surface BEFORE esc
 
 **Gate:** run ONLY when the objective has >=1 TRD with `type: ui` + `stack: flutter`. Otherwise skip silently (mirror the REQ-10-06 non-Flutter skip).
 
-**Call the engine arm and parse the scoreRun rollup:**
+**Call the engine arm:**
 
 ```bash
 UI_EVAL=$(node ~/.claude/devflow/bin/df-tools.cjs verify flutter-ui-eval "$OBJECTIVE" --raw)
 ```
 
-Rollup shape: `{ verdict: 'pass'|'pass-with-reviews'|'fail', counts, reviews[], fails[], states[] }` from the OFFLINE label-echo judge (network:false). Each `states[]` entry: `{ state_id, verdict: 'pass'|'review'|'fail', is_broken, defects[], errors[] }`.
+The engine resolves `"$OBJECTIVE"` to a manifest — or explains why it could not — via `resolveUIEvalTarget` (`bin/lib/flutter-ui-eval-resolve.cjs`), and reports one of four honest `resolution` values. **Route by `resolution` first — only a `resolved` result carries a scoreRun rollup at all.**
 
-**Route per verdict (the load-bearing contract):**
+**Route by `resolution` (the load-bearing contract):**
+
+| `resolution` | Meaning | Action |
+|---|---|---|
+| `not_applicable` | No TRD in this objective is `type: ui` + `stack: flutter` | **Skip silently.** No VERIFICATION.md entry, no note, exit 0. Unchanged behaviour for non-Flutter objectives. |
+| `absent` | UI TRDs exist; no manifest at any location in `searched[]` | **`? MISSING (no ui-eval manifest)`** — append a `notes:` entry naming `searched[]`, **KEEP the surface on the Step 9 `human_verification:` list**, and record a todo to author the manifest. Nothing judged this surface, so a human still must. **Escalate to a `gaps:` entry when the objective declares `visual_gate: true`** (the ratchet: an objective planned after the gate became auto-required has no excuse). |
+| `invalid` | A manifest was found but could not be loaded | **`gaps:` entry** carrying the parse reason. A broken gate is a defect, not an absence — never report it as MISSING. |
+| `resolved` | Manifest loaded and scored | Route the scoreRun rollup per the verdict rules below. |
+
+**Never a hard fail on `not_applicable` or `absent`.** Only `invalid` and a judged `fail` produce gaps.
+
+**Parse the scoreRun rollup (`resolution: 'resolved'` only):**
+
+Rollup shape: `{ verdict: 'pass'|'pass-with-reviews'|'fail', gate: 'binding'|'advisory', counts, reviews[], fails[], unjudged[], states[] }`. `gate` is the run's STANDING — what authority its verdict carries, independent of outcome. `gate: 'binding'` ONLY when the engine ran with `--judge live` (a real vision comparison per state). `gate: 'advisory'` on the default invocation (no `--judge`, or `--judge labels`) — the offline label-echo judge (network:false), which is a labels LOOKUP, not a visual gate, and must never be treated as one regardless of how clean its verdict is. Each `states[]` entry: `{ state_id, verdict: 'pass'|'review'|'fail', is_broken, defects[], errors[], evidence: 'vision'|'label' }`.
+
+**Route per verdict (the load-bearing contract, `resolution: 'resolved'` only):**
 
 - Any state in `fails[]` (verdict `fail`) → append a `gaps:` entry: the defect type/severity + the screenshot evidence path under `.planning/objectives/<obj>/evidence/ui_eval/<state_id>.png`.
 - `verdict: pass-with-reviews` OR any state in `reviews[]` → append `notes:` entries + a partial section; that surface STAYS on the Step 9 human-verification list.
-- `verdict: pass` (no fails, no reviews) → REMOVE that surface from the Step 9 `human_verification:` list. This is the payoff: machine-judged visual correctness drops off the human queue.
+- Any state in `unjudged[]` (aodex#485 — nothing examined it, distinct from a genuine judge disagreement) → append a `notes:` entry naming it as never judged; that surface STAYS on the Step 9 human-verification list regardless of `gate` or the run's overall verdict.
+- `gate: 'binding'` AND `verdict: pass` (no fails, no reviews, no unjudged) → REMOVE that surface from the Step 9 `human_verification:` list. **This is the ONLY route that may retire a human visual check.** The payoff — machine-judged visual correctness drops off the human queue — requires a binding gate; an offline pass alone never earns it.
+- `gate: 'advisory'` → NEVER removes a surface from the Step 9 list, whatever the verdict. Even a clean `verdict: pass` on the default (offline label-echo) path is a labels lookup, not a machine judgment of the pixels — append a `notes:` entry (e.g. "advisory pass — offline label-echo judge, not machine-verified against a binding gate") and leave the surface queued for human visual verification.
 
-**On `{ error: ... }` (no manifest found / invalid):** record `? SKIPPED (no ui-eval manifest)` and fall through to Step 9 unchanged. NEVER a hard fail.
+For non-Flutter objectives: skip this subroutine.
+
+### Step 8d: Advisory design review (ADVISORY — NEVER GATES)
+
+After the Step 8c defect gate, run a lightweight ADVISORY design-critique pass over this objective's Flutter UI surfaces. **This step is the opposite of Step 8c: it can NEVER gate, fail, or change the pass/fail verdict.** Where Step 8c's defect judge answers "is this surface BROKEN?" and a fail produces a `gaps:` entry, Step 8d's design critic answers "is this GOOD design?" and only ever records ADVISORY notes + candidate todos for FUTURE UI objectives. Do NOT touch or duplicate the Step 8c gating logic.
+
+**Gate:** run ONLY when the objective has >=1 TRD with `type: ui` + `stack: flutter`. Otherwise skip silently.
+
+**Cadence:** the heavy first-run design sweep is the user-invoked `/devflow:design-review` (ranked design-debt backlog). Step 8d is the lightweight follow-up — a thin advisory pass on each UI objective's surfaces, so design debt keeps surfacing as the project grows without a full re-sweep each time.
+
+**Run the advisory critic arm (only when a manifest AND a credential exist):**
+
+```bash
+# Locate the objective's design-review manifest (same manifest the ui_eval gate uses):
+#   .planning/objectives/<obj>/evidence/ui_eval/manifest.json  OR  flutter/ui_eval/manifests/*.json
+DESIGN_MANIFEST="<resolved manifest path>"
+
+# A credential is required for the live critique (ANTHROPIC_API_KEY, or ANTHROPIC_AUTH_TOKEN+ANTHROPIC_BASE_URL).
+if [ -n "$DESIGN_MANIFEST" ] && [ -f "$DESIGN_MANIFEST" ] && { [ -n "$ANTHROPIC_API_KEY" ] || [ -n "$ANTHROPIC_AUTH_TOKEN" ]; }; then
+  DESIGN=$(node ~/.claude/devflow/bin/df-tools.cjs flutter-ui design-review "$DESIGN_MANIFEST" --live --raw)
+else
+  # No manifest OR no credential → NOTE and continue. NEVER block.
+  DESIGN='{"advisory":true,"skipped":"design-review skipped (no manifest/credential)"}'
+fi
+```
+
+Rollup shape (when it runs): `{ advisory:true, total, counts:{high,medium,low}, byDimension, debt[]?, skipped[], report_path }`. `advisory:true` is ALWAYS set — there is NEVER a verdict.
+
+**Route the advisory output (the load-bearing never-gates contract):**
+
+- If `design-review skipped (no manifest/credential)` → record an **advisory note** `design-review skipped (no manifest/credential)` and continue. NOT a gap. NOT a fail.
+- High/medium-priority debt items → record them as **advisory notes** in the verification output AND route them to the objective-work loop as **candidate todos** for FUTURE UI objectives (see below). They DO **NOT** create `gaps:` entries, DO **NOT** appear in the Step 11 `gaps:` block, and DO **NOT** change the Step 10 status. Low-priority debt is recorded in the report only.
+- On `{ error: ... }` (manifest not found / invalid) → record an advisory note and fall through. NEVER a hard fail.
+
+**Routing high-priority debt → candidate todos (reuse the existing todo mechanism):**
+
+Use the SAME capture path as `/devflow:add-todo`. For each `high` (and optionally `medium`) debt item, write a todo file under `.planning/todos/pending/` and commit it via df-tools — exactly the mechanism the add-todo workflow uses:
+
+```bash
+mkdir -p .planning/todos/pending
+slug=$(node ~/.claude/devflow/bin/df-tools.cjs generate-slug "design debt <state_id> <dimension>" --raw)
+# Write .planning/todos/pending/<date>-<slug>.md with area: ui, the debt anchor/observation/suggestion,
+# and a note that it is a candidate for a FUTURE UI-polish objective (NOT a blocker for THIS one).
+node ~/.claude/devflow/bin/df-tools.cjs commit "docs: capture design-debt todo - <state_id> <dimension>" --files .planning/todos/pending/<date>-<slug>.md
+```
+
+These candidate todos are scope for a future UI-polish objective; they do not block the current objective and never appear in its gap output.
+
+**In the verifier's final report**, add an `## Advisory Design Review` section listing the high/medium debt items (or "skipped — no manifest/credential") and the `report_path`. Clearly mark it ADVISORY. The Step 10 status and Step 11 `gaps:` block are computed WITHOUT any input from Step 8d.
 
 For non-Flutter objectives: skip this subroutine.
 
@@ -590,7 +655,7 @@ For non-Flutter objectives: skip this subroutine.
 ## Step 9: Identify Human Verification Needs
 
 Items that pass functional verification (Step 8a web or 8b Flutter/Maestro) can be removed from the human verification list. Only flag items that:
-- **Surfaces that Step 8c scored `pass` are visual-correctness-verified by the machine judge and MUST NOT appear in this human-verification list.** Only Step 8c `review`/SKIPPED surfaces escalate here for visual UX.
+- **Surfaces that Step 8c scored `pass` UNDER `gate: 'binding'` (a real `--judge live` comparison) are visual-correctness-verified by the machine judge and MUST NOT appear in this human-verification list.** A `pass` under `gate: 'advisory'` (the default offline label-echo path) is a labels lookup, not a machine judgment — it STAYS on this list. Step 8c `review`/`unjudged`/SKIPPED surfaces also escalate here for visual UX.
 - Cannot be verified via automation (performance feel, accessibility nuance, animation smoothness, haptics)
 - Failed automated verification in a way that needs human judgment
 - Involve external service integration (Stripe checkout, email delivery, push notifications)
