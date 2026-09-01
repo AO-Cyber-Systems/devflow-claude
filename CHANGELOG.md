@@ -6,6 +6,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.6.0] - 2026-09-01
+
+### Added
+- **design**: enforce design references in eden-ui skills and executor (faa8584)
+- **design**: add design craft reference set (2221ec3)
+- **docs**: documentation site for devflow.cloud (9bcf4f8)
+- **verify**: conditional deployment verification for verifier and integration-checker (aa4dc4c)
+- **13**: let a model invoke /devflow:objective (ab83319)
+- **13**: make objective remove dry-run by default behind --confirm (3b20ae2)
+
+### Fixed
+- **brand**: correct font loading in eden-ui-web brand presets (3e97666)
+
+### Docs
+- link the docs site and credit taste-skill (e4fbce4)
+- **quick-13**: fix plan commit-type contradiction + add SC-10 detection step (a3e214a)
+- **quick-13**: verification evidence + STATE.md record (4f92c6e)
+- **13**: summary for quick job 13 (f979684)
+- **13**: plan objective skill un-gate + objective remove --confirm rail (380a937)
+
+### Tests
+- **13**: RED — --confirm dry-run rail for objective remove (b1e3227)
+
 ## [2.5.0] - 2026-08-19
 
 Remediation of the **Autonomy Blocker Audit** (2026-08-18) — a measured study of
@@ -2000,6 +2023,7 @@ the gate that prevents the same slip going forward.
 [1.0.2]: https://github.com/glittercowboy/devflow/releases/tag/v1.0.2
 [1.0.1]: https://github.com/glittercowboy/devflow/releases/tag/v1.0.1
 [1.0.0]: https://github.com/glittercowboy/devflow/releases/tag/v1.0.0
+
 
 
 
