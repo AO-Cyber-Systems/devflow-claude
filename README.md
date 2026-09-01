@@ -20,6 +20,8 @@
 
 <br>
 
+**[Documentation → devflow.cloud](https://devflow.cloud)**
+
 [How It Works](#how-it-works) · [Commands](#commands) · [Why It Works](#why-it-works) · [User Guide](docs/USER-GUIDE.md)
 
 </div>
@@ -707,6 +709,29 @@ rm -rf ~/.claude/devflow
 ```
 
 ---
+
+## Credits
+
+DevFlow's design guidance is **derived from
+[taste-skill](https://github.com/Leonxlnx/taste-skill)** by Leonxlnx, used under
+the MIT License. Five references adapt its structure, rules and thresholds to
+DevFlow's stacks and intent model:
+
+| Reference | Covers |
+|---|---|
+| `design-craft.md` | Design read, three dials, consistency locks, layout discipline |
+| `design-tells.md` | Catalogue of generated-look patterns |
+| `design-preflight.md` | The mechanical gate run before shipping a surface |
+| `design-redesign.md` | Protocol for changing a surface that already exists |
+| `design-stack-web.md` | Hugo + Tailwind: typefaces, icons, motion, performance |
+| `design-stack-flutter.md` | Flutter + eden-ui: tokens, motion, performance |
+| `full-output.md` | Output-completeness enforcement for every agent |
+
+Consumed by `eden-web:frontend-design`, `eden-flutter:frontend-design`,
+`eden-web:brand-builder`, and the executor agent.
+
+Full attribution, the list of what changed, and the upstream license text:
+[NOTICE.md](NOTICE.md).
 
 ## License
 

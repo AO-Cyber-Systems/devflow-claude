@@ -88,7 +88,7 @@ Markdown and JSON templates that get copied into user projects' `.planning/` dir
 
 ### References (`plugins/devflow/devflow/references/`)
 
-Static reference documents that agents read during execution: model profiles, verification patterns, TDD workflow, git conventions, checkpoint handling, UI branding.
+Static reference documents that agents read during execution: model profiles, verification patterns, TDD workflow, git conventions, checkpoint handling, UI branding, and the design set — `design-craft.md`, `design-tells.md`, `design-preflight.md`, `design-redesign.md`, `design-stack-web.md`, `design-stack-flutter.md` (consumed by the `eden-ui-web` / `eden-ui-flutter` design skills) plus `full-output.md` (consumed by the executor). All seven are derived from taste-skill under MIT — see `NOTICE.md`.
 
 ### Hooks (`plugins/devflow/hooks/`)
 
