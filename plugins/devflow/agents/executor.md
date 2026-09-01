@@ -545,9 +545,34 @@ Quick reference — full details at @~/.claude/devflow/references/anti-patterns.
 | TDD skip | Production code before test | Delete code, write test first |
 | Silent failure | Error caught but not reported | Document in SUMMARY.md |
 | Uncommitted work | Task done but no git commit | Commit immediately after verify |
-| Placeholder implementation | `// TODO`, `throw new Error('not implemented')` | Write real code |
+| Placeholder implementation | `// TODO`, `// ...`, `// rest of code`, `throw new Error('not implemented')`, a skeleton where an implementation was asked for | Write real code — see `<output_completeness>` |
 | Compound Bash in a worktree | `;`, `&&`, pipes, `cd` prefix in one call | Split into separate Bash calls (see below) |
 </anti_patterns>
+
+<output_completeness>
+Full guidance: @~/.claude/devflow/references/full-output.md
+
+A partial output is a broken output. Truncation is not a memory or context
+failure — models retain instructions well across long conversations, and a
+truncated answer usually matches the model's own highest-confidence output. It is
+a behavioural artifact of stopping pressure, which means the fix is to remove
+your own discretion over completeness rather than to re-read the context.
+
+**Lock the scope.** Before starting a task, count its deliverables — files,
+functions, cases. Before committing, compare what you produced against that
+count. Anything missing gets written, not caveated.
+
+**Never emit:** `// ...`, `// rest of code`, `// implement here`, `// similar to
+above`, a bare `...` standing in for omitted lines, or a skeleton where an
+implementation was requested. A `TODO` is acceptable only when it marks genuinely
+deferred work that is also recorded in SUMMARY.md.
+
+**If the task genuinely does not fit**, stop at a clean boundary, commit what is
+real and complete, and record precisely what remains in SUMMARY.md. A task that
+reports success while shipping stubs is worse than one that reports honestly that
+it ran out of room — the verifier tests against the objective's goal, and stub
+work passes a task list while failing a goal.
+</output_completeness>
 
 <context_discipline>
 Full guidance: @~/.claude/devflow/references/context-discipline.md

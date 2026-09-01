@@ -40,6 +40,10 @@ Output: Working Hugo templates (build), actionable findings with fixes (review),
 
 <execution_context>
 @plugins/eden-ui-web/references/hugo-conventions.md
+@~/.claude/devflow/references/design-craft.md
+@~/.claude/devflow/references/design-tells.md
+@~/.claude/devflow/references/design-preflight.md
+@~/.claude/devflow/references/design-stack-web.md
 </execution_context>
 
 <context>
@@ -71,17 +75,40 @@ If no brand is configured, suggest running the `brand-builder` skill first.
 
 0. **Read project brand** — Load `data/brand/config.toml` and `assets/css/brand.css` to understand the active design tokens. If no brand exists, ask the user to run `brand-builder` first or specify a preset to apply inline. The brand determines all color, typography, and styling decisions.
 
-1. **Understand the request** — What page/section/partial is needed? What content does it display? What user interactions does it support? Where does it fit in the site navigation?
+1. **State the design read** — Before planning composition, write one line naming
+   the surface kind, the audience, the visual language, and the foundation:
+   *"Reading this as: a pricing page for procurement-minded B2B buyers, restrained
+   editorial language, on the project's existing brand tokens with low motion."*
 
-2. **Check existing partials** — Read `layouts/partials/` to find reusable components already built for this project. Don't rebuild what exists — compose from existing partials.
+   Then set the three dials (EXPRESSION / MOTION / DENSITY) from the derivation
+   table in `design-craft.md`. The brand is the outer boundary; the dials move
+   inside it. If the objective's `work` type is `prototype` or `spike`, cap
+   EXPRESSION and MOTION at 4 and spend the effort on whether it works.
 
-3. **Plan the composition** — List which sections and components the page needs:
+   Ask at most **one** clarifying question, and only if the read genuinely
+   diverges. If you can infer it, declare the read and proceed.
+
+2. **Detect greenfield vs redesign** — If this page already exists in any
+   form, stop and load `~/.claude/devflow/references/design-redesign.md`. Misclassifying a
+   redesign as a greenfield build is the largest single source of bad redesign
+   work: it silently changes IA, slugs, nav labels and analytics identifiers.
+
+   Audit before touching anything, read the *existing* surface's dials as your
+   starting point rather than the table baseline, and treat the never-change list
+   (URLs, nav labels, form field names, logo, legal copy) as
+   `checkpoint:decision` material rather than something to guess.
+
+3. **Understand the request** — What page/section/partial is needed? What content does it display? What user interactions does it support? Where does it fit in the site navigation?
+
+4. **Check existing partials** — Read `layouts/partials/` to find reusable components already built for this project. Don't rebuild what exists — compose from existing partials.
+
+5. **Plan the composition** — List which sections and components the page needs:
    - Page type (landing, content, blog, product, documentation)
    - Sections (hero, features, pricing, testimonials, CTA, footer)
    - Interactive elements (dark mode toggle, mobile nav, accordions, tabs)
    - Data sources (Hugo front matter, data files, content collections)
 
-4. **Generate Hugo templates** — Write the template files:
+6. **Generate Hugo templates** — Write the template files:
 
    **Structure:**
    - Use `{{ define "main" }}...{{ end }}` blocks extending `baseof.html`
@@ -121,7 +148,16 @@ If no brand is configured, suggest running the `brand-builder` skill first.
    - Scroll-triggered animations via Intersection Observer
    - Canvas effects only if the brand calls for them (e.g., aocyber particle background)
 
-5. **Verify** — Confirm all templates render without Hugo errors. Check that brand tokens are used consistently. Verify partials receive correct context.
+7. **Verify** — Confirm all templates render without Hugo errors. Check that brand tokens are used consistently. Verify partials receive correct context.
+
+8. **Run the pre-flight check** — Work every box in `design-preflight.md` before
+   reporting the surface complete. It is a gate: a failure means fix and re-check,
+   not note and ship. Items that need real rendering (both themes, the 320/768/1280
+   breakpoints, evidence capture) must actually be rendered — reasoning about the
+   markup is not checking. Use Visual mode below for that.
+
+   Record the design read and the three dial values in the job's `SUMMARY.md`, so
+   a later reviewer can tell whether restraint was a decision or an omission.
 
 ## Review Mode
 
@@ -136,6 +172,20 @@ If no brand is configured, suggest running the `brand-builder` skill first.
    - Non-brand fonts (inline font-family instead of brand variables)
    - Inconsistent spacing not matching brand scale
    - Shadows or border-radius not matching brand conventions
+
+   **Generated-look tells** — work the full catalogue in `design-tells.md`, all seven categories. Highlights:
+   - Three equal feature cards in a row; every section the same centred shape
+   - Section-number eyebrows (`001 · Features`), decorative status dots, scroll cues
+   - Grid lines or hairlines added as decoration rather than to organise content
+   - Pure `#000`/`#fff`, full-saturation accents, neon glows, gradient display text
+   - Oversized headings substituting for real hierarchy
+   - Placeholder tells: "John Doe", "Acme", round numbers (`99.99%`, `10,000+`),
+     repeated generic avatars, `div`-built fake screenshots, broken image `src`
+   - Copy tells: filler verbs ("elevate", "seamless", "unleash"), poetic section
+     labels, "Step 1 / Step 2", version stamps on marketing pages, em-dashes in
+     interface strings
+   - Motion tells: perpetual ambient animation, staggered entrance on every list
+     item, scroll-jacking, no `prefers-reduced-motion` path
 
    **Hugo best practices:**
    - Templates not using `{{ partial }}` for repeated patterns
@@ -163,9 +213,15 @@ If no brand is configured, suggest running the `brand-builder` skill first.
    - Missing lazy-loading on below-fold content
 
 3. **Report findings** — Group by severity:
-   - **Must fix** — Accessibility violations, broken dark mode, hardcoded colors
-   - **Should fix** — Non-brand tokens, missing partials, Hugo anti-patterns
+   - **Must fix** — Anything failing a floor in `design-craft.md` section 5:
+     contrast, focus visibility, target size, reduced-motion path, semantics, alt
+     text, horizontal scroll at 320px. Plus broken dark mode and hardcoded colors.
+   - **Should fix** — Non-brand tokens, missing partials, Hugo anti-patterns, and
+     generated-look tells that have no justification in the brief
    - **Consider** — Performance optimizations, additional semantic markup
+
+   A tell is a finding only when nothing in the brief calls for it. Say which one
+   applies rather than listing the pattern name on its own.
 
 4. **Generate fixes** — Provide corrected code for must-fix and should-fix items. Apply fixes directly if approved.
 

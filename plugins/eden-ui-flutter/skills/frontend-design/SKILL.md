@@ -31,6 +31,10 @@ Output: Working Dart files (build), actionable code findings with fixes (review)
 
 <execution_context>
 @plugins/eden-ui-flutter/references/eden-ui-flutter-conventions.md
+@~/.claude/devflow/references/design-craft.md
+@~/.claude/devflow/references/design-tells.md
+@~/.claude/devflow/references/design-preflight.md
+@~/.claude/devflow/references/design-stack-flutter.md
 </execution_context>
 
 <context>
@@ -63,17 +67,41 @@ When flutter-skill MCP is available, use its tools for live inspection:
 
 0. **Read project theme** — Check the app's `lib/config/theme.dart` or equivalent for `EdenTheme` configuration: brand preset, color overrides, font preset, dark mode settings. This determines how `EdenColors.primary` resolves. Use semantic color tokens — never hardcode hex values.
 
-1. **Understand the request** — What screen/widget is needed? What data does it display? What user interactions does it support? What navigation pattern does it use?
+1. **State the design read** — Before planning composition, write one line naming
+   the surface kind, the audience, the visual language, and the foundation:
+   *"Reading this as: a settings screen for existing power users, dense and utterly
+   conventional, on EdenTheme tokens with minimal motion."*
 
-2. **Check eden-ui-flutter for matching widgets** — Read `../eden-ui-flutter/lib/src/components/` to find matching widget APIs. Check constructor parameters, required vs optional fields, available variants.
+   Then set the three dials (EXPRESSION / MOTION / DENSITY) from the derivation
+   table in `design-craft.md`. The active `EdenTheme` brand preset is the outer
+   boundary; the dials move inside it. Product screens sit low on EXPRESSION and
+   MOTION and high on DENSITY — a settings screen is not a landing page, and
+   treating it like one is the most common failure here.
 
-3. **Plan the composition** — List which eden-ui-flutter widgets will compose the screen. Identify:
+   Ask at most **one** clarifying question, and only if the read genuinely
+   diverges.
+
+2. **Detect greenfield vs redesign** — If this screen already exists in any
+   form, stop and load `~/.claude/devflow/references/design-redesign.md`. Misclassifying a
+   redesign as a greenfield build is the largest single source of bad redesign
+   work: it silently changes IA, slugs, nav labels and analytics identifiers.
+
+   Audit before touching anything, read the *existing* surface's dials as your
+   starting point rather than the table baseline, and treat the never-change list
+   (URLs, nav labels, form field names, logo, legal copy) as
+   `checkpoint:decision` material rather than something to guess.
+
+3. **Understand the request** — What screen/widget is needed? What data does it display? What user interactions does it support? What navigation pattern does it use?
+
+4. **Check eden-ui-flutter for matching widgets** — Read `../eden-ui-flutter/lib/src/components/` to find matching widget APIs. Check constructor parameters, required vs optional fields, available variants.
+
+5. **Plan the composition** — List which eden-ui-flutter widgets will compose the screen. Identify:
    - Layout type (scaffold with sidebar, tab-based, single-scroll, modal flow)
    - State management approach (Provider, Riverpod, BLoC — match the project's existing pattern)
    - Navigation integration (GoRouter, Navigator 2.0 — match existing)
    - Data flow from state to widgets
 
-4. **Generate Dart files** — Write the screen/widget files using eden-ui-flutter widgets:
+6. **Generate Dart files** — Write the screen/widget files using eden-ui-flutter widgets:
    - Use `EdenScaffold` for screen structure with app bar, sidebar, FAB
    - Use `EdenCard` for content containers with proper elevation and padding
    - Use `EdenDataTable` for tabular data with sorting, pagination, selection
@@ -86,7 +114,18 @@ When flutter-skill MCP is available, use its tools for live inspection:
    - Include `Semantics` widgets for accessibility where eden-ui-flutter doesn't handle it internally
    - Use `EdenResponsive` / `LayoutBuilder` for adaptive layouts
 
-5. **Verify** — Confirm all widget constructors use valid parameters by cross-referencing eden-ui-flutter source. Check that state management follows project conventions. Verify imports are correct.
+7. **Verify** — Confirm all widget constructors use valid parameters by cross-referencing eden-ui-flutter source. Check that state management follows project conventions. Verify imports are correct.
+
+8. **Run the pre-flight check** — Work every box in `design-preflight.md` before
+   reporting the surface complete. It is a gate, not a checklist to note.
+
+   Flutter has a stronger option than a screenshot: run `/devflow:ui-eval` to
+   capture every declared state (loading, empty, error, populated), score it
+   through the offline visual-eval engine, and write evidence the verifier
+   consumes. Declared states that are never rendered are the usual gap — a widget
+   test that exercises the happy path and silently ignores the other three.
+
+   Record the design read and the three dial values in the job's `SUMMARY.md`.
 
 ## Review Mode
 
@@ -117,6 +156,19 @@ When flutter-skill MCP is available, use its tools for live inspection:
    - Missing semantic labels on icon buttons
    - Images without semantic descriptions
 
+   **Generated-look tells** — work the full catalogue in `design-tells.md`, all seven categories. Highlights:
+   - Every screen the same centred column; a product screen art-directed like a
+     landing page (the most common failure on Flutter surfaces)
+   - Decorative status dots, section-number labels, divider lines on every row
+   - Full-saturation accents, glows, pure black surfaces instead of the theme's
+     off-black
+   - Oversized headings standing in for real hierarchy
+   - Placeholder tells: "John Doe", "Acme", round numbers, repeated generic
+     avatars, fake data that is suspiciously tidy
+   - Copy tells: filler verbs, "Step 1 / Step 2", em-dashes in labels and buttons
+   - Motion tells: implicit animation on everything, staggered list entrances, no
+     reduced-motion path (check `MediaQuery.disableAnimations`)
+
    **State management:**
    - StatefulWidget where a stateless + provider pattern would suffice
    - Missing `const` constructors where possible
@@ -129,9 +181,16 @@ When flutter-skill MCP is available, use its tools for live inspection:
    - Alerts/snackbars not using eden-ui-flutter notification widgets
 
 4. **Report findings** — Group by severity:
-   - **Must fix** — Accessibility violations, hardcoded colors (break in dark mode), broken widget APIs
-   - **Should fix** — Raw Material widgets replaceable by eden-ui-flutter, non-token spacing/typography
+   - **Must fix** — Anything failing a floor in `design-craft.md` section 5:
+     contrast, focus visibility, 48x48dp targets, reduced-motion path, semantic
+     labels. Plus hardcoded colors (break in dark mode) and broken widget APIs.
+   - **Should fix** — Raw Material widgets replaceable by eden-ui-flutter,
+     non-token spacing/typography, and generated-look tells with no justification
+     in the brief
    - **Consider** — Better composition, const constructor opportunities, rebuild scope optimization
+
+   A tell is a finding only when nothing in the brief calls for it. Name the
+   justification you looked for rather than listing the pattern on its own.
 
 5. **Generate fixes** — For each must-fix and should-fix finding, provide the corrected Dart code. Apply fixes directly if the user approves.
 

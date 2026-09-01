@@ -25,6 +25,8 @@ Output: Brand configuration files in the project's `assets/css/` and `data/brand
 
 <execution_context>
 @plugins/eden-ui-web/references/brand-presets.md
+@~/.claude/devflow/references/design-craft.md
+@~/.claude/devflow/references/design-stack-web.md
 </execution_context>
 
 <context>
@@ -46,6 +48,16 @@ If creating a custom brand:
 - **Ask the user** for brand personality (bold/subtle, playful/serious, warm/cool, minimal/rich)
 - **Ask for reference points** — existing websites, color preferences, industry context
 - If a URL is provided, fetch it and extract the design language (colors, fonts, layout patterns)
+
+**When the brief does not name a typeface or palette, do not default — rotate.**
+`design-stack-web.md` §1 carries the display-sans pool, the pairings, and the
+serif pool for the rare case a serif is justified; §2 carries the two palette
+families to avoid reaching for (violet-glow, and cream-plus-brass-plus-espresso
+on premium-consumer briefs) with concrete alternatives.
+
+Reusing the same face or palette family across consecutive brands is the failure
+mode here: each brand is defensible on its own and they are collectively
+indistinguishable. Check what the last brand used before picking.
 
 ## 2. Define Design Tokens
 
@@ -142,8 +154,33 @@ Design system documentation consumed by the frontend-design skill:
 - Test that Tailwind classes resolve correctly with the custom properties
 - Preview the brand in the browser if the dev server is running
 
-## 5. Update Frontend-Design Context
+## 5. Record the design posture
 
-After generating the brand, remind the user that the `frontend-design` skill will automatically read the brand reference when building pages. The brand tokens become the design system that frontend-design enforces.
+Tokens say what the colors are. They do not say how expressive the brand is
+willing to be, and that is the judgement `frontend-design` needs on every page.
+Settle it once, here, and write it into `data/brand/reference.md`:
+
+```markdown
+## Design posture
+
+- EXPRESSION: 6   <!-- 1 = symmetrical and conventional, 10 = asymmetric, art-directed -->
+- MOTION: 4       <!-- 1 = static, 10 = choreographed -->
+- DENSITY: 3      <!-- 1 = gallery-airy, 10 = instrument-panel -->
+
+Register: restrained editorial. Left-aligned by default.
+Deliberately not: neon, glassmorphism, centred hero over gradient mesh.
+```
+
+Derive the values from the brand's own character, not from the surface being
+built — these are the **outer boundary** the per-page dials move inside (see
+`design-craft.md` sections 2 and 3). A deliberately restrained brand caps
+EXPRESSION even on a landing page.
+
+The "deliberately not" line is the useful one. A brand defined only by what it
+includes gets the generic defaults everywhere it is silent.
+
+## 6. Update Frontend-Design Context
+
+After generating the brand, remind the user that the `frontend-design` skill will automatically read the brand reference when building pages. The brand tokens become the design system that frontend-design enforces, and the design posture becomes the boundary its dials move inside.
 
 </process>
