@@ -263,7 +263,10 @@ Always use CSS custom properties from `brand.css` via Tailwind arbitrary values:
 - [ ] Images processed through Hugo pipeline (WebP, responsive sizes)
 - [ ] CSS minified and fingerprinted
 - [ ] JS minimal — no heavy frameworks for static content
-- [ ] Fonts loaded with `display=swap`
+- [ ] Fonts self-hosted through the asset pipeline, or `preconnect` present for
+      both the stylesheet host and the font-file host; `font-display: swap`;
+      every family ends in a real fallback stack (see `brand-presets.md` →
+      Font loading)
 - [ ] Below-fold content lazy-loaded
 - [ ] Critical CSS inlined or preloaded
 - [ ] Lighthouse score > 90 on all categories

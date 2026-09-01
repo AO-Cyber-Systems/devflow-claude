@@ -2,6 +2,63 @@
 
 Built-in brand presets for eden-ui-web projects. Each preset defines a complete design system derived from a live production website. Use these as-is or as starting points for custom brands.
 
+## Font loading
+
+Every preset below names typefaces but **not** how to load them. That is one
+mechanism, defined once here. Full rationale in
+`~/.claude/devflow/references/design-stack-web.md` §1.
+
+### Option A — self-host through the Hugo pipeline (preferred)
+
+No third-party connection, no consent surface, and the fastest first paint. Both
+presets below use open-licence faces (Inter and JetBrains Mono are SIL OFL 1.1),
+so this is always available.
+
+```go-html-template
+{{/* layouts/partials/head.html — preload the one file that blocks text paint */}}
+{{- with resources.Get "fonts/inter-variable.woff2" }}
+  {{- $f := . | fingerprint }}
+  <link rel="preload" as="font" type="font/woff2" href="{{ $f.RelPermalink }}" crossorigin>
+{{- end }}
+```
+
+```css
+/* assets/css/brand.css — one variable file covers the whole weight range */
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/inter-variable.woff2") format("woff2-variations");
+  font-weight: 300 800;
+  font-display: swap;        /* never block first paint on a font */
+  unicode-range: U+0000-00FF; /* subset; drop ranges the site never renders */
+}
+```
+
+### Option B — Google Fonts CDN
+
+Acceptable, but **both** preconnects are required. The common mistake is
+preconnecting only to `fonts.googleapis.com`; the font *files* come from
+`fonts.gstatic.com`, and that hint needs `crossorigin` or it is silently useless:
+
+```html
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300..800&display=swap">
+```
+
+Prefer the **variable range** (`wght@300..800`) over a discrete weight list
+(`wght@300;400;600;800`) — one file instead of four.
+
+A bare `<link>` with no preconnect is a render-blocking third-party stylesheet in
+`<head>`, and it is the most common avoidable LCP regression on a Hugo site.
+
+### Fallback stacks are not optional
+
+Every `--brand-font-*` token ends in a real system stack. Without one, a failed
+or slow font falls back to the browser default, which on many systems is a serif
+and will not match the design at all.
+
+---
+
 ## Preset: dpcco
 
 **Source:** [dpcco.me](https://dpcco.me) — Don't Panic Consulting
@@ -38,10 +95,13 @@ Built-in brand presets for eden-ui-web projects. Each preset defines a complete 
 
 | Token | Value | Weight |
 |-------|-------|--------|
-| `--brand-font-display` | `Inter` | 800 (extrabold) |
-| `--brand-font-body` | `Inter` | 300-400 (light-regular) |
-| `--brand-font-mono` | `ui-monospace, SFMono-Regular, Menlo` | 400 |
-| **Google Fonts URL** | `https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap` | |
+| `--brand-font-display` | `Inter, system-ui, -apple-system, "Segoe UI", sans-serif` | 800 (extrabold) |
+| `--brand-font-body` | `Inter, system-ui, -apple-system, "Segoe UI", sans-serif` | 300-400 (light-regular) |
+| `--brand-font-mono` | `ui-monospace, SFMono-Regular, Menlo, monospace` | 400 |
+
+**Loading:** see [Font loading](#font-loading). Inter is SIL OFL 1.1 — self-host
+it (Option A). If using the CDN, the variable range is
+`family=Inter:wght@300..800&display=swap`, and **both** preconnects are required.
 
 **Scale:**
 - Display: 48px / extrabold (hero headings like "C.O.G.S.")
@@ -109,10 +169,20 @@ Built-in brand presets for eden-ui-web projects. Each preset defines a complete 
 
 | Token | Value | Weight |
 |-------|-------|--------|
-| `--brand-font-display` | `Inter` | 700 (bold) |
-| `--brand-font-body` | `Inter` | 400 (regular) |
-| `--brand-font-mono` | `JetBrains Mono` | 400 |
-| **Google Fonts URL** | `https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400&display=swap` | |
+| `--brand-font-display` | `Inter, system-ui, -apple-system, "Segoe UI", sans-serif` | 700 (bold) |
+| `--brand-font-body` | `Inter, system-ui, -apple-system, "Segoe UI", sans-serif` | 400 (regular) |
+| `--brand-font-mono` | `"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace` | 400 |
+
+**Loading:** see [Font loading](#font-loading). Both faces are SIL OFL 1.1 —
+self-host them (Option A).
+
+> **These typefaces are out of date and need a decision.** The AO Cyber Systems
+> brand guide specifies **Proxima Nova** (all structural type) and **Petersburg**
+> (editorial accents only), delivered through Adobe Fonts kit `qwz2ubp` — not
+> Inter. This preset predates that guide. Until it is reconciled, a project built
+> from this preset will not match AO Cyber brand deliverables. Note that Adobe
+> Fonts is a hosted foundry, so Option A does not apply to it; use Option B with
+> a `preconnect` to `use.typekit.net`.
 
 **Scale:**
 - Display: 42px / bold (hero statement: "You don't have to be the product anymore")
@@ -197,7 +267,11 @@ When the user provides a custom brand name and description (or reference URL), b
 1. **Deriving the mood** — Map the description to: bold/subtle, warm/cool, playful/serious, minimal/rich
 2. **Selecting a primary color** — Based on industry, mood, and any explicit preferences
 3. **Generating the full palette** — Use the primary as seed, derive shades, choose complementary secondary
-4. **Matching typography** — Select Google Fonts that match the mood
+4. **Matching typography** — Choose faces that match the mood, then load them per
+   [Font loading](#font-loading). Prefer open-licence faces so self-hosting stays
+   available. Do not default to the same ubiquitous UI sans on every brand — see
+   `design-stack-web.md` §1 for the rotation pools, and check what the previous
+   brand used before picking
 5. **Defining component patterns** — Navigation, hero, cards, footer styles that express the brand
 6. **Specifying motion** — Animation level appropriate to the brand (none, subtle, expressive)
 
