@@ -8,6 +8,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [2.7.0] - 2026-09-01
 
+> **Numbering note:** this work was developed on `feature/docs-site-and-design-references`
+> and released there as `2.6.0` before `2.6.0` was independently published from `main`
+> (the visual-eval gate fixes, below). Two different releases claimed the same number;
+> `main`'s shipped first and keeps `2.6.0`, so this one became `2.7.0` on merge.
+
 ### Added
 - **deps**: `.github/dependabot.yml` — weekly bundler updates for the two MCP server directories and weekly npm updates for the repo root (9a6b4e5)
 - **design**: enforce design references in eden-ui skills and executor (faa8584)
@@ -30,6 +35,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Tests
 - **13**: RED — --confirm dry-run rail for objective remove (b1e3227)
+
 ## [2.6.0] - 2026-08-27
 
 The shipped visual-eval gate did not judge anything, and the one production
