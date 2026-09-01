@@ -1,0 +1,11 @@
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: SAMEORIGIN
+
+# Hugo fingerprints these filenames, so they are safe to cache immutably.
+/css/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/ao-icon.svg
+  Cache-Control: public, max-age=604800

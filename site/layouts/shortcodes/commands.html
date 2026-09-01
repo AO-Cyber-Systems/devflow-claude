@@ -1,0 +1,28 @@
+{{- /* Renders the skill table from generated data.
+       Params: group (comma-separated skill names) — omit for all. */ -}}
+{{- $d := site.Data.devflow -}}
+{{- $only := .Get "group" -}}
+{{- $skills := $d.skills -}}
+{{- if $only -}}
+  {{- $names := split $only "," -}}
+  {{- $sel := slice -}}
+  {{- range $names -}}
+    {{- $n := trim . " " -}}
+    {{- range $d.skills -}}{{- if eq .name $n -}}{{- $sel = $sel | append . -}}{{- end -}}{{- end -}}
+  {{- end -}}
+  {{- $skills = $sel -}}
+{{- end -}}
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Command</th><th>Arguments</th><th>What it does</th></tr></thead>
+  <tbody>
+  {{- range $skills }}
+    <tr>
+      <td><code>{{ .command }}</code>{{ if .userOnly }}<br><span class="chip warn">type it yourself</span>{{ end }}</td>
+      <td>{{ with .args }}<code>{{ . }}</code>{{ else }}<span style="color:var(--text-muted)">—</span>{{ end }}</td>
+      <td>{{ .summary }}</td>
+    </tr>
+  {{- end }}
+  </tbody>
+</table>
+</div>

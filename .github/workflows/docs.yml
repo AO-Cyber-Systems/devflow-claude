@@ -1,0 +1,75 @@
+name: Docs site
+
+# Builds the Hugo docs site and deploys it to Cloudflare Pages.
+# The reference tables are generated from the plugin source first, so a skill,
+# agent or hook added in this push is documented by the same push.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'site/**'
+      - 'scripts/gen-docs-data.cjs'
+      - 'plugins/devflow/skills/**'
+      - 'plugins/devflow/agents/**'
+      - 'plugins/devflow/hooks/**'
+      - 'plugins/devflow/devflow/**'
+      - '.claude-plugin/marketplace.json'
+      - 'package.json'
+      - '.github/workflows/docs.yml'
+  pull_request:
+    paths:
+      - 'site/**'
+      - 'scripts/gen-docs-data.cjs'
+      - '.github/workflows/docs.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  deployments: write
+
+env:
+  HUGO_VERSION: '0.165.0'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Hugo
+        run: |
+          curl -sSL -o hugo.deb \
+            "https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_extended_${HUGO_VERSION}_linux-amd64.deb"
+          sudo dpkg -i hugo.deb
+          hugo version
+
+      - name: Generate reference data from plugin source
+        run: node scripts/gen-docs-data.cjs
+
+      - name: Build
+        run: hugo --source site --minify --baseURL "https://devflow.cloud/"
+
+      # Deploys run only from main in this repo — a fork's PR has no secrets.
+      # Accepts either a scoped API token (preferred) or the account's Global
+      # API Key; wrangler picks whichever pair of variables is populated.
+      - name: Deploy to Cloudflare Pages
+        if: github.event_name != 'pull_request' && github.repository == 'AO-Cyber-Systems/devflow-claude'
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+        run: |
+          npx --yes wrangler@4 pages deploy site/public \
+            --project-name=devflow-docs --branch=main --commit-dirty=true

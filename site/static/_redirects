@@ -1,0 +1,4 @@
+# The docs live under /docs/; send bare section shortcuts there.
+/commands/*   /docs/commands/:splat   301
+/cli          /docs/reference/df-tools/   301
+/install      /docs/getting-started/installation/   301

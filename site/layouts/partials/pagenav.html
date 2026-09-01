@@ -1,0 +1,19 @@
+{{- /* Prev/next across the flattened docs reading order. */}}
+{{- $docs := site.GetPage "/docs" }}
+{{- $ordered := slice $docs }}
+{{- range $docs.Sections.ByWeight }}
+  {{- range .RegularPages.ByWeight }}{{ $ordered = $ordered | append . }}{{ end }}
+{{- end }}
+{{- range $docs.RegularPages.ByWeight }}{{ $ordered = $ordered | append . }}{{ end }}
+{{- $idx := -1 }}
+{{- range $i, $p := $ordered }}{{ if eq $p.RelPermalink $.RelPermalink }}{{ $idx = $i }}{{ end }}{{ end }}
+{{- if ge $idx 0 }}
+<nav class="page-nav">
+  {{- if gt $idx 0 }}{{ with index $ordered (sub $idx 1) }}
+  <a href="{{ .RelPermalink }}"><span class="dir">← Previous</span>{{ .Title }}</a>
+  {{- end }}{{ end }}
+  {{- if lt $idx (sub (len $ordered) 1) }}{{ with index $ordered (add $idx 1) }}
+  <a class="next" href="{{ .RelPermalink }}"><span class="dir">Next →</span>{{ .Title }}</a>
+  {{- end }}{{ end }}
+</nav>
+{{- end }}

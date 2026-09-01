@@ -1,0 +1,113 @@
+{{ define "main" }}
+{{- $d := site.Data.devflow }}
+<section class="hero">
+  {{ partial "mesh.html" . }}
+  <div class="hero-inner">
+    <p class="microlabel">{{ site.Params.org }} · Claude Code plugin v{{ $d.version }}</p>
+    <h1>Ship features,<br>not context windows.</h1>
+    <p class="lede">
+      DevFlow is a meta-prompting, context engineering and spec-driven development
+      system for Claude Code. It breaks work into objectives, plans each one in a
+      fresh context, and executes in parallel waves with atomic commits. Then it
+      verifies the result against the goal, not against a checklist of finished
+      tasks.
+    </p>
+    <div class="btn-row">
+      <a class="btn" href="/docs/getting-started/installation/">Install DevFlow</a>
+      <a class="btn ghost" href="/docs/">Read the docs</a>
+    </div>
+    <div class="install">
+      <div><span class="prompt">/</span>plugin marketplace add AO-Cyber-Systems/devflow-claude</div>
+      <div><span class="prompt">/</span>plugin install devflow@aocyber</div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <p class="microlabel">The problem</p>
+  <h2>Long sessions get worse, not better</h2>
+  <p>
+    A single Claude Code session that plans, builds and verifies a feature accumulates
+    every file it read, every command it ran and every dead end it explored. By the time
+    it writes the code that matters, the signal it needs is buried. Quality drops, the
+    model repeats itself, and work silently degrades.
+  </p>
+  <p>
+    DevFlow's answer is structural rather than advisory. Planning artifacts live on disk in
+    <code>.planning/</code> instead of in the conversation. Each job is dispatched to a
+    subagent with a fresh window and only the context that job needs. State survives
+    <code>/clear</code>, context resets and machine reboots, because it was never in the
+    context window to begin with.
+  </p>
+  <div class="stats">
+    <div class="stat"><div class="n">{{ $d.counts.skills }}</div><div class="l">Skills</div></div>
+    <div class="stat"><div class="n">{{ $d.counts.agents }}</div><div class="l">Agents</div></div>
+    <div class="stat"><div class="n">{{ $d.counts.hooks }}</div><div class="l">Hooks</div></div>
+    <div class="stat"><div class="n">{{ $d.counts.dfToolsCommands }}</div><div class="l">CLI commands</div></div>
+  </div>
+</section>
+
+<section class="section">
+  <p class="microlabel">The loop</p>
+  <h2>Six commands, one direction</h2>
+  <p>Each step writes files the next step reads. You can stop after any of them.</p>
+  <div class="loop">
+    <div class="loop-step"><div class="n">01</div><div class="t">new-project</div><div class="d">Researches the domain, scopes requirements, produces a roadmap.</div></div>
+    <div class="loop-step"><div class="n">02</div><div class="t">discuss-objective</div><div class="d">Locks in your implementation preferences before anything is planned.</div></div>
+    <div class="loop-step"><div class="n">03</div><div class="t">plan-objective</div><div class="d">Breaks an objective into atomic jobs with success criteria.</div></div>
+    <div class="loop-step"><div class="n">04</div><div class="t">execute-objective</div><div class="d">Runs independent jobs in parallel waves, one commit per task.</div></div>
+    <div class="loop-step"><div class="n">05</div><div class="t">verify-work</div><div class="d">Tests the result against the goal and records the evidence.</div></div>
+    <div class="loop-step"><div class="n">06</div><div class="t">milestone complete</div><div class="d">Audits the milestone, archives it, opens the next.</div></div>
+  </div>
+  <p style="margin-top:var(--s5)">
+    <a href="/docs/concepts/the-loop/">How the loop works →</a>
+  </p>
+</section>
+
+<section class="section">
+  <p class="microlabel">Why it holds up</p>
+  <h2>Enforcement, not etiquette</h2>
+  <div class="cards cards--trio">
+    <div class="card">
+      <h3>Rules that actually bind</h3>
+      <p>Hooks block raw <code>git commit</code>, deny ambient edits outside a skill, and refuse a release tag with no changelog entry. Every gate has a documented escape hatch.</p>
+    </div>
+    <div class="card">
+      <h3>Parallel where it's safe</h3>
+      <p>The planner marks job dependencies. Independent jobs run concurrently in separate context windows; dependent ones wait.</p>
+    </div>
+    <div class="card">
+      <h3>Rigor matched to the work</h3>
+      <p>A <code>(kind, work)</code> table derives TDD posture, planning depth, model tier and verification rigor. A spike is not tested like a payments API.</p>
+    </div>
+    <div class="card">
+      <h3>One task, one commit</h3>
+      <p>Atomic commits with objective scope and task IDs, so a bad objective is a clean <code>git revert</code> rather than an archaeology project.</p>
+    </div>
+    <div class="card">
+      <h3>Memory that outlives context</h3>
+      <p>Decisions, blockers and position live in <code>.planning/STATE.md</code>. Resume a week later with <code>/devflow:status resume</code>.</p>
+    </div>
+    <div class="card">
+      <h3>Cost you choose</h3>
+      <p>Quality, balanced and budget profiles map each of the {{ $d.counts.agents }} agents to a model tier. Switch with one command.</p>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <p class="microlabel">Get started</p>
+  <h2>Install in two lines</h2>
+  <p>
+    DevFlow ships as a Claude Code plugin. It works on macOS, Windows and Linux, and
+    installs from the <code>/plugin</code> command or the Claude Desktop plugin UI.
+  </p>
+  <div class="install">
+    <div><span class="prompt">/</span>plugin marketplace add AO-Cyber-Systems/devflow-claude</div>
+    <div><span class="prompt">/</span>plugin install devflow@aocyber</div>
+  </div>
+  <p style="margin-top:var(--s5)">
+    <a class="btn" href="/docs/getting-started/quickstart/">Quickstart →</a>
+  </p>
+</section>
+{{ end }}

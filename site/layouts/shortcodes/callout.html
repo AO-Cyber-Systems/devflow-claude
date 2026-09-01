@@ -1,0 +1,5 @@
+{{- /* {{< callout title="..." type="warn|danger|ok" >}} body {{< /callout >}} */ -}}
+<div class="callout{{ with .Get "type" }} {{ . }}{{ end }}">
+  {{- with .Get "title" }}<p class="callout-title">{{ . }}</p>{{ end }}
+  {{ .Inner | markdownify }}
+</div>

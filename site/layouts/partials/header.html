@@ -1,0 +1,15 @@
+{{- $data := site.Data.devflow }}
+<header class="site-header">
+  <button class="nav-toggle" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+  <a class="brand" href="{{ "/" | relURL }}">
+    <img src="/ao-icon.svg" alt="AO Cyber Systems" width="24" height="26">
+    <span class="brand-name">DevFlow</span>
+    <span class="brand-ver">v{{ $data.version }}</span>
+  </a>
+  <nav class="header-nav">
+    <a href="{{ "/docs/" | relURL }}" class="{{ if hasPrefix .RelPermalink "/docs/" }}active{{ end }}">Docs</a>
+    <a href="{{ "/docs/commands/" | relURL }}" class="hide-sm">Commands</a>
+    <a href="{{ "/docs/reference/df-tools/" | relURL }}" class="hide-sm">CLI</a>
+    <a href="{{ site.Params.repo }}" rel="noopener">GitHub</a>
+  </nav>
+</header>

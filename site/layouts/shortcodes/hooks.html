@@ -1,0 +1,26 @@
+{{- /* Params: group — Enforcement | Observability | Session context | Runtime sync */ -}}
+{{- $d := site.Data.devflow -}}
+{{- $g := .Get "group" -}}
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Hook</th><th>Event</th><th>What it does</th><th>Escape hatch</th></tr></thead>
+  <tbody>
+  {{- range $d.hooks }}
+    {{- if or (not $g) (eq .group $g) }}
+    <tr>
+      <td><code>{{ .file }}</code></td>
+      <td>
+        {{- if .events -}}
+          {{- range .events }}<span class="chip">{{ . }}</span> {{ end -}}
+        {{- else -}}
+          <span class="chip warn">{{ with .note }}{{ . }}{{ else }}not registered{{ end }}</span>
+        {{- end -}}
+      </td>
+      <td>{{ .purpose | markdownify }}</td>
+      <td>{{ with .escape }}<code>{{ . }}</code>{{ else }}<span style="color:var(--text-muted)">—</span>{{ end }}</td>
+    </tr>
+    {{- end }}
+  {{- end }}
+  </tbody>
+</table>
+</div>

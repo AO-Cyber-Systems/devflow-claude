@@ -1,0 +1,60 @@
+{{- /* AO Cyber network motif — gold node-and-line mesh.
+       Three depth planes: a faint far field, a mid lattice, and a few bright
+       near nodes. Large-scale and sparse (never an even fine speckle), anchored
+       to the right edge, and masked so it dissolves before it reaches the type. */ -}}
+<svg class="hero-mesh" viewBox="0 0 640 720" fill="none" aria-hidden="true" focusable="false"
+     preserveAspectRatio="xMaxYMid slice">
+  <defs>
+    <linearGradient id="mesh-fade" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#fff" stop-opacity="0"/>
+      <stop offset="38%"  stop-color="#fff" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#fff" stop-opacity="1"/>
+    </linearGradient>
+    <mask id="mesh-mask">
+      <rect width="640" height="720" fill="url(#mesh-fade)"/>
+    </mask>
+  </defs>
+
+  <g mask="url(#mesh-mask)">
+    <!-- far field: thin, low contrast, long spans -->
+    <g stroke="#d4a853" stroke-width="0.75" opacity="0.13">
+      <path d="M60 150 L210 78 L392 128 L556 66
+               M210 78 L268 262 M392 128 L420 300 M556 66 L604 232
+               M60 150 L148 330 M268 262 L420 300 L604 232
+               M148 330 L268 262 M148 330 L96 520 M420 300 L352 486
+               M604 232 L568 430 M96 520 L246 604 L352 486 L568 430
+               M246 604 L300 700 M568 430 L616 596 M352 486 L616 596"/>
+    </g>
+
+    <!-- mid lattice: the readable structure -->
+    <g stroke="#d4a853" stroke-width="1.15" opacity="0.30">
+      <path d="M210 78 L392 128 M268 262 L420 300 M420 300 L604 232
+               M96 520 L246 604 M352 486 L568 430 M246 604 L352 486"/>
+    </g>
+
+    <!-- near plane: two bright edges only -->
+    <g stroke="#d4a853" stroke-width="1.5" opacity="0.55">
+      <path d="M268 262 L420 300 M352 486 L568 430"/>
+    </g>
+
+    <g fill="#d4a853">
+      <!-- near -->
+      <circle cx="268" cy="262" r="5"   opacity="0.85"/>
+      <circle cx="420" cy="300" r="4.5" opacity="0.72"/>
+      <circle cx="352" cy="486" r="4.5" opacity="0.70"/>
+      <!-- mid -->
+      <circle cx="210" cy="78"  r="3.5" opacity="0.45"/>
+      <circle cx="392" cy="128" r="3"   opacity="0.40"/>
+      <circle cx="604" cy="232" r="3.5" opacity="0.42"/>
+      <circle cx="246" cy="604" r="3.5" opacity="0.44"/>
+      <circle cx="568" cy="430" r="3"   opacity="0.38"/>
+      <!-- far -->
+      <circle cx="60"  cy="150" r="2"   opacity="0.18"/>
+      <circle cx="556" cy="66"  r="2.5" opacity="0.22"/>
+      <circle cx="148" cy="330" r="2"   opacity="0.20"/>
+      <circle cx="96"  cy="520" r="2.5" opacity="0.20"/>
+      <circle cx="616" cy="596" r="2.5" opacity="0.24"/>
+      <circle cx="300" cy="700" r="2"   opacity="0.16"/>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,2001 @@
+{
+  "generatedAt": "2026-09-01T13:33:30.142Z",
+  "version": "2.5.0",
+  "packageVersion": "2.5.0",
+  "repo": "AO-Cyber-Systems/devflow-claude",
+  "marketplace": "devflow@aocyber",
+  "counts": {
+    "skills": 31,
+    "agents": 13,
+    "hooks": 15,
+    "workflows": 39,
+    "references": 36,
+    "templates": 27,
+    "dfToolsCommands": 66
+  },
+  "skills": [
+    {
+      "name": "awareness",
+      "slug": "awareness",
+      "command": "/devflow:awareness",
+      "summary": "Show cross-repo awareness: peer view (who's working on what in this repo) and org-wide progress (Product Roadmap). Renders both views by default.",
+      "notes": [],
+      "triggers": [
+        "who else is working on this",
+        "what's in flight",
+        "show org progress",
+        "what are teammates working on"
+      ],
+      "args": "[--peer-only|--org-only] [--quarter Q] [--product P] [--refresh [peer|org]] [--no-fetch] [--raw]",
+      "tools": [
+        "Bash",
+        "Read"
+      ],
+      "agent": null,
+      "userOnly": false
+    },
+    {
+      "name": "build",
+      "slug": "build",
+      "command": "/devflow:build",
+      "summary": "Build a feature from start to finish — plans the work, executes it, and verifies the result in one command.",
+      "notes": [
+        "Use when the user wants to build something, implement a feature, or work on an objective end-to-end."
+      ],
+      "triggers": [
+        "build this",
+        "build objective",
+        "let's build",
+        "implement this",
+        "ship this",
+        "make this work",
+        "build the",
+        "work on objective",
+        "start building",
+        "let's implement"
+      ],
+      "args": "<objective-number-or-description> [--pause] [--skip-research] [--work TYPE] [--tdd POSTURE] [--depth LEVEL] [--model PROFILE]",
+      "tools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Glob",
+        "Grep",
+        "Bash",
+        "Task",
+        "TaskCreate",
+        "TaskUpdate",
+        "TaskList",
+        "AskUserQuestion",
+        "EnterPlanMode",
+        "ExitPlanMode"
+      ],
+      "agent": null,
+      "userOnly": false
+    },
+    {
+      "name": "cleanup",
+      "slug": "cleanup",
+      "command": "/devflow:cleanup",
+      "summary": "Archive old objective directories from completed milestones to reduce clutter.",
+      "notes": [
+        "Moves completed work to the milestones archive — use only when explicitly requested."
+      ],
+      "triggers": [],
+      "args": "",
+      "tools": [],
+      "agent": null,
+      "userOnly": true
+    },
+    {
+      "name": "debug",
+      "slug": "debug",
+      "command": "/devflow:debug",
+      "summary": "Investigate bugs using a structured approach that survives context resets. Tracks hypotheses, evidence, and progress across sessions.",
+      "notes": [
+        "Use when the user reports a bug, error, or something not working as expected."
+      ],
+      "triggers": [
+        "debug this",
+        "something's broken",
+        "fix this bug",
+        "not working",
+        "there's an error",
+        "why isn't this working?"
+      ],
+      "args": "[issue description]",
+      "tools": [
+        "Read",
+        "Bash",
+        "Task",
+        "AskUserQuestion"
+      ],
+      "agent": null,
+      "userOnly": false
+    },
+    {
+      "name": "decide",
+      "slug": "decide",
+      "command": "/devflow:decide",
+      "summary": "Resolve a parked decision and resume autonomous execution.",
+      "notes": [
+        "Use when you see a pending DECISION-NNN.md in .planning/decisions/pending/, when the user wants to choose an option for a blocked checkpoint:decision, or when you need to tell the executor which option to take."
+      ],
+      "triggers": [
+        "resolve decision",
+        "decide DECISION-",
+        "pick option for DECISION-",
+        "unblock DECISION-",
+        "answer DECISION-",
+        "choose option for decision",
+        "I want option-a",
+        "go with option-b",
+        "my answer is"
+      ],
+      "args": "[<decision-id> <choice>]",
+      "tools": [
+        "Bash",
+        "Read"
+      ],
+      "agent": null,
+      "userOnly": false
+    },
+    {
+      "name": "discuss-objective",
+      "slug": "discuss-objective",
+      "command": "/devflow:discuss-objective",
+      "summary": "Capture implementation decisions for an objective before planning — lock in preferences so research and planning don't drift into assumptions.",
+      "notes": [
+        "Use when the user wants to shape how an objective gets built before tasks are generated."
+      ],
+      "triggers": [
+        "discuss objective",
+        "shape the objective",
+        "lock in preferences",
+        "before planning I want to discuss",
+        "implementation decisions"
+      ],
+      "args": "<objective-number>",
+      "tools": [
+        "Read",
+        "Bash",
+        "Write",
+        "AskUserQuestion"
+      ],
+      "agent": null,
+      "userOnly": false
+    },
+    {
+      "name": "execute-objective",
+      "slug": "execute-objective",
+      "command": "/devflow:execute-objective",
+      "summary": "Execute all planned tasks for an objective, running independent tasks in parallel for speed.",
+      "notes": [
+        "Use when the user wants to run or execute an already-planned objective."
+      ],
+      "triggers": [
+        "execute objective",
+        "run objective",
+        "run the jobs",
+        "run the planned objective",
+        "execute the plan"
+      ],
+      "args": "<phase-number> [--gaps-only]",
+      "tools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Glob",
+        "Grep",
+        "Bash",
+        "Task",
+        "TaskCreate",
+        "AskUserQuestion"
+      ],
+      "agent": null,
+      "userOnly": false
+    },
+    {
+      "name": "flow",
+      "slug": "flow",
+      "command": "/devflow:flow",
+      "summary": "Orchestrate a multi-step DevFlow workflow by chaining skills. Use when the user wants to invoke a sequence of skills as one ask (e.g., \"build and sync to github\", \"research, plan, then build\", \"ship and announce\").",
+      "notes": [],
+      "triggers": [
+        "ship X to Y",
+        "build and X",
+        "plan and X",
+        "X then Y",
+        "in one go",
+        "as a chain",
+        "all in sequence",
+        "chain",
+        "ship-and-sync",
+        "research-plan-build"
+      ],
+      "args": "<description of the multi-step flow>",
+      "tools": [
+        "Skill",
+        "Task",
+        "Read",
+        "Bash"
+      ],
+      "agent": null,
+      "userOnly": false
+    },
+    {
+      "name": "gh-sync",
+      "slug": "gh-sync",
+      "command": "/devflow:gh-sync",
+      "summary": "Sync DevFlow planning state to GitHub — create/update objective issues, generate release notes, or push a single objective's state (body + sticky comment + Project v2 fields).",
+      "notes": [],
+      "triggers": [
+        "sync to github",
+        "push objectives to github",
+        "github release notes",
+        "sync objective"
+      ],
+      "args": "[objectives|release <tag>|status|<objective_id>]",
+      "tools": [
+        "Read",
+        "Bash",
+        "Write"
+      ],
+      "agent": null,
+      "userOnly": false
+    },
+    {
+      "name": "handoff",
+      "slug": "handoff",
+      "command": "/devflow:handoff",
+      "summary": "Hand off a TTY-required or shell-env-dependent command to the user's shell.",
+      "notes": [
+        "Use for auth flows (gh auth login, doctl auth init, npm login) or shell-init commands (nvm/mise/conda activate, direnv). Non-disruptive when devflow-watch is running."
+      ],
+      "triggers": [
+        "auth init",
+        "log in to",
+        "needs my password",
+        "needs my shell environment"
+      ],
+      "args": "<command to run interactively or via user shell>",
+      "tools": [
+        "Bash",
+        "Write"
+      ],
+      "agent": null,
+      "userOnly": false
+    },
+    {
+      "name": "help",
+      "slug": "help",
+      "command": "/devflow:help",
+      "summary": "Show available DevFlow commands and usage guide.",
+      "notes": [
+        "Use when the user asks about DevFlow capabilities, available commands, or how to use the system."
+      ],
+      "triggers": [
+        "what can you do?",
+        "how do I use DevFlow?",
+        "show commands",
+        "devflow help",
+        "what commands are available?"
+      ],
+      "args": "",
+      "tools": [],
+      "agent": null,
+      "userOnly": false
+    },
+    {
+      "name": "initiatives",
+      "slug": "initiatives",
+      "command": "/devflow:initiatives",
+      "summary": "Manage strategic initiative context — sync GitHub Epics to disk, list cached initiatives, or show a single initiative body. Planner reads these at plan time.",
+      "notes": [],
+      "triggers": [
+        "sync initiatives",
+        "refresh initiatives",
+        "show initiative",
+        "what initiatives are loaded"
+      ],
+      "args": "[sync [--initiative <slug>] [--project-id <id>] [--force]] | [list [--home <path>]] | [show <slug>]",
+      "tools": [
+        "Bash",
+        "Read"
+      ],
+      "agent": null,
+      "userOnly": false
+    },
+    {
+      "name": "list-objective-assumptions",
+      "slug": "list-objective-assumptions",
+      "command": "/devflow:list-objective-assumptions",
+      "summary": "See what Claude plans to do for an objective before it starts, so you can course-correct early.",
+      "notes": [
+        "Shows the intended approach without creating any files."
+      ],
+      "triggers": [],
+      "args": "[objective]",
+      "tools": [
+        "Read",
+        "Bash",
+        "Grep",
+        "Glob"
+      ],
+      "agent": null,
+      "userOnly": true
+    },
+    {
+      "name": "map-codebase",
+      "slug": "map-codebase",
+      "command": "/devflow:map-codebase",
+      "summary": "Analyze an existing codebase to understand its stack, architecture, conventions, and concerns before starting new work.",
+      "notes": [
+        "Use when the user wants to understand, analyze, or map an existing codebase."
+      ],
+      "triggers": [
+        "understand this codebase",
+        "map the code",
+        "analyze architecture",
+        "what does this codebase look like?",
+        "explore the code structure"
+      ],
+      "args": "[optional: specific area to map, e.g., 'api' or 'auth']",
+      "tools": [
+        "Read",
+        "Bash",
+        "Glob",
+        "Grep",
+        "Write",
+        "Task"
+      ],
+      "agent": null,
+      "userOnly": false
+    },
+    {
+      "name": "micro",
+      "slug": "micro",
+      "command": "/devflow:micro",
+      "summary": "Sub-30-LOC, single-file changes. The cheapest DevFlow path (~2k tokens). Use for typo fixes, single-line bug fixes, prop renames, dependency bumps, missing semicolons.",
+      "notes": [],
+      "triggers": [
+        "fix typo",
+        "rename X to Y",
+        "1-line fix",
+        "single-file change",
+        "tiny",
+        "trivial"
+      ],
+      "args": "<description>",
+      "tools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Bash",
+        "AskUserQuestion"
+      ],
+      "agent": null,
+      "userOnly": false
+    },
+    {
+      "name": "milestone",
+      "slug": "milestone",
+      "command": "/devflow:milestone",
+      "summary": "Manage milestones: start a new one, audit a finished one, complete it, or plan gap-closure objectives.",
+      "notes": [
+        "Subcommand-style: /devflow:milestone new | audit | complete | gaps",
+        "Use when explicitly requested."
+      ],
+      "triggers": [],
+      "args": "<new|audit|complete|gaps> [args...]",
+      "tools": [
+        "Read",
+        "Write",
+        "Bash",
+        "Task",
+        "AskUserQuestion",
+        "Glob",
+        "Grep"
+      ],
+      "agent": null,
+      "userOnly": true
+    },
+    {
+      "name": "new-project",
+      "slug": "new-project",
+      "command": "/devflow:new-project",
+      "summary": "Set up a new project from scratch — asks what you're building, researches the domain, defines requirements, and creates a development roadmap.",
+      "notes": [
+        "Use when the user wants to start a new project or initialize DevFlow for the first time."
+      ],
+      "triggers": [
+        "start a new project",
+        "initialize project",
+        "let's build something new",
+        "set up a new project",
+        "new project"
+      ],
+      "args": "[--auto]",
+      "tools": [
+        "Read",
+        "Bash",
+        "Write",
+        "Task",
+        "AskUserQuestion"
+      ],
+      "agent": null,
+      "userOnly": false
+    },
+    {
+      "name": "objective",
+      "slug": "objective",
+      "command": "/devflow:objective",
+      "summary": "Add or remove an objective from the current milestone roadmap.",
+      "notes": [
+        "Subcommand-style: /devflow:objective add | remove",
+        "Use when explicitly requested.",
+        "Note: 'insert' (decimal objectives) was removed in v1.2 — use 'add' instead."
+      ],
+      "triggers": [],
+      "args": "<add|remove> [args...]",
+      "tools": [
+        "Read",
+        "Write",
+        "Bash",
+        "Glob"
+      ],
+      "agent": null,
+      "userOnly": false
+    },
+    {
+      "name": "plan-objective",
+      "slug": "plan-objective",
+      "command": "/devflow:plan-objective",
+      "summary": "Create a detailed execution plan for an objective, breaking it into concrete tasks with success criteria.",
+      "notes": [
+        "Use when the user wants to plan an objective, create execution plans, or prepare for building."
+      ],
+      "triggers": [
+        "plan objective",
+        "create plans",
+        "plan the next objective",
+        "let's plan",
+        "prepare objective",
+        "make plans for"
+      ],
+      "args": "[objective] [--auto] [--research] [--skip-research] [--gaps] [--skip-verify] [--work TYPE] [--tdd POSTURE] [--depth LEVEL] [--model PROFILE]",
+      "tools": [
+        "Read",
+        "Write",
+        "Bash",
+        "Glob",
+        "Grep",
+        "Task",
+        "WebFetch",
+        "EnterPlanMode",
+        "ExitPlanMode",
+        "AskUserQuestion",
+        "mcp__context7__*"
+      ],
+      "agent": "planner",
+      "userOnly": false
+    },
+    {
+      "name": "quick",
+      "slug": "quick",
+      "command": "/devflow:quick",
+      "summary": "Small features (single executor, no planner, no verifier) — between micro (1-line) and build (multi-subsystem). Cutoff: <5 files, <200 LOC, no new abstractions.",
+      "notes": [
+        "Use when the change is too big for /devflow:micro but doesn't warrant full /devflow:build planning."
+      ],
+      "triggers": [
+        "small change",
+        "small feature",
+        "5-file change",
+        "isolated bug fix",
+        "do this small task",
+        "tackle this small change",
+        "make a quick pass"
+      ],
+      "args": "[--full]",
+      "tools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Glob",
+        "Grep",
+        "Bash",
+        "Task",
+        "AskUserQuestion"
+      ],
+      "agent": null,
+      "userOnly": false
+    },
+    {
+      "name": "research-objective",
+      "slug": "research-objective",
+      "command": "/devflow:research-objective",
+      "summary": "Research how to build something before planning it — discovers best practices, architecture patterns, and pitfalls for the domain.",
+      "notes": [
+        "Use when the user wants to investigate, research, or explore options before planning an objective."
+      ],
+      "triggers": [
+        "research objective",
+        "investigate before planning",
+        "look into how to build",
+        "what's the best approach for objective"
+      ],
+      "args": "[objective]",
+      "tools": [
+        "Read",
+        "Bash",
+        "Task"
+      ],
+      "agent": null,
+      "userOnly": false
+    },
+    {
+      "name": "security-audit",
+      "slug": "security-audit",
+      "command": "/devflow:security-audit",
+      "summary": "Scan the codebase for security vulnerabilities — checks for secrets, auth flaws, dependency risks, and OWASP Top 10 issues.",
+      "notes": [
+        "Standalone — works without project setup. Covers secrets, auth, dependencies, and code-level vulnerabilities."
+      ],
+      "triggers": [
+        "security audit",
+        "scan for vulnerabilities",
+        "check for secrets",
+        "security review",
+        "find security issues"
+      ],
+      "args": "[optional: path scope like 'src/api' or focus filter like 'secrets-only', 'auth-only', 'deps-only']",
+      "tools": [
+        "Read",
+        "Bash",
+        "Glob",
+        "Grep",
+        "Write",
+        "Task"
+      ],
+      "agent": null,
+      "userOnly": false
+    },
+    {
+      "name": "set-profile",
+      "slug": "set-profile",
+      "command": "/devflow:set-profile",
+      "summary": "Switch between quality, balanced, and budget model profiles to control cost and capability.",
+      "notes": [
+        "Use when the user wants to change the AI model tier for DevFlow agents."
+      ],
+      "triggers": [
+        "change profile",
+        "switch to quality",
+        "switch to balanced",
+        "switch to budget",
+        "set profile"
+      ],
+      "args": "<profile>",
+      "tools": [
+        "Read",
+        "Write",
+        "Bash"
+      ],
+      "agent": null,
+      "userOnly": true
+    },
+    {
+      "name": "settings",
+      "slug": "settings",
+      "command": "/devflow:settings",
+      "summary": "Configure which agents run, which AI models they use, and how the workflow behaves.",
+      "notes": [
+        "Use when the user wants to change DevFlow settings or configure workflow behavior."
+      ],
+      "triggers": [
+        "change settings",
+        "configure DevFlow",
+        "update settings",
+        "workflow settings"
+      ],
+      "args": "",
+      "tools": [
+        "Read",
+        "Write",
+        "Bash",
+        "AskUserQuestion"
+      ],
+      "agent": null,
+      "userOnly": true
+    },
+    {
+      "name": "status",
+      "slug": "status",
+      "command": "/devflow:status",
+      "summary": "Consolidated status/resume/pause/health — `/devflow:status [resume|pause|check]`.",
+      "notes": [
+        "Default: show progress + route to next action. Subcommands: check (integrity), pause (save context), resume (restore context). Both flag and bare forms accepted."
+      ],
+      "triggers": [
+        "where are we?",
+        "what's next?",
+        "save my progress",
+        "pick up where we left off"
+      ],
+      "args": "[check | pause | resume]",
+      "tools": [
+        "Read",
+        "Write",
+        "Bash",
+        "Grep",
+        "Glob",
+        "AskUserQuestion",
+        "SlashCommand"
+      ],
+      "agent": null,
+      "userOnly": false
+    },
+    {
+      "name": "sync-roadmap",
+      "slug": "sync-roadmap",
+      "command": "/devflow:sync-roadmap",
+      "summary": "Reconcile ROADMAP.md checkbox state against on-disk SUMMARY.md presence. Default: silently corrects drift; --dry-run previews; --interactive prompts per change.",
+      "notes": [],
+      "triggers": [
+        "sync roadmap",
+        "reconcile roadmap",
+        "fix roadmap drift",
+        "is the roadmap accurate"
+      ],
+      "args": "[--dry-run] [--interactive] [--raw]",
+      "tools": [
+        "Bash",
+        "Read"
+      ],
+      "agent": null,
+      "userOnly": false
+    },
+    {
+      "name": "todo",
+      "slug": "todo",
+      "command": "/devflow:todo",
+      "summary": "Manage todos: capture an idea/task or view the morning standup across local + GitHub + peer sources.",
+      "notes": [
+        "Subcommand-style: /devflow:todo add | list",
+        "Use when the user wants to save something for later, note an idea, or get a \"what should I work on?\" view."
+      ],
+      "triggers": [
+        "remember to",
+        "add a todo",
+        "save this idea",
+        "what should I work on?",
+        "morning standup",
+        "check todos"
+      ],
+      "args": "<add|list> [args...]",
+      "tools": [
+        "Read",
+        "Write",
+        "Bash",
+        "AskUserQuestion"
+      ],
+      "agent": null,
+      "userOnly": false
+    },
+    {
+      "name": "tui",
+      "slug": "tui",
+      "command": "/devflow:tui",
+      "summary": "Open the program-aware TUI viewer — read-only terminal UI showing parallel sessions, org tree, and active initiatives in three stacked panels. tmux-safe; reflows narrow terminals.",
+      "notes": [],
+      "triggers": [
+        "open tui",
+        "show tui",
+        "what's running across sessions",
+        "show org tree"
+      ],
+      "args": "[--once] [--raw] [--no-color] [--reset-only]",
+      "tools": [
+        "Bash",
+        "Read"
+      ],
+      "agent": null,
+      "userOnly": false
+    },
+    {
+      "name": "ui-eval",
+      "slug": "ui-eval",
+      "command": "/devflow:ui-eval",
+      "summary": "Run the UI visual-evaluation pipeline on a Flutter surface or objective: capture each declared UI state, score it through the offline visual-eval engine, and write machine-judged evidence the verifier consumes.",
+      "notes": [
+        "Use when the user wants to visually evaluate, judge, or dogfood a UI surface's rendered states."
+      ],
+      "triggers": [
+        "visual eval",
+        "evaluate the UI",
+        "ui-eval",
+        "judge the screens",
+        "check the visuals",
+        "does this screen look right?"
+      ],
+      "args": "[objective number or manifest path]",
+      "tools": [
+        "Read",
+        "Bash",
+        "Glob",
+        "Grep",
+        "Write",
+        "Task",
+        "mcp__plugin_playwright_playwright__browser_navigate",
+        "mcp__plugin_playwright_playwright__browser_snapshot",
+        "mcp__plugin_playwright_playwright__browser_take_screenshot",
+        "mcp__plugin_playwright_playwright__browser_click",
+        "mcp__plugin_playwright_playwright__browser_wait_for",
+        "mcp__plugin_playwright_playwright__browser_close"
+      ],
+      "agent": null,
+      "userOnly": false
+    },
+    {
+      "name": "verify-work",
+      "slug": "verify-work",
+      "command": "/devflow:verify-work",
+      "summary": "Test what was built by walking through expected behavior and checking it matches reality.",
+      "notes": [
+        "Use when the user wants to test, verify, or validate what was built in an objective."
+      ],
+      "triggers": [
+        "test what we built",
+        "verify objective",
+        "check the work",
+        "UAT",
+        "does it work?",
+        "let's test",
+        "validate the implementation"
+      ],
+      "args": "[objective number, e.g., '4']",
+      "tools": [
+        "Read",
+        "Bash",
+        "Glob",
+        "Grep",
+        "Edit",
+        "Write",
+        "Task",
+        "mcp__plugin_playwright_playwright__browser_navigate",
+        "mcp__plugin_playwright_playwright__browser_snapshot",
+        "mcp__plugin_playwright_playwright__browser_take_screenshot",
+        "mcp__plugin_playwright_playwright__browser_click",
+        "mcp__plugin_playwright_playwright__browser_fill_form",
+        "mcp__plugin_playwright_playwright__browser_wait_for",
+        "mcp__plugin_playwright_playwright__browser_tabs",
+        "mcp__plugin_playwright_playwright__browser_close",
+        "mcp__maestro__*"
+      ],
+      "agent": null,
+      "userOnly": false
+    },
+    {
+      "name": "workstreams",
+      "slug": "workstreams",
+      "command": "/devflow:workstreams",
+      "summary": "Run independent objectives in parallel using git worktrees, then merge results back.",
+      "notes": [
+        "Subcommand-style: /devflow:workstreams setup | status | merge | run",
+        "Advanced parallel execution — use only when explicitly requested."
+      ],
+      "triggers": [],
+      "args": "<setup|status|merge|run> [args...]",
+      "tools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Glob",
+        "Grep",
+        "Bash",
+        "Task",
+        "AskUserQuestion"
+      ],
+      "agent": null,
+      "userOnly": true
+    }
+  ],
+  "agents": [
+    {
+      "name": "codebase-mapper",
+      "description": "Analyzes a codebase from a specific angle (stack, architecture, quality, or concerns) and writes structured findings.",
+      "tools": [
+        "Read",
+        "Bash",
+        "Grep",
+        "Glob",
+        "Write"
+      ],
+      "effort": null,
+      "color": "cyan",
+      "maxTurns": null,
+      "isolation": null,
+      "memory": null,
+      "models": {
+        "quality": "sonnet",
+        "balanced": "haiku",
+        "budget": "haiku"
+      }
+    },
+    {
+      "name": "debugger",
+      "description": "Investigates bugs using a structured scientific method with persistent session state across context resets.",
+      "tools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Bash",
+        "Grep",
+        "Glob",
+        "WebSearch"
+      ],
+      "effort": "xhigh",
+      "color": "orange",
+      "maxTurns": null,
+      "isolation": null,
+      "memory": null,
+      "models": {
+        "quality": "opus",
+        "balanced": "sonnet",
+        "budget": "sonnet"
+      }
+    },
+    {
+      "name": "executor",
+      "description": "Executes planned tasks with atomic git commits, handles deviations, and manages checkpoints during builds.",
+      "tools": [
+        "AskUserQuestion",
+        "TaskUpdate",
+        "TaskCreate",
+        "Read",
+        "Write",
+        "Edit",
+        "Bash",
+        "Grep",
+        "Glob",
+        "mcp__plugin_playwright_playwright__browser_navigate",
+        "mcp__plugin_playwright_playwright__browser_snapshot",
+        "mcp__plugin_playwright_playwright__browser_take_screenshot",
+        "mcp__plugin_playwright_playwright__browser_click",
+        "mcp__plugin_playwright_playwright__browser_fill_form",
+        "mcp__plugin_playwright_playwright__browser_wait_for",
+        "mcp__plugin_playwright_playwright__browser_tabs",
+        "mcp__plugin_playwright_playwright__browser_close",
+        "mcp__maestro__*"
+      ],
+      "effort": "xhigh",
+      "color": "yellow",
+      "maxTurns": 50,
+      "isolation": "worktree",
+      "memory": null,
+      "models": {
+        "quality": "opus",
+        "balanced": "sonnet",
+        "budget": "sonnet"
+      }
+    },
+    {
+      "name": "integration-checker",
+      "description": "Verifies that separately-built features connect properly and end-to-end user workflows actually work.",
+      "tools": [
+        "Read",
+        "Bash",
+        "Grep",
+        "Glob"
+      ],
+      "effort": null,
+      "color": "blue",
+      "maxTurns": null,
+      "isolation": null,
+      "memory": null,
+      "models": {
+        "quality": "sonnet",
+        "balanced": "sonnet",
+        "budget": "haiku"
+      }
+    },
+    {
+      "name": "job-checker",
+      "description": "Reviews execution plans before they run to verify they will actually achieve the objective goal.",
+      "tools": [
+        "Read",
+        "Bash",
+        "Glob",
+        "Grep"
+      ],
+      "effort": null,
+      "color": "green",
+      "maxTurns": null,
+      "isolation": null,
+      "memory": null,
+      "models": {
+        "quality": "sonnet",
+        "balanced": "sonnet",
+        "budget": "haiku"
+      }
+    },
+    {
+      "name": "objective-researcher",
+      "description": "Researches how to implement an objective — discovers best practices, patterns, and pitfalls before planning begins.",
+      "tools": [
+        "Read",
+        "Write",
+        "Bash",
+        "Grep",
+        "Glob",
+        "WebSearch",
+        "WebFetch",
+        "mcp__context7__*"
+      ],
+      "effort": null,
+      "color": "cyan",
+      "maxTurns": null,
+      "isolation": null,
+      "memory": null,
+      "models": {
+        "quality": "opus",
+        "balanced": "sonnet",
+        "budget": "haiku"
+      }
+    },
+    {
+      "name": "planner",
+      "description": "Creates detailed execution plans for objectives with task breakdown, dependency ordering, and built-in quality checks.",
+      "tools": [
+        "Read",
+        "Write",
+        "Bash",
+        "Glob",
+        "Grep",
+        "WebFetch",
+        "mcp__context7__*"
+      ],
+      "effort": "xhigh",
+      "color": "green",
+      "maxTurns": null,
+      "isolation": null,
+      "memory": null,
+      "models": {
+        "quality": "opus",
+        "balanced": "opus",
+        "budget": "sonnet"
+      }
+    },
+    {
+      "name": "project-researcher",
+      "description": "Researches the domain ecosystem for a new project — stack options, architecture patterns, features, and common pitfalls.",
+      "tools": [
+        "Read",
+        "Write",
+        "Bash",
+        "Grep",
+        "Glob",
+        "WebSearch",
+        "WebFetch",
+        "mcp__context7__*"
+      ],
+      "effort": null,
+      "color": "cyan",
+      "maxTurns": null,
+      "isolation": null,
+      "memory": null,
+      "models": {
+        "quality": "opus",
+        "balanced": "sonnet",
+        "budget": "haiku"
+      }
+    },
+    {
+      "name": "research-synthesizer",
+      "description": "Combines findings from multiple parallel research agents into a unified summary for roadmap creation.",
+      "tools": [
+        "Read",
+        "Write",
+        "Bash"
+      ],
+      "effort": null,
+      "color": "purple",
+      "maxTurns": null,
+      "isolation": null,
+      "memory": null,
+      "models": {
+        "quality": "sonnet",
+        "balanced": "sonnet",
+        "budget": "haiku"
+      }
+    },
+    {
+      "name": "roadmapper",
+      "description": "Creates project roadmaps by breaking requirements into ordered objectives with success criteria and dependency mapping.",
+      "tools": [
+        "Read",
+        "Write",
+        "Bash",
+        "Glob",
+        "Grep"
+      ],
+      "effort": "high",
+      "color": "purple",
+      "maxTurns": null,
+      "isolation": null,
+      "memory": null,
+      "models": {
+        "quality": "opus",
+        "balanced": "sonnet",
+        "budget": "sonnet"
+      }
+    },
+    {
+      "name": "security-auditor",
+      "description": "Scans codebase for security vulnerabilities in a specific domain: secrets, auth flows, or dependency risks.",
+      "tools": [
+        "Read",
+        "Bash",
+        "Grep",
+        "Glob",
+        "Write"
+      ],
+      "effort": "xhigh",
+      "color": "red",
+      "maxTurns": null,
+      "isolation": null,
+      "memory": null,
+      "models": {
+        "quality": "opus",
+        "balanced": "sonnet",
+        "budget": "sonnet"
+      }
+    },
+    {
+      "name": "ui-evaluator",
+      "description": "Machine-judges the visual correctness of Flutter UI states by capturing each declared surface, scoring it through the offline visual-eval engine, and writing evidence the verifier consumes.",
+      "tools": [
+        "Read",
+        "Write",
+        "Bash",
+        "Glob",
+        "Grep",
+        "mcp__plugin_playwright_playwright__browser_navigate",
+        "mcp__plugin_playwright_playwright__browser_snapshot",
+        "mcp__plugin_playwright_playwright__browser_take_screenshot",
+        "mcp__plugin_playwright_playwright__browser_click",
+        "mcp__plugin_playwright_playwright__browser_wait_for",
+        "mcp__plugin_playwright_playwright__browser_close",
+        "mcp__maestro__*"
+      ],
+      "effort": "high",
+      "color": "green",
+      "maxTurns": null,
+      "isolation": null,
+      "memory": null,
+      "models": {
+        "quality": "opus",
+        "balanced": "sonnet",
+        "budget": "sonnet"
+      }
+    },
+    {
+      "name": "verifier",
+      "description": "Verifies that built code actually achieves the objective goal, not just that tasks were completed.",
+      "tools": [
+        "Read",
+        "Write",
+        "Bash",
+        "Grep",
+        "Glob",
+        "mcp__plugin_playwright_playwright__browser_navigate",
+        "mcp__plugin_playwright_playwright__browser_snapshot",
+        "mcp__plugin_playwright_playwright__browser_take_screenshot",
+        "mcp__plugin_playwright_playwright__browser_click",
+        "mcp__plugin_playwright_playwright__browser_fill_form",
+        "mcp__plugin_playwright_playwright__browser_wait_for",
+        "mcp__plugin_playwright_playwright__browser_tabs",
+        "mcp__plugin_playwright_playwright__browser_close",
+        "mcp__maestro__*"
+      ],
+      "effort": null,
+      "color": "green",
+      "maxTurns": 30,
+      "isolation": null,
+      "memory": "project",
+      "models": {
+        "quality": "sonnet",
+        "balanced": "sonnet",
+        "budget": "haiku"
+      }
+    }
+  ],
+  "hooks": [
+    {
+      "file": "awareness-cache-populate.js",
+      "name": "awareness-cache-populate",
+      "group": "Session context",
+      "purpose": "Warms the cross-repo awareness cache in a detached child process. Never blocks session start, even when a scan takes 30s or more.",
+      "escape": null,
+      "events": [
+        "SessionStart"
+      ],
+      "registered": true,
+      "note": null
+    },
+    {
+      "file": "changelog-on-tag.js",
+      "name": "changelog-on-tag",
+      "group": "Enforcement",
+      "purpose": "Blocks `git tag -a vX.Y.Z` unless CHANGELOG.md has a `## [X.Y.Z]` heading and the three release manifests carry matching versions.",
+      "escape": "DEVFLOW_SKIP_CHANGELOG_GATE=1",
+      "events": [
+        "PreToolUse (Bash)"
+      ],
+      "registered": true,
+      "note": null
+    },
+    {
+      "file": "classify-session.js",
+      "name": "classify-session",
+      "group": "Session context",
+      "purpose": "Classifies the project as `ambient`, `init-offer`, or `skip` and injects the routing decision table you see at session start.",
+      "escape": "DEVFLOW_SKIP_CLASSIFY=1",
+      "events": [
+        "SessionStart"
+      ],
+      "registered": true,
+      "note": null
+    },
+    {
+      "file": "gate-commits.js",
+      "name": "gate-commits",
+      "group": "Enforcement",
+      "purpose": "Blocks raw `git commit` and redirects to `df-tools commit`, which preserves objective scope and task IDs and updates STATE.md. Detection is invocation-aware: heredoc bodies and quoted arguments are stripped first, so prose that merely mentions the command is not gated.",
+      "escape": "DEVFLOW_ALLOW_RAW_COMMIT=1",
+      "events": [
+        "PreToolUse (Bash)"
+      ],
+      "registered": true,
+      "note": null
+    },
+    {
+      "file": "gate-edits.js",
+      "name": "gate-edits",
+      "group": "Enforcement",
+      "purpose": "Strict DENY by default in ambient mode. Allows edits when a live `.planning/.skill-active` marker exists (resolved from both the local and the main checkout, so worktree-isolated agents are not denied by a marker they cannot see), when the prompt carries an override phrase, or when the env escape is set. Targets outside the project root are never gated. Severity is per-project via `gates.editGate`.",
+      "escape": "DEVFLOW_SKIP_EDIT_GATE=1",
+      "events": [
+        "PreToolUse (Edit|Write|MultiEdit)"
+      ],
+      "registered": true,
+      "note": null
+    },
+    {
+      "file": "gate-interactive.js",
+      "name": "gate-interactive",
+      "group": "Enforcement",
+      "purpose": "Intercepts TTY-requiring commands and routes them to the handoff watcher rather than letting them hang on a prompt no one can answer.",
+      "escape": null,
+      "events": [
+        "PreToolUse (Bash)"
+      ],
+      "registered": true,
+      "note": null
+    },
+    {
+      "file": "guard-no-progress.js",
+      "name": "guard-no-progress",
+      "group": "Enforcement",
+      "purpose": "Detects the same tool being called with identical arguments repeatedly: warns at 3, escalates to `ask` at 5, and resets whenever the agent varies its approach. Step limits cannot catch a stuck loop — they only fire once the whole budget is spent.",
+      "escape": "DEVFLOW_SKIP_PROGRESS_GUARD=1",
+      "events": [
+        "PreToolUse (*)"
+      ],
+      "registered": true,
+      "note": null
+    },
+    {
+      "file": "inject-handoff-results.js",
+      "name": "inject-handoff-results",
+      "group": "Session context",
+      "purpose": "Surfaces completed handoff-watcher results back into the session.",
+      "escape": null,
+      "events": [],
+      "registered": false,
+      "note": null
+    },
+    {
+      "file": "inject-org-context.js",
+      "name": "inject-org-context",
+      "group": "Session context",
+      "purpose": "Injects an objective’s full org context — parent issue, repo roadmap, sibling repo activity — at planning time.",
+      "escape": null,
+      "events": [],
+      "registered": false,
+      "note": null
+    },
+    {
+      "file": "route-intent.js",
+      "name": "route-intent",
+      "group": "Enforcement",
+      "purpose": "Matches the prompt against build/plan/verify/debug intent and injects a directive to route through the matching skill instead of editing code directly. Regexes require imperative form, so plain questions do not trip it.",
+      "escape": null,
+      "events": [
+        "UserPromptSubmit"
+      ],
+      "registered": true,
+      "note": null
+    },
+    {
+      "file": "route-results.js",
+      "name": "route-results",
+      "group": "Session context",
+      "purpose": "Injects completed handoff-watcher results into the next turn, so a queued interactive command resumes without you pasting anything.",
+      "escape": null,
+      "events": [
+        "UserPromptSubmit"
+      ],
+      "registered": true,
+      "note": null
+    },
+    {
+      "file": "statusline.js",
+      "name": "statusline",
+      "group": "Observability",
+      "purpose": "Renders model, current task, directory, and context usage in the Claude Code status line.",
+      "escape": null,
+      "events": [],
+      "registered": false,
+      "note": "Registered via plugin.json statusLine"
+    },
+    {
+      "file": "sync-runtime.js",
+      "name": "sync-runtime",
+      "group": "Runtime sync",
+      "purpose": "Mirrors the plugin-bundled runtime to `~/.claude/devflow/` whenever the bundled version differs from the cached `.plugin-version`. Skills reference `@~/.claude/devflow/...` paths, which do not interpolate `${CLAUDE_PLUGIN_ROOT}` — this hook is what makes those references resolve.",
+      "escape": null,
+      "events": [
+        "SessionStart"
+      ],
+      "registered": true,
+      "note": null
+    },
+    {
+      "file": "verify-commits.js",
+      "name": "verify-commits",
+      "group": "Observability",
+      "purpose": "Warns when a subagent finishes without producing commits — a silent-failure detector for the executor.",
+      "escape": null,
+      "events": [
+        "SubagentStop"
+      ],
+      "registered": true,
+      "note": null
+    },
+    {
+      "file": "verify-completion.js",
+      "name": "verify-completion",
+      "group": "Observability",
+      "purpose": "Checks that the most recent SUMMARY.md carries task evidence and no failure markers. Warns only — never blocks.",
+      "escape": null,
+      "events": [
+        "Stop"
+      ],
+      "registered": true,
+      "note": null
+    }
+  ],
+  "dfTools": [
+    {
+      "command": "awareness",
+      "subcommands": []
+    },
+    {
+      "command": "benchmark",
+      "subcommands": []
+    },
+    {
+      "command": "changelog",
+      "subcommands": [
+        "update",
+        "check"
+      ]
+    },
+    {
+      "command": "check-todos",
+      "subcommands": []
+    },
+    {
+      "command": "commit",
+      "subcommands": []
+    },
+    {
+      "command": "config-ensure-section",
+      "subcommands": []
+    },
+    {
+      "command": "config-get",
+      "subcommands": []
+    },
+    {
+      "command": "config-set",
+      "subcommands": []
+    },
+    {
+      "command": "context",
+      "subcommands": []
+    },
+    {
+      "command": "current-timestamp",
+      "subcommands": []
+    },
+    {
+      "command": "decision-queue",
+      "subcommands": []
+    },
+    {
+      "command": "defaults-table",
+      "subcommands": [
+        "init"
+      ]
+    },
+    {
+      "command": "deprecation",
+      "subcommands": []
+    },
+    {
+      "command": "detect",
+      "subcommands": [
+        "novel-domain",
+        "brownfield-map",
+        "flutter-ui-scope"
+      ]
+    },
+    {
+      "command": "dup-detect",
+      "subcommands": []
+    },
+    {
+      "command": "find-objective",
+      "subcommands": []
+    },
+    {
+      "command": "flutter-ui",
+      "subcommands": [
+        "setup",
+        "eval",
+        "bootstrap"
+      ]
+    },
+    {
+      "command": "frontmatter",
+      "subcommands": [
+        "get",
+        "set",
+        "merge",
+        "validate"
+      ]
+    },
+    {
+      "command": "generate",
+      "subcommands": [
+        "uat"
+      ]
+    },
+    {
+      "command": "generate-slug",
+      "subcommands": []
+    },
+    {
+      "command": "gh",
+      "subcommands": [
+        "status",
+        "sync-objectives",
+        "comment",
+        "close-issue",
+        "sync-release",
+        "resolve",
+        "sync",
+        "pull"
+      ]
+    },
+    {
+      "command": "global-config",
+      "subcommands": []
+    },
+    {
+      "command": "handoff",
+      "subcommands": [
+        "create",
+        "complete",
+        "list",
+        "get"
+      ]
+    },
+    {
+      "command": "history-digest",
+      "subcommands": []
+    },
+    {
+      "command": "init",
+      "subcommands": [
+        "execute-objective",
+        "plan-objective",
+        "new-project",
+        "new-milestone",
+        "quick",
+        "resume",
+        "verify-work",
+        "objective-op",
+        "todos",
+        "milestone-op",
+        "map-codebase",
+        "security-audit",
+        "progress"
+      ]
+    },
+    {
+      "command": "initiatives",
+      "subcommands": []
+    },
+    {
+      "command": "intent",
+      "subcommands": [
+        "resolve"
+      ]
+    },
+    {
+      "command": "list-todos",
+      "subcommands": []
+    },
+    {
+      "command": "micro",
+      "subcommands": []
+    },
+    {
+      "command": "migrate",
+      "subcommands": [
+        "plan",
+        "apply"
+      ]
+    },
+    {
+      "command": "milestone",
+      "subcommands": [
+        "complete"
+      ]
+    },
+    {
+      "command": "objective",
+      "subcommands": [
+        "next-decimal",
+        "add",
+        "insert",
+        "remove",
+        "complete"
+      ]
+    },
+    {
+      "command": "objective-job-index",
+      "subcommands": []
+    },
+    {
+      "command": "objectives",
+      "subcommands": [
+        "list"
+      ]
+    },
+    {
+      "command": "org-awareness",
+      "subcommands": []
+    },
+    {
+      "command": "override",
+      "subcommands": []
+    },
+    {
+      "command": "planning",
+      "subcommands": [
+        "sibling-trd-scan"
+      ]
+    },
+    {
+      "command": "progress",
+      "subcommands": []
+    },
+    {
+      "command": "project-accept",
+      "subcommands": []
+    },
+    {
+      "command": "project-decline",
+      "subcommands": []
+    },
+    {
+      "command": "project-hygiene",
+      "subcommands": [
+        "check",
+        "move",
+        "archive"
+      ]
+    },
+    {
+      "command": "project-state",
+      "subcommands": []
+    },
+    {
+      "command": "requirements",
+      "subcommands": [
+        "mark-complete"
+      ]
+    },
+    {
+      "command": "resolve-model",
+      "subcommands": []
+    },
+    {
+      "command": "roadmap",
+      "subcommands": [
+        "get-objective",
+        "analyze",
+        "update-job-progress"
+      ]
+    },
+    {
+      "command": "scaffold",
+      "subcommands": []
+    },
+    {
+      "command": "session-audit",
+      "subcommands": []
+    },
+    {
+      "command": "skill-active",
+      "subcommands": []
+    },
+    {
+      "command": "skill-route",
+      "subcommands": []
+    },
+    {
+      "command": "state",
+      "subcommands": [
+        "update",
+        "get",
+        "patch",
+        "advance-job",
+        "record-metric",
+        "update-progress",
+        "add-decision",
+        "add-blocker",
+        "resolve-blocker",
+        "record-session"
+      ]
+    },
+    {
+      "command": "state-snapshot",
+      "subcommands": []
+    },
+    {
+      "command": "summary-extract",
+      "subcommands": []
+    },
+    {
+      "command": "survey",
+      "subcommands": [
+        "decimal-objectives"
+      ]
+    },
+    {
+      "command": "sync-roadmap",
+      "subcommands": []
+    },
+    {
+      "command": "telemetry",
+      "subcommands": []
+    },
+    {
+      "command": "template",
+      "subcommands": [
+        "select",
+        "fill"
+      ]
+    },
+    {
+      "command": "todo",
+      "subcommands": [
+        "complete"
+      ]
+    },
+    {
+      "command": "transcript-export",
+      "subcommands": []
+    },
+    {
+      "command": "trd-tdd",
+      "subcommands": [
+        "inspect"
+      ]
+    },
+    {
+      "command": "tui",
+      "subcommands": []
+    },
+    {
+      "command": "validate",
+      "subcommands": [
+        "consistency",
+        "health"
+      ]
+    },
+    {
+      "command": "verify",
+      "subcommands": [
+        "job-structure",
+        "objective-completeness",
+        "references",
+        "commits",
+        "artifacts",
+        "key-links",
+        "trd-pre",
+        "api-contract",
+        "flutter-ui-bootstrap",
+        "flutter-state-coverage",
+        "flutter-ui-eval"
+      ]
+    },
+    {
+      "command": "verify-path-exists",
+      "subcommands": []
+    },
+    {
+      "command": "verify-summary",
+      "subcommands": []
+    },
+    {
+      "command": "websearch",
+      "subcommands": []
+    },
+    {
+      "command": "workstreams",
+      "subcommands": [
+        "analyze",
+        "provision",
+        "reconcile"
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "name": "add-objective",
+      "status": "active"
+    },
+    {
+      "name": "add-todo",
+      "status": "active"
+    },
+    {
+      "name": "audit-milestone",
+      "status": "active"
+    },
+    {
+      "name": "build",
+      "status": "active"
+    },
+    {
+      "name": "check-todos",
+      "status": "active"
+    },
+    {
+      "name": "cleanup",
+      "status": "active"
+    },
+    {
+      "name": "complete-milestone",
+      "status": "active"
+    },
+    {
+      "name": "diagnose-issues",
+      "status": "active"
+    },
+    {
+      "name": "discovery-objective",
+      "status": "active"
+    },
+    {
+      "name": "discuss-objective",
+      "status": "active"
+    },
+    {
+      "name": "execute-objective",
+      "status": "active"
+    },
+    {
+      "name": "execute-trd",
+      "status": "active"
+    },
+    {
+      "name": "health",
+      "status": "active"
+    },
+    {
+      "name": "help",
+      "status": "active"
+    },
+    {
+      "name": "insert-objective",
+      "status": "legacy"
+    },
+    {
+      "name": "list-objective-assumptions",
+      "status": "active"
+    },
+    {
+      "name": "map-codebase",
+      "status": "active"
+    },
+    {
+      "name": "micro",
+      "status": "active"
+    },
+    {
+      "name": "new-milestone",
+      "status": "active"
+    },
+    {
+      "name": "new-project",
+      "status": "active"
+    },
+    {
+      "name": "pause-work",
+      "status": "active"
+    },
+    {
+      "name": "plan-milestone-gaps",
+      "status": "active"
+    },
+    {
+      "name": "plan-objective",
+      "status": "active"
+    },
+    {
+      "name": "progress",
+      "status": "active"
+    },
+    {
+      "name": "quick",
+      "status": "active"
+    },
+    {
+      "name": "remove-objective",
+      "status": "active"
+    },
+    {
+      "name": "research-objective",
+      "status": "active"
+    },
+    {
+      "name": "resume-project",
+      "status": "active"
+    },
+    {
+      "name": "security-audit",
+      "status": "active"
+    },
+    {
+      "name": "set-profile",
+      "status": "active"
+    },
+    {
+      "name": "settings",
+      "status": "active"
+    },
+    {
+      "name": "transition",
+      "status": "active"
+    },
+    {
+      "name": "ui-eval",
+      "status": "active"
+    },
+    {
+      "name": "verify-objective",
+      "status": "active"
+    },
+    {
+      "name": "verify-work",
+      "status": "active"
+    },
+    {
+      "name": "workstreams-merge",
+      "status": "active"
+    },
+    {
+      "name": "workstreams-run",
+      "status": "stub"
+    },
+    {
+      "name": "workstreams-setup",
+      "status": "active"
+    },
+    {
+      "name": "workstreams-status",
+      "status": "active"
+    }
+  ],
+  "references": [
+    "anti-patterns",
+    "auto-behaviors",
+    "checkpoints",
+    "codex-agent-policy",
+    "context-discipline",
+    "continuation-format",
+    "debugging-methods",
+    "decimal-objective-calculation",
+    "defaults-table",
+    "deployment-verification",
+    "design-craft",
+    "design-preflight",
+    "design-redesign",
+    "design-stack-flutter",
+    "design-stack-web",
+    "design-tells",
+    "deviation-rules",
+    "escalation-policy",
+    "flutter-state-patterns",
+    "full-output",
+    "git-integration",
+    "git-planning-commit",
+    "goal-backward",
+    "model-profile-resolution",
+    "model-profiles",
+    "objective-argument-parsing",
+    "planning-config",
+    "questioning",
+    "research-tooling",
+    "stub-patterns",
+    "tdd",
+    "testing-strategy",
+    "trd-spec",
+    "ui-brand",
+    "unattended-operation",
+    "verification-patterns"
+  ],
+  "templates": [
+    "DEBUG.md",
+    "UAT.md",
+    "claude-md.md",
+    "codebase",
+    "config.json",
+    "context.md",
+    "continue-here.md",
+    "debug-subagent-prompt.md",
+    "discovery.md",
+    "job-prompt.md",
+    "milestone-archive.md",
+    "milestone.md",
+    "objective.md",
+    "planner-subagent-prompt.md",
+    "project.md",
+    "requirements.md",
+    "research-project",
+    "research.md",
+    "roadmap.md",
+    "state.json",
+    "state.md",
+    "state_archive.md",
+    "summary.md",
+    "trd-prompt.md",
+    "user-setup.md",
+    "verification-report.md",
+    "workstream-marker.json"
+  ],
+  "models": {
+    "opus": "claude-opus-5",
+    "sonnet": "claude-sonnet-5",
+    "haiku": "claude-haiku-4-5"
+  },
+  "profiles": [
+    "quality",
+    "balanced",
+    "budget"
+  ],
+  "intent": {
+    "kinds": [
+      "api",
+      "app",
+      "library",
+      "ui-lib",
+      "cli",
+      "plugin"
+    ],
+    "works": [
+      "feature",
+      "port",
+      "refactor",
+      "foundation",
+      "bugfix",
+      "prototype",
+      "spike"
+    ]
+  },
+  "config": {
+    "mode": "yolo",
+    "depth": "standard",
+    "job_checker_enabled": true,
+    "workflow": {
+      "research": true,
+      "job_check": true,
+      "verifier": true,
+      "auto_advance": true,
+      "verifier_checkpoints": false,
+      "decision_queue": false
+    },
+    "planning": {
+      "commit_docs": true,
+      "search_gitignored": false
+    },
+    "parallelization": {
+      "enabled": true,
+      "job_level": true,
+      "task_level": false,
+      "skip_checkpoints": true,
+      "max_concurrent_agents": 3,
+      "min_jobs_for_parallel": 2
+    },
+    "gates": {
+      "confirm_project": true,
+      "confirm_objectives": true,
+      "confirm_roadmap": true,
+      "confirm_breakdown": true,
+      "confirm_job": true,
+      "execute_next_job": true,
+      "issues_review": true,
+      "confirm_transition": true,
+      "editGate": "strict"
+    },
+    "safety": {
+      "always_confirm_destructive": true,
+      "always_confirm_external_services": true
+    },
+    "workstreams": {
+      "worktree_prefix": "../{project}-ws-",
+      "branch_prefix": "df/ws-",
+      "merge_strategy": "squash"
+    },
+    "github": {
+      "enabled": false,
+      "repo": "",
+      "milestone_prefix": "v",
+      "labels": {
+        "objective": "devflow:objective",
+        "in_progress": "devflow:in-progress",
+        "gaps": "devflow:gaps"
+      }
+    },
+    "awareness": {
+      "cache_ttl_minutes": 10,
+      "peer_stale_days": 30,
+      "branch_patterns": [
+        "feature/*",
+        "df/*",
+        "fix/*",
+        "proposal/*"
+      ],
+      "org_project_id": "PVT_kwDODwqLrc4BRsOP",
+      "sibling_repos": [],
+      "eden_libs_path": null
+    },
+    "daemon": {
+      "notifications": false,
+      "notify_on_start": true,
+      "notify_on_complete": true,
+      "auto_launch": false,
+      "multi_project": false,
+      "cross_shell": [],
+      "status_line": false
+    }
+  }
+}

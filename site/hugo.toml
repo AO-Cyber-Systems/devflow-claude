@@ -1,0 +1,42 @@
+baseURL = "https://devflow.cloud/"
+languageCode = "en-us"
+title = "DevFlow"
+enableGitInfo = false
+enableRobotsTXT = true
+
+# Reference tables are generated from the plugin source by
+# scripts/gen-docs-data.cjs into site/data/devflow.json. Run it before `hugo`.
+
+[params]
+  description = "A meta-prompting, context engineering and spec-driven development system for Claude Code. Solves context rot."
+  tagline = "Ship features, not context windows."
+  repo = "https://github.com/AO-Cyber-Systems/devflow-claude"
+  issues = "https://github.com/AO-Cyber-Systems/devflow-claude/issues"
+  changelog = "https://github.com/AO-Cyber-Systems/devflow-claude/blob/main/CHANGELOG.md"
+  org = "AO Cyber Systems"
+  orgURL = "https://aocyber.ai"
+  typekit = "qwz2ubp"
+
+[markup]
+  defaultMarkdownHandler = "goldmark"
+  [markup.goldmark.renderer]
+    unsafe = true
+  [markup.highlight]
+    noClasses = false
+    style = "github-dark"
+    tabWidth = 2
+    lineNumbersInTable = false
+  [markup.tableOfContents]
+    startLevel = 2
+    endLevel = 3
+
+[taxonomies]
+
+[outputs]
+  home = ["HTML", "RSS"]
+
+[build]
+  writeStats = false
+
+[minify]
+  disableHTML = false

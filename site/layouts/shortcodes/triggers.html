@@ -1,0 +1,11 @@
+{{- /* Natural-language phrases that route to a given skill. Param: name */ -}}
+{{- $d := site.Data.devflow -}}
+{{- $name := .Get "name" -}}
+{{- range $d.skills -}}
+  {{- if eq .name $name -}}
+    {{- if .triggers -}}
+<p style="margin-bottom:var(--s2)"><span class="microlabel">Routes on phrases like</span></p>
+<p>{{ range $i, $t := .triggers }}{{ if $i }} {{ end }}<span class="chip">{{ $t }}</span>{{ end }}</p>
+    {{- end -}}
+  {{- end -}}
+{{- end -}}

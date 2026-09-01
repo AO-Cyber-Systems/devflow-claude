@@ -1,0 +1,14 @@
+{{- $data := site.Data.devflow }}
+<footer class="site-footer">
+  <div class="footer-inner">
+    <div>
+      DevFlow v{{ $data.version }}. Built and maintained by
+      <a href="{{ site.Params.orgURL }}" rel="noopener">{{ site.Params.org }}</a>. MIT licensed.
+    </div>
+    <div class="footer-links">
+      <a href="{{ site.Params.repo }}" rel="noopener">Repository</a>
+      <a href="{{ site.Params.changelog }}" rel="noopener">Changelog</a>
+      <a href="{{ site.Params.issues }}" rel="noopener">Issues</a>
+    </div>
+  </div>
+</footer>

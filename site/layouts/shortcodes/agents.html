@@ -1,0 +1,21 @@
+{{- $d := site.Data.devflow -}}
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Agent</th><th>Role</th><th>Quality</th><th>Balanced</th><th>Budget</th></tr></thead>
+  <tbody>
+  {{- range $d.agents }}
+    <tr>
+      <td><code>{{ .name }}</code>{{ with .effort }}<br><span class="chip">effort {{ . }}</span>{{ end }}</td>
+      <td>{{ .description }}</td>
+      {{- if .models }}
+      <td><span class="chip gold">{{ .models.quality }}</span></td>
+      <td><span class="chip gold">{{ .models.balanced }}</span></td>
+      <td><span class="chip gold">{{ .models.budget }}</span></td>
+      {{- else }}
+      <td colspan="3"><span style="color:var(--text-muted)">not in profile table</span></td>
+      {{- end }}
+    </tr>
+  {{- end }}
+  </tbody>
+</table>
+</div>

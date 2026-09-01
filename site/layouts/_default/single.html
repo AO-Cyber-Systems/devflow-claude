@@ -1,0 +1,23 @@
+{{ define "main" }}
+{{- $hasTOC := and (not .Params.notoc) (gt (len .TableOfContents) 60) }}
+<div class="layout{{ if not $hasTOC }} no-toc{{ end }}">
+  {{ partial "sidebar.html" . }}
+  <main class="content">
+    <div class="page-head">
+      {{- with .Parent }}{{ if ne .RelPermalink "/docs/" }}
+      <p class="breadcrumb"><a href="/docs/">Docs</a><span>/</span><a href="{{ .RelPermalink }}">{{ .Title }}</a></p>
+      {{ end }}{{ end }}
+      <h1 class="rule-gold">{{ .Title }}</h1>
+      {{- with .Params.lede }}<p class="lede">{{ . | markdownify }}</p>{{ end }}
+    </div>
+    {{ .Content }}
+    {{ partial "pagenav.html" . }}
+  </main>
+  {{- if $hasTOC }}
+  <nav class="toc">
+    <p class="sb-title">On this page</p>
+    {{ .TableOfContents }}
+  </nav>
+  {{- end }}
+</div>
+{{ end }}

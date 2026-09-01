@@ -2,7 +2,9 @@ node_modules/
 .DS_Store
 TO-DOS.md
 /research.claude/
-commands.html
+# Anchored to root: unanchored, this swallowed any commands.html anywhere in the
+# tree, including Hugo shortcodes. Vestigial from the GSD v1.20.4 baseline import.
+/commands.html
 
 # Local test installs
 .claude/
@@ -44,3 +46,14 @@ RAILROAD_ARCHITECTURE.md
 .planning/.skill-active
 .planning/.progress-guard.json
 .planning/.override-log.jsonl
+
+# Documentation site (site/) — Hugo build output and caches
+site/public/
+site/resources/
+site/.hugo_build.lock
+
+# Playwright MCP scratch output
+.playwright-mcp/
+
+# Wrangler local state (Cloudflare Pages deploys)
+.wrangler/

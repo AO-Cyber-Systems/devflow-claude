@@ -1,0 +1,36 @@
+{{ define "main" }}
+<div class="layout no-toc">
+  {{ partial "sidebar.html" . }}
+  <main class="content">
+    <div class="page-head">
+      <h1 class="rule-gold">{{ .Title }}</h1>
+      {{- with .Params.lede }}<p class="lede">{{ . | markdownify }}</p>{{ end }}
+    </div>
+    {{ .Content }}
+    {{- $pages := .RegularPages.ByWeight }}
+    {{- if and $pages (not .Params.nolist) }}
+    <div class="cards">
+      {{- range $pages }}
+      <a class="card" href="{{ .RelPermalink }}">
+        <h3>{{ .Title }}</h3>
+        <p>{{ with .Params.lede }}{{ . | plainify | truncate 130 }}{{ else }}{{ .Summary | plainify | truncate 130 }}{{ end }}</p>
+      </a>
+      {{- end }}
+    </div>
+    {{- end }}
+    {{- range .Sections.ByWeight }}
+    <h2>{{ .Title }}</h2>
+    {{- with .Params.lede }}<p>{{ . | markdownify }}</p>{{ end }}
+    <div class="cards">
+      {{- range .RegularPages.ByWeight }}
+      <a class="card" href="{{ .RelPermalink }}">
+        <h3>{{ .Title }}</h3>
+        <p>{{ with .Params.lede }}{{ . | plainify | truncate 130 }}{{ else }}{{ .Summary | plainify | truncate 130 }}{{ end }}</p>
+      </a>
+      {{- end }}
+    </div>
+    {{- end }}
+    {{ partial "pagenav.html" . }}
+  </main>
+</div>
+{{ end }}
