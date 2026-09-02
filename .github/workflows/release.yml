@@ -27,8 +27,12 @@ jobs:
             exit 0
           fi
 
-          # Title: annotated tag subject, fall back to tag name
-          TITLE="$(git tag -l --format='%(contents:subject)' "$TAG")"
+          # Title: annotated tag subject, fall back to tag name.
+          # actions/checkout materializes the pushed tag as a lightweight ref,
+          # so %(contents:subject) would fall through to the COMMIT subject.
+          # Re-fetch the real tag object before reading its message.
+          git fetch --tags --force --quiet
+          TITLE="$(git for-each-ref --format='%(contents:subject)' "refs/tags/$TAG")"
           if [ -z "$TITLE" ]; then
             TITLE="$TAG"
           fi
