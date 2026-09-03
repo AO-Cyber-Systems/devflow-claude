@@ -212,6 +212,7 @@ See: .planning/PROJECT.md (updated 2026-07-22 after v1.2 milestone)
 | 14 | Fix df-tools bugs: objective add slug/collision/flag-reject, commit pathspec isolation, verify trd field (dir numbered 3 pre-merge) | 2026-06-12 | 5fdedb2 | [3-fix-df-tools-bugs-objective-add-slug-col](./quick/3-fix-df-tools-bugs-objective-add-slug-col/) |
 | 15 | Make /devflow:objective model-invocable; gate `objective remove` cascade behind `--confirm` (dry-run by default) (dir numbered 13) | 2026-08-25 | bd12f42 | Verified | [13-make-objective-skill-model-invocable-add](./quick/13-make-objective-skill-model-invocable-add/) |
 | 16 | Bump `mcp` gem 0.12.0 → 0.25.0 in both aosentry-mcp lockfiles (closes 10 Dependabot alerts, 5 advisories) + add missing `.github/dependabot.yml` (dir numbered 14) | 2026-09-01 | 3598bb7 | — | [14-bump-mcp-gem-to-0-25-0-in-aosentry-mcp-l](./quick/14-bump-mcp-gem-to-0-25-0-in-aosentry-mcp-l/) |
+| 17 | Fix `changelog-on-tag` gate to validate the tagged commit's tree instead of the working tree (unblocks retroactive tagging); also backport TRD 27-04 quote/heredoc stripping so mentions no longer false-positive. First test file for this hook, 23 cases (dir numbered 15) | 2026-09-02 | c5770e8 | — | [15-fix-changelog-on-tag-gate-to-validate-th](./quick/15-fix-changelog-on-tag-gate-to-validate-th/) |
 
 ## Session Continuity
 
