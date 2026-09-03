@@ -6,6 +6,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.7.1] - 2026-09-03
+
+Two gate defects and a release-tooling defect, all found while shipping 2.7.0.
+
+### Fixed
+- **The tag gate judged the wrong tree** — `changelog-on-tag.js` validated CHANGELOG.md and the three release manifests against the *working tree* rather than the commit being tagged, so tagging a historical commit was impossible. `git tag -a v2.6.0 556f8d3` was denied citing `package.json: 2.7.0` even though that commit's own tree read `2.6.0`. The gate now resolves all four files from the named commit-ish via `git show`, and names the commit in the denial. With no commit-ish the working-tree path is byte-for-byte unchanged; an unresolvable commit-ish falls back to the working tree rather than crashing or denying (quick-15)
+- **The tag gate fired on mere mentions** — it matched raw command text, so any command merely *containing* a tag command in a quoted argument or heredoc body was refused. This is the same false-positive class TRD 27-04 fixed for `gate-commits.js`, never backported here. The hook now reuses that hook's exported `stripHeredocs`/`stripQuoted` before matching (quick-15)
+- **Release titles came from the commit, not the tag** — `release.yml` read `%(contents:subject)` from a tag that `actions/checkout` had already materialized as a lightweight ref, so the annotated tag's message was silently discarded and every release took its release commit's subject instead. It now re-fetches the tag object before reading. This is why `v2.5.0` and `v2.3.0` are titled `chore(release): ...` (f67f7dc)
+
+### Added
+- **First test coverage for `changelog-on-tag.js`** - 23 cases across a `parseTagCommand()` unit suite and a commit-ish integration suite that builds real throwaway git repos. Every other hook already had an adjacent `.test.js`; this one had none (8ed6e0d)
+- **Dependabot covers `github-actions`** - a fourth ecosystem block for `.github/workflows`, alongside the two bundler directories and root npm (efb6486)
+
 ## [2.7.0] - 2026-09-01
 
 > **Numbering note:** this work was developed on `feature/docs-site-and-design-references`
