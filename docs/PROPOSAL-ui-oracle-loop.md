@@ -120,9 +120,18 @@ controls:
   - id: rail.project.header           # MUST equal the widget's semantics identifier
     kind: disclosure-header           # button | toggle | link | menu | disclosure-header | input | ...
     visible_in: [populated, long-content, narrow]
-    does: "toggles children visibility; selects the project and scopes the middle pane"
-    effect: [toggle, select]          # machine-classifiable effect classes (§7.5)
-    must_not: ["navigate on close", "fire twice per activation", "cover sibling hit rects"]
+    behaviors:                        # state-conditional; `when` clauses are exclusive and cover visible_in
+      - when: {control_state: collapsed, viewport: desktop}
+        does: "expands children; selects the project and scopes the middle pane"
+        effect: [toggle, select]      # machine-classifiable effect classes (§7.5)
+      - when: {control_state: expanded, viewport: desktop}
+        does: "collapses children; selection unchanged"
+        effect: [toggle]
+        must_not: ["change route", "lose selection"]
+      - when: {viewport: narrow}
+        does: "opens the project in the drawer"
+        effect: [navigation]
+    must_not: ["fire twice per activation", "cover sibling hit rects"]   # applies to every behaviour
     activation: [pointer, keyboard: [Enter, Space]]
     disabled_when: null               # or {condition: "...", reason_shown: "..."}
     a11y: {role: button, announces: [expanded, collapsed]}
@@ -176,7 +185,11 @@ The prose body carries **Intent** (why the surface exists, in the words of the o
 `controls[]` is the interaction contract. Rules the schema and the static invariants (§4.5)
 enforce:
 
-- exactly one `does` and a non-empty `effect` list per control;
+- either one `does` + `effect` pair, or a `behaviors[]` list of `{when, does, effect, must_not}`
+  whose `when` clauses (over `control_state`, `viewport`, `theme`, `data_state`, `guard`) are
+  mutually exclusive and together cover every `visible_in` state — a UI can support several
+  behaviours for one control, but never two for the same observed state; the probe resolves the
+  active behaviour from the pre-activation state it observes;
 - `must_not` items are drawn from a fixed vocabulary so each can be asserted as a negation
   (`navigate on close`, `fire twice per activation`, `cover sibling hit rects`, `change route`,
   `lose selection`, `steal focus`, …); free text is allowed only with a `manual: true` flag, which
@@ -199,7 +212,7 @@ has a `seed` (§7.4) and a `content` block: `must_show` / `must_not_show` string
 1. schema-valid; `schema_version` matches the engine's supported range;
 2. every route has ≥1 `entry` and a `back` (or is the declared root); every `entry.control`
    exists in `controls` or in another spec of the same repo (cross-surface entries are resolved);
-3. every control has one `does`, effects from the vocabulary, `visible_in` ⊆ states;
+3. every control has one `does` or an exclusive, covering `behaviors[]`; effects from the vocabulary; `visible_in` ⊆ states;
 4. every state has a seed; `outage.must_show ∩ empty.must_show = ∅`;
 5. every referenced pattern exists in the pinned `eden-ui-flutter` release; a control of a
    pattern kind inherits that pattern's `must_not` defaults (a surface may not silently drop them);
@@ -345,7 +358,7 @@ Checks are pure functions over `ProbeResult` + spec, each named by the rule it e
 | `overflow` | bridge reports a RenderFlex exception or a rect exits the viewport |
 | `contrast` | text node contrast below guideline |
 | `content` | `must_show` absent or `must_not_show` present |
-| `effect` | activating a control yields an effect class ≠ `effect` (classified from the before/after diff: `navigation` = route changed; `toggle` = announced state flipped; `select` = selection node changed; `dialog` = new modal node; `submit` = request + result node; `inert` = zero delta) |
+| `effect` | activating a control yields an effect class ≠ the `effect` of the behaviour whose `when` matches the observed pre-activation state (classified from the before/after diff: `navigation` = route changed; `toggle` = announced state flipped; `select` = selection node changed; `dialog` = new modal node; `submit` = request + result node; `inert` = zero delta) |
 | `no-op` | effect is `inert` and the control is not `disabled_when` with `reason_shown` rendered |
 | `must-not` | any `must_not` negation fails (e.g. route changed on close) |
 | `once` | one activation produced two effects |
@@ -477,8 +490,8 @@ Findings are fingerprinted by `(route, control, rule)` and deduped against open 
 via gh-sync; **spec gap → spec line** (Phase A, cheaply). Never auto-fixed, with one exception:
 during Phase B the executor fixes directed-crawl violations *inside its objective's surfaces*
 under the normal deviation rules. The crawl runs on every UI PR; the explorer at the release gate
-(closing aodex#359) and nightly. HIGH findings — an unreachable or dead-end **primary route** (`reachable_from_nav: true`), an
-inert **primary control** (a control that is a route `entry`) — block a release. `df-tools ui metrics` reports counts over time.
+(closing aodex#359) and nightly. **Release-blocking (decided 2026-09-17):** any `unreachable` or `dead-end` finding on any route,
+and any `inert` control that is a route `entry`. Everything else is filed and prioritised. `df-tools ui metrics` reports counts over time.
 
 ## 11. The cross-repo seam
 
@@ -561,8 +574,9 @@ bundle for `__edenProbe` and fail on a hit. Probe runs only against local or e2e
 - **Spec authoring cost.** Patterns supply defaults so a surface spec is mostly routes, controls
   and seeds; the review sheet is where the time is spent, deliberately.
 - **Shell API reshaping** touches both consumers; done under the reverse-dependency job.
-- **Open:** whether `must_not` vocabulary is sufficient for studio/canvas surfaces (drag, drop,
-  connect) — wave 3 will extend it from the workflow-designer port.
+- **Open:** whether the `must_not` vocabulary is sufficient for studio/canvas surfaces (drag, drop,
+  connect) — wave 3 will extend it from the workflow-designer port. (Reviewed 2026-09-17: the
+  vocabulary is fine; state-conditional `behaviors[]` were added in response.)
 
 ## 17. Testing the process itself
 
