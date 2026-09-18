@@ -361,8 +361,12 @@ test.describe('cmdFlutterUISetup integration (TRD 10-09 cases 6-10)', () => {
     assert.ok(payload.bootstrap, `expected payload.bootstrap to be present; got: ${JSON.stringify(payload)}`);
 
     // Compare against the pure-function checkBootstrapState for the same project.
+    // W0-4: checkBootstrapState now echoes an absolute `packageDir`, resolved from
+    // the CLI subprocess's `process.cwd()` — which Node (and the OS) resolve through
+    // any symlinks (macOS: /var/folders → /private/var/folders). Feed the same
+    // realpath in here so the comparison isn't just a symlink-alias mismatch.
     const { checkBootstrapState } = require('./flutter-ui-bootstrap.cjs');
-    const expectedBootstrap = checkBootstrapState({ projectDir: projectRoot });
+    const expectedBootstrap = checkBootstrapState({ projectDir: fs.realpathSync(projectRoot) });
     assert.deepStrictEqual(payload.bootstrap, expectedBootstrap);
     // Sanity: this fixture should warn (no marker + missing infra).
     assert.strictEqual(payload.bootstrap.action, 'warn');
@@ -395,8 +399,9 @@ test.describe('cmdFlutterUISetup integration (TRD 10-09 cases 6-10)', () => {
       `expected payload.bootstrap to be present in no-daemon-but-tools-present case; got: ${JSON.stringify(payload)}`);
 
     // Compare against the pure-function checkBootstrapState for the same project.
+    // W0-4: see the realpath note in Case 7 above — same reasoning applies here.
     const { checkBootstrapState } = require('./flutter-ui-bootstrap.cjs');
-    const expectedBootstrap = checkBootstrapState({ projectDir: projectRoot });
+    const expectedBootstrap = checkBootstrapState({ projectDir: fs.realpathSync(projectRoot) });
     assert.deepStrictEqual(payload.bootstrap, expectedBootstrap);
     // Sanity: this fixture should warn (no marker + missing infra).
     assert.strictEqual(payload.bootstrap.action, 'warn');

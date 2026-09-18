@@ -198,3 +198,70 @@ test.describe('scaffoldUIEval (P4 impure writer)', () => {
     assert.strictEqual(occurrences(cfg, "name: 'ui_eval'"), 1, 'no duplicate ui_eval entry');
   });
 });
+
+// ─── Monorepo: Flutter package under <projectDir>/flutter/ (W0-4) ────────────
+
+test.describe('checkScaffoldState / scaffoldUIEval — monorepo flutter/ package', () => {
+
+  function makeMonorepoProject() {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'flutter-ui-eval-bootstrap-mono-'));
+    fs.mkdirSync(path.join(tmp, 'flutter'), { recursive: true });
+    fs.writeFileSync(path.join(tmp, 'flutter', 'pubspec.yaml'), FLUTTER_PUBSPEC);
+    return tmp;
+  }
+
+  test('M1 — only flutter/pubspec.yaml present → action !== skip, packageDir ends with /flutter', () => {
+    const tmp = makeMonorepoProject();
+    const result = checkScaffoldState({ projectDir: tmp });
+    assert.notStrictEqual(result.action, 'skip');
+    assert.strictEqual(result.action, 'scaffold');
+    assert.ok(result.packageDir, 'result carries packageDir');
+    assert.ok(result.packageDir.endsWith(`${path.sep}flutter`), `packageDir "${result.packageDir}" ends with /flutter`);
+  });
+
+  test('M2 — root-only project (no flutter/) still resolves packageDir === projectDir, prefix ""', () => {
+    const tmp = makeProject({ pubspec: 'flutter' });
+    const result = checkScaffoldState({ projectDir: tmp });
+    assert.strictEqual(result.action, 'scaffold');
+    assert.strictEqual(result.packageDir, tmp);
+    assert.strictEqual(result.prefix, '');
+  });
+
+  test('M3 — scaffold writes go under flutter/, marker stays at root .planning/', () => {
+    const tmp = makeMonorepoProject();
+    const result = scaffoldUIEval({ projectDir: tmp });
+    assert.strictEqual(result.action, 'scaffolded');
+
+    // Scaffold targets under flutter/, NOT at the root.
+    assert.ok(fs.existsSync(path.join(tmp, 'flutter', MANIFEST_REL)), 'manifest under flutter/');
+    assert.ok(fs.existsSync(path.join(tmp, 'flutter', ADAPTER_REL)), 'adapter under flutter/');
+    assert.ok(fs.existsSync(path.join(tmp, 'flutter', BASELINE_WEB_REL)), 'web baseline dir under flutter/');
+    assert.ok(fs.existsSync(path.join(tmp, 'flutter', BASELINE_GOLDENS_REL)), 'goldens baseline dir under flutter/');
+    assert.ok(fs.existsSync(path.join(tmp, 'flutter', PLAYWRIGHT_REL)), 'playwright config under flutter/');
+    assert.ok(!fs.existsSync(path.join(tmp, MANIFEST_REL)), 'manifest NOT written at repo root');
+
+    // Marker at repo-root .planning/, not flutter/.planning/.
+    assert.ok(fs.existsSync(path.join(tmp, MARKER_REL)), 'marker present at repo-root .planning/');
+    assert.ok(!fs.existsSync(path.join(tmp, 'flutter', MARKER_REL)), 'marker NOT written under flutter/.planning/');
+  });
+
+  test('M4 — non-Flutter root pubspec + Flutter flutter/pubspec.yaml resolves to flutter/', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'flutter-ui-eval-bootstrap-mono-'));
+    fs.writeFileSync(path.join(tmp, 'pubspec.yaml'), NON_FLUTTER_PUBSPEC);
+    fs.mkdirSync(path.join(tmp, 'flutter'), { recursive: true });
+    fs.writeFileSync(path.join(tmp, 'flutter', 'pubspec.yaml'), FLUTTER_PUBSPEC);
+
+    const result = checkScaffoldState({ projectDir: tmp });
+    assert.strictEqual(result.action, 'scaffold');
+    assert.strictEqual(result.prefix, 'flutter');
+    assert.strictEqual(result.packageDir, path.join(tmp, 'flutter'));
+  });
+
+  test('M5 — neither root nor flutter/ has a Flutter pubspec → flutter-not-detected', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'flutter-ui-eval-bootstrap-mono-'));
+    fs.writeFileSync(path.join(tmp, 'pubspec.yaml'), NON_FLUTTER_PUBSPEC);
+    const result = checkScaffoldState({ projectDir: tmp });
+    assert.strictEqual(result.action, 'skip');
+    assert.match(result.reason, /flutter-not-detected/);
+  });
+});

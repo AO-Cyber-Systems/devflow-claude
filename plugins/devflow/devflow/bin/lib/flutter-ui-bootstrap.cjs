@@ -13,18 +13,28 @@
  *   action:'warn' — missing infra + no marker (first-run graceful; emits setup_task)
  *   action:'fail' — missing infra + marker exists (subsequent-run hard fail)
  *
+ * Monorepo support (W0-4): the Flutter package may live at `projectDir/pubspec.yaml`
+ * OR `projectDir/flutter/pubspec.yaml` (eden-biz/aodex layout — the executor's cwd and
+ * DevFlow's `.planning/` are always the repo root). resolveFlutterPackageDir
+ * (flutter-package-dir.cjs) finds it; pubspec/integration_test/.maestro/test_driver
+ * checks resolve against the resulting `packageDir`, while the `.planning/` marker
+ * always stays at `projectDir` (the repo root).
+ *
  * Output shape:
  * {
  *   ready: boolean,
  *   missing: string[],
  *   action: 'skip'|'warn'|'fail',
- *   setup_task?: string   // XML task block — only when action:'warn'
+ *   setup_task?: string,  // XML task block — only when action:'warn'
+ *   packageDir: string,   // absolute path to the resolved Flutter package dir
+ *   prefix: ''|'flutter'  // '' when the package is at projectDir, 'flutter' in a monorepo
  * }
  */
 
 const fs = require('fs');
 const path = require('path');
 const { output } = require('./helpers.cjs');
+const { resolveFlutterPackageDir } = require('./flutter-package-dir.cjs');
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -98,17 +108,29 @@ test -f .planning/.flutter-ui-bootstrap-done && \\
  * Pure function: given a project directory, check Flutter UI bootstrap state.
  *
  * @param {object} opts
- * @param {string} opts.projectDir - absolute path to the Flutter project root
- * @returns {{ ready: boolean, missing: string[], action: 'skip'|'warn'|'fail', setup_task?: string }}
+ * @param {string} opts.projectDir - absolute path to the repo root (Flutter project root,
+ *   or the monorepo root above a `flutter/` package)
+ * @returns {{ ready: boolean, missing: string[], action: 'skip'|'warn'|'fail', setup_task?: string, packageDir: string, prefix: ''|'flutter' }}
  */
 function checkBootstrapState({ projectDir }) {
   if (!projectDir) {
     return { ready: false, missing: ['unknown'], action: 'fail', error: 'projectDir required' };
   }
 
-  const pubspecPath = path.join(projectDir, 'pubspec.yaml');
-  const integrationTestDir = path.join(projectDir, 'integration_test');
-  const maestroDir = path.join(projectDir, '.maestro');
+  // Resolve the Flutter package dir: projectDir/pubspec.yaml first, then
+  // projectDir/flutter/pubspec.yaml (monorepo layout). When neither is a
+  // detectable Flutter pubspec (including "no pubspec at all"), fall back to
+  // projectDir itself so path checks below behave exactly as before — missing
+  // pubspec/infra is still reported (graceful warn), not silently skipped.
+  const resolved = resolveFlutterPackageDir(projectDir);
+  const packageDir = resolved ? resolved.packageDir : projectDir;
+  const prefix = resolved ? resolved.prefix : '';
+
+  const pubspecPath = path.join(packageDir, 'pubspec.yaml');
+  const integrationTestDir = path.join(packageDir, 'integration_test');
+  const maestroDir = path.join(packageDir, '.maestro');
+  // The `.planning/` marker is DevFlow's own bookkeeping — it always lives at the
+  // repo root (projectDir), never under packageDir, even in the monorepo layout.
   const markerPath = path.join(projectDir, '.planning', '.flutter-ui-bootstrap-done');
 
   const missing = [];
@@ -144,7 +166,7 @@ function checkBootstrapState({ projectDir }) {
     action = 'warn';
   }
 
-  const result = { ready, missing, action };
+  const result = { ready, missing, action, packageDir, prefix };
 
   // Only emit setup_task on first-run warn
   if (action === 'warn') {
