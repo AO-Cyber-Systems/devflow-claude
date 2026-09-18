@@ -3,16 +3,28 @@
   "spec": "devflow-claude/docs/PROPOSAL-ui-oracle-loop.md",
   "plan": "devflow-claude/docs/IMPLEMENTATION-PLAN-ui-oracle-loop.md",
   "design_artifact": "https://claude.ai/code/artifact/5029f906-28d2-418f-8f38-b03923725985",
-  "updated": "2026-09-18T16:20:00Z",
-  "now": "Wave 0 — W0-1, W0-2, W0-7 complete; W0-3 (scoped resolver) implementing. Next: W0-4, W0-5, W0-6.",
+  "updated": "2026-09-18T21:30:00Z",
+  "now": "Wave 0 code complete: devflow branch df/w0-honest-gate (19 commits) passed whole-branch review + fix wave; eden-biz fix/705 done. Nothing else moves until you approve the pushes (W0-8) and upgrade the plugin (W0-9).",
   "waiting_on_user": [
     {
-      "id": "W0-8",
-      "what": "Approve pushing tag eden-ui-flutter v2.1.0 and the two pin PRs (eden-biz #753, aodex #585) once prepared."
+      "id": "W0-8a",
+      "what": "Push tag eden-ui-flutter v2.1.0 (local, at e719691 = origin/main; CI green on that commit; local flutter test 4601/1 — the 1 is a machine-dependent 8.5px chat-bubble overflow, see W0-8d)."
+    },
+    {
+      "id": "W0-8b",
+      "what": "Push 3 branches and open PRs: devflow-claude df/w0-honest-gate (wave-0 code) + docs/ui-oracle-loop-design (spec/plan/map, must merge alongside); eden-biz fix/705-ui-eval-one-source."
+    },
+    {
+      "id": "W0-8c",
+      "what": "After the tag is on origin: bump eden-biz eden_ui_flutter pin to v2.1.0 (#753) and fix aodex's pin comment (#585) — two more PRs."
+    },
+    {
+      "id": "W0-8d",
+      "what": "File eden-ui-flutter issue: chat_screen_test 390pt overflow test fails locally (+8.5px) but passes CI — machine-dependent width test."
     },
     {
       "id": "W0-9",
-      "what": "Upgrade the installed DevFlow plugin to the wave-0 release (user action: /plugin marketplace update aocyber, then update devflow)."
+      "what": "After the devflow PR merges and 2.8.0 is tagged: /plugin marketplace update aocyber, update devflow, confirm `validate health` shows no E020/W021."
     }
   ],
   "status_legend": {
@@ -56,25 +68,33 @@
           "id": "W0-3",
           "title": "manifest resolution objective-scoped only",
           "repo": "devflow-claude",
-          "status": "active"
+          "status": "done",
+          "commits": "03fa7d5..782eadf",
+          "note": "1 fix round: two missing tests added (tier-3 yaml→absent; non-raw text)"
         },
         {
           "id": "W0-4",
           "title": "bootstrap finds flutter/ in a monorepo",
           "repo": "devflow-claude",
-          "status": "pending"
+          "status": "done",
+          "note": "2 fix rounds: setup gate + executor also fixed; $OLDPWD replaced by REPO_ROOT (cwd persists across Bash calls)",
+          "commits": "782eadf..19b7f48"
         },
         {
           "id": "W0-5",
           "title": "testing matrix + capture recipe tell the truth (no React column)",
           "repo": "devflow-claude",
-          "status": "pending"
+          "status": "done",
+          "commits": "19b7f48..9f8d7e5",
+          "note": "also swept design-review.md; CHANGELOG [Unreleased] block covers the branch"
         },
         {
           "id": "W0-6",
           "title": "ui metrics baseline arm",
           "repo": "devflow-claude",
-          "status": "pending"
+          "status": "done",
+          "commits": "2b16873",
+          "note": "`df-tools ui metrics baseline`; real-git-repo tests"
         },
         {
           "id": "W0-7",
@@ -88,8 +108,9 @@
           "id": "W0-8",
           "title": "tag v2.1.0; pins to a tag (#585, #753)",
           "repo": "eden-ui-flutter · eden-biz · aodex",
-          "status": "pending",
-          "gate": "user approves push/tag"
+          "status": "blocked-user",
+          "gate": "user approves push/tag",
+          "note": "everything prepared locally; needs push approval"
         },
         {
           "id": "W0-9",
@@ -447,6 +468,30 @@
       "task": "scope",
       "ruling": "Trades React is donor-only, retired at 100% port coverage — dropped the React test column (W0-5) and the Playwright-React adapter (W4)",
       "cost_if_wrong": "if React had to be maintained, its probe adapter would be a later ~3-TRD objective"
+    },
+    {
+      "when": "2026-09-18",
+      "task": "W0-4",
+      "ruling": "fix both bootstrap modules (ui-eval scaffold and the executor's REQ-10-07 gate) with one shared resolveFlutterPackageDir helper",
+      "cost_if_wrong": "one extra small module"
+    },
+    {
+      "when": "2026-09-18",
+      "task": "W0-4",
+      "ruling": "evidence paths absolute from REPO_ROOT captured once; TRD test paths are package-relative (documented in executor + planner)",
+      "cost_if_wrong": "none — strictly more explicit"
+    },
+    {
+      "when": "2026-09-18",
+      "task": "W0-5",
+      "ruling": "one-line changelog fix verified by the controller reading the diff; scoped re-review skipped",
+      "cost_if_wrong": "a changelog wording nit"
+    },
+    {
+      "when": "2026-09-18",
+      "task": "W0-8",
+      "ruling": "tag v2.1.0 stands on the CI-validated commit despite one local machine-dependent widget-test failure; file an issue rather than block",
+      "cost_if_wrong": "an 8.5px overflow already on main ships under a tag"
     }
   ],
   "deferred_minors": [
@@ -461,6 +506,22 @@
     {
       "task": "W0-7",
       "note": "per-state `route` copied verbatim can hold non-path prose; generator fail-fast + broad catch"
+    },
+    {
+      "task": "W0-3",
+      "note": "classifyUIEvalOutcome todo string ignores reason/candidates (no production caller)"
+    },
+    {
+      "task": "W0-4",
+      "note": "executor.md relies on the agent carrying $REPO_ROOT/$PACKAGE_DIR across Bash calls (pre-existing pattern)"
+    },
+    {
+      "task": "W0-5",
+      "note": "verifier.md Step 8a generic npm-dev readiness probe sits under the Flutter never-flutter-run caveat"
+    },
+    {
+      "task": "W0-6",
+      "note": "unknown `ui metrics` subcommand exits 0; `--paths` with no value throws"
     }
   ],
   "metrics": {
