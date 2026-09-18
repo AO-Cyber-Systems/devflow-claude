@@ -158,4 +158,56 @@ describe('df-tools ui metrics baseline', () => {
     const parsed = JSON.parse(r.stdout);
     assert.strictEqual(parsed.schema_version, 1);
   });
+
+  test('a non-repo cwd exits 1 with a one-line error on stderr, not a stack trace', () => {
+    const notRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'ui-metrics-norepo-'));
+    try {
+      const r = spawnSync(
+        process.execPath,
+        [TOOLS_PATH, 'ui', 'metrics', 'baseline', '--paths', 'flutter/lib', '--out', path.join(notRepo, 'b.json'), '--raw'],
+        { cwd: notRepo, encoding: 'utf-8' }
+      );
+      assert.strictEqual(r.status, 1);
+      assert.match(r.stderr, /ui metrics: not a git repository: /);
+      assert.strictEqual(r.stderr.trim().split('\n').length, 1, `one line on stderr, got: ${r.stderr}`);
+      assert.doesNotMatch(r.stderr, /\bat .*\.cjs:\d+/, 'no stack trace');
+      assert.strictEqual(r.stdout, '');
+      assert.strictEqual(fs.existsSync(path.join(notRepo, 'b.json')), false, 'no baseline written');
+    } finally {
+      fs.rmSync(notRepo, { recursive: true, force: true });
+    }
+  });
+
+  test('--paths without a value is a usage error (exit 1, stderr), nothing written', () => {
+    const r = spawnSync(
+      process.execPath,
+      [TOOLS_PATH, 'ui', 'metrics', 'baseline', '--paths'],
+      { cwd: tmp, encoding: 'utf-8' }
+    );
+    assert.strictEqual(r.status, 1);
+    assert.match(r.stderr, /--paths requires a value/);
+    assert.strictEqual(r.stdout, '');
+    assert.strictEqual(fs.existsSync(path.join(tmp, '.planning', 'ui-metrics-baseline.json')), false);
+  });
+
+  test('--since without a value is a usage error (exit 1, stderr)', () => {
+    const r = spawnSync(
+      process.execPath,
+      [TOOLS_PATH, 'ui', 'metrics', 'baseline', '--since'],
+      { cwd: tmp, encoding: 'utf-8' }
+    );
+    assert.strictEqual(r.status, 1);
+    assert.match(r.stderr, /--since requires a value/);
+  });
+
+  test('unknown ui metrics subcommand exits 1 with an error on stderr, not ok:false JSON', () => {
+    const r = spawnSync(
+      process.execPath,
+      [TOOLS_PATH, 'ui', 'metrics', 'bogus'],
+      { cwd: tmp, encoding: 'utf-8' }
+    );
+    assert.strictEqual(r.status, 1);
+    assert.match(r.stderr, /Unknown ui metrics subcommand: bogus/);
+    assert.strictEqual(r.stdout, '');
+  });
 });

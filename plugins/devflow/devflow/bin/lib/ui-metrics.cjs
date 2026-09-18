@@ -12,7 +12,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { output, pluginVersion } = require('./helpers.cjs');
+const { output, error, pluginVersion } = require('./helpers.cjs');
 
 const DEFAULT_SINCE = '2026-06-01';
 const DEFAULT_PATHS = ['flutter/lib'];
@@ -26,7 +26,9 @@ const KNOWN_TYPES = ['feat', 'fix', 'test', 'refactor'];
 // Injectable so tests can stub it, or point it at a real throwaway repo.
 function defaultGitLog({ cwd, since, paths }) {
   const args = ['log', '--format=%s', `--since=${since}`, '--', ...paths];
-  return execFileSync('git', args, { cwd, encoding: 'utf-8' });
+  // stderr is piped (not inherited) so git's own `fatal:` line ends up on the
+  // thrown error, where cmdUiMetrics turns it into one message — not on our stderr.
+  return execFileSync('git', args, { cwd, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'] });
 }
 
 // Classifies a conventional-commit subject line into feat/fix/test/refactor/other.
@@ -55,24 +57,44 @@ function computeBaseline({ cwd, since = DEFAULT_SINCE, paths = DEFAULT_PATHS, gi
   return { since, paths: pathList, commits, fix_per_feat, quick_fixes };
 }
 
+// Value for `--flag <value>`: the next arg, which must exist and not itself be
+// a flag. Anything else is a usage error (helpers.error → stderr, exit 1).
+function flagValue(args, flag, fallback) {
+  const idx = args.indexOf(flag);
+  if (idx === -1) return fallback;
+  const v = args[idx + 1];
+  if (v === undefined || v.startsWith('--')) {
+    error(`ui metrics: ${flag} requires a value (usage: ui metrics baseline [--since YYYY-MM-DD] [--paths p1,p2] [--out file])`);
+  }
+  return v;
+}
+
+// `git log` outside a repository throws with git's own stderr in the message.
+// Report it as a one-line error rather than a stack trace.
+function isNotARepo(err) {
+  const text = `${err && err.stderr ? err.stderr : ''}${err && err.message ? err.message : ''}`;
+  return /not a git repository/i.test(text);
+}
+
 // `ui metrics baseline [--since YYYY-MM-DD] [--paths p1,p2] [--out file]`
 function cmdUiMetrics(cwd, args, raw) {
   const subcommand = args[0];
   if (subcommand !== 'baseline') {
-    output({ ok: false, error: `Unknown ui metrics subcommand: ${subcommand}. Available: baseline` }, raw, '');
-    return;
+    error(`Unknown ui metrics subcommand: ${subcommand}. Available: baseline`);
   }
 
-  const sinceIdx = args.indexOf('--since');
-  const pathsIdx = args.indexOf('--paths');
-  const outIdx = args.indexOf('--out');
-
-  const since = sinceIdx !== -1 ? args[sinceIdx + 1] : DEFAULT_SINCE;
-  const pathsArg = pathsIdx !== -1 ? args[pathsIdx + 1] : DEFAULT_PATHS.join(',');
+  const since = flagValue(args, '--since', DEFAULT_SINCE);
+  const pathsArg = flagValue(args, '--paths', DEFAULT_PATHS.join(','));
   const paths = pathsArg.split(',').map(p => p.trim()).filter(Boolean);
-  const outRel = outIdx !== -1 ? args[outIdx + 1] : DEFAULT_OUT;
+  const outRel = flagValue(args, '--out', DEFAULT_OUT);
 
-  const baseline = computeBaseline({ cwd, since, paths });
+  let baseline;
+  try {
+    baseline = computeBaseline({ cwd, since, paths });
+  } catch (e) {
+    if (isNotARepo(e)) error(`ui metrics: not a git repository: ${cwd}`);
+    throw e;
+  }
 
   const result = {
     engine_version: pluginVersion(),
