@@ -46,7 +46,10 @@ If the TRD has `type: ui` AND `stack: flutter`, run the bootstrap detector at ex
 ```bash
 BOOTSTRAP=$(node ~/.claude/devflow/bin/df-tools.cjs verify flutter-ui-bootstrap . --raw)
 ACTION=$(echo "$BOOTSTRAP" | jq -r '.action')
+PACKAGE_DIR=$(echo "$BOOTSTRAP" | jq -r '.packageDir // "."')
 ```
+
+Every flutter/maestro command in this agent runs from `$PACKAGE_DIR` (`cd "$PACKAGE_DIR" &&` prefixed onto the invocation, with evidence `mv`/`--output` targets kept at the repo root via `$OLDPWD` — set by that same `cd`, since each Bash invocation starts fresh at the repo root); the `.planning/` marker and evidence paths stay at the repo root.
 
 | ACTION | Behavior |
 |--------|----------|
@@ -155,10 +158,10 @@ If TRD frontmatter has `type: ui` AND `stack: flutter`, apply these gates PER TA
 
 ```bash
 # At task START (capture baseline)
-BASELINE_ANALYZE=$(flutter analyze --no-pub --no-fatal-warnings 2>&1 | sort)
+BASELINE_ANALYZE=$(cd "$PACKAGE_DIR" && flutter analyze --no-pub --no-fatal-warnings 2>&1 | sort)
 
 # At task END (compare)
-CURRENT_ANALYZE=$(flutter analyze --no-pub --no-fatal-warnings 2>&1 | sort)
+CURRENT_ANALYZE=$(cd "$PACKAGE_DIR" && flutter analyze --no-pub --no-fatal-warnings 2>&1 | sort)
 NEW_WARNINGS=$(diff <(echo "$BASELINE_ANALYZE") <(echo "$CURRENT_ANALYZE") | grep '^>')
 
 if [ -n "$NEW_WARNINGS" ]; then
@@ -174,10 +177,10 @@ If the task's `<files>` includes a path ending in `_test.dart` AND the task is `
 
 ```bash
 # RED phase — MUST exit non-zero (test fails on missing implementation)
-flutter test <path/to/test.dart>
+cd "$PACKAGE_DIR" && flutter test <path/to/test.dart>
 
 # GREEN phase (after implementation) — MUST exit zero
-flutter test <path/to/test.dart>
+cd "$PACKAGE_DIR" && flutter test <path/to/test.dart>
 ```
 
 For non-tdd tasks with a widget test path, run once at task end; MUST exit zero.
@@ -202,24 +205,24 @@ Read `platform:` from TRD frontmatter (default `[mobile, web]` per TRD 10-03's p
 
 ```bash
 # Requires booted emulator. If not booted, emit checkpoint asking user to boot one.
-flutter test integration_test/
+cd "$PACKAGE_DIR" && flutter test integration_test/
 
 # Move screenshots (from takeScreenshot() calls inside integration_test files):
-mv build/integration_test_screenshots/* .planning/objectives/$OBJECTIVE_DIR/evidence/ 2>/dev/null || true
+cd "$PACKAGE_DIR" && mv build/integration_test_screenshots/* "$OLDPWD"/.planning/objectives/$OBJECTIVE_DIR/evidence/ 2>/dev/null || true
 
 # Build + install app for Maestro:
-flutter build apk --debug
-adb install -r build/app/outputs/flutter-apk/app-debug.apk
+cd "$PACKAGE_DIR" && flutter build apk --debug
+cd "$PACKAGE_DIR" && adb install -r build/app/outputs/flutter-apk/app-debug.apk
 
 # Run Maestro flows (MOBILE ONLY — Maestro is mobile-only by design):
 # See references/flutter-state-patterns.md "Web verification mechanism" — upstream blocker
 # mobile-dev-inc/maestro#2591 (open since July 2025, unresolved mid-2026). NO MAESTRO ON WEB.
-maestro test .maestro/ \
+cd "$PACKAGE_DIR" && maestro test .maestro/ \
   --format junit \
-  --output .planning/objectives/$OBJECTIVE_DIR/evidence/maestro.xml
+  --output "$OLDPWD"/.planning/objectives/$OBJECTIVE_DIR/evidence/maestro.xml
 
 # Maestro screenshots:
-mv ~/.maestro/tests/*/screenshots/* .planning/objectives/$OBJECTIVE_DIR/evidence/ 2>/dev/null || true
+cd "$PACKAGE_DIR" && mv ~/.maestro/tests/*/screenshots/* "$OLDPWD"/.planning/objectives/$OBJECTIVE_DIR/evidence/ 2>/dev/null || true
 ```
 
 **If `maestro` is not installed:** Emit a checkpoint. Do not silently skip. Install: `curl -fsSL "https://get.maestro.dev" | bash`.
@@ -234,13 +237,13 @@ pgrep chromedriver >/dev/null || { echo "CHECKPOINT: Start chromedriver --port=4
 # WEB uses flutter drive invoking the SAME tests.integration path that mobile uses via flutter test.
 # The test_driver/integration_test.dart driver is scaffolded by TRD 10-04a's bootstrap setup task.
 # DO NOT use `flutter test integration_test/ -d chrome` — deprecated for web (Pitfall #1).
-flutter drive \
+cd "$PACKAGE_DIR" && flutter drive \
   --driver=test_driver/integration_test.dart \
   --target=<tests.integration path from TRD> \
   -d chrome
 
 # Move web integration_test screenshots:
-mv build/integration_test_screenshots/* .planning/objectives/$OBJECTIVE_DIR/evidence/ 2>/dev/null || true
+cd "$PACKAGE_DIR" && mv build/integration_test_screenshots/* "$OLDPWD"/.planning/objectives/$OBJECTIVE_DIR/evidence/ 2>/dev/null || true
 
 # NO MAESTRO ON WEB — Maestro is mobile-only BY DESIGN.
 # See references/flutter-state-patterns.md "Web verification mechanism" section.

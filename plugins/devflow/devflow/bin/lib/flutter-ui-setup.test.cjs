@@ -549,6 +549,26 @@ test.describe('detectFlutterRepo (TRD 10-09 Case 12 — Flutter-repo guard)', ()
     assert.strictEqual(result.checks.minVersion, null);
   });
 
+  test('Case 12g (W0-4 fix round 1) — monorepo: only flutter/pubspec.yaml present → NOT not-a-flutter-project, packageDir ends with /flutter', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'flutter-repo-fixture-mono-'));
+    const flutterDir = path.join(tmp, 'flutter');
+    fs.mkdirSync(path.join(flutterDir, 'lib'), { recursive: true });
+    fs.writeFileSync(
+      path.join(flutterDir, 'pubspec.yaml'),
+      'name: test_repo\nenvironment:\n  sdk: ">=3.2.0 <4.0.0"\n  flutter: ">=3.16.0"\ndependencies:\n  flutter:\n    sdk: flutter\n'
+    );
+    // Sanity: nothing Flutter-shaped at the repo root itself.
+    assert.ok(!fs.existsSync(path.join(tmp, 'pubspec.yaml')));
+
+    const result = detectFlutterRepo({ cwd: tmp });
+    assert.strictEqual(result.isFlutterRepo, true,
+      `expected isFlutterRepo:true for a monorepo flutter/ package (not not-a-flutter-project); got ${JSON.stringify(result)}`);
+    assert.deepStrictEqual(result.failures, []);
+    assert.ok(result.packageDir, 'result carries packageDir');
+    assert.ok(result.packageDir.endsWith(`${path.sep}flutter`), `packageDir "${result.packageDir}" ends with /flutter`);
+    assert.strictEqual(result.prefix, 'flutter');
+  });
+
 });
 
 test.describe('cmdFlutterUISetup Flutter-repo gate (TRD 10-09 Case 13 — guard integration)', () => {

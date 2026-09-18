@@ -15,6 +15,13 @@
  * then `projectDir/flutter/pubspec.yaml`; first Flutter-flavored pubspec wins.
  *
  * Reuses detectPubspecFlutter (flutter-ui-scope.cjs) — no reinvented pubspec parse.
+ *
+ * Consumers (the monorepo story is closed end-to-end across all of them, W0-4
+ * fix round 1): flutter-ui-eval-bootstrap.cjs (checkScaffoldState/scaffoldUIEval),
+ * flutter-ui-bootstrap.cjs (checkBootstrapState), flutter-ui-setup.cjs
+ * (detectFlutterRepo's `df-tools flutter-ui setup` gate), and
+ * agents/executor.md's Flutter UI gates (`PACKAGE_DIR` sourced from the bootstrap
+ * detector's `.packageDir`, threaded into every `flutter`/`maestro` invocation).
  */
 
 const fs = require('fs');
