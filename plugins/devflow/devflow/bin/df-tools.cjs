@@ -137,6 +137,9 @@
  *     --stopped-at "..."
  *     [--resume-file path]
  *
+ * UI Metrics:
+ *   ui metrics baseline [--since D] [--paths p1,p2] [--out f]  Fix/feat commit baseline JSON for UI paths
+ *
  * Compound Commands (workflow-specific initialization):
  *   init execute-objective <objective>         All context for execute-objective workflow
  *   init plan-objective <objective>            All context for plan-objective workflow
@@ -188,6 +191,7 @@ const { cmdFlutterUIEvalBootstrap } = require('./lib/flutter-ui-eval-bootstrap.c
 const { cmdVerifyFlutterStateCoverage } = require('./lib/flutter-state-coverage.cjs');
 const { cmdVerifyFlutterUIEval } = require('./lib/flutter-ui-eval.cjs');
 const { cmdDesignReview } = require('./lib/flutter-ui-design-review.cjs');
+const { cmdUiMetrics } = require('./lib/ui-metrics.cjs');
 const { cmdDetectNovelDomain } = require('./lib/novel-domain.cjs');
 const { cmdDetectBrownfieldMap } = require('./lib/brownfield-detector.cjs');
 const { cmdDetectFlutterUIScope } = require('./lib/flutter-ui-scope.cjs');
@@ -440,6 +444,19 @@ async function main() {
         cmdDesignReview(cwd, args.slice(2), raw);
       } else {
         error('Unknown flutter-ui subcommand. Available: setup, eval, bootstrap, design-review');
+      }
+      break;
+    }
+
+    case 'ui': {
+      // ui metrics baseline [--since YYYY-MM-DD] [--paths p1,p2] [--out file]
+      //   Classifies conventional-commit subjects on given paths and writes a
+      //   fix/feat baseline JSON (W0-6, UI-process redesign "before" numbers).
+      const subcommand = args[1];
+      if (subcommand === 'metrics') {
+        cmdUiMetrics(cwd, args.slice(2), raw);
+      } else {
+        error('Unknown ui subcommand. Available: metrics');
       }
       break;
     }
