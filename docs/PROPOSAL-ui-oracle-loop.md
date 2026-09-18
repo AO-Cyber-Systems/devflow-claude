@@ -1,7 +1,9 @@
 # PROPOSAL — The UI Oracle Loop
 
 **Date:** 2026-09-17
-**Status:** design, awaiting review
+**Status:** design, revised after completeness review (§18) — awaiting review
+**Builds on:** DevFlow 2.7 design reference set (`design-craft`, `design-preflight`, `design-tells`,
+`design-redesign`, `design-stack-flutter`) and the `eden-flutter:frontend-design` skill — see §5
 **Scope:** DevFlow (`devflow-claude`), `eden-ui-flutter`, first consumer `eden-biz` (then `aodex`)
 **Trigger:** porting Trades React functionality into Eden Biz (Flutter) without repeating the UI
 loop counts of the last four months.
@@ -89,6 +91,14 @@ Pattern specs (§5) live in `eden-ui-flutter/design/patterns/`. A surface implem
 widget but composed by the consumer is specified in the **consumer** (aodex owns `projects-rail`;
 the library owns `navigation/disclosure-group`).
 
+**Granularity.** One spec per navigation destination group — in practice one per
+`lib/features/<x>/` folder. A screen belongs to exactly one spec; a shared widget (the rail) is
+specified by the consumer that composes it, and the library's pattern spec supplies its defaults.
+
+**Re-lock rule.** Any change to `routes`, `controls` or `states` clears `acceptance.locked_sheet`.
+Phase B refuses to run a judge against a surface whose lock is cleared; the sheet must be
+re-approved (usually a minute — only the changed states re-render).
+
 **One-file rule.** The front matter is the machine truth. The ui-eval manifest, the capture arm's
 state list, the crawl's expected graph and the review sheet are all *derived* from it by tools and
 never hand-edited. The existing `<name>_states.yaml` + `manifests/<name>.manifest.json` pair is
@@ -106,6 +116,8 @@ references:
   mockup: refs/projects-rail/mockup.png
   donor:  refs/projects-rail/donor/    # Trades React captures, completeness only
   locked: refs/projects-rail/locked/   # look-locked story renders, one per state × theme × width
+design_read: "utility rail; expression low, motion minimal, density compact"   # design-craft §1–2
+mode: redesign                          # greenfield | redesign — design-redesign.md §1
 
 routes:
   - id: project.conversations
@@ -141,6 +153,7 @@ controls:
 states:
   - id: populated
     seed: projects-3-conversations-12  # seed profile the e2e entrypoint honours (§7.4)
+    as: workspace-member               # identity from the e2e identity set (§7.4); default: primary user
     ref: locked/populated.png
     content: {must_show: ["{project.name}"], must_not_show: []}
   - id: long-content
@@ -157,6 +170,10 @@ states:
     seed: projects-3
     fault: knowledge-service-503
     content: {must_show: ["unavailable"], must_not_show: ["Create a project"]}
+  - id: guard-denied
+    seed: projects-3
+    as: non-member
+    content: {must_show: ["You don't have access"], must_not_show: ["{project.name}"]}
   - id: narrow      {viewport: 390x844, seed: projects-3-conversations-12}
   - id: dark        {theme: dark, seed: projects-3-conversations-12}
 
@@ -230,28 +247,40 @@ A spec that fails validation is not reviewable and cannot seed a TRD.
 `company-switch`, `project-switch`, `project-move`, `logout`). The planner derives provider
 invalidation tests from them; the crawl fires each event and checks the list (§10.1).
 
-## 5. Pattern library and design-system files (`eden-ui-flutter`)
+## 5. Design references — building on the DevFlow 2.7 design set
 
-```
-eden-ui-flutter/
-  DESIGN.md                 # tokens (generated from lib/src/tokens/, CI-diffed) + rules + pattern index
-  UI-CLAUDE.md              # how an agent composes with this library; the story-first workflow; probe commands
-  design/patterns/<id>.md   # one per recurring pattern
-```
+DevFlow 2.7.0 shipped a design reference set and the `eden-flutter:frontend-design` skill
+(build / review / visual modes). This proposal **extends** that set; it does not add a parallel
+one. Where §5 of the first draft named `DESIGN.md`, `UI-CLAUDE.md` and a pattern library, the
+homes are now:
 
-A pattern spec has: intent; the widgets that implement it; states; **interaction rules** (e.g.
-`navigation/disclosure-group`: "closing never navigates"; "the header owns a hidden child's
-selection"; "captions and dividers never appear in the mobile bottom bar"); per-breakpoint
-behaviour; content rules; a11y rules; do/don't with story ids. Rules are written in the same
-`must_not` vocabulary as §4.3 so surfaces inherit them.
+| First draft | Actual home | What changes |
+|---|---|---|
+| `DESIGN.md` tokens | `design-stack-flutter.md` + `eden-ui-flutter/DESIGN.md` **generated** from `lib/src/tokens/` and CI-diffed | the token block becomes generated; the prose rules stay in `design-stack-flutter.md` |
+| `UI-CLAUDE.md` composition rules | `design-stack-flutter.md` (new §: "Composition and semantics") + `plugins/eden-ui-flutter/references/eden-ui-flutter-conventions.md` | adds: one tap action per control; `Semantics(container:true)` for controls smaller than their parent; consumer imposes `ConstrainedBox` on unbounded slots; story-first workflow; probe commands |
+| pattern library | `eden-ui-flutter/design/patterns/<id>.md`, indexed from `design-stack-flutter.md` | new; rules in the `must_not` vocabulary so Surface Specs inherit them |
+| design read / dials | `design_read` and `mode` fields on the Surface Spec | design-craft §1–2 recorded once per surface, not per SUMMARY |
+| `design-preflight.md` | unchanged as the *human-readable* gate; its **[R]** items are exactly the checks the probe automates (§7.5) and its **[C]** items become deterministic counts over the `ProbeResult` | preflight stops being a checklist an agent ticks and becomes evidence the sheet shows |
+| `design-tells.md` | consumed by the judge's **critique** pass (§9.3), advisory | unchanged |
+| `design-redesign.md` | `mode: redesign` on the spec triggers its audit before look-lock | unchanged |
+| `frontend-design` **build** mode | gains a step 0: "load or draft the Surface Spec; refuse to compose without one" | Phase A's `/devflow:ui-design` is this step, not a new skill |
+| `frontend-design` **review** mode | unchanged | — |
+| `frontend-design` **visual** mode (VM-service inspector: `snapshot`, `screenshot`, `get_logs`) | becomes the **mobile/desktop adapter** producing a `ProbeResult`; the web probe (§7) is its release-build complement | one schema, two transports |
 
-Initial set (≈10): `navigation/disclosure-group`, `navigation/section-caption`, `navigation/shell`
-(desktop rail ↔ mobile bar), `list-detail`, `state/empty-error-outage-loading`, `form/validation`,
-`bulk-action-bar`, `dialog/confirm-destructive`, `density/breakpoints`, `studio/three-pane`.
+Initial pattern set (≈10): `navigation/disclosure-group`, `navigation/section-caption`,
+`navigation/shell` (desktop rail ↔ mobile bar), `list-detail`, `state/empty-error-outage-loading`,
+`form/validation`, `bulk-action-bar`, `dialog/confirm-destructive`, `density/breakpoints`,
+`studio/three-pane`. A pattern spec has: intent; implementing widgets; states; interaction rules
+(e.g. "closing never navigates"; "the header owns a hidden child's selection"; "captions and
+dividers never appear in the mobile bottom bar"); per-breakpoint behaviour; content rules; a11y
+rules; do/don't with story ids. Patterns are themselves look-locked (their stories).
 
-DESIGN.md rules (enforced by `custom_lint` where possible): no raw `Color(`; no `TextStyle` without
-a family outside `tokens/`; no magic spacing outside `tokens/`; every control smaller than its
-parent uses `Semantics(container: true)`; a consumer imposes `ConstrainedBox` on unbounded slots.
+Lint (`custom_lint`) enforces the mechanical rules: no raw `Color(`; no `TextStyle` without a
+family outside `tokens/`; no magic spacing outside `tokens/`.
+
+**Installed-plugin lag.** The machine running this work has DevFlow 2.6.0 installed while
+`origin/main` is 2.7.1; the design set above is not on the executor's path today. Wave 0 (§13)
+includes the upgrade and the `df-tools health` check that reports the lag.
 
 ## 6. Catalog as contract (`eden-ui-flutter`)
 
@@ -334,12 +363,23 @@ server from **this worktree's** `build/web` on a port derived from the worktree 
 worktree build's hash; a mismatch is a hard fail with the remedy printed. Builds are cached by
 tree hash.
 
-### 7.4 State seeding contract
+### 7.4 State seeding contract — and the infrastructure it needs
 
-Each spec state's `seed` names a profile the app's e2e entrypoint honours (eden-biz
-`SEED_PROFILE`, aodex fixtures); `fault:` names a fault-injection the e2e backend stub applies
-(`<service>-503`, `<service>-timeout`). A state whose seed the entrypoint does not recognise is
-`MISSING`.
+Each spec state names `seed` (a data profile), optionally `as` (an identity) and `fault` (a
+dependency failure). The e2e stack must honour all three:
+
+- **seed** — eden-biz has `SEED_PROFILE` in `web_e2e/scripts/db-reset.sh`; aodex has fixture
+  injection. Both need a registry of named profiles the spec can reference and `ui doctor` can list.
+- **as** — an identity set per app (`primary`, `workspace-member`, `non-member`, `platform-admin`,
+  `support-agent`) provisioned by the seed and selectable through the existing token-injection
+  recipe. Guards are untestable without it.
+- **fault** — **neither app has any fault-injection layer today** (grep across eden-biz and
+  aodex: zero hits). The `outage` state therefore needs an **e2e dependency stub** in each
+  consumer: the e2e entrypoint routes named upstreams (knowledge service, billing, AOID) through a
+  stub that returns 503/timeout when `EDEN_E2E_FAULT=<service>-503` is set. This is a wave-1
+  deliverable per consumer (§14), sized separately, and a prerequisite for `outage` conformance.
+
+A state whose seed, identity or fault the stack does not recognise is `MISSING`, never `pass`.
 
 ### 7.5 `ProbeResult` and deterministic checks
 
@@ -378,9 +418,10 @@ A check that could not run (no probe, unknown seed, chrome missing) reports `MIS
 
 **Exit criterion: a validated, look-locked Surface Spec before any TRD exists.**
 
-### 8.1 `/devflow:ui-design <surface>`
+### 8.1 `/devflow:ui-design <surface>` — step 0 of `frontend-design` build mode
 
-Drafts the spec from: the pattern library (default control behaviours, breakpoint, a11y and
+Implemented as the first step of the existing `eden-flutter:frontend-design` build mode (§5), also
+invocable on its own. Drafts the spec from: the pattern library (default control behaviours, breakpoint, a11y and
 content rules), the mockup or donor, the router table (routes that already exist), and the
 objective's intent. For ports, it first writes the **pattern mapping** page
 (`refs/<surface>/pattern-mapping.md`: donor screen → Eden pattern → deltas, with
@@ -397,10 +438,11 @@ under `refs/<surface>/donor/` as completeness references.
 `df-tools ui sheet <surface>` produces a static HTML **review sheet** (publishable as an
 Artifact): every state × theme × width story render beside the mockup/donor; the navigation graph;
 the control table in plain language ("Clicking the project header toggles its children and selects
-the project. It never navigates on close."); the content contract per state. The reviewer approves
-or comments; the executor re-renders (seconds — `flutter test`) until approved. The approved
-sheet's hash is written to `acceptance.locked_sheet`, and the renders become `refs/<surface>/locked/`
-— the judge's only anchors and the stories' goldens.
+the project. It never navigates on close."); the content contract per state. **Approval channel:** the sheet is published as a Claude Artifact (or served locally when
+offline); comments on it are the revision channel; approval is a DevFlow
+`checkpoint:human-verify` whose answer records the sheet hash into `acceptance.locked_sheet` and
+copies the renders to `refs/<surface>/locked/` — the judge's only anchors and the stories'
+goldens. The executor re-renders (seconds — `flutter test`) after each round of comments.
 
 Design iteration happens here, at story-render cost. When there is no mockup and no donor,
 look-lock is mandatory; the locked render *is* the design.
@@ -483,6 +525,10 @@ checklist: no dead ends; no inert controls; back always returns; error ≠ empty
 resets on scope change; every screen has a title; one activation, one effect; no console errors.
 Returns findings shaped as issues (route, control, rule, repro steps, screenshot).
 
+**Safety:** the explorer refuses any base URL that is not a local or e2e stack; it activates a
+`destructive: true` control only on seeded data and only through its declared confirm dialog; it
+never submits real credentials or payment forms (Stripe test mode only, through the e2e stub).
+
 ### 10.3 Triage and cadence
 
 Findings are fingerprinted by `(route, control, rule)` and deduped against open issues
@@ -543,16 +589,30 @@ bundle for `__edenProbe` and fail on a hit. Probe runs only against local or e2e
 - `testing-strategy.md`: "visual: shipped (ui-eval)", add a React column; ui-eval workflow prose
   stops naming `flutter run -d chrome`.
 - Resolve aodex#585 / eden-biz#753 pins onto a tagged `eden-ui-flutter` release.
+- Upgrade the installed plugin to current `main` (2.6.0 → 2.7.1+) so the design reference set is
+  on the executor's path; `df-tools health` reports plugin-vs-main lag from now on.
+- Capture the **metrics baseline** (`ui metrics --baseline`): fix/feat ratio per UI TRD on aodex
+  and eden-biz since 2026-06-01, human-verify rows per UI objective, open UI issues by class.
+  Nothing else changes until the baseline is committed.
 
-## 14. Sequencing and dogfood
+## 14. Sequencing, sizing and dogfood
 
-| Wave | Repo | Deliverable |
-|---|---|---|
-| 0 | devflow-claude, eden-ui-flutter | §13 |
-| 1 | eden-ui-flutter, devflow-claude | Surface Spec schema + `spec validate|render` + review sheet; pattern library (navigation patterns first); story harness (§6.2), `expectUiSane`; probe bridge; **dogfood:** write aodex `projects-rail` spec → look-lock → reshape the shell API → conform the existing nav branch → merge and tag |
-| 2 | devflow-claude | `ui catalog`, `ui probe` + checks, `ui sheet` spec-vs-actual, planner derivation, executor RENDER→CONFORM, verifier replay, judge references + calibration set, seam override + tag gate, `ui doctor`, `ui metrics` |
-| 3 | eden-biz | `ui crawl` + `ui-explorer` on eden-biz; donor captures and pattern mapping for the workflow designer; first Trades port objective (obj 020 scope) end-to-end through Phases A–C |
-| 4 | — | Maestro and Playwright-React `ProbeResult` adapters; explorer on aodex nightly |
+Sizes are rough Claude-execution estimates in the style of existing objectives (obj 020 was
+"2–3 weeks, 7 TRDs"). They exist so ordering can be decided, not as commitments.
+
+| Wave | Repo | Deliverable | Size |
+|---|---|---|---|
+| 0 | devflow-claude, eden-ui-flutter, consumers | §13 gate fixes; plugin upgrade; pins to a tag; metrics baseline | 1 objective, ~8 TRDs, 2–3 days |
+| 1a | eden-ui-flutter | pattern library (navigation patterns first); story harness (§6.2) + `expectUiSane`; probe bridge (§7.1); generated `DESIGN.md`; shell API reshaping (§6.5) | 1 objective, ~12 TRDs, 1.5 weeks |
+| 1b | devflow-claude | Surface Spec schema + `spec validate|render`; review sheet + look-lock checkpoint; `frontend-design` step 0; `design-stack-flutter.md` composition section | 1 objective, ~7 TRDs, 1 week |
+| 1c | aodex, eden-biz | **e2e dependency stub** (seed registry, identity set, fault injection) per consumer; `main_e2e.dart` bridge line | 1 objective per consumer, ~5 TRDs each, 3–4 days each |
+| 1 dogfood | aodex + eden-ui-flutter | write the `projects-rail` spec → look-lock → conform the existing nav branch on the reshaped API → merge and tag | inside 1a/1b, the acceptance test for both |
+| 2 | devflow-claude | `ui catalog`, `ui probe` + checks, spec-vs-actual sheet, planner derivation, executor RENDER→CONFORM, verifier replay, judge references + calibration set, seam override + tag gate, `ui doctor`, `ui metrics` | 2 objectives, ~16 TRDs, 2–2.5 weeks |
+| 3 | eden-biz (+ Trades read-only) | `ui crawl` + `ui-explorer`; donor route table + port-coverage metric (§19); pattern mapping + donor captures for the workflow designer; first Trades port (obj 020 scope) through A–C | 2 objectives, ~14 TRDs, 2–3 weeks |
+| 4 | devflow-claude, aodex | Maestro and Playwright-React `ProbeResult` adapters; `frontend-design` visual mode emits `ProbeResult`; explorer nightly on aodex | 1 objective, ~6 TRDs, 1 week |
+
+Critical path: 0 → 1a/1b/1c in parallel → dogfood → 2 → 3. Wave 3's port objective cannot
+start before 2 lands; its spec and pattern mapping (Phase A only) can be written during 2.
 
 ## 15. Success metrics (reported by `ui metrics`)
 
@@ -574,6 +634,11 @@ bundle for `__edenProbe` and fail on a hit. Probe runs only against local or e2e
 - **Spec authoring cost.** Patterns supply defaults so a surface spec is mostly routes, controls
   and seeds; the review sheet is where the time is spent, deliberately.
 - **Shell API reshaping** touches both consumers; done under the reverse-dependency job.
+- **Fault-injection stub is new infrastructure in two apps.** If it slips, `outage` states report
+  `MISSING` (never `pass`) and the rest of the loop still runs; it does not block wave 2.
+- **Design-set overlap.** The 2.7 references are prose an agent reads; the spec is data a tool
+  checks. Keeping them aligned is a documentation task per wave — `design-stack-flutter.md` links
+  to the pattern index and the pattern index links back.
 - **Open:** whether the `must_not` vocabulary is sufficient for studio/canvas surfaces (drag, drop,
   connect) — wave 3 will extend it from the workflow-designer port. (Reviewed 2026-09-17: the
   vocabulary is fine; state-conditional `behaviors[]` were added in response.)
@@ -585,3 +650,69 @@ fail**: a `ProbeResult` with overlapping rects; one with a control missing from 
 with `inert` on a non-disabled control; one with a bundle-hash mismatch; a spec with a route
 lacking `back`; a spec where `outage` equals `empty`. Planner/executor prose changes are dogfooded
 on the `projects-rail` spec end-to-end before release, and the calibration set gates the judge.
+
+## 18. Migration of the existing UI machinery
+
+What the current planner / executor / verifier do for `type: ui` and what happens to each:
+
+| Today | Disposition | Why |
+|---|---|---|
+| `states:` on every `type: ui` artifact + state-coverage regex catalogue (`flutter-state-patterns.md`) | **replaced** by the Surface Spec's `states` (derived into the manifest); the regex catalogue is deleted | the spec is authored, checked and seeded; a regex guess is neither |
+| `tests.widget:` / `tests.integration:` required paths | **kept**, now derived from `controls` and `flows` | unchanged contract, better source |
+| `tests.maestro:` required on every mobile TRD | **relaxed** to "required when the spec declares a `mobile` viewport state"; the Maestro flow is generated from `flows` | Maestro remains the mobile driver; it stops being mandatory for web-only surfaces |
+| `flutter-ui bootstrap` detector | **kept**, extended to check `main_e2e.dart` bridge line, seed registry, identity set | same gate, more prerequisites |
+| verifier Step 8c (ui-eval gate) | **kept as replay** (§9.4) | first run moves to the executor |
+| verifier Step 8d (advisory design review) | **split** into conformance (gates) and critique (advisory) (§9.3) | conformance is checkable |
+| `flutter-ui-eval.cjs` engine | **kept**, gains `references[]`, rejects anchor-less states, calibration set | one engine |
+| `<name>_states.yaml` + `manifests/*.manifest.json` | **deleted**; manifest generated from the spec | one-file rule |
+| `ui-evaluator` agent | **kept** for scoring; capture moves to `ui probe` | one capture path |
+| `design-preflight.md` checklist in SUMMARY | **kept** as the human-readable view; **[R]**/**[C]** items are auto-filled from `ProbeResult` | evidence, not ticks |
+| `checkpoint:human-verify` for UI | **kept**, but its list is only `MISSING` + judge `review` rows | the sheet decides what a human needs to see |
+
+Nothing in the TDD contract (Iron Law, RED→GREEN, commit conventions) changes.
+
+## 19. The port at scale
+
+The trigger is not one feature; it is Trades React → Eden Biz. `AOCyber-Trades/trades/client/src/App.tsx`
+declares **47 routes**; the absorption plan lists 37 feature folders. The loop scales to that
+through three artifacts:
+
+1. **Donor route table** — `df-tools ui donor-routes <path-to-App.tsx>` extracts the 47 routes
+   (path, component, guard) into `flutter/ui_spec/refs/trades/donor-routes.json`, committed once
+   and refreshed on demand. Each route gets a `status`: `unmapped` | `mapped` (pattern-mapping
+   page exists) | `specified` (Surface Spec exists) | `conformed` (binding pass) | `dropped`
+   (with a reason — UX-review finding, out of scope).
+2. **Pattern mapping per donor screen** — one page each (§8.1), written in Phase A ahead of the
+   objective that ports it; Phase A for the next feature runs while Phase B/C run for the current.
+3. **Port coverage metric** — `ui metrics` reports donor routes by status. "Done" for the port
+   program is every route `conformed` or `dropped` with a reason; there is no "we think it's
+   ported".
+
+**Adoption policy for existing Eden surfaces:** spec-on-touch. An objective that touches a
+surface without a spec writes one first (Phase A, from the pattern library and the router table).
+Surfaces nobody touches stay unspecified, and the crawl's `unspecified-route` count is the visible
+backlog — it must not rise.
+
+**Ordering the port:** by donor route cluster (the absorption plan's bands), one Surface Spec per
+cluster, patterns first (list-detail, form/validation, bulk-action-bar cover most of Trades), the
+workflow designer (obj 020) as the canvas exemplar that extends the `must_not` vocabulary.
+
+## 20. Completeness review — 2026-09-17
+
+Second review pass, asking "could a planner write TRDs from this without inventing anything, and
+does it cover the port at scale?" Found and folded in:
+
+- The installed DevFlow is 2.6.0; `main` is 2.7.1 and ships a design reference set plus the
+  `eden-flutter:frontend-design` skill. §5 now builds on them instead of beside them; wave 0
+  upgrades the plugin.
+- Look-lock had no approval channel — §8.3.
+- `outage` needs fault injection that does not exist in either app — §7.4, wave 1c.
+- Guards need identities — `as:` in §4.2/§7.4.
+- Re-lock rule and surface granularity — §4.1.
+- Explorer safety — §10.2.
+- Existing UI machinery had no disposition — §18.
+- The port had no scale story — §19 (donor route table, coverage metric, adoption policy).
+- No sizing and no baseline — §14 and §13.
+
+Verified while reviewing: both apps use `go_router` (272 route sites), so router-table extraction
+is straightforward; the donor route table is one file.
