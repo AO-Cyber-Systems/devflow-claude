@@ -57,15 +57,25 @@ const INTEGRATION_TEST_DEP_RE = /^\s+integration_test\s*:\s*\n\s+sdk\s*:\s*flutt
  * ATOMIC SEMANTICS: Marker creation (.flutter-ui-bootstrap-done) is the LAST step.
  * If any earlier step fails, the marker must NOT be created. The executor (TRD 10-04b)
  * implements the atomic ordering — this content encodes the intent.
+ *
+ * PATHS: the task is executed from the repo root (the executor's cwd), so every
+ * package path is prefixed with the resolved `prefix` (`flutter/` in a monorepo,
+ * nothing in a root-layout project). The `.planning/` marker is DevFlow's own and
+ * always stays root-relative.
+ *
+ * @param {''|'flutter'} prefix - resolved package prefix from resolveFlutterPackageDir
+ * @returns {string} XML task block
  */
-const SETUP_TASK_TEMPLATE = `<!-- Auto-emitted Flutter UI bootstrap setup task -->
+function setupTaskTemplate(prefix) {
+  const p = prefix ? `${prefix}/` : '';
+  return `<!-- Auto-emitted Flutter UI bootstrap setup task -->
 <task type="auto" caution="pause-before-destructive">
   <name>Bootstrap Flutter UI testing infrastructure</name>
-  <files>pubspec.yaml, integration_test/.gitkeep, .maestro/.gitkeep, test_driver/integration_test.dart, .planning/.flutter-ui-bootstrap-done</files>
+  <files>${p}pubspec.yaml, ${p}integration_test/.gitkeep, ${p}.maestro/.gitkeep, ${p}test_driver/integration_test.dart, .planning/.flutter-ui-bootstrap-done</files>
   <action>
-First-time setup for Flutter UI verification:
+First-time setup for Flutter UI verification (all paths relative to the repo root):
 
-1. Add to pubspec.yaml dev_dependencies (preserve other dev_dependencies):
+1. Add to ${p}pubspec.yaml dev_dependencies (preserve other dev_dependencies):
    \`\`\`yaml
    dev_dependencies:
      flutter_test:
@@ -74,18 +84,18 @@ First-time setup for Flutter UI verification:
        sdk: flutter       # NEW
    \`\`\`
 
-2. \`mkdir -p integration_test && touch integration_test/.gitkeep\`
+2. \`mkdir -p ${p}integration_test && touch ${p}integration_test/.gitkeep\`
 
-3. \`mkdir -p .maestro && touch .maestro/.gitkeep\`
+3. \`mkdir -p ${p}.maestro && touch ${p}.maestro/.gitkeep\`
 
-4. Scaffold \`test_driver/integration_test.dart\` for Flutter web E2E (REQUIRED — the executor in TRD 10-04b uses
+4. Scaffold \`${p}test_driver/integration_test.dart\` for Flutter web E2E (REQUIRED — the executor in TRD 10-04b uses
    \`flutter drive --driver=test_driver/integration_test.dart\` to run \`tests.integration\` on web):
    \`\`\`dart
    import 'package:integration_test/integration_test_driver.dart';
    Future<void> main() => integrationDriver();
    \`\`\`
 
-5. \`flutter pub get\` to install the new dev dep.
+5. \`${p ? `( cd ${prefix} && flutter pub get )` : 'flutter pub get'}\` to install the new dev dep.
 
 6. ONLY AFTER all of 1-5 succeed: touch \`.planning/.flutter-ui-bootstrap-done\` to mark bootstrap complete.
    This marker triggers HARD FAIL on future runs if any of the above goes missing.
@@ -94,13 +104,14 @@ The caution attribute pauses execution before this task lands so the user can re
   </action>
   <verify>
 test -f .planning/.flutter-ui-bootstrap-done && \\
-  test -d integration_test && \\
-  test -d .maestro && \\
-  test -f test_driver/integration_test.dart && \\
-  grep -q 'integration_test:' pubspec.yaml && echo OK
+  test -d ${p}integration_test && \\
+  test -d ${p}.maestro && \\
+  test -f ${p}test_driver/integration_test.dart && \\
+  grep -q 'integration_test:' ${p}pubspec.yaml && echo OK
   </verify>
   <done>Flutter UI verification infrastructure present; future TRD executions skip bootstrap.</done>
 </task>`;
+}
 
 // ─── checkBootstrapState (pure function) ─────────────────────────────────────
 
@@ -170,7 +181,7 @@ function checkBootstrapState({ projectDir }) {
 
   // Only emit setup_task on first-run warn
   if (action === 'warn') {
-    result.setup_task = SETUP_TASK_TEMPLATE;
+    result.setup_task = setupTaskTemplate(prefix);
   }
 
   return result;

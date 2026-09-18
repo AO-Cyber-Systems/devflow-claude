@@ -164,6 +164,29 @@ test.describe('checkBootstrapState — monorepo flutter/ package', () => {
     assert.ok(result.missing.includes('integration_test_dep'));
     assert.strictEqual(result.action, 'warn');
   });
+
+  test('M6 — monorepo warn: emitted setup_task is prefixed flutter/ (paths + verify), marker stays at repo root', () => {
+    const tmp = makeMonorepoProject({ pubspecHasIntegrationTest: false, hasIntegrationTestDir: false, hasMaestroDir: false, hasMarker: false });
+    const result = checkBootstrapState({ projectDir: tmp });
+    assert.strictEqual(result.action, 'warn');
+    assert.ok(result.setup_task, 'setup_task emitted');
+    assert.match(result.setup_task, /flutter\/pubspec\.yaml/);
+    assert.match(result.setup_task, /flutter\/integration_test/);
+    assert.match(result.setup_task, /flutter\/\.maestro/);
+    assert.match(result.setup_task, /flutter\/test_driver\/integration_test\.dart/);
+    assert.doesNotMatch(result.setup_task, /mkdir -p integration_test\b/, 'no bare mkdir -p integration_test');
+    assert.doesNotMatch(result.setup_task, /flutter\/\.planning/, 'marker path is not prefixed');
+    assert.match(result.setup_task, /test -f \.planning\/\.flutter-ui-bootstrap-done/);
+    assert.match(result.setup_task, /grep -q 'integration_test:' flutter\/pubspec\.yaml/);
+  });
+
+  test('M7 — root-layout warn: emitted setup_task has NO flutter/ prefix', () => {
+    const tmp = makeProject({ pubspecHasIntegrationTest: false, hasIntegrationTestDir: false, hasMaestroDir: false, hasMarker: false });
+    const result = checkBootstrapState({ projectDir: tmp });
+    assert.strictEqual(result.action, 'warn');
+    assert.doesNotMatch(result.setup_task, /flutter\//);
+    assert.match(result.setup_task, /mkdir -p integration_test && touch integration_test\/\.gitkeep/);
+  });
 });
 
 test.describe('df-tools verify flutter-ui-bootstrap (REQ-10-07)', () => {
