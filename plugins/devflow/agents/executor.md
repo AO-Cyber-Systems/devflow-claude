@@ -46,10 +46,13 @@ If the TRD has `type: ui` AND `stack: flutter`, run the bootstrap detector at ex
 ```bash
 BOOTSTRAP=$(node ~/.claude/devflow/bin/df-tools.cjs verify flutter-ui-bootstrap . --raw)
 ACTION=$(echo "$BOOTSTRAP" | jq -r '.action')
-PACKAGE_DIR=$(echo "$BOOTSTRAP" | jq -r '.packageDir // "."')
+REPO_ROOT=$(pwd)
+PACKAGE_DIR=$(echo "$BOOTSTRAP" | jq -r '.packageDir // "'"$REPO_ROOT"'"')
 ```
 
-Every flutter/maestro command in this agent runs from `$PACKAGE_DIR` (`cd "$PACKAGE_DIR" &&` prefixed onto the invocation, with evidence `mv`/`--output` targets kept at the repo root via `$OLDPWD` — set by that same `cd`, since each Bash invocation starts fresh at the repo root); the `.planning/` marker and evidence paths stay at the repo root.
+`REPO_ROOT` is captured once, here, at the repo root; every evidence path below is absolute from `$REPO_ROOT`, never `$OLDPWD` (in this harness the working directory persists across Bash tool calls while shell state does not, so `$OLDPWD` is not the repo root after the first `cd`). `PACKAGE_DIR` is read straight from `.packageDir` with no further resolution — `df-tools verify flutter-ui-bootstrap`'s `packageDir` is already absolute per the W0-4 contract, so re-deriving it (e.g. `cd "$REPO_ROOT/$PACKAGE_DIR" && pwd`) would be redundant.
+
+Every flutter/maestro/adb command in this agent runs from `$PACKAGE_DIR` (`cd "$PACKAGE_DIR" &&` prefixed onto the invocation); evidence `mv`/`--output` targets are absolute from `$REPO_ROOT`; the `.planning/` marker and evidence paths stay at the repo root.
 
 | ACTION | Behavior |
 |--------|----------|
@@ -150,7 +153,7 @@ For each task:
 
 ## Flutter UI per-task verification (REQ-10-04)
 
-If TRD frontmatter has `type: ui` AND `stack: flutter`, apply these gates PER TASK in addition to the standard per-task verification:
+If TRD frontmatter has `type: ui` AND `stack: flutter`, apply these gates PER TASK in addition to the standard per-task verification. Do not rely on cwd between calls; every command names its directory explicitly.
 
 ### Per-task: flutter analyze (baseline-diff)
 
@@ -183,6 +186,8 @@ cd "$PACKAGE_DIR" && flutter test <path/to/test.dart>
 cd "$PACKAGE_DIR" && flutter test <path/to/test.dart>
 ```
 
+TRD test paths are package-relative (relative to `$PACKAGE_DIR`), never prefixed with `flutter/`.
+
 For non-tdd tasks with a widget test path, run once at task end; MUST exit zero.
 
 **If `flutter` is not installed:** If `command -v flutter` fails AND TRD has `type: ui`, emit a checkpoint asking the user to install Flutter or run from a project where it IS installed. Do NOT silently skip verification.
@@ -208,7 +213,8 @@ Read `platform:` from TRD frontmatter (default `[mobile, web]` per TRD 10-03's p
 cd "$PACKAGE_DIR" && flutter test integration_test/
 
 # Move screenshots (from takeScreenshot() calls inside integration_test files):
-cd "$PACKAGE_DIR" && mv build/integration_test_screenshots/* "$OLDPWD"/.planning/objectives/$OBJECTIVE_DIR/evidence/ 2>/dev/null || true
+# Both sides absolute — no cd, so this command doesn't depend on cwd at all.
+mv "$PACKAGE_DIR"/build/integration_test_screenshots/* "$REPO_ROOT"/.planning/objectives/$OBJECTIVE_DIR/evidence/ 2>/dev/null || true
 
 # Build + install app for Maestro:
 cd "$PACKAGE_DIR" && flutter build apk --debug
@@ -219,10 +225,10 @@ cd "$PACKAGE_DIR" && adb install -r build/app/outputs/flutter-apk/app-debug.apk
 # mobile-dev-inc/maestro#2591 (open since July 2025, unresolved mid-2026). NO MAESTRO ON WEB.
 cd "$PACKAGE_DIR" && maestro test .maestro/ \
   --format junit \
-  --output "$OLDPWD"/.planning/objectives/$OBJECTIVE_DIR/evidence/maestro.xml
+  --output "$REPO_ROOT"/.planning/objectives/$OBJECTIVE_DIR/evidence/maestro.xml
 
-# Maestro screenshots:
-cd "$PACKAGE_DIR" && mv ~/.maestro/tests/*/screenshots/* "$OLDPWD"/.planning/objectives/$OBJECTIVE_DIR/evidence/ 2>/dev/null || true
+# Maestro screenshots — source is already absolute (~), destination is absolute from $REPO_ROOT:
+mv ~/.maestro/tests/*/screenshots/* "$REPO_ROOT"/.planning/objectives/$OBJECTIVE_DIR/evidence/ 2>/dev/null || true
 ```
 
 **If `maestro` is not installed:** Emit a checkpoint. Do not silently skip. Install: `curl -fsSL "https://get.maestro.dev" | bash`.
@@ -243,7 +249,8 @@ cd "$PACKAGE_DIR" && flutter drive \
   -d chrome
 
 # Move web integration_test screenshots:
-cd "$PACKAGE_DIR" && mv build/integration_test_screenshots/* "$OLDPWD"/.planning/objectives/$OBJECTIVE_DIR/evidence/ 2>/dev/null || true
+# Both sides absolute — no cd, so this command doesn't depend on cwd at all.
+mv "$PACKAGE_DIR"/build/integration_test_screenshots/* "$REPO_ROOT"/.planning/objectives/$OBJECTIVE_DIR/evidence/ 2>/dev/null || true
 
 # NO MAESTRO ON WEB — Maestro is mobile-only BY DESIGN.
 # See references/flutter-state-patterns.md "Web verification mechanism" section.

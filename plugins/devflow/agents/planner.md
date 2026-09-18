@@ -848,6 +848,8 @@ If `DETECTED == "true"`:
    - `tests.integration:` — path to integration_test file. **Used by BOTH platforms** — mobile runs `flutter test <path>`, web runs `flutter drive --driver=test_driver/integration_test.dart --target=<path> -d chrome`.
    - `tests.maestro:` — path to Maestro flow YAML. **Mobile-only by design** — Maestro on Flutter web is blocked upstream (mobile-dev-inc/maestro#2591). The web verifier is `flutter drive`, not Maestro.
 
+   `tests.widget`/`tests.integration` paths are package-relative (relative to the resolved Flutter `packageDir`), never prefixed with `flutter/`.
+
    These are SEMANTICALLY required by the planner — the validator schema (FRONTMATTER_SCHEMAS.trd) does NOT enforce them. The planner is the gate.
 
    Use the state-pattern catalog at `~/.claude/devflow/references/flutter-state-patterns.md` for guidance on what `states:` values are conventionally expected per state_management library:
