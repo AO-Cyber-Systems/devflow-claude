@@ -52,7 +52,8 @@ mkdir -p .planning/objectives/$OBJECTIVE_DIR/evidence/ui_eval/
 ```
 
 For each manifest state with a `surface`/route:
-- `browser_navigate(url=...)` against the running dev surface (`flutter run -d chrome` with `?enable-semantics=true`).
+- Build and serve first: `flutter build web --release` (add any `--dart-define` values the project's e2e entry needs), then serve `build/web` with a static server (e.g. `npx serve build/web` or `python3 -m http.server`) and navigate to that URL with `?enable-semantics=true` appended. Never `flutter run -d web-server`/`-d chrome` for capture — DWDS wedges into a blank page with no console error.
+- `browser_navigate(url=...)` against that static URL.
 - `browser_wait_for(text="<landmark>")` — never a fixed sleep.
 - `browser_take_screenshot()` → save to the state's `screenshot_path`.
 </step>
