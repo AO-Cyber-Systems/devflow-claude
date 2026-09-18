@@ -3,28 +3,24 @@
   "spec": "devflow-claude/docs/PROPOSAL-ui-oracle-loop.md",
   "plan": "devflow-claude/docs/IMPLEMENTATION-PLAN-ui-oracle-loop.md",
   "design_artifact": "https://claude.ai/code/artifact/5029f906-28d2-418f-8f38-b03923725985",
-  "updated": "2026-09-18T21:30:00Z",
-  "now": "Wave 0 code complete: devflow branch df/w0-honest-gate (19 commits) passed whole-branch review + fix wave; eden-biz fix/705 done. Nothing else moves until you approve the pushes (W0-8) and upgrade the plugin (W0-9).",
+  "updated": "2026-09-18T23:30:00Z",
+  "now": "Wave 0: both code PRs passed /code-review + fix rounds and are merge-ready — devflow-claude #81 (at 3ebdf28, with #80 docs incl. §21 retrospective) and eden-biz #776 (at 130f055bd; 9 anchor paraphrases disclosed on the PR). Waiting on your merges, pin-bump approvals, plugin upgrade.",
   "waiting_on_user": [
     {
-      "id": "W0-8a",
-      "what": "Push tag eden-ui-flutter v2.1.0 (local, at e719691 = origin/main; CI green on that commit; local flutter test 4601/1 — the 1 is a machine-dependent 8.5px chat-bubble overflow, see W0-8d)."
-    },
-    {
-      "id": "W0-8b",
-      "what": "Push 3 branches and open PRs: devflow-claude df/w0-honest-gate (wave-0 code) + docs/ui-oracle-loop-design (spec/plan/map, must merge alongside); eden-biz fix/705-ui-eval-one-source."
+      "id": "merge",
+      "what": "Review/merge devflow-claude #80 + #81 together and eden-biz #776 (I ask before merging, per your rule). Then tag devflow 2.8.0 (changelog gate is ready)."
     },
     {
       "id": "W0-8c",
-      "what": "After the tag is on origin: bump eden-biz eden_ui_flutter pin to v2.1.0 (#753) and fix aodex's pin comment (#585) — two more PRs."
+      "what": "Approve the pin-bump PRs: eden-biz eden_ui_flutter → v2.1.0 (#753); aodex pin comment fix (#585)."
     },
     {
       "id": "W0-8d",
-      "what": "File eden-ui-flutter issue: chat_screen_test 390pt overflow test fails locally (+8.5px) but passes CI — machine-dependent width test."
+      "what": "Approve filing the eden-ui-flutter issue for the machine-dependent chat_screen 390pt overflow test."
     },
     {
       "id": "W0-9",
-      "what": "After the devflow PR merges and 2.8.0 is tagged: /plugin marketplace update aocyber, update devflow, confirm `validate health` shows no E020/W021."
+      "what": "After #81 merges and 2.8.0 is tagged: /plugin marketplace update aocyber, update devflow, confirm `validate health` shows no E020/W021."
     }
   ],
   "status_legend": {
@@ -108,9 +104,9 @@
           "id": "W0-8",
           "title": "tag v2.1.0; pins to a tag (#585, #753)",
           "repo": "eden-ui-flutter · eden-biz · aodex",
-          "status": "blocked-user",
+          "status": "active",
           "gate": "user approves push/tag",
-          "note": "everything prepared locally; needs push approval"
+          "note": "tag pushed; PRs #80/#81/#776 open; pin bumps pending approval"
         },
         {
           "id": "W0-9",
@@ -492,6 +488,18 @@
       "task": "W0-8",
       "ruling": "tag v2.1.0 stands on the CI-validated commit despite one local machine-dependent widget-test failure; file an issue rather than block",
       "cost_if_wrong": "an 8.5px overflow already on main ships under a tag"
+    },
+    {
+      "when": "2026-09-18",
+      "task": "post-review",
+      "ruling": "/code-review findings on #81 and #776 fixed before any merge; one-line changelog amendment committed by the controller",
+      "cost_if_wrong": "none"
+    },
+    {
+      "when": "2026-09-18",
+      "task": "#776",
+      "ruling": "keep the YAML's paraphrased judge anchors (one-source) but disclose all 9 drifted states on the PR for deliberate review",
+      "cost_if_wrong": "a judge anchor reads slightly differently from the old hand-written JSON"
     }
   ],
   "deferred_minors": [
@@ -528,5 +536,27 @@
     "baseline": null,
     "note": "captured in W0-10 after W0-6 and W0-9"
   },
-  "explainer_artifact": "https://claude.ai/code/artifact/c091fcd9-44e2-4bb7-8635-aebf3d2aaaa4"
+  "explainer_artifact": "https://claude.ai/code/artifact/c091fcd9-44e2-4bb7-8635-aebf3d2aaaa4",
+  "prs": [
+    {
+      "repo": "devflow-claude",
+      "n": 80,
+      "title": "docs: proposal, plan, progress map"
+    },
+    {
+      "repo": "devflow-claude",
+      "n": 81,
+      "title": "wave-0 code"
+    },
+    {
+      "repo": "eden-biz",
+      "n": 776,
+      "title": "#705 one-source manifests"
+    }
+  ],
+  "retro": {
+    "wave": "W0",
+    "fix_feat": "11 fix / 3 feat / 4 docs / 1 test on df/w0-honest-gate",
+    "lesson": "prose encoding runtime semantics needs an executable check; briefs carry a runtime model; /code-review mandatory pre-merge (spec §21)"
+  }
 }
