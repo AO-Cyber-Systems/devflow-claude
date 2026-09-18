@@ -14,7 +14,7 @@ The matrix below is **descriptive of observed AOCyber org practice**, not aspira
 | Integration | RSpec request spec / Capybara (no JS) | `*_test.go` with httpmock or interceptor cassettes | `integration_test/` driver harness | Fixture-driven test against real I/O |
 | System / E2E | Capybara with Cuprite / Selenium | (rare — gateway level only) | `integration_test/` + Patrol (or Maestro YAML for native flows) | (rare) |
 | AI exploratory | (no formal pattern in org) | (no formal pattern in org) | (no formal pattern in org) | (no formal pattern in org) |
-| Visual / golden | Percy / Chromatic — deferred until tooling lands | n/a | `matchesGoldenFile` — deferred (no current adoption) | n/a |
+| Visual / golden | Percy / Chromatic — deferred until tooling lands | n/a | `df-tools verify flutter-ui-eval` — two-layer (golden net + VLM judge), shipped in DevFlow 2.4.0; `matchesGoldenFile` in use on aodex/eden-biz | n/a |
 | Wrong-tenant assertion | RSpec request spec with tenant-switching fixture | httpmock test asserting cross-tenant 403/404 | (rarely applicable) | n/a |
 | Contract / parity (port) | Pact-style consumer contract | Recorded cassettes vs source | Widget-tree behavioral parity | I/O snapshot or daemon contract test |
 
@@ -75,7 +75,7 @@ The planner uses this routing when the resolver returns `outside_in: true` — o
 
 Covered by future objectives, not this doc:
 
-- Adding visual-regression tooling (Chromatic / Percy / Flutter golden files) — separate objective when the org commits to a tool
+- Extending the shipped Flutter visual gate with a probe/conform layer (cross-stack, beyond Flutter) — see `docs/PROPOSAL-ui-oracle-loop.md`
 - AI-exploratory testing patterns — no observed org adoption; revisit if/when patterns emerge
 - Property-based testing infrastructure — suppressed by default per the `no_property_based_default` resolver constraint
 - Stacks beyond the four AOCyber primaries (Rails, Go/ConnectRPC, Flutter, Node) — see your team's lead for stack-specific guidance

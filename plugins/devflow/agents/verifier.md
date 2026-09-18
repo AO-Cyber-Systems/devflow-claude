@@ -435,7 +435,7 @@ Categorize: 🛑 Blocker (prevents goal) | ⚠️ Warning (incomplete) | ℹ️ 
 **Select backend** from `.planning/project.md` stack (or JOB `must_haves.platform` if set):
 - **Web** (Hugo, Next.js, static, SPA) → Playwright MCP (Step 8a)
 - **Flutter** (mobile or Flutter web) → Maestro MCP (Step 8b)
-- **Flutter web smoke-only** → Playwright MCP against `flutter run -d chrome` with `?enable-semantics=true` (Step 8a, with caveats)
+- **Flutter web smoke-only** → Playwright MCP against a `flutter build web --release` bundle served statically, with `?enable-semantics=true` (Step 8a, with caveats). Never `flutter run -d web-server`/`-d chrome` for capture — DWDS wedges into a blank page with no console error.
 
 Unknown stack → skip with status `? SKIPPED (stack not detected)`.
 
@@ -519,7 +519,7 @@ adb install -r build/app/outputs/flutter-apk/app-debug.apk
 
 5. Cleanup: `adb emu kill` or `xcrun simctl shutdown booted` if started here.
 
-**Flutter semantics note:** Maestro reads Flutter's SemanticsNode tree automatically. No extra config needed on mobile. For Flutter web, launch with `flutter run -d chrome --web-renderer html` and append `?enable-semantics=true` to the URL so Playwright sees a real a11y tree.
+**Flutter semantics note:** Maestro reads Flutter's SemanticsNode tree automatically. No extra config needed on mobile. For Flutter web, run `flutter build web --release`, serve `build/web` statically, and append `?enable-semantics=true` to the URL so Playwright sees a real a11y tree. Never `flutter run -d web-server`/`-d chrome` for capture — DWDS wedges into a blank page with no console error.
 
 ### Step 8b: Maestro orphan-flow detection (REQ-10-05)
 

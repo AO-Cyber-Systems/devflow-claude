@@ -51,7 +51,8 @@ mkdir -p .planning/objectives/$OBJECTIVE_DIR/evidence/ui_eval/
 ```
 
 For each manifest state with a `surface`/route:
-- `browser_navigate(url=...)` against the running dev surface (`flutter run -d chrome` with `?enable-semantics=true`, per verifier Step 8a Flutter-web caveats).
+- Build and serve first: `flutter build web --release` (add any `--dart-define` values the project's e2e entry needs), then serve `build/web` with a static server (e.g. `npx serve build/web` or `python3 -m http.server`) and navigate to that URL with `?enable-semantics=true` appended, per verifier Step 8a Flutter-web caveats. Never `flutter run -d web-server`/`-d chrome` for capture — DWDS wedges into a blank page with no console error.
+- `browser_navigate(url=...)` against that static URL.
 - `browser_wait_for(text="<landmark>")` — never a fixed sleep.
 - `browser_take_screenshot()` → save under `evidence/ui_eval/<state_id>.png`.
 - Write the Shape-B capture JSON (`{ state_id, surface, screenshot_path, metadata }`) to the path referenced by the manifest state's `capture_path` (relative to the manifest dir).
