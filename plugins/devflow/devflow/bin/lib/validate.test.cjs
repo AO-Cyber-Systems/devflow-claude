@@ -206,39 +206,28 @@ describe('cmdValidateHealth — engine lag (E020 mirror-stale, W021 plugin-behin
     assert.deepStrictEqual(json.engine, { plugin: '2.6.0', mirror: null, main: null });
   });
 
-  test('human-readable (non-raw) output prints an "engine: ..." summary line', () => {
+  // stdout must stay JSON-only in both modes: skills parse `validate health`'s
+  // stdout as JSON, so any extra line ahead of (or after) the payload breaks
+  // JSON.parse for every caller. The `engine` row inside the JSON is the report;
+  // there is no separate human-readable text mode. (Controller ruling, fix
+  // round 1: an earlier version of this change printed an `engine: ...` line
+  // before the JSON in non-raw mode — reverted for exactly this reason.)
+  test('non-raw output is pure JSON.parse-able stdout (engine row carries the report)', () => {
     tmpProject = makePlanningProject();
     tmpHome = makeHome('2.5.0');
 
-    const { stdout } = runHealth(tmpProject, {
+    const { stdout, json } = runHealth(tmpProject, {
       pluginVersionFn: () => '2.6.0',
       homeDir: tmpHome,
       mainVersionFn: () => '2.7.1',
     }, false);
 
-    assert.ok(
-      stdout.includes('engine: plugin 2.6.0 · mirror 2.5.0 · main 2.7.1'),
-      `expected engine summary line in stdout: ${stdout}`
-    );
+    assert.ok(json, 'expected parseable JSON');
+    assert.deepStrictEqual(JSON.parse(stdout), json, 'entire stdout must be exactly the JSON payload — no extra lines');
+    assert.deepStrictEqual(json.engine, { plugin: '2.6.0', mirror: '2.5.0', main: '2.7.1' });
   });
 
-  test('human-readable engine line uses n/a for null mirror/main', () => {
-    tmpProject = makePlanningProject();
-    tmpHome = makeHome();
-
-    const { stdout } = runHealth(tmpProject, {
-      pluginVersionFn: () => '2.6.0',
-      homeDir: tmpHome,
-      mainVersionFn: () => null,
-    }, false);
-
-    assert.ok(
-      stdout.includes('engine: plugin 2.6.0 · mirror n/a · main n/a'),
-      `expected n/a placeholders in stdout: ${stdout}`
-    );
-  });
-
-  test('raw output stays pure JSON (no human-readable engine line mixed in)', () => {
+  test('raw output is pure JSON.parse-able stdout, identical shape to non-raw', () => {
     tmpProject = makePlanningProject();
     tmpHome = makeHome('2.5.0');
 
@@ -249,7 +238,7 @@ describe('cmdValidateHealth — engine lag (E020 mirror-stale, W021 plugin-behin
     }, true);
 
     assert.ok(json, 'raw mode should still produce parseable JSON');
-    assert.ok(!stdout.includes('engine: plugin'), 'raw mode should not print the human-readable engine line');
+    assert.deepStrictEqual(JSON.parse(stdout), json, 'entire stdout must be exactly the JSON payload — no extra lines');
   });
 
   test('default seams (no injection) do not throw and produce an engine row', () => {

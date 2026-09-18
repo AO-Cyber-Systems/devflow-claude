@@ -537,11 +537,6 @@ function cmdValidateHealth(cwd, options, raw) {
   const repairableCount = errors.filter(e => e.repairable).length +
                          warnings.filter(w => w.repairable).length;
 
-  if (!raw) {
-    const fmt = (v) => v === null || v === undefined ? 'n/a' : v;
-    process.stdout.write(`engine: plugin ${fmt(engine.plugin)} · mirror ${fmt(engine.mirror)} · main ${fmt(engine.main)}\n`);
-  }
-
   output({
     status,
     errors,
