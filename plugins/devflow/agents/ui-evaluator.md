@@ -28,16 +28,21 @@ This is the load-bearing contract verifier Step 8c and the ui-eval workflow shar
 <execution_flow>
 
 <step name="load_manifest" priority="first">
-Resolve the objective dir and locate the ui_eval manifest (priority order):
-1. A manifest path passed directly in the prompt (ends in `.yaml`/`.yml`/`.json`).
-2. `.planning/objectives/<obj>/evidence/ui_eval/manifest.yaml`.
-3. `flutter/ui_eval/manifests/*.yaml` in the consumer repo.
+Resolve the objective dir and locate the ui_eval manifest. The engine (`df-tools verify flutter-ui-eval`, via `resolveUIEvalTarget` in `bin/lib/flutter-ui-eval-resolve.cjs`) owns this lookup — do not re-implement it in prose. Its order (W0-3, spec §12.2):
+1. **Tier 1** — an explicit manifest path passed directly in the prompt that names an existing file.
+2. **Tier 2** — `<objective_dir>/evidence/ui_eval/manifest.json` (i.e. `.planning/objectives/<obj>/evidence/ui_eval/manifest.json`). **JSON, never YAML** — the engine cannot parse YAML; a `manifest.yaml` here (or an explicit-path `.yaml`) resolves to `invalid`, not `absent`.
+3. **Tier 3** — `ui_eval/manifests/*.manifest.json` (and `flutter/ui_eval/manifests/*.manifest.json`) at the repo root **never resolves**: a repo-root manifest is not scoped to this objective. Any match is reported as `resolution: 'absent', reason: 'unscoped-candidates', candidates: [...]`.
 
 ```bash
 mkdir -p .planning/objectives/$OBJECTIVE_DIR/evidence/ui_eval/
+node ~/.claude/devflow/bin/df-tools.cjs verify flutter-ui-eval <manifest-path-or-objective-id> --raw
 ```
 
-If no manifest is found, write nothing and return `SKIPPED (no ui-eval manifest)`. Never a hard fail.
+Read `resolution` off the result. If it is not `resolved`, write nothing and return SKIPPED — never a hard fail:
+- `absent` with `reason: 'unscoped-candidates'` → return `SKIPPED (unscoped-candidates)` and list every entry of `candidates[]` in the report, with the fix: pass one of them explicitly, or author `<objective_dir>/evidence/ui_eval/manifest.json`. Never pick a candidate yourself.
+- `absent` (no candidates) → `SKIPPED (no ui-eval manifest)`.
+- `invalid` → `SKIPPED (invalid manifest: <reason>)` — it is reported, not ignored.
+- `not_applicable` → `SKIPPED (no UI TRDs)`.
 </step>
 
 <step name="capture">

@@ -75,7 +75,7 @@ The planner uses this routing when the resolver returns `outside_in: true` — o
 
 Covered by future objectives, not this doc:
 
-- Extending the shipped Flutter visual gate with a probe/conform layer (cross-stack, beyond Flutter) — see `docs/PROPOSAL-ui-oracle-loop.md`
+- Extending the shipped Flutter visual gate with a probe/conform layer (cross-stack, beyond Flutter) — see `docs/PROPOSAL-ui-oracle-loop.md` in the devflow-claude repository (the `~/.claude/devflow` mirror carries no `docs/`)
 - AI-exploratory testing patterns — no observed org adoption; revisit if/when patterns emerge
 - Property-based testing infrastructure — suppressed by default per the `no_property_based_default` resolver constraint
 - Stacks beyond the four AOCyber primaries (Rails, Go/ConnectRPC, Flutter, Node) — see your team's lead for stack-specific guidance

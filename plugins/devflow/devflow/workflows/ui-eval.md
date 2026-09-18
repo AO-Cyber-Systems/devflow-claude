@@ -38,8 +38,9 @@ either a manifest path **or an objective id** and resolves it via `resolveUIEval
 2. `.planning/objectives/<obj>/evidence/ui_eval/manifest.json`
 3. `ui_eval/manifests/*.manifest.json` (and `flutter/ui_eval/manifests/*.manifest.json`) — **never resolves** (W0-3, spec §12.2): any match here reports `resolution: 'absent', reason: 'unscoped-candidates', candidates: [...]` instead of being picked, since a repo-root manifest is not scoped to this objective.
 
-**The engine reads JSON, not YAML.** A `.yaml` manifest resolves to `invalid`, not to
-"absent" — it is reported, not ignored. Do not re-implement this lookup in the agent prose;
+**The engine reads JSON, not YAML.** A Tier-2 (`evidence/ui_eval/manifest.yaml`) or
+explicit-path `.yaml` manifest resolves to `invalid`, not to "absent" — it is reported, not
+ignored; a Tier-3 `.yaml` is ignored (`absent`). Do not re-implement this lookup in the agent prose;
 pass the objective id and read `resolution` off the result.
 </step>
 
