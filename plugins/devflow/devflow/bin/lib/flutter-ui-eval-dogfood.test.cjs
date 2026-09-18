@@ -573,4 +573,59 @@ test.describe('Case X1-X4 — a failing run exits non-zero (32-04)', () => {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   });
+
+  // Case X5 (W0-3 fix round 1) — the human-facing (no `--raw`) text path for the
+  // 'unscoped-candidates' shape. Machine callers (verifier.md, ui-eval.md) always pass
+  // `--raw` and hit the JSON branch (covered by resolveUIEvalTarget's own M3/M3b/M3c tests
+  // plus X4b above); this is the ONLY case that drives cmdVerifyFlutterUIEval WITHOUT
+  // `--raw` against a real 'unscoped-candidates' fixture and asserts on the literal text.
+  test('Case X5 — non-raw text for an unscoped Tier 3 candidate names the path and the fix', () => {
+    // realpathSync: on macOS os.tmpdir() lives under a /var -> /private/var symlink, so the
+    // path this process sees and the path the spawned child's process.cwd() resolves to
+    // differ unless normalized here — the same trap flagged for other tmpdir-based fixtures
+    // in this repo's gotcha catalog.
+    const tmpDir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'df-ui-eval-x5-')));
+    try {
+      const objDirRel = path.join('.planning', 'objectives', '99-unscoped');
+      const objDir = path.join(tmpDir, objDirRel);
+      fs.mkdirSync(objDir, { recursive: true });
+      // Same shape as X4b's fixture: no evidence manifest (Tier 2 absent) + a Tier 3
+      // candidate under the `flutter/` prefix, matching the resolve suite's Case M3c.
+      fs.writeFileSync(
+        path.join(objDir, '99-01-TRD.md'),
+        '---\nobjective: 99-unscoped\ntrd: "01"\ntype: ui\nstack: flutter\n---\n\n# TRD\n',
+        'utf-8',
+      );
+      const tier3Dir = path.join(tmpDir, 'flutter', 'ui_eval', 'manifests');
+      fs.mkdirSync(tier3Dir, { recursive: true });
+      const candidatePath = path.join(tier3Dir, 'other.manifest.json');
+      fs.writeFileSync(
+        candidatePath,
+        JSON.stringify({ objective: 'other', samples: 1, flakeBudget: 0, states: [] }),
+        'utf-8',
+      );
+
+      // Deliberately NO --raw here — this is the branch under test.
+      const result = spawnSync(
+        'node',
+        [DF_TOOLS, 'verify', 'flutter-ui-eval', '99-unscoped'],
+        { encoding: 'utf-8', cwd: tmpDir },
+      );
+
+      assert.strictEqual(result.status, 0, 'an unrun gate is not a judged failure');
+      assert.ok(
+        result.stdout.includes(`unscoped candidate: ${candidatePath}`),
+        `expected "unscoped candidate: ${candidatePath}" in stdout, got: ${JSON.stringify(result.stdout)}`,
+      );
+      const remedy = `pass the manifest path explicitly, or author ${path.join(objDirRel, 'evidence', 'ui_eval', 'manifest.json')}`;
+      assert.ok(
+        result.stdout.includes(remedy),
+        `expected remedy line "${remedy}" in stdout, got: ${JSON.stringify(result.stdout)}`,
+      );
+      // Never the raw JSON shape on this branch.
+      assert.throws(() => JSON.parse(result.stdout), 'non-raw output must be text, not JSON');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
 });

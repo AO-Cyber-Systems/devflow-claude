@@ -263,6 +263,29 @@ test('Case M3c — objective dir with no evidence manifest + flutter/ui_eval/man
   assert.ok(result.candidates[0].endsWith(path.join('flutter', 'ui_eval', 'manifests', 'other.manifest.json')));
 });
 
+// Case M3d — Tier 3 YAML no longer promotes to 'invalid' (W0-3 fix round 1). Before this
+// fix, `yamlFound = tier2.yamlPath || tier3.yamlCandidates[0] || null` meant an unscoped
+// Tier 3 .yaml file (no Tier 2 manifest, no Tier 3 JSON candidates) produced
+// `resolution: 'invalid', reason: 'yaml-manifest-unsupported'` — reusing an unscoped file's
+// mere existence to make a claim about THIS objective, the same defect class W0-3 closes
+// for JSON. lookupManifest now checks only `tier2.yamlPath`, so a Tier-3-only YAML file
+// falls all the way through to the ordinary empty-Tier-3 'absent' shape (reason: 'none') —
+// it is not a JSON candidate, so it never populates `candidates` either.
+test("Case M3d — Tier 3 YAML-only (no Tier 2, no Tier 3 JSON) -> absent, reason: 'none', NOT invalid", () => {
+  const { cwd } = makeObjectiveTree({
+    id: '33',
+    slug: 'tier3-yaml-only',
+    trds: [{ name: '33-01', frontmatter: { objective: '33-tier3-yaml-only', trd: '"01"', type: 'ui', stack: 'flutter' } }],
+    tier3Files: [{ name: 'x.manifest.yaml', content: 'states: []\n', prefix: '' }],
+  });
+
+  const result = resolveUIEvalTarget(cwd, '33');
+  assert.strictEqual(result.resolution, 'absent');
+  assert.notStrictEqual(result.resolution, 'invalid', 'an unscoped Tier 3 YAML file must never produce invalid');
+  assert.strictEqual(result.reason, 'none');
+  assert.strictEqual(result.candidates, undefined, 'a YAML-only Tier 3 file is not a JSON candidate');
+});
+
 test('Case M4 — precedence: tier 2 AND tier 3 both exist -> tier 2 wins, tier 3 in additional_candidates', () => {
   const { cwd } = makeObjectiveTree({
     id: '33',
