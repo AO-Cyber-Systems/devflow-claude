@@ -80,6 +80,67 @@ function pluginVersion() {
   return '0.0.0';
 }
 
+// Reads the installed plugin's version from the Claude Code plugin manager's
+// own bookkeeping — NOT the running-engine lookup `pluginVersion()` does.
+// When df-tools runs from the ~/.claude/devflow mirror (as every skill
+// invokes it), `pluginVersion()`'s first candidate (a .claude-plugin/plugin.json
+// relative to __dirname) doesn't exist there, so it falls through to the same
+// ~/.claude/devflow/.plugin-version file health's mirror-staleness check also
+// reads — making "installed" and "mirror" the same value by construction and
+// the E020 check structurally dead. This reads the independent source of
+// truth instead: ~/.claude/plugins/installed_plugins.json, which the plugin
+// manager (not sync-runtime) maintains.
+// Returns { version, installPath } or null when the entry/file is absent.
+function installedPlugin(opts) {
+  const homeDir = (opts && opts.homeDir) || os.homedir();
+  const registryPath = path.join(homeDir, '.claude', 'plugins', 'installed_plugins.json');
+  try {
+    const registry = JSON.parse(fs.readFileSync(registryPath, 'utf-8'));
+    const entries = registry && registry.plugins && registry.plugins['devflow@aocyber'];
+    if (!entries) return null;
+    const list = Array.isArray(entries) ? entries : [entries];
+    const entry = list.find(e => e && e.scope === 'user') || list[0] || null;
+    if (!entry) return null;
+
+    const installPath = entry.installPath || null;
+    let version = null;
+    if (installPath) {
+      try {
+        const pj = JSON.parse(fs.readFileSync(path.join(installPath, '.claude-plugin', 'plugin.json'), 'utf-8'));
+        if (pj && typeof pj.version === 'string' && pj.version) version = pj.version;
+      } catch {
+        // Cache dir missing/unreadable/unparseable — fall back to the
+        // registry's own `version` field below rather than failing outright.
+      }
+    }
+    if (!version && typeof entry.version === 'string' && entry.version) version = entry.version;
+    if (!version) return null;
+
+    return { version, installPath };
+  } catch {
+    return null;
+  }
+}
+
+// Reads the local marketplace checkout path for the `aocyber` marketplace
+// from ~/.claude/plugins/known_marketplaces.json (maintained by the plugin
+// manager, distinct from any devflow-claude dev checkout on disk). Returns
+// the path if it names an existing directory, else null.
+function marketplaceCheckout(opts) {
+  const homeDir = (opts && opts.homeDir) || os.homedir();
+  const registryPath = path.join(homeDir, '.claude', 'plugins', 'known_marketplaces.json');
+  try {
+    const registry = JSON.parse(fs.readFileSync(registryPath, 'utf-8'));
+    const entry = registry && registry.aocyber;
+    const installLocation = entry && entry.installLocation;
+    if (!installLocation) return null;
+    const stat = fs.statSync(installLocation);
+    return stat.isDirectory() ? installLocation : null;
+  } catch {
+    return null;
+  }
+}
+
 // ─── TRD/JOB Dual-Pattern Helpers ────────────────────────────────────────────
 
 function findPlanFiles(dirFiles) {
@@ -169,6 +230,8 @@ module.exports = {
   parseIncludeFlag,
   safeReadFile,
   pluginVersion,
+  installedPlugin,
+  marketplaceCheckout,
   findPlanFiles,
   stripPlanSuffix,
   isTaskDoc,

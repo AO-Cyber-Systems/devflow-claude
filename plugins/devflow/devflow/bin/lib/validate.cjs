@@ -4,7 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { output, error, normalizeObjectiveName, findPlanFiles, stripPlanSuffix, pluginVersion } = require('./helpers.cjs');
+const { output, error, normalizeObjectiveName, findPlanFiles, stripPlanSuffix, pluginVersion, installedPlugin, marketplaceCheckout } = require('./helpers.cjs');
 const { extractFrontmatter } = require('./frontmatter.cjs');
 const { stateReplaceField, stateExtractField, readStateJson, writeStateJson, STATE_JSON_DEFAULTS } = require('./state.cjs');
 const { getMilestoneInfo } = require('./roadmap.cjs');
@@ -24,14 +24,26 @@ function compareSemver(a, b) {
 }
 
 // Reads plugins/devflow/.claude-plugin/plugin.json as committed on origin/main,
-// from the devflow-claude checkout that contains the running df-tools.cjs (5
-// levels up from this file: lib -> bin -> devflow -> devflow -> plugins -> root).
-// Returns the version string, or null on any failure (no git, no network, no
-// remote-tracking branch, not a devflow-claude checkout, etc.) — a missing
-// checkout must never fail health, it just means W021 can't be evaluated.
+// from the LOCAL MARKETPLACE CHECKOUT the plugin manager maintains at
+// ~/.claude/plugins/marketplaces/aocyber (via helpers.marketplaceCheckout()) —
+// not a devflow-claude dev checkout relative to the running file, which
+// doesn't exist when df-tools runs from the ~/.claude/devflow mirror (every
+// skill invocation). Best-effort `git fetch` first so origin/main isn't
+// read stale; the fetch's own failure (offline, etc.) is ignored — `git show`
+// still runs against whatever origin/main currently resolves to locally.
+// Returns the version string, or null on any failure (no marketplace
+// checkout, no git, bad JSON, etc.) — never fails health for a missing
+// checkout, it just means W021 can't be evaluated.
 function defaultMainVersionFn() {
   try {
-    const checkout = path.join(__dirname, '..', '..', '..', '..', '..');
+    const checkout = marketplaceCheckout();
+    if (!checkout) return null;
+    try {
+      execFileSync('git', ['-C', checkout, 'fetch', '--quiet', 'origin', 'main'], { timeout: 5000, encoding: 'utf-8' });
+    } catch {
+      // Offline / no network / fetch failed — fall through and read whatever
+      // origin/main already resolves to locally.
+    }
     const out = execFileSync(
       'git',
       ['-C', checkout, 'show', 'origin/main:plugins/devflow/.claude-plugin/plugin.json'],
@@ -373,17 +385,43 @@ function cmdValidateHealth(cwd, options, raw) {
     repairs.push('createStateJson');
   }
 
-  // ─── Check 11: Engine lag (plugin vs mirror vs origin/main) ──────────────
+  // ─── Check 11: Engine lag (installed vs mirror vs origin/main) ────────────
   // Skills invoke df-tools via the ~/.claude/devflow mirror, not the plugin
   // checkout — sync-runtime.js re-mirrors on session start, but a session that
   // never restarted keeps running a stale mirror silently. Surface both kinds
   // of drift: the mirror falling behind the installed plugin (E020), and the
   // installed plugin falling behind origin/main (W021, best-effort only).
-  const pluginVersionFn = options.pluginVersionFn || pluginVersion;
+  //
+  // `installed` and `main` deliberately do NOT come from helpers.pluginVersion():
+  // when df-tools runs from the mirror (every skill invocation), that
+  // function's first candidate (a .claude-plugin/plugin.json relative to
+  // __dirname) doesn't exist there, so it silently falls through to the same
+  // ~/.claude/devflow/.plugin-version file `mirror` below also reads — making
+  // "installed" and "mirror" identical by construction and E020 structurally
+  // unfireable in production. `installed` reads the plugin manager's own
+  // ~/.claude/plugins/installed_plugins.json instead (helpers.installedPlugin);
+  // `main` reads the plugin manager's marketplace checkout
+  // (helpers.marketplaceCheckout), not a devflow-claude dev checkout relative
+  // to the running file (which also doesn't exist from the mirror).
+  const installedPluginFn = options.installedPluginFn || installedPlugin;
   const homeDir = options.homeDir || os.homedir();
   const mainVersionFn = options.mainVersionFn || defaultMainVersionFn;
 
-  const pluginVer = pluginVersionFn();
+  const runningVer = pluginVersion();
+
+  let installedInfo = null;
+  try {
+    // Threads homeDir through so a test can point BOTH the mirror-file read
+    // below AND the default helpers.installedPlugin() lookup at one fixture
+    // home, without needing a separate installedPluginFn override (the
+    // mirror-path end-to-end case below relies on exactly this).
+    installedInfo = installedPluginFn({ homeDir });
+  } catch {
+    installedInfo = null;
+  }
+  const installedVer = (installedInfo && typeof installedInfo.version === 'string' && installedInfo.version)
+    ? installedInfo.version
+    : null;
 
   const mirrorVersionPath = path.join(homeDir, '.claude', 'devflow', '.plugin-version');
   let mirrorVer = null;
@@ -402,27 +440,28 @@ function cmdValidateHealth(cwd, options, raw) {
     mainVer = null;
   }
 
-  // A fresh machine has no mirror yet — that's not staleness, so only compare
-  // when a marker actually exists.
-  if (mirrorVer && mirrorVer !== pluginVer) {
+  // Only compare when both sides are known — a fresh machine has no mirror
+  // yet (not staleness), and installed may be unknown on a dev checkout with
+  // no plugin-manager registry.
+  if (mirrorVer && installedVer && mirrorVer !== installedVer) {
     addIssue(
       'error',
       'E020',
-      `mirror-stale: ~/.claude/devflow is ${mirrorVer} but the plugin is ${pluginVer}`,
+      `mirror-stale: ~/.claude/devflow is ${mirrorVer} but the installed plugin is ${installedVer}`,
       'Start a new session so sync-runtime re-mirrors, or run the sync hook'
     );
   }
 
-  if (mainVer && compareSemver(mainVer, pluginVer) > 0) {
+  if (mainVer && installedVer && compareSemver(mainVer, installedVer) > 0) {
     addIssue(
       'warning',
       'W021',
-      `plugin-behind-main: installed ${pluginVer}, origin/main ${mainVer}`,
+      `plugin-behind-main: installed ${installedVer}, origin/main ${mainVer}`,
       'Update the plugin from the marketplace'
     );
   }
 
-  const engine = { plugin: pluginVer, mirror: mirrorVer, main: mainVer };
+  const engine = { running: runningVer, mirror: mirrorVer, installed: installedVer, main: mainVer };
 
   // ─── Perform repairs if requested ─────────────────────────────────────────
   const repairActions = [];
@@ -551,4 +590,5 @@ function cmdValidateHealth(cwd, options, raw) {
 module.exports = {
   cmdValidateConsistency,
   cmdValidateHealth,
+  compareSemver,
 };
