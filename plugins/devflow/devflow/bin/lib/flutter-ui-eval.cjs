@@ -698,6 +698,11 @@ function cmdVerifyFlutterUIEval(cwd, args, raw) {
     // verdict-based exit-code logic never runs) — an unrun gate is not a judged failure.
     // `status`/`not_applicable` vocabulary matches flutter-state-coverage.cjs:240.
     output({
+      // W0-1 fix round 1: the verifier routes on this skip output (not_applicable |
+      // absent | invalid), so it is evidence in the spec's sense too — it must carry
+      // the same engine_version/schema_version as the scored-rollup branch below.
+      engine_version: pluginVersion(),
+      schema_version: 1,
       resolution: target.resolution,
       reason: target.reason,
       objective_dir: target.objective_dir,

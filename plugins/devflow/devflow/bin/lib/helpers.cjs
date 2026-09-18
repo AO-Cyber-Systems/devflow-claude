@@ -70,7 +70,11 @@ function pluginVersion() {
     if (!fs.existsSync(c)) continue;
     try {
       const txt = fs.readFileSync(c, 'utf-8');
-      return c.endsWith('.json') ? JSON.parse(txt).version : txt.trim();
+      const v = c.endsWith('.json') ? JSON.parse(txt).version : txt.trim();
+      // A parseable plugin.json with no (or an empty) `version` field is not usable
+      // evidence of the running engine's version — fall through to the next candidate
+      // instead of returning `undefined`/'' up to a caller expecting a semver string.
+      if (typeof v === 'string' && v) return v;
     } catch {}
   }
   return '0.0.0';

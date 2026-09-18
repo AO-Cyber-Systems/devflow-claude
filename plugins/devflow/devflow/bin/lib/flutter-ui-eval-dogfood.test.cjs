@@ -533,5 +533,44 @@ test.describe('Case X1-X4 — a failing run exits non-zero (32-04)', () => {
     assert.strictEqual(parsed.ok, true, 'a non-scoring resolution is ok:true, not the legacy ok:false { error }');
     assert.strictEqual(result.status, 0,
       'a missing manifest must never become a hard CI failure — verifier.md Step 8c routes this to SKIPPED, not a crash');
+    // W0-1 fix round 1: the verifier routes on THIS skip output too (not just the
+    // scored-rollup branch in Case D2) — it must carry engine_version/schema_version
+    // just like scored evidence does.
+    assert.match(parsed.engine_version, /^\d+\.\d+\.\d+$/, 'skip-branch output has engine_version');
+    assert.strictEqual(parsed.schema_version, 1, 'skip-branch output has schema_version 1');
+  });
+
+  test('Case X4b — an objective id with no manifest anywhere also stamps engine_version/schema_version on the --raw skip JSON', () => {
+    // Distinct from X4 (a not-found FILE path): this drives the OTHER shape
+    // cmdVerifyFlutterUIEval accepts (an objective id resolved via resolveUIEvalTarget's
+    // applicability + search tiers), landing in the same `resolution !== 'resolved'`
+    // branch via a different route ('absent', not 'not_applicable') — resolveUIEvalTarget
+    // is exercised directly in flutter-ui-eval-resolve.test.cjs; this case only proves the
+    // CLI wiring stamps both fields regardless of which skip reason was reached.
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'df-ui-eval-x4b-'));
+    try {
+      const objDir = path.join(tmpDir, '.planning', 'objectives', '99-no-manifest');
+      fs.mkdirSync(objDir, { recursive: true });
+      // Directory/file naming + frontmatter shape matches makeObjectiveTree() in
+      // flutter-ui-eval-resolve.test.cjs (`<id>-<slug>/<trd.name>-TRD.md`), the only other
+      // place this repo builds an objective tree for resolveUIEvalTarget.
+      fs.writeFileSync(
+        path.join(objDir, '99-01-TRD.md'),
+        '---\nobjective: 99-no-manifest\ntrd: "01"\ntype: ui\nstack: flutter\n---\n\n# TRD\n',
+        'utf-8',
+      );
+      const result = spawnSync(
+        'node',
+        [DF_TOOLS, 'verify', 'flutter-ui-eval', '99-no-manifest', '--raw'],
+        { encoding: 'utf-8', cwd: tmpDir },
+      );
+      const parsed = JSON.parse(result.stdout);
+      assert.strictEqual(parsed.resolution, 'absent', 'sanity: applicable objective, no manifest anywhere');
+      assert.strictEqual(parsed.ok, true);
+      assert.match(parsed.engine_version, /^\d+\.\d+\.\d+$/, 'skip-branch output has engine_version');
+      assert.strictEqual(parsed.schema_version, 1, 'skip-branch output has schema_version 1');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 });
