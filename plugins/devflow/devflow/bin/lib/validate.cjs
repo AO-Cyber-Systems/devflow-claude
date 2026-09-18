@@ -446,14 +446,28 @@ function cmdValidateHealth(cwd, options, raw) {
 
   // Only compare when both sides are known — a fresh machine has no mirror
   // yet (not staleness), and installed may be unknown on a dev checkout with
-  // no plugin-manager registry.
-  if (mirrorVer && installedVer && mirrorVer !== installedVer) {
-    addIssue(
-      'error',
-      'E020',
-      `mirror-stale: ~/.claude/devflow is ${mirrorVer} but the installed plugin is ${installedVer}`,
-      'Start a new session so sync-runtime re-mirrors, or run the sync hook, or run `/plugin update devflow@aocyber`'
-    );
+  // no plugin-manager registry. mirror !== installed has two directions:
+  // mirror < installed is real staleness (E020, existing wording); mirror >
+  // installed happens on a dev checkout run via --plugin-dir, where
+  // ~/.claude/devflow legitimately leads the installed plugin — that is not
+  // an error, just worth surfacing (I022, info, no fix text). Use
+  // compareSemver rather than string inequality so the two directions split.
+  if (mirrorVer && installedVer) {
+    const cmp = compareSemver(mirrorVer, installedVer);
+    if (cmp < 0) {
+      addIssue(
+        'error',
+        'E020',
+        `mirror-stale: ~/.claude/devflow is ${mirrorVer} but the installed plugin is ${installedVer}`,
+        'Start a new session so sync-runtime re-mirrors, or run the sync hook, or run `/plugin update devflow@aocyber`'
+      );
+    } else if (cmp > 0) {
+      addIssue(
+        'info',
+        'I022',
+        `mirror-ahead: ~/.claude/devflow is ${mirrorVer}, installed plugin is ${installedVer} (dev checkout?)`
+      );
+    }
   }
 
   if (mainVer && installedVer && compareSemver(mainVer, installedVer) > 0) {

@@ -303,6 +303,48 @@ describe('cmdValidateHealth — engine lag (E020 mirror-stale, W021 plugin-behin
     assert.strictEqual(e020, undefined, 'should not raise E020 when installed is unknown');
   });
 
+  // PR #81 review finding 2: E020 fired as an error whenever mirror !== installed,
+  // including the direction where the MIRROR is newer (a dev checkout run via
+  // --plugin-dir, where ~/.claude/devflow legitimately leads the installed plugin).
+  // That is not staleness — cmdValidateHealth must use compareSemver and split the
+  // two directions: mirror < installed stays E020 (existing wording), mirror >
+  // installed becomes I022 (info, no fix text), and neither fires when equal.
+  test('E020 (not I022) raised when the mirror is BEHIND the installed plugin', () => {
+    tmpProject = makePlanningProject();
+    tmpHome = makeHome();
+    makeMirror(tmpHome, '2.5.0');
+
+    const { json } = runHealth(tmpProject, {
+      installedPluginFn: () => ({ version: '2.6.0', installPath: '/fake' }),
+      homeDir: tmpHome,
+      mainVersionFn: () => null,
+    }, false);
+
+    assert.ok(json.errors.find(e => e.code === 'E020'), 'expected E020 when mirror is behind installed');
+    assert.strictEqual(json.info.find(i => i.code === 'I022'), undefined, 'I022 must not fire on the mirror-behind direction');
+  });
+
+  test('I022 (not E020) raised when the mirror is AHEAD of the installed plugin (dev checkout via --plugin-dir)', () => {
+    tmpProject = makePlanningProject();
+    tmpHome = makeHome();
+    makeMirror(tmpHome, '2.7.0');
+
+    const { json } = runHealth(tmpProject, {
+      installedPluginFn: () => ({ version: '2.6.0', installPath: '/fake' }),
+      homeDir: tmpHome,
+      mainVersionFn: () => null,
+    }, false);
+
+    assert.strictEqual(json.errors.find(e => e.code === 'E020'), undefined, 'E020 must not fire when the mirror is ahead, not stale');
+    const i022 = json.info.find(i => i.code === 'I022');
+    assert.ok(i022, `expected I022 in info: ${JSON.stringify(json.info)}`);
+    assert.strictEqual(
+      i022.message,
+      'mirror-ahead: ~/.claude/devflow is 2.7.0, installed plugin is 2.6.0 (dev checkout?)'
+    );
+    assert.strictEqual(i022.fix, undefined, 'I022 carries no fix text');
+  });
+
   test('W021 raised when mainVersionFn reports a version ahead of the installed plugin', () => {
     tmpProject = makePlanningProject();
     tmpHome = makeHome();
