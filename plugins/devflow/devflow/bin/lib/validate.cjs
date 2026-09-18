@@ -38,8 +38,10 @@ function defaultMainVersionFn() {
   try {
     const checkout = marketplaceCheckout();
     if (!checkout) return null;
+    // Never let git block on a credential prompt — health runs unattended.
+    const gitEnv = { ...process.env, GIT_TERMINAL_PROMPT: '0' };
     try {
-      execFileSync('git', ['-C', checkout, 'fetch', '--quiet', 'origin', 'main'], { timeout: 5000, encoding: 'utf-8' });
+      execFileSync('git', ['-C', checkout, 'fetch', '--quiet', 'origin', 'main'], { timeout: 5000, encoding: 'utf-8', env: gitEnv });
     } catch {
       // Offline / no network / fetch failed — fall through and read whatever
       // origin/main already resolves to locally.
@@ -47,7 +49,7 @@ function defaultMainVersionFn() {
     const out = execFileSync(
       'git',
       ['-C', checkout, 'show', 'origin/main:plugins/devflow/.claude-plugin/plugin.json'],
-      { timeout: 5000, encoding: 'utf-8' }
+      { timeout: 5000, encoding: 'utf-8', env: gitEnv }
     );
     const parsed = JSON.parse(out);
     return (parsed && typeof parsed.version === 'string' && parsed.version) ? parsed.version : null;
@@ -201,6 +203,8 @@ function cmdValidateHealth(cwd, options, raw) {
   if (!fs.existsSync(planningDir)) {
     addIssue('error', 'E001', '.planning/ directory not found', 'Run /df:new-project to initialize');
     output({
+      engine_version: pluginVersion(),
+      schema_version: 1,
       status: 'broken',
       errors,
       warnings,
@@ -448,7 +452,7 @@ function cmdValidateHealth(cwd, options, raw) {
       'error',
       'E020',
       `mirror-stale: ~/.claude/devflow is ${mirrorVer} but the installed plugin is ${installedVer}`,
-      'Start a new session so sync-runtime re-mirrors, or run the sync hook'
+      'Start a new session so sync-runtime re-mirrors, or run the sync hook, or run `/plugin update devflow@aocyber`'
     );
   }
 
@@ -577,6 +581,10 @@ function cmdValidateHealth(cwd, options, raw) {
                          warnings.filter(w => w.repairable).length;
 
   output({
+    // Every tool output carries these two (spec): a consumer can reject a
+    // report produced by a stale engine. Present on the E001 early return too.
+    engine_version: pluginVersion(),
+    schema_version: 1,
     status,
     errors,
     warnings,

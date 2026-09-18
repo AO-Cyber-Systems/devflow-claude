@@ -36,6 +36,7 @@ Parse JSON output:
 - `errors[]`: Critical issues (code, message, fix, repairable)
 - `warnings[]`: Non-critical issues
 - `info[]`: Informational notes
+- `engine`: `{ running, mirror, installed, main }` — engine-lag row (`running` = the version the invoked df-tools reports; `mirror` = `~/.claude/devflow/.plugin-version`; `installed` = plugin-registry version; `main` = `origin/main`; any may be `null` when unknown)
 - `repairable_count`: Number of auto-fixable issues
 - `repairs_performed[]`: Actions taken if --repair was used
 </step>
@@ -49,8 +50,11 @@ Parse JSON output:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Status: HEALTHY | DEGRADED | BROKEN
+Engine: running <r> · mirror <m> · installed <i> · main <n>
 Errors: N | Warnings: N | Info: N
 ```
+
+(`Engine:` prints each `engine` field; substitute `n/a` for any `null`.)
 
 **If repairs were performed:**
 ```

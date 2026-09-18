@@ -61,6 +61,13 @@ function safeReadFile(filePath) {
 // evidence produced by a stale engine (a stale mirror once silently passed unjudged
 // states). Prefers the plugin manifest relative to this file; falls back to the
 // `.plugin-version` marker sync-runtime.js writes into the home mirror; then '0.0.0'.
+//
+// NOTE: when df-tools runs from the ~/.claude/devflow mirror (how every skill
+// invokes it) the first candidate never exists — the mirror carries no
+// .claude-plugin/plugin.json — so "running" equals the mirror marker BY
+// CONSTRUCTION. It says which engine is executing, not which plugin is
+// installed. installedPlugin() below is the plugin-registry truth; compare
+// against that (validate health E020) to detect a stale mirror.
 function pluginVersion() {
   const candidates = [
     path.join(__dirname, '..', '..', '..', '.claude-plugin', 'plugin.json'),

@@ -255,7 +255,7 @@ describe('cmdValidateHealth — engine lag (E020 mirror-stale, W021 plugin-behin
     );
     assert.strictEqual(
       e020.fix,
-      'Start a new session so sync-runtime re-mirrors, or run the sync hook'
+      'Start a new session so sync-runtime re-mirrors, or run the sync hook, or run `/plugin update devflow@aocyber`'
     );
   });
 
@@ -442,14 +442,47 @@ describe('cmdValidateHealth — engine lag (E020 mirror-stale, W021 plugin-behin
   test('default seams (no injection) do not throw and produce an engine row', () => {
     tmpProject = makePlanningProject();
 
-    // No installedPluginFn/homeDir/mainVersionFn passed — exercises the real
-    // defaults (helpers.installedPlugin, os.homedir(), helpers.pluginVersion,
-    // the marketplace-checkout-based main lookup) against this machine.
-    const { json } = runHealth(tmpProject, {}, false);
+    // No installedPluginFn/homeDir passed — exercises the real defaults
+    // (helpers.installedPlugin, os.homedir(), helpers.pluginVersion) against
+    // this machine. mainVersionFn IS stubbed: the default performs a real
+    // `git fetch` in the user's marketplace clone — no network in unit tests.
+    const { json } = runHealth(tmpProject, { mainVersionFn: () => null }, false);
 
     assert.ok(json, 'expected JSON output with default seams');
     assert.ok('engine' in json, 'engine row should be present even with default seams');
     assert.strictEqual(typeof json.engine.running, 'string');
+    assert.strictEqual(json.engine.main, null);
+  });
+
+  // Spec: every tool output carries engine_version/schema_version so a consumer
+  // can reject a report produced by a stale engine — on BOTH output paths.
+  test('health output carries engine_version + schema_version (normal path)', () => {
+    tmpProject = makePlanningProject();
+    tmpHome = makeHome();
+    makeMirror(tmpHome, '2.5.0');
+
+    const { json } = runHealth(tmpProject, {
+      installedPluginFn: () => ({ version: '2.5.0', installPath: '/fake' }),
+      homeDir: tmpHome,
+      mainVersionFn: () => null,
+    }, true);
+
+    assert.ok(json);
+    assert.strictEqual(typeof json.engine_version, 'string');
+    assert.match(json.engine_version, /^\d+\.\d+\.\d+/);
+    assert.strictEqual(json.schema_version, 1);
+  });
+
+  test('health output carries engine_version + schema_version on the E001 early return (no .planning/)', () => {
+    tmpProject = fs.mkdtempSync(path.join(os.tmpdir(), 'validate-health-noplanning-'));
+
+    const { json } = runHealth(tmpProject, { mainVersionFn: () => null }, true);
+
+    assert.ok(json);
+    assert.strictEqual(json.status, 'broken');
+    assert.ok(json.errors.some(e => e.code === 'E001'), 'E001 raised');
+    assert.strictEqual(typeof json.engine_version, 'string');
+    assert.strictEqual(json.schema_version, 1);
   });
 
   // The end-to-end case the round-1 review flagged as missing: drive
