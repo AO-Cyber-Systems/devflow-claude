@@ -719,3 +719,30 @@ does it cover the port at scale?" Found and folded in:
 
 Verified while reviewing: both apps use `go_router` (272 route sites), so router-table extraction
 is straightforward; the donor route table is one file.
+
+## 21. Wave-0 retrospective — 2026-09-18
+
+Wave 0 shipped inside its estimate (devflow-claude #80/#81, eden-biz #776, tag v2.1.0) and, in a
+domain with no pixels, reproduced the failure classes of §1: a lag check that passed every test
+and was dead on the real (mirror) path; executor prose about cwd persistence that needed three
+rounds because prose has no executable check; a generator PR cleared by reading and then failed
+by a differential (`/code-review` ran the generator and diffed); a resolver ordering bug in the
+very function meant to prevent "silently absent". The branch's own commit mix was 11 fix / 3 feat.
+
+Three amendments follow, binding for wave 1 onward:
+
+1. **Agent prose that encodes runtime semantics gets an executable check.** Wave 1b adds a
+   harness that runs the executor's Flutter-section commands in a scratch repo under the real
+   one-command-per-call model (cwd persists, variables do not) and asserts where files land.
+   Same principle as the probe, one level up: the oracle runs where the code runs.
+2. **Every brief carries a "runtime model" section** — mirror vs checkout, cwd persistence,
+   release build vs dev server, monorepo package dir, production semantics mode. Every sharp
+   review catch in wave 0 came from a reviewer told to trace under that model; every miss came
+   from a brief that omitted it.
+3. **`/code-review` after the final branch review is mandatory before any merge**, in addition
+   to the task-scoped and whole-branch reviews. In wave 0 it found eight findings those reviews
+   had cleared.
+
+Go/no-go for wave 2 is the W1★ dogfood: the nav feature must go through one look-lock and zero
+surprise fix rounds. If it does not, stop and rethink before wave 2.
+
