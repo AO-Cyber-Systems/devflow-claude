@@ -3,8 +3,8 @@
   "spec": "devflow-claude/docs/PROPOSAL-ui-oracle-loop.md",
   "plan": "devflow-claude/docs/IMPLEMENTATION-PLAN-ui-oracle-loop.md",
   "design_artifact": "https://claude.ai/code/artifact/5029f906-28d2-418f-8f38-b03923725985",
-  "updated": "2026-09-18T15:40:00Z",
-  "now": "Wave 0 — W0-2 fix landed (03fa7d5), scoped re-review running; W0-7 (eden-biz) implemented, review running; W0-1 complete. Next: W0-3.",
+  "updated": "2026-09-18T16:20:00Z",
+  "now": "Wave 0 — W0-1, W0-2, W0-7 complete; W0-3 (scoped resolver) implementing. Next: W0-4, W0-5, W0-6.",
   "waiting_on_user": [
     {
       "id": "W0-8",
@@ -48,15 +48,15 @@
           "id": "W0-2",
           "title": "health reports mirror/installed/main lag",
           "repo": "devflow-claude",
-          "status": "review",
-          "commits": "b83809b..03fa7d5",
-          "note": "Fix round 1: sources moved to installed_plugins.json + marketplace clone; E020/W021 verified firing on the real path (2.5.0/2.6.0/2.7.1)"
+          "status": "done",
+          "commits": "5a80ef7..03fa7d5",
+          "note": "1 fix round: lag sources moved to installed_plugins.json + marketplace clone; E020/W021 verified firing (2.5.0/2.6.0/2.7.1)"
         },
         {
           "id": "W0-3",
           "title": "manifest resolution objective-scoped only",
           "repo": "devflow-claude",
-          "status": "pending"
+          "status": "active"
         },
         {
           "id": "W0-4",
@@ -80,9 +80,9 @@
           "id": "W0-7",
           "title": "one source for ui-eval manifests (#705)",
           "repo": "eden-biz",
-          "status": "review",
-          "note": "DONE_WITH_CONCERNS: 9 YAML files were never valid YAML (fixed, content-preserving); two .planning/ manifest copies synced; billing_activity manifest deleted (no consumer)",
-          "commits": "de87eb7c8, 22d46a914"
+          "status": "done",
+          "note": "9 YAML files were never valid YAML (fixed, content-preserving); billing_activity manifest deleted (no consumer); one judge bullet restored. Branch fix/705-ui-eval-one-source, unpushed",
+          "commits": "456387d4e..c28f9bda6"
         },
         {
           "id": "W0-8",
@@ -107,7 +107,8 @@
             "W0-9"
           ]
         }
-      ]
+      ],
+      "outcome": "The existing screenshot-checking tool stops lying: a check that didn't run says so, the libraries are pinned to real releases, and we have a before-number to measure against."
     },
     {
       "id": "W1a",
@@ -181,7 +182,8 @@
           "title": "release v2.2.0",
           "status": "pending"
         }
-      ]
+      ],
+      "outcome": "The shared widget library can describe, render and test its own pieces — every button, rail and list has a picture per state and a test that catches overlap, overflow and double-firing."
     },
     {
       "id": "W1b",
@@ -230,7 +232,8 @@
           "title": "release 2.9.0",
           "status": "pending"
         }
-      ]
+      ],
+      "outcome": "Claude can write a one-page 'how this screen works' sheet, render every state of it as pictures, and get your yes/no on that page before any code is written."
     },
     {
       "id": "W1c",
@@ -270,7 +273,8 @@
           "title": "outage state proof",
           "status": "pending"
         }
-      ]
+      ],
+      "outcome": "The test apps can be put into any state on demand — empty, full, long names, a dependency outage, a user without access — so those states can actually be checked."
     },
     {
       "id": "W1★",
@@ -318,7 +322,8 @@
           "status": "pending",
           "gate": "Mark approves merge"
         }
-      ]
+      ],
+      "outcome": "The project-rail feature that took ten rounds is redone the new way: one sheet, one approval, machine-checked; it merges and both apps pick it up."
     },
     {
       "id": "W2",
@@ -342,7 +347,8 @@
           "title": "planner derivation · executor loop · verifier replay · seam override + tag gate · migration table applied",
           "status": "pending"
         }
-      ]
+      ],
+      "outcome": "Claude checks its own UI work after every step — every button does what the sheet says, every page can be reached and left — and only asks you to look at what the machine couldn't judge."
     },
     {
       "id": "W3",
@@ -368,7 +374,8 @@
           "title": "donor-routes.json (47) · pattern mapping · workflow designer through A–C",
           "status": "pending"
         }
-      ]
+      ],
+      "outcome": "A crawler walks the whole Eden Biz app and files a bug for every unreachable page, dead end or dead button; the first Trades feature is ported through the new process."
     },
     {
       "id": "W4",
@@ -388,7 +395,8 @@
           "title": "ProbeResult adapters + visual mode emits ProbeResult",
           "status": "pending"
         }
-      ]
+      ],
+      "outcome": "The same checks run on mobile and on the React Trades app."
     }
   ],
   "rulings": [
@@ -427,16 +435,31 @@
       "task": "W0-2",
       "ruling": "installed version from installed_plugins.json; main from the marketplace clone (best-effort fetch); engine row {running, mirror, installed, main}",
       "cost_if_wrong": "W021 depends on the marketplace clone existing"
+    },
+    {
+      "when": "2026-09-18",
+      "task": "W0-7",
+      "ruling": "restore the lost judge bullet in the YAML (source of truth) rather than accept the coverage loss",
+      "cost_if_wrong": "none"
     }
   ],
   "deferred_minors": [
     {
       "task": "W0-1",
       "note": "pluginVersion() fallback branches have no automated test"
+    },
+    {
+      "task": "W0-2",
+      "note": "defaultMainVersionFn does not thread options.homeDir into marketplaceCheckout()"
+    },
+    {
+      "task": "W0-7",
+      "note": "per-state `route` copied verbatim can hold non-path prose; generator fail-fast + broad catch"
     }
   ],
   "metrics": {
     "baseline": null,
     "note": "captured in W0-10 after W0-6 and W0-9"
-  }
+  },
+  "explainer_artifact": "https://claude.ai/code/artifact/c091fcd9-44e2-4bb7-8635-aebf3d2aaaa4"
 }

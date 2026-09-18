@@ -73,6 +73,7 @@
   .wave-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
   .wave-head .id { font-family: var(--mono); font-size: 12px; color: var(--ink-2); }
   .wave-head .size { font-size: 12.5px; color: var(--ink-2); margin-left: auto; }
+  .outcome { margin: 6px 0 2px; font-size: 14px; max-width: 80ch; }
   .bar { height: 6px; background: var(--pend-soft); border-radius: 3px; margin: 8px 0 6px; overflow: hidden; display: flex; }
   .bar i { display: block; height: 100%; }
   .bar .b-done { background: var(--good); } .bar .b-active { background: var(--accent); } .bar .b-fix, .bar .b-review { background: var(--warn); } .bar .b-blocked-user { background: var(--bad); }
@@ -160,7 +161,8 @@
   document.getElementById('now').innerHTML = '<b>Now:</b> ' + esc(P.now);
   document.getElementById('meta').innerHTML =
     `<div>spec <code>${esc(P.spec)}</code></div><div>plan <code>${esc(P.plan)}</code></div>` +
-    (P.design_artifact ? `<div><a href="${esc(P.design_artifact)}">design page</a></div>` : '');
+    (P.explainer_artifact && P.explainer_artifact.startsWith('http') ? `<div><a href="${esc(P.explainer_artifact)}">plain-language explainer</a></div>` : '') +
+    (P.design_artifact ? `<div><a href="${esc(P.design_artifact)}">design page (technical)</a></div>` : '');
 
   document.getElementById('waiting').innerHTML = P.waiting_on_user.length
     ? '<ul>' + P.waiting_on_user.map(w => `<li><b class="mono">${esc(w.id)}</b> — ${esc(w.what)}</li>`).join('') + '</ul>'
@@ -210,6 +212,7 @@
     const rowsHtml = t.map(x => `<tr><td class="id">${esc(x.id)}</td><td>${esc(x.title)}${x.note ? `<span class="note">${esc(x.note)}</span>` : ''}${x.gate ? `<span class="gate">gate: ${esc(x.gate)}</span>` : ''}</td><td>${chip(x.status)}${x.round ? ` <span class="mono muted">${esc(x.round)}</span>` : ''}</td><td class="mono muted">${esc(x.commits || '')}</td></tr>`).join('');
     return `<div class="wave"><div class="stripe c-${esc(w.status)}"></div><div>
       <div class="wave-head"><span class="id">${esc(w.id)}</span><h3>${esc(w.title)}</h3>${chip(w.status)}<span class="size">${esc(w.size || '')}${w.depends_on && w.depends_on.length ? ' · after ' + esc(w.depends_on.join(', ')) : ''}</span></div>
+      ${w.outcome ? `<p class="outcome">${esc(w.outcome)}</p>` : ''}
       ${bar}
       <details${open}><summary>${t.length} task${t.length === 1 ? '' : 's'} · ${(w.repos || []).join(' · ')}</summary>
       <table><thead><tr><th>id</th><th>task</th><th>status</th><th>commits</th></tr></thead><tbody>${rowsHtml}</tbody></table></details>
