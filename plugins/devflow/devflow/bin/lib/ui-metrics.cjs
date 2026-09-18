@@ -86,6 +86,14 @@ function cmdUiMetrics(cwd, args, raw) {
   const since = flagValue(args, '--since', DEFAULT_SINCE);
   const pathsArg = flagValue(args, '--paths', DEFAULT_PATHS.join(','));
   const paths = pathsArg.split(',').map(p => p.trim()).filter(Boolean);
+  if (paths.length === 0) {
+    // `--paths ""` / `--paths ,` slips past flagValue (a defined, non-flag
+    // string) but collapses to [] here — an empty `paths` would otherwise
+    // reach computeBaseline, which passes no `--` scoping to `git log`, so
+    // the whole repo gets measured while the JSON records `paths: []`.
+    // Same usage error as a missing value.
+    error(`ui metrics: --paths requires a value (usage: ui metrics baseline [--since YYYY-MM-DD] [--paths p1,p2] [--out file])`);
+  }
   const outRel = flagValue(args, '--out', DEFAULT_OUT);
 
   let baseline;

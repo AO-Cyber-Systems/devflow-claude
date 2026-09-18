@@ -190,6 +190,36 @@ describe('df-tools ui metrics baseline', () => {
     assert.strictEqual(fs.existsSync(path.join(tmp, '.planning', 'ui-metrics-baseline.json')), false);
   });
 
+  // PR #81 review finding 3: `--paths ""` / `--paths ,` survives flagValue (a
+  // defined, non-flag string) but collapses to [] after split/trim/filter — so
+  // `git log` measured the WHOLE repo (no `--` path scoping) while the JSON
+  // recorded `paths: []`, silently lying about what was measured. An empty
+  // path list must be rejected with the same usage error as a missing value,
+  // and nothing written.
+  test('--paths "" (empty string) is a usage error identical to a missing value, nothing written', () => {
+    const r = spawnSync(
+      process.execPath,
+      [TOOLS_PATH, 'ui', 'metrics', 'baseline', '--paths', ''],
+      { cwd: tmp, encoding: 'utf-8' }
+    );
+    assert.strictEqual(r.status, 1);
+    assert.match(r.stderr, /--paths requires a value/);
+    assert.strictEqual(r.stdout, '');
+    assert.strictEqual(fs.existsSync(path.join(tmp, '.planning', 'ui-metrics-baseline.json')), false);
+  });
+
+  test('--paths , (only commas/blank entries) is a usage error identical to a missing value', () => {
+    const r = spawnSync(
+      process.execPath,
+      [TOOLS_PATH, 'ui', 'metrics', 'baseline', '--paths', ',', '--out', path.join(tmp, 'd.json')],
+      { cwd: tmp, encoding: 'utf-8' }
+    );
+    assert.strictEqual(r.status, 1);
+    assert.match(r.stderr, /--paths requires a value/);
+    assert.strictEqual(r.stdout, '');
+    assert.strictEqual(fs.existsSync(path.join(tmp, 'd.json')), false);
+  });
+
   test('--since without a value is a usage error (exit 1, stderr)', () => {
     const r = spawnSync(
       process.execPath,
