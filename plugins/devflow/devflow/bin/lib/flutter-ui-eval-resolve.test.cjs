@@ -286,6 +286,28 @@ test("Case M3d — Tier 3 YAML-only (no Tier 2, no Tier 3 JSON) -> absent, reaso
   assert.strictEqual(result.candidates, undefined, 'a YAML-only Tier 3 file is not a JSON candidate');
 });
 
+// Case M3e — PR #81 review finding 1: lookupManifest checked tier3.jsonCandidates.length
+// (-> absent/unscoped-candidates) BEFORE tier2.yamlPath (-> invalid/yaml-manifest-unsupported).
+// An objective with a real Tier-2 YAML manifest sitting right there, plus an unrelated
+// repo-root Tier-3 JSON candidate, must still report 'invalid' — the yaml file is *this*
+// objective's manifest, unsupported format; it must never be masked by an unscoped Tier 3
+// candidate reporting 'absent'.
+test('Case M3e — Tier-2 YAML present + Tier-3 JSON candidate present -> invalid, reason names yaml', () => {
+  const { cwd } = makeObjectiveTree({
+    id: '33',
+    slug: 'yaml-and-tier3-json',
+    trds: [{ name: '33-01', frontmatter: { objective: '33-yaml-and-tier3-json', trd: '"01"', type: 'ui', stack: 'flutter' } }],
+    tier2YamlOnly: true,
+    tier3Files: [{ name: 'other.manifest.json', content: validManifestJSON('M3e'), prefix: '' }],
+  });
+
+  const result = resolveUIEvalTarget(cwd, '33');
+  assert.strictEqual(result.resolution, 'invalid');
+  assert.notStrictEqual(result.resolution, 'absent', 'a real Tier-2 yaml manifest must not be masked by an unscoped Tier-3 JSON candidate');
+  assert.strictEqual(result.reason, 'yaml-manifest-unsupported');
+  assert.ok(result.manifest_path.endsWith('manifest.yaml'), 'manifest_path must name the yaml file found');
+});
+
 test('Case M4 — precedence: tier 2 AND tier 3 both exist -> tier 2 wins, tier 3 in additional_candidates', () => {
   const { cwd } = makeObjectiveTree({
     id: '33',

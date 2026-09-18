@@ -210,6 +210,22 @@ function lookupManifest(cwd, info, uiTrds, visualGate) {
     });
   }
 
+  // A real Tier-2 yaml manifest sitting in THIS objective's evidence dir must be checked
+  // before Tier 3's unscoped candidates — it is this objective's manifest, unsupported
+  // format, so it must report 'invalid', never be masked by an unrelated repo-root JSON
+  // candidate reporting 'absent' (PR #81 review finding 1). Tier 3 YAML candidates are
+  // deliberately NOT checked here (W0-3): Tier 3 never resolves, and that includes never
+  // promoting an unscoped YAML file to 'invalid' — from Tier 3 everything is 'absent'
+  // (with or without a 'reason').
+  if (tier2.yamlPath) {
+    return {
+      resolution: 'invalid',
+      manifest_path: tier2.yamlPath,
+      reason: 'yaml-manifest-unsupported',
+      searched,
+    };
+  }
+
   if (tier3.jsonCandidates.length > 0) {
     // W0-3 (spec §12.2, aodex#485's cousin): Tier 3 NEVER resolves. A repo-root manifest
     // is not scoped to any objective — picking [0] once scored an UNRELATED objective's
@@ -227,21 +243,7 @@ function lookupManifest(cwd, info, uiTrds, visualGate) {
     };
   }
 
-  // No .json manifest anywhere. Before declaring 'absent', check for a yaml-only Tier 2
-  // sibling — the file is right there, so this must be 'invalid', never silently treated
-  // as absent (that would recreate this objective's bug in a new location). Tier 3 YAML
-  // candidates are deliberately NOT checked here (W0-3): Tier 3 never resolves, and that
-  // includes never promoting an unscoped YAML file to 'invalid' — from Tier 3 everything
-  // is 'absent' (with or without a 'reason').
-  if (tier2.yamlPath) {
-    return {
-      resolution: 'invalid',
-      manifest_path: tier2.yamlPath,
-      reason: 'yaml-manifest-unsupported',
-      searched,
-    };
-  }
-
+  // No .json manifest anywhere, and no Tier-2 yaml sibling either (checked above).
   return {
     resolution: 'absent',
     objective_dir: info.directory,
