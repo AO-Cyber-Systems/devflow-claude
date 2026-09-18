@@ -147,7 +147,7 @@
         <tr><td class="w">1★</td><td>Redo the sidebar feature that took ten rounds, the new way, as the proof. If it takes ten rounds again, the plan is wrong.</td><td>—</td></tr>
         <tr><td class="w">2</td><td>Wire the after-every-step checks into how Claude builds, so it happens automatically and you're only asked to look at exceptions.</td><td>~2 weeks</td></tr>
         <tr><td class="w">3</td><td>The crawler for Eden Biz, and the first Trades feature (the workflow designer) ported through the whole process end to end. From here on, porting Trades is measured: 47 Trades screens, each one "not started / described / built and checked".</td><td>~2–3 weeks</td></tr>
-        <tr><td class="w">4</td><td>Same checks on phones and on the React version of Trades.</td><td>~1 week</td></tr>
+        <tr><td class="w">4</td><td>Same checks on phones. (The React version of Trades isn't kept: it's the reference we port from, and it retires once every one of its 47 screens is ported and checked.)</td><td>days</td></tr>
       </tbody>
     </table>
     <p class="small">The live status of each wave, what's waiting on you, and every decision Claude made on your behalf is on the progress map (linked below).</p>
@@ -156,7 +156,7 @@
   <section>
     <div class="eyebrow">What it doesn't do</div>
     <h2>Honest limits</h2>
-    <p><b>It doesn't replace your taste.</b> Whether the indent looks right is still your call — the plan just asks you once, on a picture, instead of after every build. <b>It doesn't make Trades pixel-identical</b> — Trades is the checklist of what must exist, not what it should look like. <b>Phones and the React app come last</b> (wave 4). And one part is genuinely new infrastructure: neither app can currently fake a service outage, so "what does the screen say when a service is down?" can't be checked until wave 1c builds that.</p>
+    <p><b>It doesn't replace your taste.</b> Whether the indent looks right is still your call — the plan just asks you once, on a picture, instead of after every build. <b>It doesn't make Trades pixel-identical</b> — Trades is the checklist of what must exist, not what it should look like. <b>Phones come last</b> (wave 4). And one part is genuinely new infrastructure: neither app can currently fake a service outage, so "what does the screen say when a service is down?" can't be checked until wave 1c builds that.</p>
   </section>
 
   <section>

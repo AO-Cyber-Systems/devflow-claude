@@ -38,7 +38,7 @@ This is a multi-repo program. Each wave item is a DevFlow objective in its repo;
 | W1★ dogfood | aodex + eden-ui-flutter | W1a, W1b, W1c(aodex) | `projects-rail` spec look-locked and conformed; nav branch merged; tag |
 | W2 | devflow-claude | W1★ | `ui catalog\|probe\|sheet\|doctor\|metrics`, checks, planner derivation, executor loop, verifier replay, judge calibration, seam gate |
 | W3 | eden-biz (+ Trades read-only) | W2, W1c(eden-biz) | `ui crawl`, `ui-explorer`, donor route table, first Trades port (obj 020 scope) |
-| W4 | devflow-claude, aodex | W3 | Maestro / Playwright-React adapters, explorer nightly |
+| W4 | devflow-claude, aodex | W3 | Maestro adapter, explorer nightly |
 
 **Kick-off convention.** Each W1+ objective is created with `/devflow:build` (ad-hoc, not roadmap-scoped — see memory `ui-visual-eval-layer` build gotchas) and the planner prompt carries the TDD Playbook directives verbatim: *every feature TRD is `type=tdd` unless config-only/styling/generated; test list first; one test at a time; fixture generators not LLM data; outside-in; rendered-UI visual gate for `type=ui`.*
 
@@ -144,11 +144,11 @@ function pluginVersion() {
 ### Task W0-5: reference docs tell the truth
 
 **Files:**
-- Modify: `plugins/devflow/devflow/references/testing-strategy.md` (matrix row "Visual / golden"; add a "React (Vite/Vitest/Playwright)" column)
+- Modify: `plugins/devflow/devflow/references/testing-strategy.md` (matrix row "Visual / golden" only — no React column; Trades React is a donor being retired)
 - Modify: `plugins/devflow/devflow/workflows/ui-eval.md` and `plugins/devflow/agents/ui-evaluator.md` (capture step: replace `flutter run -d chrome` with `flutter build web --release` + static server + `?enable-semantics` note; cite memory `flutter-web-browser-proof-use-release-build`)
 - Modify: `CHANGELOG.md` `[Unreleased]`
 
-- [ ] **Step 1:** Edit the matrix: Flutter visual cell → "`df-tools verify flutter-ui-eval` (two-layer: golden + VLM) — shipped 2.4.0"; new React column: Unit `vitest + jsdom + @testing-library/react`; Integration `vitest` against MSW or recorded fixtures; System `Playwright (7 projects)`; Visual "`toHaveScreenshot` — rendered-browser gate required for pointer-events/z-order/tooltip changes (memory `trades-ui-fixes-need-rendered-browser-gate`)".
+- [ ] **Step 1:** Edit the matrix: Flutter visual cell → "`df-tools verify flutter-ui-eval` (two-layer: golden + VLM) — shipped 2.4.0"; leave the "Out of scope" note pointing at this proposal for the probe/conform layer. Do not add a React column.
 - [ ] **Step 2:** Edit the two capture-step passages; keep the `browser_wait_for` guidance.
 - [ ] **Step 3:** `node --test plugins/devflow/devflow/bin/` still green (docs only); commit `docs(ui-eval): testing matrix and capture recipe match what ships`.
 
@@ -318,7 +318,7 @@ Each subsection is one DevFlow objective. For each TRD: files, the behaviour tes
 
 ### W4 — devflow-claude, aodex: `df/probe-adapters`
 
-Maestro `hierarchy` → `ProbeResult` adapter (mobile), Playwright a11y snapshot → `ProbeResult` adapter (React, Trades maintenance), `frontend-design` visual mode emits `ProbeResult`; explorer nightly on aodex with a budget; `testing-strategy.md` rows updated. Acceptance: the §7.5 checks run unchanged over all three adapters' fixtures.
+Maestro `hierarchy` → `ProbeResult` adapter (mobile), `frontend-design` visual mode emits `ProbeResult`; explorer nightly on aodex with a budget; `testing-strategy.md` rows updated. Acceptance: the §7.5 checks run unchanged over both adapters' fixtures. (No React adapter — Trades React retires when the port coverage metric reaches 100%.)
 
 ---
 

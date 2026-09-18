@@ -66,7 +66,7 @@
         },
         {
           "id": "W0-5",
-          "title": "testing matrix + capture recipe tell the truth",
+          "title": "testing matrix + capture recipe tell the truth (no React column)",
           "repo": "devflow-claude",
           "status": "pending"
         },
@@ -375,11 +375,11 @@
           "status": "pending"
         }
       ],
-      "outcome": "A crawler walks the whole Eden Biz app and files a bug for every unreachable page, dead end or dead button; the first Trades feature is ported through the new process."
+      "outcome": "A crawler walks the whole Eden Biz app and files a bug for every unreachable page, dead end or dead button; the first Trades feature is ported through the new process. From here the port is a number: 47 Trades screens, each not-started / described / built-and-checked — 100% is the SaaS release gate and the day React retires."
     },
     {
       "id": "W4",
-      "title": "Adapters: Maestro, Playwright-React; explorer nightly on aodex",
+      "title": "Adapter: Maestro (mobile); explorer nightly on aodex",
       "repos": [
         "devflow-claude",
         "aodex"
@@ -388,15 +388,15 @@
       "depends_on": [
         "W3"
       ],
-      "size": "1 obj · ~6 TRDs · 1 wk",
+      "size": "1 obj · ~4 TRDs · 3–4 days",
       "tasks": [
         {
           "id": "W4-adapters",
-          "title": "ProbeResult adapters + visual mode emits ProbeResult",
+          "title": "Maestro ProbeResult adapter + visual mode emits ProbeResult",
           "status": "pending"
         }
       ],
-      "outcome": "The same checks run on mobile and on the React Trades app."
+      "outcome": "The same checks run on phones. (No React adapter — Trades React is the donor only and retires when the port is complete.)"
     }
   ],
   "rulings": [
@@ -441,6 +441,12 @@
       "task": "W0-7",
       "ruling": "restore the lost judge bullet in the YAML (source of truth) rather than accept the coverage loss",
       "cost_if_wrong": "none"
+    },
+    {
+      "when": "2026-09-18",
+      "task": "scope",
+      "ruling": "Trades React is donor-only, retired at 100% port coverage — dropped the React test column (W0-5) and the Playwright-React adapter (W4)",
+      "cost_if_wrong": "if React had to be maintained, its probe adapter would be a later ~3-TRD objective"
     }
   ],
   "deferred_minors": [

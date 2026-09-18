@@ -59,7 +59,9 @@ Two further observations shape the design:
 
 - Replacing DevFlow's TDD contract; this adds RENDER/CONFORM after GREEN, it does not change RED→GREEN.
 - Pixel parity with Trades React.
-- Mobile-native and React probe adapters in the first three waves (schema is shared; adapters are wave 4).
+- A mobile-native probe adapter in the first three waves (schema is shared; the Maestro adapter is wave 4).
+- Any tooling for the React Trades app beyond reading it as the donor: **Trades React is not kept long
+  term** — it retires when every donor route is ported (§19). No React test column, no React probe adapter.
 - Removing the human from design taste.
 
 ## 3. Failure classes → mechanisms
@@ -383,7 +385,7 @@ A state whose seed, identity or fault the stack does not recognise is `MISSING`,
 
 ### 7.5 `ProbeResult` and deterministic checks
 
-`ProbeResult` (JSON-schema'd, surface-agnostic with `surface: web-flutter | web-react | mobile`):
+`ProbeResult` (JSON-schema'd, surface-agnostic with `surface: web-flutter | mobile`):
 screenshot path; semantics tree with rects and `elementFromPoint` hit results; widget rects;
 route/URL; console errors; network log; engine and schema versions; bundle hashes.
 
@@ -586,8 +588,8 @@ bundle for `__edenProbe` and fail on a hit. Probe runs only against local or e2e
 - Retire the YAML/JSON manifest pair; generate manifests (eden-biz#705 closes as a class).
 - Stale-engine sync: `df-tools health` mirror check; `engine_version` on outputs.
 - Objective-scoped manifest resolution only; bootstrap works from `flutter/` in a monorepo.
-- `testing-strategy.md`: "visual: shipped (ui-eval)", add a React column; ui-eval workflow prose
-  stops naming `flutter run -d chrome`.
+- `testing-strategy.md`: "visual: shipped (ui-eval)"; ui-eval workflow prose stops naming
+  `flutter run -d chrome`. (No React column — Trades React is a donor, not a maintained stack.)
 - Resolve aodex#585 / eden-biz#753 pins onto a tagged `eden-ui-flutter` release.
 - Upgrade the installed plugin to current `main` (2.6.0 → 2.7.1+) so the design reference set is
   on the executor's path; `df-tools health` reports plugin-vs-main lag from now on.
@@ -609,7 +611,7 @@ Sizes are rough Claude-execution estimates in the style of existing objectives (
 | 1 dogfood | aodex + eden-ui-flutter | write the `projects-rail` spec → look-lock → conform the existing nav branch on the reshaped API → merge and tag | inside 1a/1b, the acceptance test for both |
 | 2 | devflow-claude | `ui catalog`, `ui probe` + checks, spec-vs-actual sheet, planner derivation, executor RENDER→CONFORM, verifier replay, judge references + calibration set, seam override + tag gate, `ui doctor`, `ui metrics` | 2 objectives, ~16 TRDs, 2–2.5 weeks |
 | 3 | eden-biz (+ Trades read-only) | `ui crawl` + `ui-explorer`; donor route table + port-coverage metric (§19); pattern mapping + donor captures for the workflow designer; first Trades port (obj 020 scope) through A–C | 2 objectives, ~14 TRDs, 2–3 weeks |
-| 4 | devflow-claude, aodex | Maestro and Playwright-React `ProbeResult` adapters; `frontend-design` visual mode emits `ProbeResult`; explorer nightly on aodex | 1 objective, ~6 TRDs, 1 week |
+| 4 | devflow-claude, aodex | Maestro `ProbeResult` adapter; `frontend-design` visual mode emits `ProbeResult`; explorer nightly on aodex | 1 objective, ~4 TRDs, 3–4 days |
 
 Critical path: 0 → 1a/1b/1c in parallel → dogfood → 2 → 3. Wave 3's port objective cannot
 start before 2 lands; its spec and pattern mapping (Phase A only) can be written during 2.
@@ -686,7 +688,8 @@ through three artifacts:
    objective that ports it; Phase A for the next feature runs while Phase B/C run for the current.
 3. **Port coverage metric** — `ui metrics` reports donor routes by status. "Done" for the port
    program is every route `conformed` or `dropped` with a reason; there is no "we think it's
-   ported".
+   ported". **That is the gate for the Trades SaaS release on Eden Biz, and the point at which the
+   React app is retired** (decided 2026-09-18: no React version is kept long term).
 
 **Adoption policy for existing Eden surfaces:** spec-on-touch. An objective that touches a
 surface without a spec writes one first (Phase A, from the pattern library and the router table).
