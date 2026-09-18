@@ -57,6 +57,11 @@ test.describe('flutter-ui-eval CLI dogfood (UI-VISUAL-EVAL-JUDGE-02)', () => {
     assert.ok(Array.isArray(rollup.fails), 'rollup has fails[]');
     // Offline-judge provenance: the dogfood path must declare it never hit the network.
     assert.strictEqual(rollup.network, false, 'rollup asserts no network call (offline judge)');
+    // W0-1: every CLI rollup carries engine_version + schema_version so a verifier can
+    // reject evidence produced by a stale engine (a stale mirror silently passed
+    // unjudged states once).
+    assert.match(rollup.engine_version, /^\d+\.\d+\.\d+$/, 'rollup has engine_version');
+    assert.strictEqual(rollup.schema_version, 1, 'rollup has schema_version 1');
   });
 
   test('Case F1 — flutter-ui eval is a reachable subcommand (not "Unknown ... Available: setup")', () => {

@@ -31,7 +31,7 @@ const path = require('path');
 // `error` (32-03) rejects an unrecognised --judge value with a usage error (stderr + exit 1)
 // rather than letting it silently fall through to the offline path.
 // eslint-disable-next-line no-unused-vars
-const { output, error } = require('./helpers.cjs');
+const { output, error, pluginVersion } = require('./helpers.cjs');
 
 // ─── Contract enums ──────────────────────────────────────────────────────────
 
@@ -307,7 +307,20 @@ function scoreRun(results, opts = {}) {
     verdict = 'pass';
   }
 
-  return { verdict, counts, reviews, fails, known_failing, resolved, unjudged };
+  return {
+    verdict,
+    counts,
+    reviews,
+    fails,
+    known_failing,
+    resolved,
+    unjudged,
+    // W0-1: every scoreRun output carries the running engine's version + a fixed
+    // schema version so a verifier can reject evidence produced by a stale engine
+    // (a stale mirror once silently passed unjudged states unnoticed).
+    engine_version: pluginVersion(),
+    schema_version: 1,
+  };
 }
 
 // ─── Injectable vision-judge boundary (impure; default real impl in TRD-02) ─────
@@ -836,6 +849,11 @@ function cmdVerifyFlutterUIEval(cwd, args, raw) {
 
   // 32-04: the process's own exit code now reflects the verdict — see outputRollup() above.
   outputRollup({
+    // W0-1: same fields scoreRun stamps on its own return value, repeated here at the
+    // top level of the CLI's emitted object (scoreRun's rollup is destructured into
+    // individual fields below, not spread, so these must be set explicitly).
+    engine_version: rollup.engine_version,
+    schema_version: rollup.schema_version,
     // objective 33: names the SAME outcome the non-scoring branch above names via
     // `resolution` — a caller can switch on one field regardless of which branch ran.
     // NOT to be confused with `resolved` below (an existing, unrelated field: the list of

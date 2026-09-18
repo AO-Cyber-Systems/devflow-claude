@@ -1,6 +1,7 @@
 'use strict';
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { execSync } = require('child_process');
 
@@ -53,6 +54,26 @@ function safeReadFile(filePath) {
   } catch {
     return null;
   }
+}
+
+// Reads the running engine's version so evidence-producing outputs (e.g.
+// flutter-ui-eval's scoreRun) can stamp `engine_version` — a verifier then rejects
+// evidence produced by a stale engine (a stale mirror once silently passed unjudged
+// states). Prefers the plugin manifest relative to this file; falls back to the
+// `.plugin-version` marker sync-runtime.js writes into the home mirror; then '0.0.0'.
+function pluginVersion() {
+  const candidates = [
+    path.join(__dirname, '..', '..', '..', '.claude-plugin', 'plugin.json'),
+    path.join(os.homedir(), '.claude', 'devflow', '.plugin-version'),
+  ];
+  for (const c of candidates) {
+    if (!fs.existsSync(c)) continue;
+    try {
+      const txt = fs.readFileSync(c, 'utf-8');
+      return c.endsWith('.json') ? JSON.parse(txt).version : txt.trim();
+    } catch {}
+  }
+  return '0.0.0';
 }
 
 // ─── TRD/JOB Dual-Pattern Helpers ────────────────────────────────────────────
@@ -143,6 +164,7 @@ module.exports = {
   error,
   parseIncludeFlag,
   safeReadFile,
+  pluginVersion,
   findPlanFiles,
   stripPlanSuffix,
   isTaskDoc,
