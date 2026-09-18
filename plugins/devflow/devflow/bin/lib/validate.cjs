@@ -1,11 +1,48 @@
 'use strict';
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
-const { output, error, normalizeObjectiveName, findPlanFiles, stripPlanSuffix } = require('./helpers.cjs');
+const { execFileSync } = require('child_process');
+const { output, error, normalizeObjectiveName, findPlanFiles, stripPlanSuffix, pluginVersion } = require('./helpers.cjs');
 const { extractFrontmatter } = require('./frontmatter.cjs');
 const { stateReplaceField, stateExtractField, readStateJson, writeStateJson, STATE_JSON_DEFAULTS } = require('./state.cjs');
 const { getMilestoneInfo } = require('./roadmap.cjs');
+
+// ─── Engine lag helpers (Check 11 in cmdValidateHealth) ───────────────────────
+
+// Compares two "x.y.z" semver strings as 3-tuples. Non-numeric/missing segments
+// treat as 0. Returns 1 if a > b, -1 if a < b, 0 if equal.
+function compareSemver(a, b) {
+  const pa = String(a).split('.').map(n => parseInt(n, 10) || 0);
+  const pb = String(b).split('.').map(n => parseInt(n, 10) || 0);
+  for (let i = 0; i < 3; i++) {
+    const diff = (pa[i] || 0) - (pb[i] || 0);
+    if (diff !== 0) return diff > 0 ? 1 : -1;
+  }
+  return 0;
+}
+
+// Reads plugins/devflow/.claude-plugin/plugin.json as committed on origin/main,
+// from the devflow-claude checkout that contains the running df-tools.cjs (5
+// levels up from this file: lib -> bin -> devflow -> devflow -> plugins -> root).
+// Returns the version string, or null on any failure (no git, no network, no
+// remote-tracking branch, not a devflow-claude checkout, etc.) — a missing
+// checkout must never fail health, it just means W021 can't be evaluated.
+function defaultMainVersionFn() {
+  try {
+    const checkout = path.join(__dirname, '..', '..', '..', '..', '..');
+    const out = execFileSync(
+      'git',
+      ['-C', checkout, 'show', 'origin/main:plugins/devflow/.claude-plugin/plugin.json'],
+      { timeout: 5000, encoding: 'utf-8' }
+    );
+    const parsed = JSON.parse(out);
+    return (parsed && typeof parsed.version === 'string' && parsed.version) ? parsed.version : null;
+  } catch {
+    return null;
+  }
+}
 
 function cmdValidateConsistency(cwd, raw) {
   const roadmapPath = path.join(cwd, '.planning', 'ROADMAP.md');
@@ -336,6 +373,57 @@ function cmdValidateHealth(cwd, options, raw) {
     repairs.push('createStateJson');
   }
 
+  // ─── Check 11: Engine lag (plugin vs mirror vs origin/main) ──────────────
+  // Skills invoke df-tools via the ~/.claude/devflow mirror, not the plugin
+  // checkout — sync-runtime.js re-mirrors on session start, but a session that
+  // never restarted keeps running a stale mirror silently. Surface both kinds
+  // of drift: the mirror falling behind the installed plugin (E020), and the
+  // installed plugin falling behind origin/main (W021, best-effort only).
+  const pluginVersionFn = options.pluginVersionFn || pluginVersion;
+  const homeDir = options.homeDir || os.homedir();
+  const mainVersionFn = options.mainVersionFn || defaultMainVersionFn;
+
+  const pluginVer = pluginVersionFn();
+
+  const mirrorVersionPath = path.join(homeDir, '.claude', 'devflow', '.plugin-version');
+  let mirrorVer = null;
+  if (fs.existsSync(mirrorVersionPath)) {
+    try {
+      mirrorVer = fs.readFileSync(mirrorVersionPath, 'utf-8').trim();
+    } catch {
+      mirrorVer = null;
+    }
+  }
+
+  let mainVer = null;
+  try {
+    mainVer = mainVersionFn();
+  } catch {
+    mainVer = null;
+  }
+
+  // A fresh machine has no mirror yet — that's not staleness, so only compare
+  // when a marker actually exists.
+  if (mirrorVer && mirrorVer !== pluginVer) {
+    addIssue(
+      'error',
+      'E020',
+      `mirror-stale: ~/.claude/devflow is ${mirrorVer} but the plugin is ${pluginVer}`,
+      'Start a new session so sync-runtime re-mirrors, or run the sync hook'
+    );
+  }
+
+  if (mainVer && compareSemver(mainVer, pluginVer) > 0) {
+    addIssue(
+      'warning',
+      'W021',
+      `plugin-behind-main: installed ${pluginVer}, origin/main ${mainVer}`,
+      'Update the plugin from the marketplace'
+    );
+  }
+
+  const engine = { plugin: pluginVer, mirror: mirrorVer, main: mainVer };
+
   // ─── Perform repairs if requested ─────────────────────────────────────────
   const repairActions = [];
   if (options.repair && repairs.length > 0) {
@@ -449,11 +537,17 @@ function cmdValidateHealth(cwd, options, raw) {
   const repairableCount = errors.filter(e => e.repairable).length +
                          warnings.filter(w => w.repairable).length;
 
+  if (!raw) {
+    const fmt = (v) => v === null || v === undefined ? 'n/a' : v;
+    process.stdout.write(`engine: plugin ${fmt(engine.plugin)} · mirror ${fmt(engine.mirror)} · main ${fmt(engine.main)}\n`);
+  }
+
   output({
     status,
     errors,
     warnings,
     info,
+    engine,
     repairable_count: repairableCount,
     repairs_performed: repairActions.length > 0 ? repairActions : undefined,
   }, raw);
