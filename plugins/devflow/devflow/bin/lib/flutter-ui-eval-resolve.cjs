@@ -32,8 +32,11 @@
  * Lookup order (implemented ONCE, here):
  *   Tier 1  arg names an existing FILE (resolved against cwd)      -> source: 'explicit-path'
  *   Tier 2  <objective_dir>/evidence/ui_eval/manifest.json          -> source: 'objective-evidence'
- *   Tier 3  <cwd>/ui_eval/manifests/*.manifest.json                 -> source: 'repo-manifests'
- *           <cwd>/flutter/ui_eval/manifests/*.manifest.json         (both prefixes; sorted)
+ *   Tier 3  <cwd>/ui_eval/manifests/*.manifest.json                 -> NEVER resolves (W0-3, spec
+ *           <cwd>/flutter/ui_eval/manifests/*.manifest.json         §12.2, aodex#485's cousin): a
+ *           repo-root manifest is not scoped to any objective, so it is surfaced as
+ *           `resolution: 'absent', reason: 'unscoped-candidates', candidates: [...]` instead of
+ *           silently picking one — pass the manifest path explicitly, or author Tier 2.
  *
  * Reuses (does not re-implement):
  *   - findObjectiveInternal (objective.cjs)     — objective-id -> directory + TRD filenames
@@ -208,17 +211,32 @@ function lookupManifest(cwd, info, uiTrds, visualGate) {
   }
 
   if (tier3.jsonCandidates.length > 0) {
-    return loadCandidate(tier3.jsonCandidates[0], { source: 'repo-manifests', searched });
+    // W0-3 (spec §12.2, aodex#485's cousin): Tier 3 NEVER resolves. A repo-root manifest
+    // is not scoped to any objective — picking [0] once scored an UNRELATED objective's
+    // manifest. Surface every JSON candidate instead so the operator can pass one
+    // explicitly or author the objective-scoped Tier 2 manifest; `tier3Locate` still owns
+    // sorting, so `candidates` is stable (absolute paths, lexicographically sorted).
+    return {
+      resolution: 'absent',
+      objective_dir: info.directory,
+      ui_trds: uiTrds,
+      visual_gate: visualGate,
+      reason: 'unscoped-candidates',
+      candidates: tier3.jsonCandidates,
+      searched,
+    };
   }
 
-  // No .json manifest anywhere. Before declaring 'absent', check for a yaml-only sibling
-  // at either tier — the file is right there, so this must be 'invalid', never silently
-  // treated as absent (that would recreate this objective's bug in a new location).
-  const yamlFound = tier2.yamlPath || tier3.yamlCandidates[0] || null;
-  if (yamlFound) {
+  // No .json manifest anywhere. Before declaring 'absent', check for a yaml-only Tier 2
+  // sibling — the file is right there, so this must be 'invalid', never silently treated
+  // as absent (that would recreate this objective's bug in a new location). Tier 3 YAML
+  // candidates are deliberately NOT checked here (W0-3): Tier 3 never resolves, and that
+  // includes never promoting an unscoped YAML file to 'invalid' — from Tier 3 everything
+  // is 'absent' (with or without a 'reason').
+  if (tier2.yamlPath) {
     return {
       resolution: 'invalid',
-      manifest_path: yamlFound,
+      manifest_path: tier2.yamlPath,
       reason: 'yaml-manifest-unsupported',
       searched,
     };
@@ -229,6 +247,7 @@ function lookupManifest(cwd, info, uiTrds, visualGate) {
     objective_dir: info.directory,
     ui_trds: uiTrds,
     visual_gate: visualGate,
+    reason: 'none',
     searched,
   };
 }

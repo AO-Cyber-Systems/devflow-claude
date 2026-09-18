@@ -697,7 +697,7 @@ function cmdVerifyFlutterUIEval(cwd, args, raw) {
     // CRITICAL: process.exitCode stays 0 (the function returns before outputRollup, whose
     // verdict-based exit-code logic never runs) — an unrun gate is not a judged failure.
     // `status`/`not_applicable` vocabulary matches flutter-state-coverage.cjs:240.
-    output({
+    const skipPayload = {
       // W0-1 fix round 1: the verifier routes on this skip output (not_applicable |
       // absent | invalid), so it is evidence in the spec's sense too — it must carry
       // the same engine_version/schema_version as the scored-rollup branch below.
@@ -711,7 +711,28 @@ function cmdVerifyFlutterUIEval(cwd, args, raw) {
       ui_trds: target.ui_trds,
       visual_gate: target.visual_gate,
       ok: true,
-    }, raw);
+    };
+    // W0-3 (spec §12.2): Tier 3's 'unscoped-candidates' shape carries a `candidates[]` the
+    // operator can act on. Included in the JSON whenever present (keeps `--raw` machine
+    // consumers — verifier.md Step 8c, ui-eval.md's score step — unchanged: they already
+    // read `resolution`/`reason`/`searched` off this same payload).
+    if (Array.isArray(target.candidates)) skipPayload.candidates = target.candidates;
+
+    if (!raw && Array.isArray(target.candidates) && target.candidates.length > 0) {
+      // Human-facing (no `--raw`) terminal run: name every unscoped candidate and the fix,
+      // rather than making a person read `candidates[]` out of a JSON blob. Machine callers
+      // always pass `--raw` (verifier.md, ui-eval.md) and are unaffected by this branch.
+      let text = '';
+      for (const candidate of target.candidates) {
+        text += `unscoped candidate: ${candidate}\n`;
+      }
+      text += `pass the manifest path explicitly, or author ${target.objective_dir}/evidence/ui_eval/manifest.json\n`;
+      process.stdout.write(text);
+      process.exitCode = 0; // an unrun gate is not a judged failure (matches output()'s exit(0))
+      return;
+    }
+
+    output(skipPayload, raw);
     return;
   }
 

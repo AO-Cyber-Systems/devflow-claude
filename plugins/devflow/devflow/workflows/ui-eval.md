@@ -36,7 +36,7 @@ either a manifest path **or an objective id** and resolves it via `resolveUIEval
 
 1. An explicit path passed in `$ARGUMENTS` that names an existing file.
 2. `.planning/objectives/<obj>/evidence/ui_eval/manifest.json`
-3. `ui_eval/manifests/*.manifest.json` (and `flutter/ui_eval/manifests/*.manifest.json`)
+3. `ui_eval/manifests/*.manifest.json` (and `flutter/ui_eval/manifests/*.manifest.json`) — **never resolves** (W0-3, spec §12.2): any match here reports `resolution: 'absent', reason: 'unscoped-candidates', candidates: [...]` instead of being picked, since a repo-root manifest is not scoped to this objective.
 
 **The engine reads JSON, not YAML.** A `.yaml` manifest resolves to `invalid`, not to
 "absent" — it is reported, not ignored. Do not re-implement this lookup in the agent prose;
@@ -72,7 +72,7 @@ Each `states[]` entry: `{ state_id, verdict: 'pass'|'review'|'fail', is_broken, 
 
 Route by the engine's `resolution` field (the authoritative table is verifier.md Step 8c):
 - `not_applicable` → skip silently, exit 0.
-- `absent` → MISSING — keep the surface on the human-verification list, record a todo to author the manifest.
+- `absent` → MISSING — keep the surface on the human-verification list, record a todo to author the manifest (when `reason: 'unscoped-candidates'`, the todo is to pass one of `candidates[]` explicitly or author the objective-scoped manifest, not to trust an unscoped repo-root file).
 - `invalid` → `gaps:` entry.
 - `resolved` → score per the rollup above.
 Never a hard fail on `not_applicable` or `absent`; only `invalid` and a judged `fail` produce gaps.

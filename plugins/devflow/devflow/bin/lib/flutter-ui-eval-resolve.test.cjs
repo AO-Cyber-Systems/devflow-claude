@@ -209,7 +209,7 @@ test('Case M2 — objective-evidence manifest.json exists -> resolved, manifest.
   assert.strictEqual(result.source, 'objective-evidence');
 });
 
-test('Case M3 — no objective-local manifest, repo-root ui_eval/manifests/*.manifest.json hit', () => {
+test('Case M3 — no objective-local manifest, repo-root ui_eval/manifests/*.manifest.json exists -> absent, reason: unscoped-candidates (W0-3: Tier 3 never resolves)', () => {
   const { cwd } = makeObjectiveTree({
     id: '33',
     slug: 'tier3-hit',
@@ -218,13 +218,18 @@ test('Case M3 — no objective-local manifest, repo-root ui_eval/manifests/*.man
   });
 
   const result = resolveUIEvalTarget(cwd, '33');
-  assert.strictEqual(result.resolution, 'resolved');
-  assert.ok(result.manifest_path.endsWith(path.join('ui_eval', 'manifests', 'web.manifest.json')));
-  assert.ok(Array.isArray(result.manifest.states));
-  assert.strictEqual(result.source, 'repo-manifests');
+  // W0-3 (spec §12.2, aodex#485's cousin): a repo-root manifest is not scoped to this
+  // objective — it must never silently resolve, even when it is the only candidate.
+  assert.strictEqual(result.resolution, 'absent');
+  assert.notStrictEqual(result.resolution, 'resolved', 'Tier 3 must never resolve');
+  assert.strictEqual(result.reason, 'unscoped-candidates');
+  assert.strictEqual(result.manifest, undefined, 'absent must NOT carry a manifest field');
+  assert.ok(Array.isArray(result.candidates) && result.candidates.length === 1);
+  assert.ok(result.candidates[0].endsWith(path.join('ui_eval', 'manifests', 'web.manifest.json')));
+  assert.ok(path.isAbsolute(result.candidates[0]), 'candidates must be absolute paths');
 });
 
-test('Case M3b — tier 3 also searches flutter/ui_eval/manifests/*.manifest.json', () => {
+test('Case M3b — tier 3 also searches flutter/ui_eval/manifests/*.manifest.json, but still never resolves (absent, unscoped-candidates)', () => {
   const { cwd } = makeObjectiveTree({
     id: '33',
     slug: 'tier3-flutter-prefix',
@@ -233,8 +238,29 @@ test('Case M3b — tier 3 also searches flutter/ui_eval/manifests/*.manifest.jso
   });
 
   const result = resolveUIEvalTarget(cwd, '33');
-  assert.strictEqual(result.resolution, 'resolved');
-  assert.ok(result.manifest_path.endsWith(path.join('flutter', 'ui_eval', 'manifests', 'web.manifest.json')));
+  assert.strictEqual(result.resolution, 'absent');
+  assert.strictEqual(result.reason, 'unscoped-candidates');
+  assert.ok(Array.isArray(result.candidates) && result.candidates.length === 1);
+  assert.ok(result.candidates[0].endsWith(path.join('flutter', 'ui_eval', 'manifests', 'web.manifest.json')));
+});
+
+// Case M3c — the RED-task fixture from the W0-3 brief, restated verbatim: an objective dir
+// with no evidence manifest + a single flutter-prefixed Tier 3 candidate must resolve to
+// absent/unscoped-candidates with exactly one candidate listed. Kept alongside M3b (same
+// shape) as the literal case named in the task brief's "Step 1" instructions.
+test('Case M3c — objective dir with no evidence manifest + flutter/ui_eval/manifests/other.manifest.json -> absent, reason: unscoped-candidates, candidates.length === 1', () => {
+  const { cwd } = makeObjectiveTree({
+    id: '33',
+    slug: 'unscoped-other',
+    trds: [{ name: '33-01', frontmatter: { objective: '33-unscoped-other', trd: '"01"', type: 'ui', stack: 'flutter' } }],
+    tier3Files: [{ name: 'other.manifest.json', content: validManifestJSON('M3c'), prefix: 'flutter' }],
+  });
+
+  const result = resolveUIEvalTarget(cwd, '33');
+  assert.strictEqual(result.resolution, 'absent');
+  assert.strictEqual(result.reason, 'unscoped-candidates');
+  assert.strictEqual(result.candidates.length, 1);
+  assert.ok(result.candidates[0].endsWith(path.join('flutter', 'ui_eval', 'manifests', 'other.manifest.json')));
 });
 
 test('Case M4 — precedence: tier 2 AND tier 3 both exist -> tier 2 wins, tier 3 in additional_candidates', () => {
@@ -268,6 +294,11 @@ test('Case M5 — applicable objective, no manifest anywhere -> absent, searched
   assert.ok(result.searched.some(s => s.endsWith(path.join('evidence', 'ui_eval', 'manifest.json'))));
   assert.ok(result.searched.some(s => s.includes(path.join('ui_eval', 'manifests'))));
   assert.ok(result.searched.some(s => s.includes(path.join('flutter', 'ui_eval', 'manifests'))));
+  // Symmetry with the unscoped-candidates 'absent' shape (M3/M3b/M3c): a genuinely empty
+  // Tier 3 still carries a reason, just 'none' instead of 'unscoped-candidates' — and never
+  // a `candidates` field, since there is nothing to list.
+  assert.strictEqual(result.reason, 'none');
+  assert.strictEqual(result.candidates, undefined, 'no candidates were found, so `candidates` must be absent');
 });
 
 test('Case M6 — manifest.json exists but is unparseable -> invalid, distinguishable from absent by resolution', () => {
