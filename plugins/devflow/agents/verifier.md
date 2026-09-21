@@ -511,8 +511,9 @@ xcrun simctl boot "iPhone 15" && xcrun simctl bootstatus "iPhone 15" -b
 
 2. Run flows via Maestro MCP (invoke `maestro mcp` server, or subprocess `maestro test`):
    ```bash
-   ( cd "$PACKAGE_DIR" && maestro test .planning/objectives/"$OBJECTIVE_DIR"/verification/ \
-     --format junit --output "$OBJECTIVE_DIR"/evidence/maestro.xml )
+   REPO_ROOT=$(git rev-parse --show-toplevel)
+   ( cd "$PACKAGE_DIR" && maestro test "$REPO_ROOT"/.planning/objectives/"$OBJECTIVE_DIR"/verification/ \
+     --format junit --output "$REPO_ROOT"/.planning/objectives/"$OBJECTIVE_DIR"/evidence/maestro.xml )
    ```
 
 3. For state inspection between steps, call `maestro hierarchy` — returns JSON view tree (text, resource-id, bounds, clickable, children). Parse to verify expected elements present.
