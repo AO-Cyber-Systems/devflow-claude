@@ -20,6 +20,12 @@
  * Flutter detection is delegated to detectPubspecFlutter from flutter-ui-scope.cjs
  * (locked reuse per OBJECTIVE.md P4 — no reinvented pubspec parse).
  *
+ * Monorepo support (W0-4): the Flutter package may live at `projectDir/pubspec.yaml`
+ * OR `projectDir/flutter/pubspec.yaml` (eden-biz/aodex layout). resolveFlutterPackageDir
+ * (flutter-package-dir.cjs) finds it; every scaffold target path below resolves against
+ * the resulting `packageDir`, while the `.planning/` marker always stays at `projectDir`
+ * (the repo root — where DevFlow's `.planning/` and the executor's cwd live).
+ *
  * Idempotency contract: scaffolding is a no-op on re-run. Presence is decided by
  * checking each target path; the marker is the LAST write so a failed run retries.
  */
@@ -27,7 +33,7 @@
 const fs = require('fs');
 const path = require('path');
 const { output } = require('./helpers.cjs');
-const { detectPubspecFlutter } = require('./flutter-ui-scope.cjs');
+const { resolveFlutterPackageDir } = require('./flutter-package-dir.cjs');
 
 // ─── Canonical scaffold target paths (repo-relative) ─────────────────────────
 
@@ -123,36 +129,37 @@ const PLAYWRIGHT_PROJECT_APPEND = `
  *
  * @param {object} opts
  * @param {string} opts.projectDir - absolute path to the candidate repo root
- * @returns {{ action:'scaffold'|'skip', missing:string[], reason?:string }}
+ * @returns {{ action:'scaffold'|'skip', missing:string[], reason?:string, packageDir?:string, prefix?:string }}
  */
 function checkScaffoldState({ projectDir }) {
   if (!projectDir) {
     return { action: 'skip', missing: [], reason: 'projectDir-required' };
   }
 
-  // Flutter gate — reuse detectPubspecFlutter (no reinvented pubspec parse).
-  const pubspecPath = path.join(projectDir, 'pubspec.yaml');
-  const pubspecContent = fs.existsSync(pubspecPath) ? safeRead(pubspecPath) : '';
-  if (!detectPubspecFlutter(pubspecContent).fired) {
+  // Flutter gate + package-dir resolution — tries projectDir/pubspec.yaml then
+  // projectDir/flutter/pubspec.yaml (monorepo layout). No reinvented pubspec parse.
+  const resolved = resolveFlutterPackageDir(projectDir);
+  if (!resolved) {
     return { action: 'skip', missing: [], reason: 'flutter-not-detected' };
   }
+  const { packageDir, prefix } = resolved;
 
   const missing = [];
 
-  if (!fs.existsSync(path.join(projectDir, MANIFEST_REL))) missing.push('manifest');
-  if (!fs.existsSync(path.join(projectDir, ADAPTER_REL))) missing.push('adapter');
+  if (!fs.existsSync(path.join(packageDir, MANIFEST_REL))) missing.push('manifest');
+  if (!fs.existsSync(path.join(packageDir, ADAPTER_REL))) missing.push('adapter');
 
   const baselineDirsPresent =
-    fs.existsSync(path.join(projectDir, BASELINE_WEB_REL)) &&
-    fs.existsSync(path.join(projectDir, BASELINE_GOLDENS_REL));
+    fs.existsSync(path.join(packageDir, BASELINE_WEB_REL)) &&
+    fs.existsSync(path.join(packageDir, BASELINE_GOLDENS_REL));
   if (!baselineDirsPresent) missing.push('baseline_dirs');
 
-  if (!playwrightProjectPresent(projectDir)) missing.push('playwright_project');
+  if (!playwrightProjectPresent(packageDir)) missing.push('playwright_project');
 
   if (missing.length === 0) {
-    return { action: 'skip', missing: [] };
+    return { action: 'skip', missing: [], packageDir, prefix };
   }
-  return { action: 'scaffold', missing };
+  return { action: 'scaffold', missing, packageDir, prefix };
 }
 
 // ─── scaffoldUIEval (impure writer) ──────────────────────────────────────────
@@ -163,7 +170,7 @@ function checkScaffoldState({ projectDir }) {
  *
  * @param {object} opts
  * @param {string} opts.projectDir - absolute path to the repo root
- * @returns {{ action:'scaffolded'|'skip', created?:string[], missing?:string[], reason?:string }}
+ * @returns {{ action:'scaffolded'|'skip', created?:string[], missing?:string[], reason?:string, packageDir?:string, prefix?:string }}
  */
 function scaffoldUIEval({ projectDir }) {
   const state = checkScaffoldState({ projectDir });
@@ -172,31 +179,32 @@ function scaffoldUIEval({ projectDir }) {
     return state;
   }
 
+  const { packageDir, prefix } = state;
   const created = [];
   const missing = new Set(state.missing);
 
   if (missing.has('manifest')) {
-    const dest = path.join(projectDir, MANIFEST_REL);
+    const dest = path.join(packageDir, MANIFEST_REL);
     fs.mkdirSync(path.dirname(dest), { recursive: true });
     fs.writeFileSync(dest, MANIFEST_SKELETON);
     created.push('manifest');
   }
 
   if (missing.has('adapter')) {
-    const dest = path.join(projectDir, ADAPTER_REL);
+    const dest = path.join(packageDir, ADAPTER_REL);
     fs.mkdirSync(path.dirname(dest), { recursive: true });
     fs.writeFileSync(dest, ADAPTER_STUB);
     created.push('adapter');
   }
 
   if (missing.has('baseline_dirs')) {
-    fs.mkdirSync(path.join(projectDir, BASELINE_WEB_REL), { recursive: true });
-    fs.mkdirSync(path.join(projectDir, BASELINE_GOLDENS_REL), { recursive: true });
+    fs.mkdirSync(path.join(packageDir, BASELINE_WEB_REL), { recursive: true });
+    fs.mkdirSync(path.join(packageDir, BASELINE_GOLDENS_REL), { recursive: true });
     created.push('baseline_dirs');
   }
 
   if (missing.has('playwright_project')) {
-    const dest = path.join(projectDir, PLAYWRIGHT_REL);
+    const dest = path.join(packageDir, PLAYWRIGHT_REL);
     if (!fs.existsSync(dest)) {
       fs.writeFileSync(dest, PLAYWRIGHT_CONFIG_NEW);
     } else {
@@ -210,12 +218,15 @@ function scaffoldUIEval({ projectDir }) {
   }
 
   // Marker LAST — only reached if every earlier write succeeded, so a failed
-  // run leaves no marker and the next run retries the missing pieces.
+  // run leaves no marker and the next run retries the missing pieces. The
+  // marker always lives at the repo root's `.planning/` (projectDir), never
+  // under packageDir — `.planning/` is DevFlow's own bookkeeping location,
+  // not part of the Flutter package.
   const markerPath = path.join(projectDir, MARKER_REL);
   fs.mkdirSync(path.dirname(markerPath), { recursive: true });
   fs.writeFileSync(markerPath, '');
 
-  return { action: 'scaffolded', created };
+  return { action: 'scaffolded', created, packageDir, prefix };
 }
 
 // ─── cmdFlutterUIEvalBootstrap (CLI I/O wrapper) ─────────────────────────────

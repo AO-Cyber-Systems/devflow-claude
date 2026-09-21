@@ -209,7 +209,7 @@ test('Case M2 — objective-evidence manifest.json exists -> resolved, manifest.
   assert.strictEqual(result.source, 'objective-evidence');
 });
 
-test('Case M3 — no objective-local manifest, repo-root ui_eval/manifests/*.manifest.json hit', () => {
+test('Case M3 — no objective-local manifest, repo-root ui_eval/manifests/*.manifest.json exists -> absent, reason: unscoped-candidates (W0-3: Tier 3 never resolves)', () => {
   const { cwd } = makeObjectiveTree({
     id: '33',
     slug: 'tier3-hit',
@@ -218,13 +218,18 @@ test('Case M3 — no objective-local manifest, repo-root ui_eval/manifests/*.man
   });
 
   const result = resolveUIEvalTarget(cwd, '33');
-  assert.strictEqual(result.resolution, 'resolved');
-  assert.ok(result.manifest_path.endsWith(path.join('ui_eval', 'manifests', 'web.manifest.json')));
-  assert.ok(Array.isArray(result.manifest.states));
-  assert.strictEqual(result.source, 'repo-manifests');
+  // W0-3 (spec §12.2, aodex#485's cousin): a repo-root manifest is not scoped to this
+  // objective — it must never silently resolve, even when it is the only candidate.
+  assert.strictEqual(result.resolution, 'absent');
+  assert.notStrictEqual(result.resolution, 'resolved', 'Tier 3 must never resolve');
+  assert.strictEqual(result.reason, 'unscoped-candidates');
+  assert.strictEqual(result.manifest, undefined, 'absent must NOT carry a manifest field');
+  assert.ok(Array.isArray(result.candidates) && result.candidates.length === 1);
+  assert.ok(result.candidates[0].endsWith(path.join('ui_eval', 'manifests', 'web.manifest.json')));
+  assert.ok(path.isAbsolute(result.candidates[0]), 'candidates must be absolute paths');
 });
 
-test('Case M3b — tier 3 also searches flutter/ui_eval/manifests/*.manifest.json', () => {
+test('Case M3b — tier 3 also searches flutter/ui_eval/manifests/*.manifest.json, but still never resolves (absent, unscoped-candidates)', () => {
   const { cwd } = makeObjectiveTree({
     id: '33',
     slug: 'tier3-flutter-prefix',
@@ -233,8 +238,74 @@ test('Case M3b — tier 3 also searches flutter/ui_eval/manifests/*.manifest.jso
   });
 
   const result = resolveUIEvalTarget(cwd, '33');
-  assert.strictEqual(result.resolution, 'resolved');
-  assert.ok(result.manifest_path.endsWith(path.join('flutter', 'ui_eval', 'manifests', 'web.manifest.json')));
+  assert.strictEqual(result.resolution, 'absent');
+  assert.strictEqual(result.reason, 'unscoped-candidates');
+  assert.ok(Array.isArray(result.candidates) && result.candidates.length === 1);
+  assert.ok(result.candidates[0].endsWith(path.join('flutter', 'ui_eval', 'manifests', 'web.manifest.json')));
+});
+
+// Case M3c — the RED-task fixture from the W0-3 brief, restated verbatim: an objective dir
+// with no evidence manifest + a single flutter-prefixed Tier 3 candidate must resolve to
+// absent/unscoped-candidates with exactly one candidate listed. Kept alongside M3b (same
+// shape) as the literal case named in the task brief's "Step 1" instructions.
+test('Case M3c — objective dir with no evidence manifest + flutter/ui_eval/manifests/other.manifest.json -> absent, reason: unscoped-candidates, candidates.length === 1', () => {
+  const { cwd } = makeObjectiveTree({
+    id: '33',
+    slug: 'unscoped-other',
+    trds: [{ name: '33-01', frontmatter: { objective: '33-unscoped-other', trd: '"01"', type: 'ui', stack: 'flutter' } }],
+    tier3Files: [{ name: 'other.manifest.json', content: validManifestJSON('M3c'), prefix: 'flutter' }],
+  });
+
+  const result = resolveUIEvalTarget(cwd, '33');
+  assert.strictEqual(result.resolution, 'absent');
+  assert.strictEqual(result.reason, 'unscoped-candidates');
+  assert.strictEqual(result.candidates.length, 1);
+  assert.ok(result.candidates[0].endsWith(path.join('flutter', 'ui_eval', 'manifests', 'other.manifest.json')));
+});
+
+// Case M3d — Tier 3 YAML no longer promotes to 'invalid' (W0-3 fix round 1). Before this
+// fix, `yamlFound = tier2.yamlPath || tier3.yamlCandidates[0] || null` meant an unscoped
+// Tier 3 .yaml file (no Tier 2 manifest, no Tier 3 JSON candidates) produced
+// `resolution: 'invalid', reason: 'yaml-manifest-unsupported'` — reusing an unscoped file's
+// mere existence to make a claim about THIS objective, the same defect class W0-3 closes
+// for JSON. lookupManifest now checks only `tier2.yamlPath`, so a Tier-3-only YAML file
+// falls all the way through to the ordinary empty-Tier-3 'absent' shape (reason: 'none') —
+// it is not a JSON candidate, so it never populates `candidates` either.
+test("Case M3d — Tier 3 YAML-only (no Tier 2, no Tier 3 JSON) -> absent, reason: 'none', NOT invalid", () => {
+  const { cwd } = makeObjectiveTree({
+    id: '33',
+    slug: 'tier3-yaml-only',
+    trds: [{ name: '33-01', frontmatter: { objective: '33-tier3-yaml-only', trd: '"01"', type: 'ui', stack: 'flutter' } }],
+    tier3Files: [{ name: 'x.manifest.yaml', content: 'states: []\n', prefix: '' }],
+  });
+
+  const result = resolveUIEvalTarget(cwd, '33');
+  assert.strictEqual(result.resolution, 'absent');
+  assert.notStrictEqual(result.resolution, 'invalid', 'an unscoped Tier 3 YAML file must never produce invalid');
+  assert.strictEqual(result.reason, 'none');
+  assert.strictEqual(result.candidates, undefined, 'a YAML-only Tier 3 file is not a JSON candidate');
+});
+
+// Case M3e — PR #81 review finding 1: lookupManifest checked tier3.jsonCandidates.length
+// (-> absent/unscoped-candidates) BEFORE tier2.yamlPath (-> invalid/yaml-manifest-unsupported).
+// An objective with a real Tier-2 YAML manifest sitting right there, plus an unrelated
+// repo-root Tier-3 JSON candidate, must still report 'invalid' — the yaml file is *this*
+// objective's manifest, unsupported format; it must never be masked by an unscoped Tier 3
+// candidate reporting 'absent'.
+test('Case M3e — Tier-2 YAML present + Tier-3 JSON candidate present -> invalid, reason names yaml', () => {
+  const { cwd } = makeObjectiveTree({
+    id: '33',
+    slug: 'yaml-and-tier3-json',
+    trds: [{ name: '33-01', frontmatter: { objective: '33-yaml-and-tier3-json', trd: '"01"', type: 'ui', stack: 'flutter' } }],
+    tier2YamlOnly: true,
+    tier3Files: [{ name: 'other.manifest.json', content: validManifestJSON('M3e'), prefix: '' }],
+  });
+
+  const result = resolveUIEvalTarget(cwd, '33');
+  assert.strictEqual(result.resolution, 'invalid');
+  assert.notStrictEqual(result.resolution, 'absent', 'a real Tier-2 yaml manifest must not be masked by an unscoped Tier-3 JSON candidate');
+  assert.strictEqual(result.reason, 'yaml-manifest-unsupported');
+  assert.ok(result.manifest_path.endsWith('manifest.yaml'), 'manifest_path must name the yaml file found');
 });
 
 test('Case M4 — precedence: tier 2 AND tier 3 both exist -> tier 2 wins, tier 3 in additional_candidates', () => {
@@ -268,6 +339,11 @@ test('Case M5 — applicable objective, no manifest anywhere -> absent, searched
   assert.ok(result.searched.some(s => s.endsWith(path.join('evidence', 'ui_eval', 'manifest.json'))));
   assert.ok(result.searched.some(s => s.includes(path.join('ui_eval', 'manifests'))));
   assert.ok(result.searched.some(s => s.includes(path.join('flutter', 'ui_eval', 'manifests'))));
+  // Symmetry with the unscoped-candidates 'absent' shape (M3/M3b/M3c): a genuinely empty
+  // Tier 3 still carries a reason, just 'none' instead of 'unscoped-candidates' — and never
+  // a `candidates` field, since there is nothing to list.
+  assert.strictEqual(result.reason, 'none');
+  assert.strictEqual(result.candidates, undefined, 'no candidates were found, so `candidates` must be absent');
 });
 
 test('Case M6 — manifest.json exists but is unparseable -> invalid, distinguishable from absent by resolution', () => {

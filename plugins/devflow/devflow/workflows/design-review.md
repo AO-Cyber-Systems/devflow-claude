@@ -35,7 +35,7 @@ OBJECTIVE_DIR=$(echo "$INIT" | node -e 'let s="";process.stdin.on("data",d=>s+=d
 Locate the manifest, in priority order:
 1. A manifest path passed directly in `$ARGUMENTS` (ends in `.json`).
 2. The objective's own manifest: `.planning/objectives/<obj>/evidence/ui_eval/manifest.json`.
-3. The consumer repo's manifests: `flutter/ui_eval/manifests/*.json`.
+3. The consumer repo's manifests: `flutter/ui_eval/manifests/*.json`. This tier-3 glob is a *listing* source only — actual resolution stays objective-scoped (`evidence/ui_eval/manifest.json`), per W0-3.
 
 The manifest declares each state (`state_id`, `surface`, `screenshot_path`, `design_intent`) and a top-level `design_system_path` — the reference anchor TEXT, resolved relative to the manifest dir. (For eden-biz the anchor lives at `flutter/ui_eval/design-system.md`.)
 
@@ -52,7 +52,8 @@ mkdir -p .planning/objectives/$OBJECTIVE_DIR/evidence/ui_eval/
 ```
 
 For each manifest state with a `surface`/route:
-- `browser_navigate(url=...)` against the running dev surface (`flutter run -d chrome` with `?enable-semantics=true`).
+- Build and serve first: `flutter build web --release` (add any `--dart-define` values the project's e2e entry needs), then serve `build/web` with a static server (e.g. `npx serve build/web` or `python3 -m http.server`) and navigate to that URL with `?enable-semantics=true` appended. Never `flutter run -d web-server`/`-d chrome` for capture — DWDS wedges into a blank page with no console error.
+- `browser_navigate(url=...)` against that static URL.
 - `browser_wait_for(text="<landmark>")` — never a fixed sleep.
 - `browser_take_screenshot()` → save to the state's `screenshot_path`.
 </step>

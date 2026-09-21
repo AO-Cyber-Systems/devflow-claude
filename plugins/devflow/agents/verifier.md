@@ -435,7 +435,7 @@ Categorize: 🛑 Blocker (prevents goal) | ⚠️ Warning (incomplete) | ℹ️ 
 **Select backend** from `.planning/project.md` stack (or JOB `must_haves.platform` if set):
 - **Web** (Hugo, Next.js, static, SPA) → Playwright MCP (Step 8a)
 - **Flutter** (mobile or Flutter web) → Maestro MCP (Step 8b)
-- **Flutter web smoke-only** → Playwright MCP against `flutter run -d chrome` with `?enable-semantics=true` (Step 8a, with caveats)
+- **Flutter web smoke-only** → Playwright MCP against a `flutter build web --release` bundle served statically, with `?enable-semantics=true` (Step 8a, with caveats). Never `flutter run -d web-server`/`-d chrome` for capture — DWDS wedges into a blank page with no console error.
 
 Unknown stack → skip with status `? SKIPPED (stack not detected)`.
 
@@ -470,6 +470,8 @@ Unknown stack → skip with status `? SKIPPED (stack not detected)`.
 
 ### Step 8b: Flutter — Maestro MCP
 
+`$PACKAGE_DIR` is `.packageDir` from `df-tools verify flutter-ui-bootstrap . --raw` (repo root in a single-package repo, `flutter/` in a monorepo); run every flutter/adb/maestro command below from `$PACKAGE_DIR` in a subshell — `( cd "$PACKAGE_DIR" && <cmd> )` — while evidence paths stay absolute from the repo root.
+
 **Prereqs (check, do not install):**
 ```bash
 command -v maestro >/dev/null || { echo "maestro not installed — skip with SKIPPED status"; }
@@ -487,9 +489,9 @@ xcrun simctl boot "iPhone 15" && xcrun simctl bootstatus "iPhone 15" -b
 
 **Build and install the app:**
 ```bash
-flutter build apk --debug
-adb install -r build/app/outputs/flutter-apk/app-debug.apk
-# or for iOS: flutter build ios --debug && xcrun simctl install booted build/ios/iphonesimulator/Runner.app
+( cd "$PACKAGE_DIR" && flutter build apk --debug )
+( cd "$PACKAGE_DIR" && adb install -r build/app/outputs/flutter-apk/app-debug.apk )
+# or for iOS: ( cd "$PACKAGE_DIR" && flutter build ios --debug && xcrun simctl install booted build/ios/iphonesimulator/Runner.app )
 ```
 
 **Protocol:**
@@ -509,8 +511,9 @@ adb install -r build/app/outputs/flutter-apk/app-debug.apk
 
 2. Run flows via Maestro MCP (invoke `maestro mcp` server, or subprocess `maestro test`):
    ```bash
-   maestro test .planning/objectives/"$OBJECTIVE_DIR"/verification/ \
-     --format junit --output "$OBJECTIVE_DIR"/evidence/maestro.xml
+   REPO_ROOT=$(git rev-parse --show-toplevel)
+   ( cd "$PACKAGE_DIR" && maestro test "$REPO_ROOT"/.planning/objectives/"$OBJECTIVE_DIR"/verification/ \
+     --format junit --output "$REPO_ROOT"/.planning/objectives/"$OBJECTIVE_DIR"/evidence/maestro.xml )
    ```
 
 3. For state inspection between steps, call `maestro hierarchy` — returns JSON view tree (text, resource-id, bounds, clickable, children). Parse to verify expected elements present.
@@ -519,7 +522,7 @@ adb install -r build/app/outputs/flutter-apk/app-debug.apk
 
 5. Cleanup: `adb emu kill` or `xcrun simctl shutdown booted` if started here.
 
-**Flutter semantics note:** Maestro reads Flutter's SemanticsNode tree automatically. No extra config needed on mobile. For Flutter web, launch with `flutter run -d chrome --web-renderer html` and append `?enable-semantics=true` to the URL so Playwright sees a real a11y tree.
+**Flutter semantics note:** Maestro reads Flutter's SemanticsNode tree automatically. No extra config needed on mobile. For Flutter web, run `flutter build web --release`, serve `build/web` statically, and append `?enable-semantics=true` to the URL so Playwright sees a real a11y tree. Never `flutter run -d web-server`/`-d chrome` for capture — DWDS wedges into a blank page with no console error.
 
 ### Step 8b: Maestro orphan-flow detection (REQ-10-05)
 
@@ -581,7 +584,7 @@ The engine resolves `"$OBJECTIVE"` to a manifest — or explains why it could no
 | `resolution` | Meaning | Action |
 |---|---|---|
 | `not_applicable` | No TRD in this objective is `type: ui` + `stack: flutter` | **Skip silently.** No VERIFICATION.md entry, no note, exit 0. Unchanged behaviour for non-Flutter objectives. |
-| `absent` | UI TRDs exist; no manifest at any location in `searched[]` | **`? MISSING (no ui-eval manifest)`** — append a `notes:` entry naming `searched[]`, **KEEP the surface on the Step 9 `human_verification:` list**, and record a todo to author the manifest. Nothing judged this surface, so a human still must. **Escalate to a `gaps:` entry when the objective declares `visual_gate: true`** (the ratchet: an objective planned after the gate became auto-required has no excuse). |
+| `absent` | UI TRDs exist; no manifest at any location in `searched[]` | **`? MISSING (no ui-eval manifest)`** — append a `notes:` entry naming `searched[]`, **KEEP the surface on the Step 9 `human_verification:` list**, and record a todo to author the manifest. Nothing judged this surface, so a human still must. When `reason: 'unscoped-candidates'`, a repo-root `ui_eval/manifests/*.manifest.json` exists but is **never** auto-picked (W0-3) — name `candidates[]` in the todo instead of assuming one applies to this objective. **Escalate to a `gaps:` entry when the objective declares `visual_gate: true`** (the ratchet: an objective planned after the gate became auto-required has no excuse). |
 | `invalid` | A manifest was found but could not be loaded | **`gaps:` entry** carrying the parse reason. A broken gate is a defect, not an absence — never report it as MISSING. |
 | `resolved` | Manifest loaded and scored | Route the scoreRun rollup per the verdict rules below. |
 

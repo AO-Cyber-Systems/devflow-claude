@@ -118,6 +118,15 @@ test.describe('scoreRun (run-level rollup)', () => {
     assert.deepStrictEqual(run.fails, ['new']);           // only the NEW regression
     assert.deepStrictEqual(run.known_failing, ['known']); // the known one is tracked, not a regression
   });
+
+  // W0-1: every scoreRun output must carry engine_version + schema_version so a
+  // verifier can reject evidence produced by a stale engine (a stale mirror
+  // silently passed unjudged states once).
+  test('Case R7 — scoreRun stamps engine_version and schema_version', () => {
+    const run = scoreRun([{ state_id: 's1', verdict: 'pass' }], {});
+    assert.match(run.engine_version, /^\d+\.\d+\.\d+$/);
+    assert.equal(run.schema_version, 1);
+  });
 });
 
 // ──────────────────────────────────────────────────────────────────────────────

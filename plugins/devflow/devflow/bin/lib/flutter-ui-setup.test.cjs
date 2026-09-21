@@ -361,8 +361,12 @@ test.describe('cmdFlutterUISetup integration (TRD 10-09 cases 6-10)', () => {
     assert.ok(payload.bootstrap, `expected payload.bootstrap to be present; got: ${JSON.stringify(payload)}`);
 
     // Compare against the pure-function checkBootstrapState for the same project.
+    // W0-4: checkBootstrapState now echoes an absolute `packageDir`, resolved from
+    // the CLI subprocess's `process.cwd()` — which Node (and the OS) resolve through
+    // any symlinks (macOS: /var/folders → /private/var/folders). Feed the same
+    // realpath in here so the comparison isn't just a symlink-alias mismatch.
     const { checkBootstrapState } = require('./flutter-ui-bootstrap.cjs');
-    const expectedBootstrap = checkBootstrapState({ projectDir: projectRoot });
+    const expectedBootstrap = checkBootstrapState({ projectDir: fs.realpathSync(projectRoot) });
     assert.deepStrictEqual(payload.bootstrap, expectedBootstrap);
     // Sanity: this fixture should warn (no marker + missing infra).
     assert.strictEqual(payload.bootstrap.action, 'warn');
@@ -395,8 +399,9 @@ test.describe('cmdFlutterUISetup integration (TRD 10-09 cases 6-10)', () => {
       `expected payload.bootstrap to be present in no-daemon-but-tools-present case; got: ${JSON.stringify(payload)}`);
 
     // Compare against the pure-function checkBootstrapState for the same project.
+    // W0-4: see the realpath note in Case 7 above — same reasoning applies here.
     const { checkBootstrapState } = require('./flutter-ui-bootstrap.cjs');
-    const expectedBootstrap = checkBootstrapState({ projectDir: projectRoot });
+    const expectedBootstrap = checkBootstrapState({ projectDir: fs.realpathSync(projectRoot) });
     assert.deepStrictEqual(payload.bootstrap, expectedBootstrap);
     // Sanity: this fixture should warn (no marker + missing infra).
     assert.strictEqual(payload.bootstrap.action, 'warn');
@@ -542,6 +547,26 @@ test.describe('detectFlutterRepo (TRD 10-09 Case 12 — Flutter-repo guard)', ()
     assert.strictEqual(result.isFlutterRepo, true,
       `expected isFlutterRepo:true when version constraint absent (advisory); got ${JSON.stringify(result)}`);
     assert.strictEqual(result.checks.minVersion, null);
+  });
+
+  test('Case 12g (W0-4 fix round 1) — monorepo: only flutter/pubspec.yaml present → NOT not-a-flutter-project, packageDir ends with /flutter', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'flutter-repo-fixture-mono-'));
+    const flutterDir = path.join(tmp, 'flutter');
+    fs.mkdirSync(path.join(flutterDir, 'lib'), { recursive: true });
+    fs.writeFileSync(
+      path.join(flutterDir, 'pubspec.yaml'),
+      'name: test_repo\nenvironment:\n  sdk: ">=3.2.0 <4.0.0"\n  flutter: ">=3.16.0"\ndependencies:\n  flutter:\n    sdk: flutter\n'
+    );
+    // Sanity: nothing Flutter-shaped at the repo root itself.
+    assert.ok(!fs.existsSync(path.join(tmp, 'pubspec.yaml')));
+
+    const result = detectFlutterRepo({ cwd: tmp });
+    assert.strictEqual(result.isFlutterRepo, true,
+      `expected isFlutterRepo:true for a monorepo flutter/ package (not not-a-flutter-project); got ${JSON.stringify(result)}`);
+    assert.deepStrictEqual(result.failures, []);
+    assert.ok(result.packageDir, 'result carries packageDir');
+    assert.ok(result.packageDir.endsWith(`${path.sep}flutter`), `packageDir "${result.packageDir}" ends with /flutter`);
+    assert.strictEqual(result.prefix, 'flutter');
   });
 
 });
