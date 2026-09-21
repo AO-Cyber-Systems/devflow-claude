@@ -1,0 +1,341 @@
+<title>UI Oracle Loop — Progress Map</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --bg: #F4F7F8; --surface: #FFFFFF; --ink: #16202A; --ink-2: #4B5966; --line: #D5DDE2;
+    --accent: #0E8388; --accent-soft: #DDF1F2;
+    --warn: #9A6414; --warn-soft: #FBF0DA; --bad: #B8322F; --bad-soft: #F9E3E2;
+    --good: #2F7D4F; --good-soft: #DFF1E5; --pend: #7A8894; --pend-soft: #EDF1F3;
+    --code-bg: #EEF2F4; --code-ink: #1C2A34;
+    --display: "Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif;
+    --body: "Atkinson Hyperlegible", "Helvetica Neue", Arial, sans-serif;
+    --mono: "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0F171D; --surface: #16222B; --ink: #E4ECF0; --ink-2: #9FB0BC; --line: #2A3945;
+      --accent: #4CC9CF; --accent-soft: #123A3D;
+      --warn: #E0A94A; --warn-soft: #3A2D12; --bad: #E5716C; --bad-soft: #3E1C1B;
+      --good: #6CC08B; --good-soft: #15331F; --pend: #7F909C; --pend-soft: #1C2830;
+      --code-bg: #0B1218; --code-ink: #D6E0E6;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0F171D; --surface: #16222B; --ink: #E4ECF0; --ink-2: #9FB0BC; --line: #2A3945;
+    --accent: #4CC9CF; --accent-soft: #123A3D;
+    --warn: #E0A94A; --warn-soft: #3A2D12; --bad: #E5716C; --bad-soft: #3E1C1B;
+    --good: #6CC08B; --good-soft: #15331F; --pend: #7F909C; --pend-soft: #1C2830;
+    --code-bg: #0B1218; --code-ink: #D6E0E6;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.5; }
+  a { color: var(--accent); }
+  code, .mono { font-family: var(--mono); font-size: .9em; }
+  .page { max-width: 1180px; margin: 0 auto; padding: 32px 28px 80px; }
+  h1, h2, h3 { font-family: var(--display); margin: 0; line-height: 1.1; text-wrap: balance; }
+  h1 { font-size: 38px; font-weight: 700; }
+  h2 { font-size: 22px; font-weight: 600; }
+  h3 { font-size: 17px; font-weight: 600; }
+  .eyebrow { font-family: var(--mono); font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+  .muted { color: var(--ink-2); }
+  header { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 16px 32px; align-items: end; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
+  .now { margin-top: 10px; font-size: 17px; max-width: 70ch; }
+  .now b { color: var(--accent); }
+  .meta { font-size: 13px; color: var(--ink-2); text-align: right; white-space: nowrap; }
+  .meta div { margin: 2px 0; }
+  section { padding: 26px 0 6px; }
+  .grid2 { display: grid; grid-template-columns: minmax(0,1.4fr) minmax(0,1fr); gap: 20px; }
+  @media (max-width: 860px) { .grid2 { grid-template-columns: minmax(0,1fr); } header { grid-template-columns: minmax(0,1fr); } .meta { text-align: left; } }
+
+  /* status */
+  .chip { display: inline-block; font-family: var(--mono); font-size: 11.5px; padding: 1px 8px; border-radius: 3px; white-space: nowrap; }
+  .s-done { color: var(--good); background: var(--good-soft); }
+  .s-active { color: var(--accent); background: var(--accent-soft); }
+  .s-review, .s-fix { color: var(--warn); background: var(--warn-soft); }
+  .s-blocked-user { color: var(--bad); background: var(--bad-soft); }
+  .s-pending { color: var(--pend); background: var(--pend-soft); }
+  .stripe { width: 4px; border-radius: 2px; align-self: stretch; }
+  .c-done { background: var(--good); } .c-active { background: var(--accent); } .c-review, .c-fix { background: var(--warn); } .c-blocked-user { background: var(--bad); } .c-pending { background: var(--pend); }
+
+  /* waiting panel */
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; }
+  .panel.alert { border-color: var(--bad); }
+  .panel ul { margin: 8px 0 0; padding-left: 18px; }
+  .panel li { margin: 5px 0; }
+
+  /* map */
+  .map { overflow-x: auto; margin-top: 12px; }
+  .map svg { display: block; max-width: 100%; height: auto; font-family: var(--mono); font-size: 11.5px; }
+
+  /* wave cards */
+  .waves { display: grid; gap: 10px; margin-top: 12px; }
+  .wave { display: grid; grid-template-columns: 6px minmax(0,1fr); gap: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px 12px 12px; }
+  .wave-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
+  .wave-head .id { font-family: var(--mono); font-size: 12px; color: var(--ink-2); }
+  .wave-head .size { font-size: 12.5px; color: var(--ink-2); margin-left: auto; }
+  .outcome { margin: 6px 0 2px; font-size: 14px; max-width: 80ch; }
+  .bar { height: 6px; background: var(--pend-soft); border-radius: 3px; margin: 8px 0 6px; overflow: hidden; display: flex; }
+  .bar i { display: block; height: 100%; }
+  .bar .b-done { background: var(--good); } .bar .b-active { background: var(--accent); } .bar .b-fix, .bar .b-review { background: var(--warn); } .bar .b-blocked-user { background: var(--bad); }
+  details summary { cursor: pointer; font-size: 13px; color: var(--ink-2); list-style: none; }
+  details summary::-webkit-details-marker { display: none; }
+  details summary::before { content: "▸ "; } details[open] summary::before { content: "▾ "; }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; margin-top: 8px; }
+  th, td { text-align: left; vertical-align: top; padding: 6px 10px; border-bottom: 1px solid var(--line); }
+  th { font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); font-weight: 500; }
+  tr:last-child td { border-bottom: 0; }
+  td.id { font-family: var(--mono); font-size: 12px; white-space: nowrap; }
+  td .note { display: block; color: var(--ink-2); font-size: 12.5px; }
+  td .gate { display: block; color: var(--bad); font-size: 12.5px; }
+
+  /* rulings */
+  .rulings { display: grid; gap: 8px; margin-top: 10px; }
+  .ruling { display: grid; grid-template-columns: 86px 70px minmax(0,1fr); gap: 12px; font-size: 13.5px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .ruling:last-child { border-bottom: 0; }
+  .ruling .k { font-family: var(--mono); font-size: 12px; color: var(--ink-2); }
+  .ruling .cost { display: block; color: var(--ink-2); font-size: 12.5px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12.5px; color: var(--ink-2); margin-top: 8px; }
+</style>
+
+<div class="page">
+  <header>
+    <div>
+      <div class="eyebrow">Progress map · updated <span id="updated"></span></div>
+      <h1 id="title">UI Oracle Loop</h1>
+      <p class="now" id="now"></p>
+    </div>
+    <div class="meta" id="meta"></div>
+  </header>
+
+  <section>
+    <div class="grid2">
+      <div>
+        <div class="eyebrow">Waiting on you</div>
+        <div class="panel alert" id="waiting"></div>
+      </div>
+      <div>
+        <div class="eyebrow">Legend</div>
+        <div class="panel"><div class="legend" id="legend"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">Dependency map</div>
+    <h2>Waves and what gates what</h2>
+    <div class="map" id="map"></div>
+  </section>
+
+  <section>
+    <div class="eyebrow">Tasks</div>
+    <h2>Where each wave stands</h2>
+    <div class="waves" id="waves"></div>
+  </section>
+
+  <section>
+    <div class="grid2">
+      <div>
+        <div class="eyebrow">Rulings made on your behalf</div>
+        <h2>Decisions you can undo</h2>
+        <div class="rulings" id="rulings"></div>
+      </div>
+      <div>
+        <div class="eyebrow">Deferred minors</div>
+        <div class="panel" id="minors"></div>
+        <div class="eyebrow" style="margin-top:18px">Metrics</div>
+        <div class="panel" id="metrics"></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script type="application/json" id="progress">__PROGRESS_JSON__</script>
+<script>
+(function () {
+  const P = JSON.parse(document.getElementById('progress').textContent);
+
+  // ---- DOM-building helpers: nodes only, never HTML strings ----
+  function applyAttrs(el, attrs) {
+    if (!attrs) return;
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v == null || v === false) continue;
+      el.setAttribute(k, v === true ? '' : v);
+    }
+  }
+  function appendChildren(el, children) {
+    children.flat(Infinity).forEach(c => {
+      if (c == null || c === false) return;
+      el.appendChild(c.nodeType ? c : document.createTextNode(String(c)));
+    });
+  }
+  function h(tag, attrs, ...children) {
+    const el = document.createElement(tag);
+    applyAttrs(el, attrs);
+    appendChildren(el, children);
+    return el;
+  }
+  function s(tag, attrs, ...children) {
+    const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    applyAttrs(el, attrs);
+    appendChildren(el, children);
+    return el;
+  }
+  function mount(el, ...children) {
+    while (el.firstChild) el.removeChild(el.firstChild);
+    appendChildren(el, children);
+  }
+  // The only place a class name is built from data: validate against the known
+  // status set first, so an unexpected status value can never reach a class attribute.
+  function validStatus(st) {
+    return Object.prototype.hasOwnProperty.call(P.status_legend, st) ? st : 'pending';
+  }
+  function chip(status) {
+    const st = validStatus(status);
+    return h('span', { class: 'chip s-' + st }, st);
+  }
+
+  document.getElementById('updated').textContent = new Date(P.updated).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  document.getElementById('title').textContent = P.program;
+  mount(document.getElementById('now'), h('b', null, 'Now:'), ' ' + P.now);
+
+  const metaChildren = [
+    h('div', null, 'spec ', h('code', null, P.spec)),
+    h('div', null, 'plan ', h('code', null, P.plan)),
+  ];
+  if (P.explainer_artifact && P.explainer_artifact.startsWith('http')) {
+    metaChildren.push(h('div', null, h('a', { href: P.explainer_artifact }, 'plain-language explainer')));
+  }
+  if (P.design_artifact) {
+    metaChildren.push(h('div', null, h('a', { href: P.design_artifact }, 'design page (technical)')));
+  }
+  mount(document.getElementById('meta'), metaChildren);
+
+  mount(document.getElementById('waiting'), P.waiting_on_user.length
+    ? h('ul', null, P.waiting_on_user.map(w => h('li', null, h('b', { class: 'mono' }, w.id), ' — ' + w.what)))
+    : h('span', { class: 'muted' }, 'Nothing — the loop is running unattended.'));
+
+  const legendChildren = [];
+  Object.entries(P.status_legend).forEach(([k, v]) => {
+    legendChildren.push(chip(k));
+    legendChildren.push(' ' + v);
+  });
+  mount(document.getElementById('legend'), legendChildren);
+
+  // ---- dependency map (SVG) ----
+  const cols = [['W0'], ['W1a', 'W1b', 'W1c'], ['W1★'], ['W2'], ['W3'], ['W4']];
+  const W = 190, H = 58, GX = 60, GY = 16, PAD = 12;
+  const pos = {};
+  const rows = Math.max(...cols.map(c => c.length));
+  const totalH = rows * H + (rows - 1) * GY + PAD * 2;
+  cols.forEach((c, ci) => {
+    const colH = c.length * H + (c.length - 1) * GY;
+    const y0 = (totalH - colH) / 2;
+    c.forEach((id, ri) => { pos[id] = { x: PAD + ci * (W + GX), y: y0 + ri * (H + GY) }; });
+  });
+  const totalW = PAD * 2 + cols.length * W + (cols.length - 1) * GX;
+  const color = st => ({ done: 'var(--good)', active: 'var(--accent)', fix: 'var(--warn)', review: 'var(--warn)', 'blocked-user': 'var(--bad)', pending: 'var(--pend)' }[st] || 'var(--pend)');
+  const progress = w => { const t = w.tasks || []; const d = t.filter(x => x.status === 'done').length; return t.length ? `${d}/${t.length}` : ''; };
+
+  const defs = s('defs', null,
+    s('marker', { id: 'm', viewBox: '0 0 10 10', refX: '9', refY: '5', markerWidth: '7', markerHeight: '7', orient: 'auto' },
+      s('path', { d: 'M0,0 L10,5 L0,10 z', fill: 'currentColor' })));
+
+  const edgePaths = [];
+  P.waves.forEach(w => (w.depends_on || []).forEach(d => {
+    const a = pos[d], b = pos[w.id]; if (!a || !b) return;
+    const x1 = a.x + W, y1 = a.y + H / 2, x2 = b.x, y2 = b.y + H / 2, mx = (x1 + x2) / 2;
+    edgePaths.push(s('path', {
+      d: `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2 - 2},${y2}`,
+      fill: 'none', stroke: 'currentColor', 'stroke-opacity': '.55', 'marker-end': 'url(#m)'
+    }));
+  }));
+
+  const nodeGroups = [];
+  P.waves.forEach(w => {
+    const p = pos[w.id]; if (!p) return;
+    const st = validStatus(w.status);
+    const title = w.title.length > 30 ? w.title.slice(0, 29) + '…' : w.title;
+    const repoText = ((r) => r.length > 30 ? r.slice(0, 29) + '…' : r)((w.repos || []).join(' · '));
+    nodeGroups.push(s('g', null,
+      s('rect', { x: p.x, y: p.y, width: W, height: H, rx: 5, fill: 'var(--surface)', stroke: color(st), 'stroke-width': st === 'pending' ? 1 : 2 }),
+      s('rect', { x: p.x, y: p.y, width: 5, height: H, rx: 2, fill: color(st) }),
+      s('text', { x: p.x + 14, y: p.y + 20, 'font-weight': 500, fill: 'currentColor' },
+        w.id + ' ',
+        s('tspan', { fill: 'var(--ink-2)' }, w.status),
+        ' ',
+        s('tspan', { fill: 'var(--ink-2)' }, progress(w))
+      ),
+      s('text', { x: p.x + 14, y: p.y + 38, fill: 'var(--ink-2)', 'font-size': 10.5 }, title),
+      s('text', { x: p.x + 14, y: p.y + 51, fill: 'var(--ink-2)', 'font-size': 10 }, repoText)
+    ));
+  });
+
+  const svg = s('svg', {
+    viewBox: `0 0 ${totalW} ${totalH}`, role: 'img',
+    'aria-label': 'Wave dependency map: W0 gates W1a, W1b and W1c; those gate the dogfood W1★; W1★ gates W2; W2 and W1c gate W3; W3 gates W4.'
+  }, defs, edgePaths, nodeGroups);
+  mount(document.getElementById('map'), svg);
+
+  // ---- wave cards ----
+  const waveEls = P.waves.map(w => {
+    const t = w.tasks || [];
+    const counts = {};
+    t.forEach(x => counts[x.status] = (counts[x.status] || 0) + 1);
+    let bar = null;
+    if (t.length) {
+      const bars = ['done', 'active', 'fix', 'review', 'blocked-user']
+        .filter(st => counts[st])
+        .map(st => h('i', { class: 'b-' + st, style: `width:${(counts[st] / t.length) * 100}%` }));
+      bar = h('div', { class: 'bar' }, bars);
+    }
+    const rows = t.map(x => {
+      const titleCell = [x.title];
+      if (x.note) titleCell.push(h('span', { class: 'note' }, x.note));
+      if (x.gate) titleCell.push(h('span', { class: 'gate' }, 'gate: ' + x.gate));
+      const statusCell = [chip(x.status)];
+      if (x.round) statusCell.push(' ', h('span', { class: 'mono muted' }, x.round));
+      return h('tr', null,
+        h('td', { class: 'id' }, x.id),
+        h('td', null, titleCell),
+        h('td', null, statusCell),
+        h('td', { class: 'mono muted' }, x.commits || ''));
+    });
+    const sizeParts = [w.size || ''];
+    if (w.depends_on && w.depends_on.length) sizeParts.push(' · after ' + w.depends_on.join(', '));
+    const bodyChildren = [
+      h('div', { class: 'wave-head' },
+        h('span', { class: 'id' }, w.id),
+        h('h3', null, w.title),
+        chip(w.status),
+        h('span', { class: 'size' }, sizeParts.join('')))
+    ];
+    if (w.outcome) bodyChildren.push(h('p', { class: 'outcome' }, w.outcome));
+    if (bar) bodyChildren.push(bar);
+    const summary = h('summary', null, `${t.length} task${t.length === 1 ? '' : 's'} · ${(w.repos || []).join(' · ')}`);
+    const table = h('table', null,
+      h('thead', null, h('tr', null, h('th', null, 'id'), h('th', null, 'task'), h('th', null, 'status'), h('th', null, 'commits'))),
+      h('tbody', null, rows));
+    bodyChildren.push(h('details', w.status !== 'pending' ? { open: true } : null, summary, table));
+    return h('div', { class: 'wave' },
+      h('div', { class: 'stripe c-' + validStatus(w.status) }),
+      h('div', null, bodyChildren));
+  });
+  mount(document.getElementById('waves'), waveEls);
+
+  mount(document.getElementById('rulings'), P.rulings.length
+    ? P.rulings.map(r => h('div', { class: 'ruling' },
+        h('span', { class: 'k' }, r.when),
+        h('span', { class: 'k' }, r.task),
+        h('span', null, r.ruling, h('span', { class: 'cost' }, 'if wrong: ' + r.cost_if_wrong))))
+    : h('span', { class: 'muted' }, 'None yet.'));
+
+  mount(document.getElementById('minors'), P.deferred_minors.length
+    ? h('ul', null, P.deferred_minors.map(m => h('li', null, h('b', { class: 'mono' }, m.task), ' — ' + m.note)))
+    : h('span', { class: 'muted' }, 'None.'));
+
+  const M = P.metrics || {};
+  mount(document.getElementById('metrics'), M.baseline
+    ? h('pre', { class: 'mono' }, JSON.stringify(M.baseline, null, 1))
+    : h('span', { class: 'muted' }, M.note || 'No baseline yet.'));
+})();
+</script>
