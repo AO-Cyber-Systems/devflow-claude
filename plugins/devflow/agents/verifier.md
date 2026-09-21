@@ -470,6 +470,8 @@ Unknown stack → skip with status `? SKIPPED (stack not detected)`.
 
 ### Step 8b: Flutter — Maestro MCP
 
+`$PACKAGE_DIR` is `.packageDir` from `df-tools verify flutter-ui-bootstrap . --raw` (repo root in a single-package repo, `flutter/` in a monorepo); run every flutter/adb/maestro command below from `$PACKAGE_DIR` in a subshell — `( cd "$PACKAGE_DIR" && <cmd> )` — while evidence paths stay absolute from the repo root.
+
 **Prereqs (check, do not install):**
 ```bash
 command -v maestro >/dev/null || { echo "maestro not installed — skip with SKIPPED status"; }
@@ -487,9 +489,9 @@ xcrun simctl boot "iPhone 15" && xcrun simctl bootstatus "iPhone 15" -b
 
 **Build and install the app:**
 ```bash
-flutter build apk --debug
-adb install -r build/app/outputs/flutter-apk/app-debug.apk
-# or for iOS: flutter build ios --debug && xcrun simctl install booted build/ios/iphonesimulator/Runner.app
+( cd "$PACKAGE_DIR" && flutter build apk --debug )
+( cd "$PACKAGE_DIR" && adb install -r build/app/outputs/flutter-apk/app-debug.apk )
+# or for iOS: ( cd "$PACKAGE_DIR" && flutter build ios --debug && xcrun simctl install booted build/ios/iphonesimulator/Runner.app )
 ```
 
 **Protocol:**
@@ -509,8 +511,8 @@ adb install -r build/app/outputs/flutter-apk/app-debug.apk
 
 2. Run flows via Maestro MCP (invoke `maestro mcp` server, or subprocess `maestro test`):
    ```bash
-   maestro test .planning/objectives/"$OBJECTIVE_DIR"/verification/ \
-     --format junit --output "$OBJECTIVE_DIR"/evidence/maestro.xml
+   ( cd "$PACKAGE_DIR" && maestro test .planning/objectives/"$OBJECTIVE_DIR"/verification/ \
+     --format junit --output "$OBJECTIVE_DIR"/evidence/maestro.xml )
    ```
 
 3. For state inspection between steps, call `maestro hierarchy` — returns JSON view tree (text, resource-id, bounds, clickable, children). Parse to verify expected elements present.

@@ -35,7 +35,7 @@ OBJECTIVE_DIR=$(echo "$INIT" | node -e 'let s="";process.stdin.on("data",d=>s+=d
 Locate the manifest, in priority order:
 1. A manifest path passed directly in `$ARGUMENTS` (ends in `.json`).
 2. The objective's own manifest: `.planning/objectives/<obj>/evidence/ui_eval/manifest.json`.
-3. The consumer repo's manifests: `flutter/ui_eval/manifests/*.json`.
+3. The consumer repo's manifests: `flutter/ui_eval/manifests/*.json`. This tier-3 glob is a *listing* source only — actual resolution stays objective-scoped (`evidence/ui_eval/manifest.json`), per W0-3.
 
 The manifest declares each state (`state_id`, `surface`, `screenshot_path`, `design_intent`) and a top-level `design_system_path` — the reference anchor TEXT, resolved relative to the manifest dir. (For eden-biz the anchor lives at `flutter/ui_eval/design-system.md`.)
 
