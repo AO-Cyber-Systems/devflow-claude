@@ -144,6 +144,9 @@ Report final status.
 | W006 | warning | Objective in ROADMAP but no directory | No |
 | W007 | warning | Objective on disk but not in ROADMAP | No |
 | I001 | info | Plan without SUMMARY (may be in progress) | No |
+| E020 | error | mirror behind installed plugin (~/.claude/devflow stale) | No |
+| W021 | warning | installed plugin behind origin/main | No |
+| I022 | info | mirror ahead of installed plugin (dev checkout) | No |
 
 </error_codes>
 
