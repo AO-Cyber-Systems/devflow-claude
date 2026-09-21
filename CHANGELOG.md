@@ -6,6 +6,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.8.0] - 2026-09-21
+
+Wave 0 of the UI Oracle Loop (`docs/PROPOSAL-ui-oracle-loop.md`): the visual gate stops lying, resolution is objective-scoped, health reports engine lag, monorepo Flutter packages resolve, and a UI-loop baseline metric ships.
+
 ### Added
 - **`df-tools ui metrics baseline`** — classifies conventional-commit subjects touching the given `--paths` since `--since` into feat/fix/test/refactor/other, computes `fix_per_feat` and a quick-fix count, and writes `.planning/ui-metrics-baseline.json`: the "before" numbers for the UI-process redesign, so later waves can prove improvement against a measured baseline rather than a guess (W0-6). A non-repo cwd, a flag without a value, or an unknown subcommand all exit 1 with a one-line error on stderr (2b16873)
 
