@@ -3,20 +3,24 @@
   "spec": "devflow-claude/docs/PROPOSAL-ui-oracle-loop.md",
   "plan": "devflow-claude/docs/IMPLEMENTATION-PLAN-ui-oracle-loop.md",
   "design_artifact": "https://claude.ai/code/artifact/5029f906-28d2-418f-8f38-b03923725985",
-  "updated": "2026-09-18T23:30:00Z",
-  "now": "Wave 0: both code PRs passed /code-review + fix rounds and are merge-ready — devflow-claude #81 (at 3ebdf28, with #80 docs incl. §21 retrospective) and eden-biz #776 (at 130f055bd; 9 anchor paraphrases disclosed on the PR). Waiting on your merges, pin-bump approvals, plugin upgrade.",
+  "updated": "2026-09-21T16:30:00Z",
+  "now": "Findings addressed: #81 follow-ups landed (+ issues #82/#83), #80 CodeQL fixed and plan amended (1b-07 harness; binding runtime-model + /code-review), #776 rebased on main with gates green. All three PRs CLEAN. Waiting on your decisions below.",
   "waiting_on_user": [
     {
       "id": "merge",
-      "what": "Review/merge devflow-claude #80 + #81 together and eden-biz #776 (I ask before merging, per your rule). Then tag devflow 2.8.0 (changelog gate is ready)."
+      "what": "Merge devflow-claude #80 + #81 together and eden-biz #776. All CI green; /code-review findings fixed. Then tag devflow 2.8.0 (bump three version files + `changelog update`)."
+    },
+    {
+      "id": "#776 anchors",
+      "what": "9 judge-anchor paraphrases (6 portal_support_chat, 2 archetype_experience case-only) — keep the YAML wording (my ruling) or have the old JSON wording restored? Listed on the PR."
     },
     {
       "id": "W0-8c",
-      "what": "Approve the pin-bump PRs: eden-biz eden_ui_flutter → v2.1.0 (#753); aodex pin comment fix (#585)."
+      "what": "Approve the pin-bump PRs: eden-biz eden_ui_flutter → v2.1.0 (#753) and aodex pin comment fix (#585)."
     },
     {
       "id": "W0-8d",
-      "what": "Approve filing the eden-ui-flutter issue for the machine-dependent chat_screen 390pt overflow test."
+      "what": "Approve filing the eden-ui-flutter issue: chat_screen_test 390pt overflow +8.5px locally, green on CI (machine-dependent width test)."
     },
     {
       "id": "W0-9",
@@ -500,6 +504,12 @@
       "task": "#776",
       "ruling": "keep the YAML's paraphrased judge anchors (one-source) but disclose all 9 drifted states on the PR for deliberate review",
       "cost_if_wrong": "a judge anchor reads slightly differently from the old hand-written JSON"
+    },
+    {
+      "when": "2026-09-21",
+      "task": "follow-ups",
+      "ruling": "cheap wave-0 follow-ups fixed on #81 (health code table, $OBJECTIVE_DIR rule, verifier/design-review package-dir sentences, pluginVersion tests); two larger ones filed as devflow-claude #82/#83",
+      "cost_if_wrong": "none"
     }
   ],
   "deferred_minors": [
@@ -558,5 +568,17 @@
     "wave": "W0",
     "fix_feat": "11 fix / 3 feat / 4 docs / 1 test on df/w0-honest-gate",
     "lesson": "prose encoding runtime semantics needs an executable check; briefs carry a runtime model; /code-review mandatory pre-merge (spec §21)"
-  }
+  },
+  "issues": [
+    {
+      "repo": "devflow-claude",
+      "n": 82,
+      "title": "executor: analyze-baseline.txt not namespaced per task"
+    },
+    {
+      "repo": "devflow-claude",
+      "n": 83,
+      "title": "flutter-ui-eval CLI: non-raw text only for unscoped-candidates"
+    }
+  ]
 }
