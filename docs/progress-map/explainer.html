@@ -1,0 +1,187 @@
+<title>Why UI Takes Ten Tries</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --bg: #F4F7F8; --surface: #FFFFFF; --ink: #16202A; --ink-2: #4B5966; --line: #D5DDE2;
+    --accent: #0E8388; --accent-soft: #DDF1F2; --bad: #B8322F; --bad-soft: #F9E3E2; --good: #2F7D4F; --good-soft: #DFF1E5;
+    --display: "Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif;
+    --body: "Atkinson Hyperlegible", "Helvetica Neue", Arial, sans-serif;
+    --mono: "IBM Plex Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bg: #0F171D; --surface: #16222B; --ink: #E4ECF0; --ink-2: #9FB0BC; --line: #2A3945;
+    --accent: #4CC9CF; --accent-soft: #123A3D; --bad: #E5716C; --bad-soft: #3E1C1B; --good: #6CC08B; --good-soft: #15331F; } }
+  :root[data-theme="dark"] {
+    --bg: #0F171D; --surface: #16222B; --ink: #E4ECF0; --ink-2: #9FB0BC; --line: #2A3945;
+    --accent: #4CC9CF; --accent-soft: #123A3D; --bad: #E5716C; --bad-soft: #3E1C1B; --good: #6CC08B; --good-soft: #15331F; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 17px; line-height: 1.6; }
+  a { color: var(--accent); }
+  code { font-family: var(--mono); font-size: .85em; background: var(--surface); border: 1px solid var(--line); padding: .05em .35em; border-radius: 3px; }
+  .page { max-width: 760px; margin: 0 auto; padding: 44px 24px 96px; }
+  h1, h2, h3 { font-family: var(--display); line-height: 1.1; margin: 0; text-wrap: balance; }
+  h1 { font-size: 44px; font-weight: 700; }
+  h2 { font-size: 28px; font-weight: 600; margin-top: 8px; }
+  h3 { font-size: 19px; font-weight: 600; margin-top: 24px; }
+  .eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+  p { margin: 14px 0; }
+  .lede { font-size: 21px; color: var(--ink-2); margin-top: 16px; }
+  section { padding: 40px 0 8px; border-top: 1px solid var(--line); }
+  section:first-of-type { border-top: 0; padding-top: 0; }
+  .story { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--bad); border-radius: 6px; padding: 16px 20px; margin: 18px 0; }
+  .story.good { border-left-color: var(--good); }
+  .story .t { font-family: var(--mono); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); margin-bottom: 6px; }
+  ol.steps { list-style: none; padding: 0; margin: 18px 0; counter-reset: s; }
+  ol.steps li { position: relative; padding: 12px 0 12px 56px; border-top: 1px solid var(--line); counter-increment: s; }
+  ol.steps li:first-child { border-top: 0; }
+  ol.steps li::before { content: counter(s); position: absolute; left: 0; top: 12px; width: 38px; height: 38px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-family: var(--display); font-weight: 700; font-size: 20px; display: grid; place-items: center; }
+  ol.steps li b { display: block; font-family: var(--display); font-size: 19px; font-weight: 600; }
+  ol.steps li .you { display: inline-block; margin-top: 4px; font-size: 14px; color: var(--accent); font-weight: 700; }
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 18px 0; }
+  @media (max-width: 640px) { .compare { grid-template-columns: 1fr; } }
+  .compare div { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; font-size: 15.5px; }
+  .compare .t { font-family: var(--mono); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; margin-bottom: 8px; }
+  .compare .old .t { color: var(--bad); } .compare .new .t { color: var(--good); }
+  .compare ul { margin: 0; padding-left: 18px; } .compare li { margin: 4px 0; }
+  figure { margin: 22px 0; }
+  figure svg { display: block; max-width: 100%; height: auto; }
+  figcaption { font-size: 14px; color: var(--ink-2); margin-top: 8px; }
+  dl.gloss { margin: 14px 0; }
+  dl.gloss dt { font-family: var(--display); font-weight: 600; font-size: 18px; margin-top: 14px; }
+  dl.gloss dt span { font-family: var(--mono); font-size: 12px; color: var(--ink-2); font-weight: 400; margin-left: 8px; }
+  dl.gloss dd { margin: 4px 0 0; color: var(--ink); }
+  table { border-collapse: collapse; width: 100%; font-size: 15px; margin: 14px 0; }
+  th, td { text-align: left; vertical-align: top; padding: 9px 10px; border-bottom: 1px solid var(--line); }
+  th { font-family: var(--mono); font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); font-weight: 500; }
+  td.w { font-family: var(--mono); white-space: nowrap; }
+  .links { display: flex; flex-wrap: wrap; gap: 10px 22px; font-size: 15px; margin-top: 14px; }
+  .small { font-size: 14px; color: var(--ink-2); }
+</style>
+
+<div class="page">
+  <header>
+    <div class="eyebrow">The UI work, explained plainly</div>
+    <h1 style="margin-top:8px">Why UI takes ten tries — and what we're building so it doesn't</h1>
+    <p class="lede">A short version of the plan for anyone who isn't steeped in UX process. No jargon without a translation; the technical pages are linked at the end.</p>
+  </header>
+
+  <section>
+    <div class="eyebrow">The problem</div>
+    <h2>Software tests can't see the screen</h2>
+    <p>When Claude builds a button, it writes a test that asks the code "is there a button here?" The code says yes. What the test can't ask is: <em>does the button sit where it should, does clicking it do one thing and only that thing, can you get back afterwards, does the text fit?</em> Those questions can only be answered by looking at the running app — and today the only one looking is you.</p>
+    <div class="story">
+      <div class="t">What this looked like in August</div>
+      <p style="margin:0">A collapsible project list in the AODex sidebar — "click a project to expand it" — took <b>ten rounds of fix-and-look over four days</b>. Every round passed its tests. Then a person looked: the chevron also selected the project; closing a group navigated away; the indent was wrong; a click landed on the whole row instead of the arrow. Each was found only after a build, a deploy to the test server, and someone clicking around. One whole session was spent testing against a bundle that was two weeks old without anyone realising.</p>
+    </div>
+    <p>Across the last four months, for every UI feature commit on AODex there was almost one fix commit. That is the tax this plan removes.</p>
+  </section>
+
+  <section>
+    <div class="eyebrow">The idea</div>
+    <h2>Write down how the screen should behave, once — then let a machine check it after every step</h2>
+    <p>Today the description of how a screen works lives in your head and gets discovered one complaint at a time. The plan gives every screen a one-page written description that a person can read and a program can check:</p>
+    <ul>
+      <li><b>Where can you be, and how do you get there and back?</b> (every page has a way in and a way out)</li>
+      <li><b>What does each button do — and what must it never do?</b> ("the chevron opens the list; it never navigates")</li>
+      <li><b>What does the screen look like when there's nothing, when there's a lot, when something is broken?</b></li>
+      <li><b>What resets when you switch company or workspace?</b></li>
+    </ul>
+    <p>We're calling that page a <b>Surface Spec</b> ("surface" = one screen or feature area). It's the same thing a good product manager would write on a whiteboard — just in a form that tests can be generated from.</p>
+
+    <figure>
+      <svg viewBox="0 0 720 250" role="img" aria-label="Before: a loop of build, deploy, human looks, fix, repeated many times. After: agree on the page once, machine checks after every step, human looks only at exceptions." style="font-family: var(--mono); font-size: 12px; color: var(--ink);">
+        <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+        <text x="0" y="16" fill="var(--bad)" font-size="11" letter-spacing=".08em">TODAY</text>
+        <rect x="0" y="28" width="100" height="40" rx="5" fill="var(--surface)" stroke="currentColor"/><text x="50" y="52" text-anchor="middle">build</text>
+        <line x1="100" y1="48" x2="128" y2="48" stroke="currentColor" marker-end="url(#a)"/>
+        <rect x="130" y="28" width="100" height="40" rx="5" fill="var(--surface)" stroke="currentColor"/><text x="180" y="52" text-anchor="middle">deploy</text>
+        <line x1="230" y1="48" x2="258" y2="48" stroke="currentColor" marker-end="url(#a)"/>
+        <rect x="260" y="28" width="120" height="40" rx="5" fill="var(--bad-soft)" stroke="var(--bad)"/><text x="320" y="52" text-anchor="middle" fill="var(--bad)">you look</text>
+        <line x1="380" y1="48" x2="408" y2="48" stroke="currentColor" marker-end="url(#a)"/>
+        <rect x="410" y="28" width="100" height="40" rx="5" fill="var(--surface)" stroke="currentColor"/><text x="460" y="52" text-anchor="middle">fix one</text>
+        <path d="M510,48 H540 V90 H50 V70" fill="none" stroke="currentColor" stroke-dasharray="4 3" marker-end="url(#a)"/>
+        <text x="300" y="104" text-anchor="middle" fill="var(--ink-2)" font-size="11">× 10</text>
+
+        <text x="0" y="146" fill="var(--good)" font-size="11" letter-spacing=".08em">AFTER</text>
+        <rect x="0" y="158" width="150" height="40" rx="5" fill="var(--good-soft)" stroke="var(--good)"/><text x="75" y="182" text-anchor="middle" fill="var(--good)">you approve the page</text>
+        <line x1="150" y1="178" x2="178" y2="178" stroke="currentColor" marker-end="url(#a)"/>
+        <rect x="180" y="158" width="100" height="40" rx="5" fill="var(--surface)" stroke="currentColor"/><text x="230" y="182" text-anchor="middle">build a step</text>
+        <line x1="280" y1="178" x2="308" y2="178" stroke="currentColor" marker-end="url(#a)"/>
+        <rect x="310" y="158" width="150" height="40" rx="5" fill="var(--accent-soft)" stroke="var(--accent)"/><text x="385" y="182" text-anchor="middle" fill="var(--accent)">machine checks it</text>
+        <path d="M460,178 H480 V220 H230 V200" fill="none" stroke="currentColor" stroke-dasharray="4 3" marker-end="url(#a)"/>
+        <text x="355" y="234" text-anchor="middle" fill="var(--ink-2)" font-size="11">until every check passes — no human in this loop</text>
+        <line x1="460" y1="170" x2="538" y2="170" stroke="currentColor" marker-end="url(#a)"/>
+        <rect x="540" y="150" width="170" height="40" rx="5" fill="var(--surface)" stroke="currentColor"/><text x="625" y="167" text-anchor="middle">you look once</text><text x="625" y="182" text-anchor="middle" fill="var(--ink-2)" font-size="10.5">only at what it couldn't judge</text>
+      </svg>
+      <figcaption>Your attention moves from the end of the loop, where it's spent ten times, to the start, where it's spent once.</figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <div class="eyebrow">What changes for you</div>
+    <h2>How building a screen will work once this ships</h2>
+    <ol class="steps">
+      <li><b>You describe the feature</b>, as now. If there's a mockup or the existing Trades screen, you point at it.</li>
+      <li><b>Claude writes the one-page description and renders pictures of every state</b> — normal, empty, long names, error, narrow window, dark mode — laid out on a single review page next to the mockup. It also draws the map of pages and arrows, so "can I get back from here?" is visible before any code exists.<span class="you">← this is where you spend your time</span></li>
+      <li><b>You say yes, or comment</b>. Comments get re-rendered in seconds (it's a picture of a component, not a deployed app). When you say yes, that page is locked and becomes the definition of "correct".</li>
+      <li><b>Claude builds it, and after every step a program checks the real running app against the page</b>: is every button there, does clicking it do what the page says and nothing else, can every page be reached and left, does the text fit, is the contrast readable, does keyboard use work. Failures are fixed by Claude without asking you.</li>
+      <li><b>You look once more, only at what the machine couldn't judge</b> — usually a short list, sometimes nothing.</li>
+      <li><b>A crawler walks the whole app on every change</b> and files a bug for every page nobody can reach, every dead end, every button that does nothing. Those become tickets, not surprises in a demo.</li>
+    </ol>
+    <div class="compare">
+      <div class="old"><div class="t">Today</div><ul><li>Acceptance criteria discovered one complaint at a time</li><li>You are the only check for "does the screen work"</li><li>Every look costs a build and a deploy</li><li>Green tests while the screen is broken</li><li>Unreachable pages found by users</li></ul></div>
+      <div class="new"><div class="t">After</div><ul><li>Acceptance written once, on a page you approve</li><li>A program checks the screen after every step</li><li>Your look costs a page refresh</li><li>A check that didn't run says "MISSING", never "pass"</li><li>Unreachable pages found by the crawler, filed as tickets</li></ul></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">What we're building, wave by wave</div>
+    <h2>What you'll be able to do after each wave</h2>
+    <table>
+      <thead><tr><th>Wave</th><th>In plain terms</th><th>Rough size</th></tr></thead>
+      <tbody>
+        <tr><td class="w">0</td><td>Make the screenshot-checking tool we already have honest (it once said "pass" for states it never looked at), pin the shared widget library to real releases, upgrade the tooling, and record today's numbers so we can prove improvement.</td><td>days</td></tr>
+        <tr><td class="w">1a</td><td>Give the shared widget library (buttons, sidebars, lists — used by both Eden Biz and AODex) a picture and a test for every state of every piece, plus a small "probe" so a program can ask the running app where things actually are on screen.</td><td>~1.5 weeks</td></tr>
+        <tr><td class="w">1b</td><td>Teach Claude to write the one-page description, render the review page, and stop for your approval before building.</td><td>~1 week</td></tr>
+        <tr><td class="w">1c</td><td>Make the test versions of both apps able to fake any situation on demand: no data, lots of data, a service outage, a user who isn't allowed in.</td><td>days each</td></tr>
+        <tr><td class="w">1★</td><td>Redo the sidebar feature that took ten rounds, the new way, as the proof. If it takes ten rounds again, the plan is wrong.</td><td>—</td></tr>
+        <tr><td class="w">2</td><td>Wire the after-every-step checks into how Claude builds, so it happens automatically and you're only asked to look at exceptions.</td><td>~2 weeks</td></tr>
+        <tr><td class="w">3</td><td>The crawler for Eden Biz, and the first Trades feature (the workflow designer) ported through the whole process end to end. From here on, porting Trades is measured: 47 Trades screens, each one "not started / described / built and checked".</td><td>~2–3 weeks</td></tr>
+        <tr><td class="w">4</td><td>Same checks on phones. (The React version of Trades isn't kept: it's the reference we port from, and it retires once every one of its 47 screens is ported and checked.)</td><td>days</td></tr>
+      </tbody>
+    </table>
+    <p class="small">The live status of each wave, what's waiting on you, and every decision Claude made on your behalf is on the progress map (linked below).</p>
+  </section>
+
+  <section>
+    <div class="eyebrow">What it doesn't do</div>
+    <h2>Honest limits</h2>
+    <p><b>It doesn't replace your taste.</b> Whether the indent looks right is still your call — the plan just asks you once, on a picture, instead of after every build. <b>It doesn't make Trades pixel-identical</b> — Trades is the checklist of what must exist, not what it should look like. <b>Phones come last</b> (wave 4). And one part is genuinely new infrastructure: neither app can currently fake a service outage, so "what does the screen say when a service is down?" can't be checked until wave 1c builds that.</p>
+  </section>
+
+  <section>
+    <div class="eyebrow">Glossary</div>
+    <h2>The jargon, translated</h2>
+    <dl class="gloss">
+      <dt>Surface Spec <span>surface = one screen or feature area</span></dt><dd>The one-page description of how a screen works: pages and arrows, buttons and what they do, the states it can be in, what resets on a switch. Written by Claude, approved by you, checked by a program.</dd>
+      <dt>Look-lock</dt><dd>Your approval of the review page. After it, the pictures on that page are the definition of correct, and building starts.</dd>
+      <dt>Review sheet</dt><dd>The one page you approve: every state as a picture, beside the mockup, with the page map and a plain-language table of what each button does.</dd>
+      <dt>Probe</dt><dd>A small piece of code, only in test builds, that lets a program ask the running app "where is this button on screen, and what's under the mouse here?" Without it, tests can't see geometry.</dd>
+      <dt>Conform / checks</dt><dd>The after-every-step comparison of the running app against the Surface Spec: present, clickable, does the right thing, doesn't do the wrong thing, reachable, escapable, fits, readable, keyboard-usable.</dd>
+      <dt>MISSING</dt><dd>The verdict a check reports when it couldn't run. It is never allowed to be reported as "pass". This single rule is behind most of wave 0.</dd>
+      <dt>Judge</dt><dd>A vision model asked "list the differences between this screenshot and the approved picture". It only runs after the deterministic checks pass, and only with an approved picture to compare against.</dd>
+      <dt>Crawler / explorer</dt><dd>Two programs that walk the whole app: one follows the specs and reports every page that can't be reached or left; the other clicks everything with no script and reports dead ends and dead buttons. Both file tickets; neither changes code.</dd>
+      <dt>Pattern library</dt><dd>Written-down rules for things that recur — collapsible groups, empty states, forms, confirm dialogs — so every screen using them inherits the same behaviour instead of re-deciding it.</dd>
+      <dt>Wave</dt><dd>A batch of work that must finish before the next can start; each is one or two DevFlow objectives.</dd>
+    </dl>
+  </section>
+
+  <section>
+    <div class="eyebrow">The technical pages</div>
+    <div class="links">
+      <a href="https://claude.ai/code/artifact/bbbdf002-7cbd-4771-bfbf-20228e00bb4a">Progress map (live status)</a>
+      <a href="https://claude.ai/code/artifact/5029f906-28d2-418f-8f38-b03923725985">Design page (the full proposal)</a>
+      <span class="small">Source: <code>devflow-claude/docs/PROPOSAL-ui-oracle-loop.md</code> · <code>IMPLEMENTATION-PLAN-ui-oracle-loop.md</code></span>
+    </div>
+  </section>
+</div>

@@ -1,0 +1,584 @@
+{
+  "program": "UI Oracle Loop",
+  "spec": "devflow-claude/docs/PROPOSAL-ui-oracle-loop.md",
+  "plan": "devflow-claude/docs/IMPLEMENTATION-PLAN-ui-oracle-loop.md",
+  "design_artifact": "https://claude.ai/code/artifact/5029f906-28d2-418f-8f38-b03923725985",
+  "updated": "2026-09-21T16:30:00Z",
+  "now": "Findings addressed: #81 follow-ups landed (+ issues #82/#83), #80 CodeQL fixed and plan amended (1b-07 harness; binding runtime-model + /code-review), #776 rebased on main with gates green. All three PRs CLEAN. Waiting on your decisions below.",
+  "waiting_on_user": [
+    {
+      "id": "merge",
+      "what": "Merge devflow-claude #80 + #81 together and eden-biz #776. All CI green; /code-review findings fixed. Then tag devflow 2.8.0 (bump three version files + `changelog update`)."
+    },
+    {
+      "id": "#776 anchors",
+      "what": "9 judge-anchor paraphrases (6 portal_support_chat, 2 archetype_experience case-only) — keep the YAML wording (my ruling) or have the old JSON wording restored? Listed on the PR."
+    },
+    {
+      "id": "W0-8c",
+      "what": "Approve the pin-bump PRs: eden-biz eden_ui_flutter → v2.1.0 (#753) and aodex pin comment fix (#585)."
+    },
+    {
+      "id": "W0-8d",
+      "what": "Approve filing the eden-ui-flutter issue: chat_screen_test 390pt overflow +8.5px locally, green on CI (machine-dependent width test)."
+    },
+    {
+      "id": "W0-9",
+      "what": "After #81 merges and 2.8.0 is tagged: /plugin marketplace update aocyber, update devflow, confirm `validate health` shows no E020/W021."
+    }
+  ],
+  "status_legend": {
+    "pending": "not started",
+    "active": "implementer working",
+    "review": "task review in progress",
+    "fix": "fix round in progress (n/5)",
+    "blocked-user": "needs a decision or action from Mark",
+    "done": "review clean, ledgered complete"
+  },
+  "waves": [
+    {
+      "id": "W0",
+      "title": "Fix the gate we have",
+      "repos": [
+        "devflow-claude",
+        "eden-biz",
+        "eden-ui-flutter",
+        "aodex"
+      ],
+      "status": "active",
+      "depends_on": [],
+      "tasks": [
+        {
+          "id": "W0-1",
+          "title": "engine_version on every ui-eval output",
+          "repo": "devflow-claude",
+          "status": "done",
+          "commits": "48fa894..5a80ef7",
+          "note": "1 fix round: skip-branch output stamped; version-less plugin.json guard"
+        },
+        {
+          "id": "W0-2",
+          "title": "health reports mirror/installed/main lag",
+          "repo": "devflow-claude",
+          "status": "done",
+          "commits": "5a80ef7..03fa7d5",
+          "note": "1 fix round: lag sources moved to installed_plugins.json + marketplace clone; E020/W021 verified firing (2.5.0/2.6.0/2.7.1)"
+        },
+        {
+          "id": "W0-3",
+          "title": "manifest resolution objective-scoped only",
+          "repo": "devflow-claude",
+          "status": "done",
+          "commits": "03fa7d5..782eadf",
+          "note": "1 fix round: two missing tests added (tier-3 yaml→absent; non-raw text)"
+        },
+        {
+          "id": "W0-4",
+          "title": "bootstrap finds flutter/ in a monorepo",
+          "repo": "devflow-claude",
+          "status": "done",
+          "note": "2 fix rounds: setup gate + executor also fixed; $OLDPWD replaced by REPO_ROOT (cwd persists across Bash calls)",
+          "commits": "782eadf..19b7f48"
+        },
+        {
+          "id": "W0-5",
+          "title": "testing matrix + capture recipe tell the truth (no React column)",
+          "repo": "devflow-claude",
+          "status": "done",
+          "commits": "19b7f48..9f8d7e5",
+          "note": "also swept design-review.md; CHANGELOG [Unreleased] block covers the branch"
+        },
+        {
+          "id": "W0-6",
+          "title": "ui metrics baseline arm",
+          "repo": "devflow-claude",
+          "status": "done",
+          "commits": "2b16873",
+          "note": "`df-tools ui metrics baseline`; real-git-repo tests"
+        },
+        {
+          "id": "W0-7",
+          "title": "one source for ui-eval manifests (#705)",
+          "repo": "eden-biz",
+          "status": "done",
+          "note": "9 YAML files were never valid YAML (fixed, content-preserving); billing_activity manifest deleted (no consumer); one judge bullet restored. Branch fix/705-ui-eval-one-source, unpushed",
+          "commits": "456387d4e..c28f9bda6"
+        },
+        {
+          "id": "W0-8",
+          "title": "tag v2.1.0; pins to a tag (#585, #753)",
+          "repo": "eden-ui-flutter · eden-biz · aodex",
+          "status": "active",
+          "gate": "user approves push/tag",
+          "note": "tag pushed; PRs #80/#81/#776 open; pin bumps pending approval"
+        },
+        {
+          "id": "W0-9",
+          "title": "upgrade installed plugin",
+          "repo": "user",
+          "status": "blocked-user"
+        },
+        {
+          "id": "W0-10",
+          "title": "capture + commit metrics baseline",
+          "repo": "aodex · eden-biz",
+          "status": "pending",
+          "depends_on": [
+            "W0-6",
+            "W0-9"
+          ]
+        }
+      ],
+      "outcome": "The existing screenshot-checking tool stops lying: a check that didn't run says so, the libraries are pinned to real releases, and we have a before-number to measure against."
+    },
+    {
+      "id": "W1a",
+      "title": "Library: patterns, story harness, probe bridge, shell API",
+      "repos": [
+        "eden-ui-flutter"
+      ],
+      "status": "pending",
+      "depends_on": [
+        "W0"
+      ],
+      "size": "1 obj · ~12 TRDs · 1.5 wk",
+      "tasks": [
+        {
+          "id": "1a-01",
+          "title": "fixtures + SemanticsGeometry",
+          "status": "pending"
+        },
+        {
+          "id": "1a-02",
+          "title": "expectUiSane",
+          "status": "pending"
+        },
+        {
+          "id": "1a-03",
+          "title": "story harness (golden + a11y + geometry)",
+          "status": "pending"
+        },
+        {
+          "id": "1a-04",
+          "title": "story coverage ratchet",
+          "status": "pending"
+        },
+        {
+          "id": "1a-05",
+          "title": "nav stories",
+          "status": "pending"
+        },
+        {
+          "id": "1a-06",
+          "title": "shell API reshaping (builders)",
+          "status": "pending"
+        },
+        {
+          "id": "1a-07",
+          "title": "probe bridge (EDEN_PROBE)",
+          "status": "pending"
+        },
+        {
+          "id": "1a-08",
+          "title": "probe settle knobs",
+          "status": "pending"
+        },
+        {
+          "id": "1a-09",
+          "title": "pattern library (10)",
+          "status": "pending"
+        },
+        {
+          "id": "1a-10",
+          "title": "generated DESIGN.md",
+          "status": "pending"
+        },
+        {
+          "id": "1a-11",
+          "title": "custom_lint rules",
+          "status": "pending"
+        },
+        {
+          "id": "1a-12",
+          "title": "release v2.2.0",
+          "status": "pending"
+        }
+      ],
+      "outcome": "The shared widget library can describe, render and test its own pieces — every button, rail and list has a picture per state and a test that catches overlap, overflow and double-firing."
+    },
+    {
+      "id": "W1b",
+      "title": "DevFlow: Surface Spec, validate/render, review sheet, look-lock",
+      "repos": [
+        "devflow-claude"
+      ],
+      "status": "pending",
+      "depends_on": [
+        "W0"
+      ],
+      "size": "1 obj · ~7 TRDs · 1 wk",
+      "tasks": [
+        {
+          "id": "1b-01",
+          "title": "schema + yaml-lite parser",
+          "status": "pending"
+        },
+        {
+          "id": "1b-02",
+          "title": "spec validate (I1–I8, behaviors)",
+          "status": "pending"
+        },
+        {
+          "id": "1b-03",
+          "title": "spec render (manifest/graph/table)",
+          "status": "pending"
+        },
+        {
+          "id": "1b-04",
+          "title": "review sheet",
+          "status": "pending"
+        },
+        {
+          "id": "1b-05",
+          "title": "look-lock checkpoint",
+          "status": "pending"
+        },
+        {
+          "id": "1b-06",
+          "title": "frontend-design step 0",
+          "status": "pending"
+        },
+        {
+          "id": "1b-07",
+          "title": "release 2.9.0",
+          "status": "pending"
+        }
+      ],
+      "outcome": "Claude can write a one-page 'how this screen works' sheet, render every state of it as pictures, and get your yes/no on that page before any code is written."
+    },
+    {
+      "id": "W1c",
+      "title": "Consumers: e2e dependency stub (seeds, identities, faults)",
+      "repos": [
+        "aodex",
+        "eden-biz"
+      ],
+      "status": "pending",
+      "depends_on": [
+        "W0"
+      ],
+      "size": "1 obj each · ~5 TRDs · 3–4 days each",
+      "tasks": [
+        {
+          "id": "1c-01",
+          "title": "seed registry",
+          "status": "pending"
+        },
+        {
+          "id": "1c-02",
+          "title": "identity set",
+          "status": "pending"
+        },
+        {
+          "id": "1c-03",
+          "title": "fault injection stub",
+          "status": "pending"
+        },
+        {
+          "id": "1c-04",
+          "title": "bridge line + build_probe_web.sh",
+          "status": "pending"
+        },
+        {
+          "id": "1c-05",
+          "title": "outage state proof",
+          "status": "pending"
+        }
+      ],
+      "outcome": "The test apps can be put into any state on demand — empty, full, long names, a dependency outage, a user without access — so those states can actually be checked."
+    },
+    {
+      "id": "W1★",
+      "title": "Dogfood: projects-rail spec → look-lock → conform nav branch → merge + tag",
+      "repos": [
+        "aodex",
+        "eden-ui-flutter"
+      ],
+      "status": "pending",
+      "depends_on": [
+        "W1a",
+        "W1b",
+        "W1c"
+      ],
+      "tasks": [
+        {
+          "id": "A1",
+          "title": "write projects-rail.md",
+          "status": "pending"
+        },
+        {
+          "id": "A2",
+          "title": "sheet → look-lock",
+          "status": "pending",
+          "gate": "Mark approves the sheet"
+        },
+        {
+          "id": "B1",
+          "title": "rebase nav branch onto builder API",
+          "status": "pending"
+        },
+        {
+          "id": "B2",
+          "title": "hand-driven CONFORM → conform.json",
+          "status": "pending"
+        },
+        {
+          "id": "B3",
+          "title": "fix every ✗ with a test",
+          "status": "pending"
+        },
+        {
+          "id": "B4",
+          "title": "merge, tag v2.3.0, bump both pins",
+          "status": "pending",
+          "gate": "Mark approves merge"
+        }
+      ],
+      "outcome": "The project-rail feature that took ten rounds is redone the new way: one sheet, one approval, machine-checked; it merges and both apps pick it up."
+    },
+    {
+      "id": "W2",
+      "title": "DevFlow: catalog, probe, checks, executor RENDER→CONFORM, verifier replay, judge calibration",
+      "repos": [
+        "devflow-claude"
+      ],
+      "status": "pending",
+      "depends_on": [
+        "W1★"
+      ],
+      "size": "2 obj · ~16 TRDs · 2–2.5 wk",
+      "tasks": [
+        {
+          "id": "W2-tooling",
+          "title": "ui probe / checks / catalog / doctor / metrics / sheet spec-vs-actual / judge references + calibration",
+          "status": "pending"
+        },
+        {
+          "id": "W2-agents",
+          "title": "planner derivation · executor loop · verifier replay · seam override + tag gate · migration table applied",
+          "status": "pending"
+        }
+      ],
+      "outcome": "Claude checks its own UI work after every step — every button does what the sheet says, every page can be reached and left — and only asks you to look at what the machine couldn't judge."
+    },
+    {
+      "id": "W3",
+      "title": "eden-biz: crawl + explorer; donor route table; first Trades port (obj 020)",
+      "repos": [
+        "eden-biz",
+        "Trades (read-only)"
+      ],
+      "status": "pending",
+      "depends_on": [
+        "W2",
+        "W1c"
+      ],
+      "size": "2 obj · ~14 TRDs · 2–3 wk",
+      "tasks": [
+        {
+          "id": "W3-crawl",
+          "title": "ui crawl + ui-explorer + gh-sync labels",
+          "status": "pending"
+        },
+        {
+          "id": "W3-port",
+          "title": "donor-routes.json (47) · pattern mapping · workflow designer through A–C",
+          "status": "pending"
+        }
+      ],
+      "outcome": "A crawler walks the whole Eden Biz app and files a bug for every unreachable page, dead end or dead button; the first Trades feature is ported through the new process. From here the port is a number: 47 Trades screens, each not-started / described / built-and-checked — 100% is the SaaS release gate and the day React retires."
+    },
+    {
+      "id": "W4",
+      "title": "Adapter: Maestro (mobile); explorer nightly on aodex",
+      "repos": [
+        "devflow-claude",
+        "aodex"
+      ],
+      "status": "pending",
+      "depends_on": [
+        "W3"
+      ],
+      "size": "1 obj · ~4 TRDs · 3–4 days",
+      "tasks": [
+        {
+          "id": "W4-adapters",
+          "title": "Maestro ProbeResult adapter + visual mode emits ProbeResult",
+          "status": "pending"
+        }
+      ],
+      "outcome": "The same checks run on phones. (No React adapter — Trades React is the donor only and retires when the port is complete.)"
+    }
+  ],
+  "rulings": [
+    {
+      "when": "2026-09-18",
+      "task": "pre-flight",
+      "ruling": "W0-3 rewrites Tier-3 resolver tests to expect `absent` + candidates (spec §12.2: objective-scoped only)",
+      "cost_if_wrong": "a consumer relying on repo-manifest resolution must pass a path"
+    },
+    {
+      "when": "2026-09-18",
+      "task": "pre-flight",
+      "ruling": "W0-8 prepares tag/pins locally; controller asks before any push",
+      "cost_if_wrong": "none"
+    },
+    {
+      "when": "2026-09-18",
+      "task": "W0-7",
+      "ruling": "YAML is the sole manifest source; `evidence_dir` added to YAML to reproduce screenshot_path; emit both state_id and id",
+      "cost_if_wrong": "one extra key per state"
+    },
+    {
+      "when": "2026-09-18",
+      "task": "W0-1",
+      "ruling": "the resolution-skip output is evidence → stamp engine_version; --help is not",
+      "cost_if_wrong": "two keys on a usage object"
+    },
+    {
+      "when": "2026-09-18",
+      "task": "W0-2",
+      "ruling": "non-raw stdout stays JSON-only; the engine row carries the lag report",
+      "cost_if_wrong": "none"
+    },
+    {
+      "when": "2026-09-18",
+      "task": "W0-2",
+      "ruling": "installed version from installed_plugins.json; main from the marketplace clone (best-effort fetch); engine row {running, mirror, installed, main}",
+      "cost_if_wrong": "W021 depends on the marketplace clone existing"
+    },
+    {
+      "when": "2026-09-18",
+      "task": "W0-7",
+      "ruling": "restore the lost judge bullet in the YAML (source of truth) rather than accept the coverage loss",
+      "cost_if_wrong": "none"
+    },
+    {
+      "when": "2026-09-18",
+      "task": "scope",
+      "ruling": "Trades React is donor-only, retired at 100% port coverage — dropped the React test column (W0-5) and the Playwright-React adapter (W4)",
+      "cost_if_wrong": "if React had to be maintained, its probe adapter would be a later ~3-TRD objective"
+    },
+    {
+      "when": "2026-09-18",
+      "task": "W0-4",
+      "ruling": "fix both bootstrap modules (ui-eval scaffold and the executor's REQ-10-07 gate) with one shared resolveFlutterPackageDir helper",
+      "cost_if_wrong": "one extra small module"
+    },
+    {
+      "when": "2026-09-18",
+      "task": "W0-4",
+      "ruling": "evidence paths absolute from REPO_ROOT captured once; TRD test paths are package-relative (documented in executor + planner)",
+      "cost_if_wrong": "none — strictly more explicit"
+    },
+    {
+      "when": "2026-09-18",
+      "task": "W0-5",
+      "ruling": "one-line changelog fix verified by the controller reading the diff; scoped re-review skipped",
+      "cost_if_wrong": "a changelog wording nit"
+    },
+    {
+      "when": "2026-09-18",
+      "task": "W0-8",
+      "ruling": "tag v2.1.0 stands on the CI-validated commit despite one local machine-dependent widget-test failure; file an issue rather than block",
+      "cost_if_wrong": "an 8.5px overflow already on main ships under a tag"
+    },
+    {
+      "when": "2026-09-18",
+      "task": "post-review",
+      "ruling": "/code-review findings on #81 and #776 fixed before any merge; one-line changelog amendment committed by the controller",
+      "cost_if_wrong": "none"
+    },
+    {
+      "when": "2026-09-18",
+      "task": "#776",
+      "ruling": "keep the YAML's paraphrased judge anchors (one-source) but disclose all 9 drifted states on the PR for deliberate review",
+      "cost_if_wrong": "a judge anchor reads slightly differently from the old hand-written JSON"
+    },
+    {
+      "when": "2026-09-21",
+      "task": "follow-ups",
+      "ruling": "cheap wave-0 follow-ups fixed on #81 (health code table, $OBJECTIVE_DIR rule, verifier/design-review package-dir sentences, pluginVersion tests); two larger ones filed as devflow-claude #82/#83",
+      "cost_if_wrong": "none"
+    }
+  ],
+  "deferred_minors": [
+    {
+      "task": "W0-1",
+      "note": "pluginVersion() fallback branches have no automated test"
+    },
+    {
+      "task": "W0-2",
+      "note": "defaultMainVersionFn does not thread options.homeDir into marketplaceCheckout()"
+    },
+    {
+      "task": "W0-7",
+      "note": "per-state `route` copied verbatim can hold non-path prose; generator fail-fast + broad catch"
+    },
+    {
+      "task": "W0-3",
+      "note": "classifyUIEvalOutcome todo string ignores reason/candidates (no production caller)"
+    },
+    {
+      "task": "W0-4",
+      "note": "executor.md relies on the agent carrying $REPO_ROOT/$PACKAGE_DIR across Bash calls (pre-existing pattern)"
+    },
+    {
+      "task": "W0-5",
+      "note": "verifier.md Step 8a generic npm-dev readiness probe sits under the Flutter never-flutter-run caveat"
+    },
+    {
+      "task": "W0-6",
+      "note": "unknown `ui metrics` subcommand exits 0; `--paths` with no value throws"
+    }
+  ],
+  "metrics": {
+    "baseline": null,
+    "note": "captured in W0-10 after W0-6 and W0-9"
+  },
+  "explainer_artifact": "https://claude.ai/code/artifact/c091fcd9-44e2-4bb7-8635-aebf3d2aaaa4",
+  "prs": [
+    {
+      "repo": "devflow-claude",
+      "n": 80,
+      "title": "docs: proposal, plan, progress map"
+    },
+    {
+      "repo": "devflow-claude",
+      "n": 81,
+      "title": "wave-0 code"
+    },
+    {
+      "repo": "eden-biz",
+      "n": 776,
+      "title": "#705 one-source manifests"
+    }
+  ],
+  "retro": {
+    "wave": "W0",
+    "fix_feat": "11 fix / 3 feat / 4 docs / 1 test on df/w0-honest-gate",
+    "lesson": "prose encoding runtime semantics needs an executable check; briefs carry a runtime model; /code-review mandatory pre-merge (spec §21)"
+  },
+  "issues": [
+    {
+      "repo": "devflow-claude",
+      "n": 82,
+      "title": "executor: analyze-baseline.txt not namespaced per task"
+    },
+    {
+      "repo": "devflow-claude",
+      "n": 83,
+      "title": "flutter-ui-eval CLI: non-raw text only for unscoped-candidates"
+    }
+  ]
+}
