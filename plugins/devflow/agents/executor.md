@@ -54,10 +54,10 @@ PACKAGE_DIR=$(echo "$BOOTSTRAP" | jq -r '.packageDir // "'"$REPO_ROOT"'"')
 
 Every flutter/maestro/adb command in this agent runs from `$PACKAGE_DIR` **in a subshell** — `( cd "$PACKAGE_DIR" && <cmd> )` — never a bare `cd "$PACKAGE_DIR" && <cmd>`. The working directory of the session stays the repo root: the harness persists cwd across Bash tool calls, and `.planning/` paths (marker, evidence, `df-tools` state) resolve from cwd, so a leaked `cd` breaks every later call. Evidence `mv`/`--output` targets are absolute from `$REPO_ROOT`; the `.planning/` marker and evidence paths stay at the repo root.
 
-Shell variables do NOT persist across Bash tool calls either, so `$REPO_ROOT` and `$PACKAGE_DIR` in the examples below are placeholders for a single call. Each Bash call must do one of:
+Shell variables do NOT persist across Bash tool calls either, so `$REPO_ROOT`, `$PACKAGE_DIR`, and `$OBJECTIVE_DIR` in the examples below are placeholders for a single call. `$OBJECTIVE_DIR` comes from `objective_dir` in the `init execute-objective` JSON (extracted above at agent start) — it does not survive into later calls any more than the other two do. Each Bash call must do one of:
 
 1. **Preferred (cheaper): substitute the literal absolute paths** you learned at bootstrap — write `( cd /abs/path/to/flutter && flutter test ... )` and `mv /abs/path/to/flutter/build/... /abs/repo/.planning/...` directly. No re-derivation, no extra process.
-2. Re-derive both at the top of the call: `REPO_ROOT=$(git rev-parse --show-toplevel)` and `PACKAGE_DIR=$(node ~/.claude/devflow/bin/df-tools.cjs verify flutter-ui-bootstrap . --raw | jq -r .packageDir)`.
+2. Re-derive at the top of the call: `REPO_ROOT=$(git rev-parse --show-toplevel)`, `PACKAGE_DIR=$(node ~/.claude/devflow/bin/df-tools.cjs verify flutter-ui-bootstrap . --raw | jq -r .packageDir)`, and `OBJECTIVE_DIR=$(node ~/.claude/devflow/bin/df-tools.cjs init execute-objective "$OBJECTIVE" | jq -r .objective_dir)`.
 
 Never assume a variable set in an earlier call is still defined.
 
@@ -209,7 +209,7 @@ After ALL tasks complete (before final commit + SUMMARY), if TRD has `type: ui` 
 **Pre-create evidence dir:**
 
 ```bash
-mkdir -p .planning/objectives/$OBJECTIVE_DIR/evidence/
+mkdir -p "$REPO_ROOT"/.planning/objectives/$OBJECTIVE_DIR/evidence/
 ```
 
 **Per-platform integration_test + Maestro invocations:**
