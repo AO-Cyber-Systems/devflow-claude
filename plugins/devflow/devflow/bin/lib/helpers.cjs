@@ -68,10 +68,10 @@ function safeReadFile(filePath) {
 // CONSTRUCTION. It says which engine is executing, not which plugin is
 // installed. installedPlugin() below is the plugin-registry truth; compare
 // against that (validate health E020) to detect a stale mirror.
-function pluginVersion() {
+function pluginVersion({ homeDir, manifestPath } = {}) {
   const candidates = [
-    path.join(__dirname, '..', '..', '..', '.claude-plugin', 'plugin.json'),
-    path.join(os.homedir(), '.claude', 'devflow', '.plugin-version'),
+    manifestPath || path.join(__dirname, '..', '..', '..', '.claude-plugin', 'plugin.json'),
+    path.join(homeDir || os.homedir(), '.claude', 'devflow', '.plugin-version'),
   ];
   for (const c of candidates) {
     if (!fs.existsSync(c)) continue;
