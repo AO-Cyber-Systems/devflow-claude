@@ -1,6 +1,7 @@
 'use strict';
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { execSync } = require('child_process');
 
@@ -50,6 +51,98 @@ function parseIncludeFlag(args) {
 function safeReadFile(filePath) {
   try {
     return fs.readFileSync(filePath, 'utf-8');
+  } catch {
+    return null;
+  }
+}
+
+// Reads the running engine's version so evidence-producing outputs (e.g.
+// flutter-ui-eval's scoreRun) can stamp `engine_version` — a verifier then rejects
+// evidence produced by a stale engine (a stale mirror once silently passed unjudged
+// states). Prefers the plugin manifest relative to this file; falls back to the
+// `.plugin-version` marker sync-runtime.js writes into the home mirror; then '0.0.0'.
+//
+// NOTE: when df-tools runs from the ~/.claude/devflow mirror (how every skill
+// invokes it) the first candidate never exists — the mirror carries no
+// .claude-plugin/plugin.json — so "running" equals the mirror marker BY
+// CONSTRUCTION. It says which engine is executing, not which plugin is
+// installed. installedPlugin() below is the plugin-registry truth; compare
+// against that (validate health E020) to detect a stale mirror.
+function pluginVersion({ homeDir, manifestPath } = {}) {
+  const candidates = [
+    manifestPath || path.join(__dirname, '..', '..', '..', '.claude-plugin', 'plugin.json'),
+    path.join(homeDir || os.homedir(), '.claude', 'devflow', '.plugin-version'),
+  ];
+  for (const c of candidates) {
+    if (!fs.existsSync(c)) continue;
+    try {
+      const txt = fs.readFileSync(c, 'utf-8');
+      const v = c.endsWith('.json') ? JSON.parse(txt).version : txt.trim();
+      // A parseable plugin.json with no (or an empty) `version` field is not usable
+      // evidence of the running engine's version — fall through to the next candidate
+      // instead of returning `undefined`/'' up to a caller expecting a semver string.
+      if (typeof v === 'string' && v) return v;
+    } catch {}
+  }
+  return '0.0.0';
+}
+
+// Reads the installed plugin's version from the Claude Code plugin manager's
+// own bookkeeping — NOT the running-engine lookup `pluginVersion()` does.
+// When df-tools runs from the ~/.claude/devflow mirror (as every skill
+// invokes it), `pluginVersion()`'s first candidate (a .claude-plugin/plugin.json
+// relative to __dirname) doesn't exist there, so it falls through to the same
+// ~/.claude/devflow/.plugin-version file health's mirror-staleness check also
+// reads — making "installed" and "mirror" the same value by construction and
+// the E020 check structurally dead. This reads the independent source of
+// truth instead: ~/.claude/plugins/installed_plugins.json, which the plugin
+// manager (not sync-runtime) maintains.
+// Returns { version, installPath } or null when the entry/file is absent.
+function installedPlugin(opts) {
+  const homeDir = (opts && opts.homeDir) || os.homedir();
+  const registryPath = path.join(homeDir, '.claude', 'plugins', 'installed_plugins.json');
+  try {
+    const registry = JSON.parse(fs.readFileSync(registryPath, 'utf-8'));
+    const entries = registry && registry.plugins && registry.plugins['devflow@aocyber'];
+    if (!entries) return null;
+    const list = Array.isArray(entries) ? entries : [entries];
+    const entry = list.find(e => e && e.scope === 'user') || list[0] || null;
+    if (!entry) return null;
+
+    const installPath = entry.installPath || null;
+    let version = null;
+    if (installPath) {
+      try {
+        const pj = JSON.parse(fs.readFileSync(path.join(installPath, '.claude-plugin', 'plugin.json'), 'utf-8'));
+        if (pj && typeof pj.version === 'string' && pj.version) version = pj.version;
+      } catch {
+        // Cache dir missing/unreadable/unparseable — fall back to the
+        // registry's own `version` field below rather than failing outright.
+      }
+    }
+    if (!version && typeof entry.version === 'string' && entry.version) version = entry.version;
+    if (!version) return null;
+
+    return { version, installPath };
+  } catch {
+    return null;
+  }
+}
+
+// Reads the local marketplace checkout path for the `aocyber` marketplace
+// from ~/.claude/plugins/known_marketplaces.json (maintained by the plugin
+// manager, distinct from any devflow-claude dev checkout on disk). Returns
+// the path if it names an existing directory, else null.
+function marketplaceCheckout(opts) {
+  const homeDir = (opts && opts.homeDir) || os.homedir();
+  const registryPath = path.join(homeDir, '.claude', 'plugins', 'known_marketplaces.json');
+  try {
+    const registry = JSON.parse(fs.readFileSync(registryPath, 'utf-8'));
+    const entry = registry && registry.aocyber;
+    const installLocation = entry && entry.installLocation;
+    if (!installLocation) return null;
+    const stat = fs.statSync(installLocation);
+    return stat.isDirectory() ? installLocation : null;
   } catch {
     return null;
   }
@@ -143,6 +236,9 @@ module.exports = {
   error,
   parseIncludeFlag,
   safeReadFile,
+  pluginVersion,
+  installedPlugin,
+  marketplaceCheckout,
   findPlanFiles,
   stripPlanSuffix,
   isTaskDoc,

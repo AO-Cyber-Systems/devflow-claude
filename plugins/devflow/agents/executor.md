@@ -46,7 +46,20 @@ If the TRD has `type: ui` AND `stack: flutter`, run the bootstrap detector at ex
 ```bash
 BOOTSTRAP=$(node ~/.claude/devflow/bin/df-tools.cjs verify flutter-ui-bootstrap . --raw)
 ACTION=$(echo "$BOOTSTRAP" | jq -r '.action')
+REPO_ROOT=$(pwd)
+PACKAGE_DIR=$(echo "$BOOTSTRAP" | jq -r '.packageDir // "'"$REPO_ROOT"'"')
 ```
+
+`REPO_ROOT` is captured here, at the repo root, and both values are worth noting down as literal absolute paths (see below — they will not survive into the next Bash call); every evidence path below is absolute from `$REPO_ROOT`, never `$OLDPWD` (in this harness the working directory persists across Bash tool calls while shell state does not, so `$OLDPWD` is never a reliable repo root). `PACKAGE_DIR` is read straight from `.packageDir` with no further resolution — `df-tools verify flutter-ui-bootstrap`'s `packageDir` is already absolute per the W0-4 contract, so re-deriving it (e.g. `cd "$REPO_ROOT/$PACKAGE_DIR" && pwd`) would be redundant.
+
+Every flutter/maestro/adb command in this agent runs from `$PACKAGE_DIR` **in a subshell** — `( cd "$PACKAGE_DIR" && <cmd> )` — never a bare `cd "$PACKAGE_DIR" && <cmd>`. The working directory of the session stays the repo root: the harness persists cwd across Bash tool calls, and `.planning/` paths (marker, evidence, `df-tools` state) resolve from cwd, so a leaked `cd` breaks every later call. Evidence `mv`/`--output` targets are absolute from `$REPO_ROOT`; the `.planning/` marker and evidence paths stay at the repo root.
+
+Shell variables do NOT persist across Bash tool calls either, so `$REPO_ROOT`, `$PACKAGE_DIR`, and `$OBJECTIVE_DIR` in the examples below are placeholders for a single call. `$OBJECTIVE_DIR` comes from `objective_dir` in the `init execute-objective` JSON (extracted above at agent start) — it does not survive into later calls any more than the other two do. Each Bash call must do one of:
+
+1. **Preferred (cheaper): substitute the literal absolute paths** you learned at bootstrap — write `( cd /abs/path/to/flutter && flutter test ... )` and `mv /abs/path/to/flutter/build/... /abs/repo/.planning/...` directly. No re-derivation, no extra process.
+2. Re-derive at the top of the call: `REPO_ROOT=$(git rev-parse --show-toplevel)`, `PACKAGE_DIR=$(node ~/.claude/devflow/bin/df-tools.cjs verify flutter-ui-bootstrap . --raw | jq -r .packageDir)`, and `OBJECTIVE_DIR=$(node ~/.claude/devflow/bin/df-tools.cjs init execute-objective "$OBJECTIVE" | jq -r .objective_dir)`.
+
+Never assume a variable set in an earlier call is still defined.
 
 | ACTION | Behavior |
 |--------|----------|
@@ -147,19 +160,22 @@ For each task:
 
 ## Flutter UI per-task verification (REQ-10-04)
 
-If TRD frontmatter has `type: ui` AND `stack: flutter`, apply these gates PER TASK in addition to the standard per-task verification:
+If TRD frontmatter has `type: ui` AND `stack: flutter`, apply these gates PER TASK in addition to the standard per-task verification. Do not rely on cwd between calls; every command names its directory explicitly.
 
 ### Per-task: flutter analyze (baseline-diff)
 
 `flutter analyze` exits non-zero on any warning, including pre-existing. Per RESEARCH.md Pitfall #6, compare against a baseline captured at task START:
 
-```bash
-# At task START (capture baseline)
-BASELINE_ANALYZE=$(flutter analyze --no-pub --no-fatal-warnings 2>&1 | sort)
+The baseline lives in a file, not a shell variable — task START and task END are separate Bash calls, and variables do not survive between them.
 
-# At task END (compare)
-CURRENT_ANALYZE=$(flutter analyze --no-pub --no-fatal-warnings 2>&1 | sort)
-NEW_WARNINGS=$(diff <(echo "$BASELINE_ANALYZE") <(echo "$CURRENT_ANALYZE") | grep '^>')
+```bash
+# At task START (capture baseline to a file under the evidence dir)
+mkdir -p "$REPO_ROOT"/.planning/objectives/$OBJECTIVE_DIR/evidence/
+( cd "$PACKAGE_DIR" && flutter analyze --no-pub --no-fatal-warnings 2>&1 | sort ) > "$REPO_ROOT"/.planning/objectives/$OBJECTIVE_DIR/evidence/analyze-baseline.txt
+
+# At task END (compare against the file)
+CURRENT_ANALYZE=$(cd "$PACKAGE_DIR" && flutter analyze --no-pub --no-fatal-warnings 2>&1 | sort)
+NEW_WARNINGS=$(diff "$REPO_ROOT"/.planning/objectives/$OBJECTIVE_DIR/evidence/analyze-baseline.txt <(echo "$CURRENT_ANALYZE") | grep '^>')
 
 if [ -n "$NEW_WARNINGS" ]; then
   echo "FAIL: task introduced new flutter analyze warnings:"
@@ -174,11 +190,13 @@ If the task's `<files>` includes a path ending in `_test.dart` AND the task is `
 
 ```bash
 # RED phase — MUST exit non-zero (test fails on missing implementation)
-flutter test <path/to/test.dart>
+( cd "$PACKAGE_DIR" && flutter test <path/to/test.dart> )
 
 # GREEN phase (after implementation) — MUST exit zero
-flutter test <path/to/test.dart>
+( cd "$PACKAGE_DIR" && flutter test <path/to/test.dart> )
 ```
+
+TRD test paths are package-relative (relative to `$PACKAGE_DIR`), never prefixed with `flutter/`.
 
 For non-tdd tasks with a widget test path, run once at task end; MUST exit zero.
 
@@ -191,7 +209,7 @@ After ALL tasks complete (before final commit + SUMMARY), if TRD has `type: ui` 
 **Pre-create evidence dir:**
 
 ```bash
-mkdir -p .planning/objectives/$OBJECTIVE_DIR/evidence/
+mkdir -p "$REPO_ROOT"/.planning/objectives/$OBJECTIVE_DIR/evidence/
 ```
 
 **Per-platform integration_test + Maestro invocations:**
@@ -202,24 +220,25 @@ Read `platform:` from TRD frontmatter (default `[mobile, web]` per TRD 10-03's p
 
 ```bash
 # Requires booted emulator. If not booted, emit checkpoint asking user to boot one.
-flutter test integration_test/
+( cd "$PACKAGE_DIR" && flutter test integration_test/ )
 
 # Move screenshots (from takeScreenshot() calls inside integration_test files):
-mv build/integration_test_screenshots/* .planning/objectives/$OBJECTIVE_DIR/evidence/ 2>/dev/null || true
+# Both sides absolute — no cd, so this command doesn't depend on cwd at all.
+mv "$PACKAGE_DIR"/build/integration_test_screenshots/* "$REPO_ROOT"/.planning/objectives/$OBJECTIVE_DIR/evidence/ 2>/dev/null || true
 
 # Build + install app for Maestro:
-flutter build apk --debug
-adb install -r build/app/outputs/flutter-apk/app-debug.apk
+( cd "$PACKAGE_DIR" && flutter build apk --debug )
+( cd "$PACKAGE_DIR" && adb install -r build/app/outputs/flutter-apk/app-debug.apk )
 
 # Run Maestro flows (MOBILE ONLY — Maestro is mobile-only by design):
 # See references/flutter-state-patterns.md "Web verification mechanism" — upstream blocker
 # mobile-dev-inc/maestro#2591 (open since July 2025, unresolved mid-2026). NO MAESTRO ON WEB.
-maestro test .maestro/ \
+( cd "$PACKAGE_DIR" && maestro test .maestro/ \
   --format junit \
-  --output .planning/objectives/$OBJECTIVE_DIR/evidence/maestro.xml
+  --output "$REPO_ROOT"/.planning/objectives/$OBJECTIVE_DIR/evidence/maestro.xml )
 
-# Maestro screenshots:
-mv ~/.maestro/tests/*/screenshots/* .planning/objectives/$OBJECTIVE_DIR/evidence/ 2>/dev/null || true
+# Maestro screenshots — source is already absolute (~), destination is absolute from $REPO_ROOT:
+mv ~/.maestro/tests/*/screenshots/* "$REPO_ROOT"/.planning/objectives/$OBJECTIVE_DIR/evidence/ 2>/dev/null || true
 ```
 
 **If `maestro` is not installed:** Emit a checkpoint. Do not silently skip. Install: `curl -fsSL "https://get.maestro.dev" | bash`.
@@ -234,13 +253,14 @@ pgrep chromedriver >/dev/null || { echo "CHECKPOINT: Start chromedriver --port=4
 # WEB uses flutter drive invoking the SAME tests.integration path that mobile uses via flutter test.
 # The test_driver/integration_test.dart driver is scaffolded by TRD 10-04a's bootstrap setup task.
 # DO NOT use `flutter test integration_test/ -d chrome` — deprecated for web (Pitfall #1).
-flutter drive \
+( cd "$PACKAGE_DIR" && flutter drive \
   --driver=test_driver/integration_test.dart \
   --target=<tests.integration path from TRD> \
-  -d chrome
+  -d chrome )
 
 # Move web integration_test screenshots:
-mv build/integration_test_screenshots/* .planning/objectives/$OBJECTIVE_DIR/evidence/ 2>/dev/null || true
+# Both sides absolute — no cd, so this command doesn't depend on cwd at all.
+mv "$PACKAGE_DIR"/build/integration_test_screenshots/* "$REPO_ROOT"/.planning/objectives/$OBJECTIVE_DIR/evidence/ 2>/dev/null || true
 
 # NO MAESTRO ON WEB — Maestro is mobile-only BY DESIGN.
 # See references/flutter-state-patterns.md "Web verification mechanism" section.

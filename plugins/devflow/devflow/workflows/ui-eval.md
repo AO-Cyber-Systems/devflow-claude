@@ -36,10 +36,11 @@ either a manifest path **or an objective id** and resolves it via `resolveUIEval
 
 1. An explicit path passed in `$ARGUMENTS` that names an existing file.
 2. `.planning/objectives/<obj>/evidence/ui_eval/manifest.json`
-3. `ui_eval/manifests/*.manifest.json` (and `flutter/ui_eval/manifests/*.manifest.json`)
+3. `ui_eval/manifests/*.manifest.json` (and `flutter/ui_eval/manifests/*.manifest.json`) — **never resolves** (W0-3, spec §12.2): any match here reports `resolution: 'absent', reason: 'unscoped-candidates', candidates: [...]` instead of being picked, since a repo-root manifest is not scoped to this objective.
 
-**The engine reads JSON, not YAML.** A `.yaml` manifest resolves to `invalid`, not to
-"absent" — it is reported, not ignored. Do not re-implement this lookup in the agent prose;
+**The engine reads JSON, not YAML.** A Tier-2 (`evidence/ui_eval/manifest.yaml`) or
+explicit-path `.yaml` manifest resolves to `invalid`, not to "absent" — it is reported, not
+ignored; a Tier-3 `.yaml` is ignored (`absent`). Do not re-implement this lookup in the agent prose;
 pass the objective id and read `resolution` off the result.
 </step>
 
@@ -51,7 +52,8 @@ mkdir -p .planning/objectives/$OBJECTIVE_DIR/evidence/ui_eval/
 ```
 
 For each manifest state with a `surface`/route:
-- `browser_navigate(url=...)` against the running dev surface (`flutter run -d chrome` with `?enable-semantics=true`, per verifier Step 8a Flutter-web caveats).
+- Build and serve first: `flutter build web --release` (add any `--dart-define` values the project's e2e entry needs), then serve `build/web` with a static server (e.g. `npx serve build/web` or `python3 -m http.server`) and navigate to that URL with `?enable-semantics=true` appended, per verifier Step 8a Flutter-web caveats. Never `flutter run -d web-server`/`-d chrome` for capture — DWDS wedges into a blank page with no console error.
+- `browser_navigate(url=...)` against that static URL.
 - `browser_wait_for(text="<landmark>")` — never a fixed sleep.
 - `browser_take_screenshot()` → save under `evidence/ui_eval/<state_id>.png`.
 - Write the Shape-B capture JSON (`{ state_id, surface, screenshot_path, metadata }`) to the path referenced by the manifest state's `capture_path` (relative to the manifest dir).
@@ -72,7 +74,7 @@ Each `states[]` entry: `{ state_id, verdict: 'pass'|'review'|'fail', is_broken, 
 
 Route by the engine's `resolution` field (the authoritative table is verifier.md Step 8c):
 - `not_applicable` → skip silently, exit 0.
-- `absent` → MISSING — keep the surface on the human-verification list, record a todo to author the manifest.
+- `absent` → MISSING — keep the surface on the human-verification list, record a todo to author the manifest (when `reason: 'unscoped-candidates'`, the todo is to pass one of `candidates[]` explicitly or author the objective-scoped manifest, not to trust an unscoped repo-root file).
 - `invalid` → `gaps:` entry.
 - `resolved` → score per the rollup above.
 Never a hard fail on `not_applicable` or `absent`; only `invalid` and a judged `fail` produce gaps.

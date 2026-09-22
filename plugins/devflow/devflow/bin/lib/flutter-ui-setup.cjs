@@ -20,6 +20,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { resolveFlutterPackageDir } = require('./flutter-package-dir.cjs');
 
 // ───── detectMissingTools ────────────────────────────────────────────────────
 
@@ -323,8 +324,18 @@ const PUBSPEC_FLUTTER_VERSION_RE = /^\s+flutter\s*:\s*['"]?>=\s*(\d+)\.(\d+)\.(\
  *   4. environment.flutter version constraint is >= MIN_FLUTTER_VERSION
  *      (null when constraint absent — advisory pass, not a hard fail)
  *
+ * W0-4 fix round 1: the Flutter package may live at `cwd/pubspec.yaml` OR
+ * `cwd/flutter/pubspec.yaml` (eden-biz/aodex monorepo layout — `cwd` is always
+ * the repo root DevFlow's executor operates from). resolveFlutterPackageDir
+ * (flutter-package-dir.cjs) finds it; every check below (pubspec, flutter dep,
+ * lib/, version) resolves against the result's `packageDir`, so a monorepo repo
+ * no longer trips `not-a-flutter-project` before reaching the bootstrap chain.
+ * Falls back to `packageDir = cwd` when neither location resolves, so the
+ * existing "no pubspec anywhere" / "pubspec present but not Flutter" failure
+ * messages are unchanged for a genuinely non-Flutter directory.
+ *
  * Returns: { isFlutterRepo, checks: {pubspec, flutterDep, libDir, minVersion},
- *            failures: string[] }
+ *            failures: string[], packageDir: string, prefix: ''|'flutter' }
  *
  * minVersion semantics:
  *   true  → constraint present AND >= MIN_FLUTTER_VERSION
@@ -332,7 +343,7 @@ const PUBSPEC_FLUTTER_VERSION_RE = /^\s+flutter\s*:\s*['"]?>=\s*(\d+)\.(\d+)\.(\
  *   null  → constraint absent (advisory pass — caller may warn)
  *
  * @param {object} opts
- * @param {string} opts.cwd  — target project directory (absolute)
+ * @param {string} opts.cwd  — target project directory (absolute; repo root)
  */
 function detectFlutterRepo(opts) {
   const o = opts || {};
@@ -342,14 +353,18 @@ function detectFlutterRepo(opts) {
 
   if (!cwd) {
     failures.push('detectFlutterRepo: cwd not provided');
-    return { isFlutterRepo: false, checks, failures };
+    return { isFlutterRepo: false, checks, failures, packageDir: null, prefix: '' };
   }
 
-  const pubspecPath = path.join(cwd, 'pubspec.yaml');
+  const resolved = resolveFlutterPackageDir(cwd);
+  const packageDir = resolved ? resolved.packageDir : cwd;
+  const prefix = resolved ? resolved.prefix : '';
+  const pubspecPath = resolved ? resolved.pubspecPath : path.join(cwd, 'pubspec.yaml');
+
   if (fs.existsSync(pubspecPath)) {
     checks.pubspec = true;
   } else {
-    failures.push(`no pubspec.yaml at ${pubspecPath} — not a Dart/Flutter project`);
+    failures.push(`no pubspec.yaml at ${pubspecPath} (also checked ${path.join(cwd, 'flutter', 'pubspec.yaml')}) — not a Dart/Flutter project`);
   }
 
   let pubspecContent = '';
@@ -378,7 +393,7 @@ function detectFlutterRepo(opts) {
     } // else: no constraint → minVersion stays null (advisory pass)
   }
 
-  const libPath = path.join(cwd, 'lib');
+  const libPath = path.join(packageDir, 'lib');
   try {
     checks.libDir = fs.existsSync(libPath) && fs.statSync(libPath).isDirectory();
   } catch { checks.libDir = false; }
@@ -391,7 +406,7 @@ function detectFlutterRepo(opts) {
   const versionOk = checks.minVersion !== false; // true OR null → ok
   const isFlutterRepo = required && versionOk;
 
-  return { isFlutterRepo, checks, failures };
+  return { isFlutterRepo, checks, failures, packageDir, prefix };
 }
 
 function compareVersionParts(a, b) {
