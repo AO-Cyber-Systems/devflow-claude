@@ -161,4 +161,25 @@ test.describe('agent-shell-harness — call splitting (S)', () => {
     assert.deepStrictEqual(calls.map(c => c.index), [0, 1, 2]);
   });
 
+  // Case S2 — a trailing `\` continues the call onto the next line. The executor's real
+  // `flutter drive` block is FOUR physical lines and ONE logical command; splitting it
+  // would hand the harness three broken calls and a finding that means nothing.
+  test('Case S2 — a line ending in a backslash continues: four physical lines, ONE call', () => {
+    const block = [
+      'flutter drive \\',
+      '  --driver=test_driver/integration_test.dart \\',
+      '  --target=integration_test/app_test.dart \\',
+      '  -d chrome',
+    ].join('\n');
+
+    const calls = harness.splitCalls(block);
+
+    assert.strictEqual(calls.length, 1, 'four physical lines, one logical command');
+    assert.strictEqual(calls[0].line, 1, 'the call is reported at the line it STARTS on');
+    assert.match(calls[0].call, /flutter drive/);
+    assert.match(calls[0].call, /--driver=test_driver\/integration_test\.dart/);
+    assert.match(calls[0].call, /--target=integration_test\/app_test\.dart/);
+    assert.match(calls[0].call, /-d chrome/);
+  });
+
 });
