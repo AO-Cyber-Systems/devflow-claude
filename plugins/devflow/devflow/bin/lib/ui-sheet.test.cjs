@@ -416,6 +416,53 @@ test('Case G3 — a state with a render AND a ref shows both, the ref labelled b
   assert.ok(block.includes('data:image/png;base64,'), 'images are INLINED, not linked');
 });
 
+test('Case G3b — the schema says where `state.ref` resolves, and says the thing the code does', () => {
+  // A DOC-DRIFT net, in the P2 style: assert the prose rather than review it.
+  //
+  // The schema described `state.ref` as "relative to `references.locked`". The code resolves it
+  // against `--refs` and reads the ref's FIRST PATH SEGMENT as the reference kind — so an author
+  // who followed the schema and wrote `ref: populated.png` got `ref_status: MISSING` and
+  // `ref_kind: null` on every row of their sheet, with nothing anywhere naming the mistake.
+  // The whole premise of a Surface Spec is that its front matter is machine truth; a schema
+  // description pointing at a field NOTHING READS is the drift this objective exists to close.
+  const schemaPath = path.join(__dirname, '..', '..', 'schemas', 'surface-spec.schema.json');
+  const schema = JSON.parse(fs.readFileSync(schemaPath, 'utf-8'));
+  const refDoc = schema.properties.states.items.properties.ref.description;
+
+  assert.ok(refDoc && refDoc.length > 0, 'the guard must have found the description it is about');
+  assert.match(refDoc, /--refs/, '`state.ref` resolves against the `--refs` directory — say so');
+  assert.doesNotMatch(refDoc, /references\.locked/,
+    '`references.locked` is read by NOTHING; a description that names it sends authors to a dead field');
+
+  // The other half of the same fact: `references` is documentation for a human, and the schema
+  // has to say that too, or the next reader assumes the resolver reads it.
+  const referencesDoc = schema.properties.references.description;
+  assert.ok(referencesDoc && referencesDoc.length > 0, 'the references block must carry a description');
+
+  // Executable, not asserted from memory: NO module reads `spec.references`. If one ever does,
+  // this net goes red and whoever wrote it gets to decide which half of the contract moves.
+  const libDir = __dirname;
+  const readers = fs.readdirSync(libDir)
+    .filter((f) => /^ui-(spec|sheet).*\.cjs$/.test(f) && !f.endsWith('.test.cjs'))
+    .filter((f) => /(^|[^.\w])(spec|frontMatter|front)\.references\b/.test(
+      fs.readFileSync(path.join(libDir, f), 'utf-8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .split('\n').filter((l) => !l.trimStart().startsWith('//')).join('\n')
+    ));
+  assert.deepStrictEqual(readers, [],
+    `a module now reads spec.references (${readers.join(', ')}) — the schema description must follow it`);
+
+  // And the behaviour the description now promises, end to end: a `<kind>/<file>` ref under the
+  // --refs root resolves present and carries its kind. (Case G3 asserts the same row; this
+  // asserts it as the SCHEMA's contract, so the two cannot be fixed apart.)
+  const spec = loadSpec();
+  const populated = captureIds(spec).find((id) => id.includes('--populated--'));
+  const { model } = renderFixtureSheet({ present: [populated], refEntries: ['locked/populated.png'] });
+  const row = model.rows.find((r) => r.capture_id === populated);
+  assert.strictEqual(row.ref_status, 'present');
+  assert.strictEqual(row.ref_kind, 'locked');
+});
+
 test('Case G4 — the sheet lists design_read and mode, in its own header', () => {
   const { html, spec } = renderFixtureSheet({});
 

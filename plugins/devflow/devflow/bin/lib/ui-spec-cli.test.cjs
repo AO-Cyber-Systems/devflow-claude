@@ -277,6 +277,38 @@ test('Case R4 — an unknown render flag exits 1 naming --manifest, --graph and 
   }
 });
 
+test('Case R6 — a VALUELESS flag before the spec path does not swallow the path', () => {
+  // `positionals()` skipped the argv element after EVERY `--flag`, so `--graph <file>` ate the
+  // file and the arm printed its usage error without ever reading the spec. Flag-then-path is
+  // the ordering half of every CLI in the world produces, and the failure looks like "you
+  // forgot the file" — the user re-types the command they already typed.
+  const spec = '__fixtures__/ui-spec/projects-rail.md';
+
+  for (const flag of ['--manifest', '--graph', '--table']) {
+    const before = runArm(`ui spec render ${flag} ${spec}`);
+    const after = runArm(`ui spec render ${spec} ${flag}`);
+
+    assert.strictEqual(before.status, 0,
+      `\`${flag} <file>\` must render: exit ${before.status}\n${before.stdout}${before.stderr}`);
+    assert.strictEqual(before.stdout, after.stdout,
+      `\`${flag} <file>\` and \`<file> ${flag}\` must produce the same artifact`);
+  }
+
+  // A VALUED flag keeps its value wherever it sits — the fix must not turn `--patterns` into a
+  // valueless flag and start reading its catalogue path as the spec.
+  const withCatalogue = runArm(`ui spec validate --patterns ${JSON.stringify(PATTERN_CATALOGUE)} ${spec}`);
+  assert.strictEqual(withCatalogue.status, 0, `${withCatalogue.stdout}${withCatalogue.stderr}`);
+  const payload = parseStdout(withCatalogue);
+  assert.strictEqual(payload.ok, true, JSON.stringify(payload.errors));
+  assert.ok(!codesOf(payload).includes('PAT000'),
+    `the catalogue must have been READ, not consumed as the spec path: ${JSON.stringify(payload.errors)}`);
+
+  // And a flag whose value is MISSING still refuses rather than eating the path silently.
+  const danglingValue = runArm(`ui spec validate --patterns ${spec}`);
+  assert.strictEqual(danglingValue.status, 1,
+    'a --patterns pointing at the spec (and so no spec left) must refuse');
+});
+
 test('Case R5 — a MISSING row is reported on stderr, never laundered into a silent pass', () => {
   // W1b has no pinned eden-ui-flutter release, so EVERY real run carries a PAT000/MISSING row:
   // the pattern check COULD NOT RUN. `ok` does not flip (a MISSING row is not a violation), so
