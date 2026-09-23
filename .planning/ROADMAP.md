@@ -200,3 +200,22 @@ Jobs:
 Decision recorded in OBJECTIVE.md: **resolution is owned by the handler, not the prose** (option c, implemented as b). Two prose documents already drifted apart on this lookup; the side that owns it is the side that cannot drift, so it moves into code once. The load-bearing test then EXECUTES the invocation extracted from `verifier.md` itself — it pins behaviour, not a string.
 
 Manifest-less policy: `not_applicable` skips silently (existing gate preserved), `absent` is **MISSING** — the surface stays on the human-verification list plus a todo, escalating to a gap only when `visual_gate: true` — and `invalid` gaps loudly. Replacing a gate that never runs with a gate that always gaps would just get it disabled.
+### Objective 34: UI Oracle Loop W1b — Surface Spec: schema, validator, renderer, review sheet, look-lock, prose harness
+
+**Goal:** DevFlow can parse and validate a Surface Spec — the one hand-authored description of how a UI surface must function — derive the ui-eval manifest, navigation graph and control table from it, render a review sheet a human approves, record that approval as a look-lock later phases anchor on, and run agent prose that encodes shell semantics against a real harness.
+**Depends on:** Objective 33 (the gate it feeds), UI Oracle Loop wave 0 (shipped v2.8.0)
+**Source:** `docs/PROPOSAL-ui-oracle-loop.md` §4/§8/§12/§21 · `docs/IMPLEMENTATION-PLAN-ui-oracle-loop.md` Part 3 "W1b"
+**Jobs:** 11 TRDs in 9 waves (two parallel roots: 34-01 schema chain, 34-09 harness chain; 34-11 releases last)
+
+Jobs:
+- [ ] 34-01-TRD.md — Wave 1: `yaml-lite` — the subset YAML parser, and everything it refuses
+- [ ] 34-02-TRD.md — Wave 2: Surface Spec schema v1, the parser front door, and the `projects-rail` positive control
+- [ ] 34-03-TRD.md — Wave 3: `validateSurfaceSpec` — invariants I1-I3 and their known-broken fixtures
+- [ ] 34-04-TRD.md — Wave 4: invariants I4-I8, six more known-broken fixtures, and the `ui spec validate` arm (exit 1 with codes) — carries the I6 hit-rect decision checkpoint
+- [ ] 34-05-TRD.md — Wave 5: `renderSurfaceSpec` — manifest, nav graph, control table, capture list
+- [ ] 34-06-TRD.md — Wave 6: the review sheet and a `sheet_hash` that survives a template edit — human-verify checkpoint
+- [ ] 34-07-TRD.md — Wave 7: look-lock — writing the acceptance block, and clearing it on shape change only
+- [ ] 34-08-TRD.md — Wave 8: `frontend-design` build mode step 0 — no composition without a valid, locked spec
+- [ ] 34-09-TRD.md — Wave 1: the agent shell harness — extraction, the call model, and cwd that persists
+- [ ] 34-10-TRD.md — Wave 2: the harness meets real prose — scratch monorepo, stubs, annotations, and CI
+- [ ] 34-11-TRD.md — Wave 9: release 2.9.0 — human-action checkpoint (tag)
