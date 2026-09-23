@@ -182,4 +182,35 @@ test.describe('agent-shell-harness — call splitting (S)', () => {
     assert.match(calls[0].call, /-d chrome/);
   });
 
+  // Case S3 — annotation association. A full-line comment belongs to the call that
+  // FOLLOWS it, which is how `# harness: expect <path>` reads in prose; 34-10's
+  // `# harness:` vocabulary is built entirely on this rule. A trailing comment stays in
+  // its own call's text (bash ignores it) AND is recorded as that call's annotation.
+  test('Case S3 — full-line comments annotate the NEXT call; trailing comments stay on their own', () => {
+    const block = [
+      '# harness: expect marker.txt',
+      '# and a second note on the same call',
+      'touch marker.txt',
+      'echo done  # trailing note',
+    ].join('\n');
+
+    const calls = harness.splitCalls(block);
+
+    assert.strictEqual(calls.length, 2, 'comments are annotations, never calls of their own');
+
+    assert.strictEqual(calls[0].call, 'touch marker.txt');
+    assert.strictEqual(calls[0].line, 3, 'the call is at its own line, not the comment\'s');
+    assert.deepStrictEqual(calls[0].annotations, [
+      '# harness: expect marker.txt',
+      '# and a second note on the same call',
+    ], 'both preceding full-line comments attach to the NEXT call, in order');
+
+    assert.match(calls[1].call, /echo done/);
+    assert.match(calls[1].call, /# trailing note/, 'a trailing comment stays in the call text');
+    assert.deepStrictEqual(calls[1].annotations, ['# trailing note'],
+      'and is ALSO recorded as an annotation');
+    assert.ok(!calls[1].annotations.includes('# and a second note on the same call'),
+      'consumed annotations must not leak onto the following call');
+  });
+
 });
