@@ -410,7 +410,7 @@ test.describe('agent-shell-harness — the runtime model (X)', () => {
       '## Flutter',                                //  1
       '',                                          //  2
       '```bash',                                   //  3
-      '# harness: the first call passes',          //  4
+      '# note: the first call passes',            //  4
       'echo alpha',                                //  5
       'cd sub',                                    //  6
       'echo beta',                                 //  7
@@ -447,7 +447,7 @@ test.describe('agent-shell-harness — the runtime model (X)', () => {
     assert.deepStrictEqual(res.calls[0].findings, []);
     assert.strictEqual(res.calls[0].status, 0);
     assert.strictEqual(res.calls[0].stdout.trim(), 'alpha');
-    assert.deepStrictEqual(res.calls[0].annotations, ['# harness: the first call passes'],
+    assert.deepStrictEqual(res.calls[0].annotations, ['# note: the first call passes'],
       'the annotation attached to the call that FOLLOWS the comment');
     assert.strictEqual(res.calls[0].line, 5, 'lines are absolute in the markdown FILE');
 

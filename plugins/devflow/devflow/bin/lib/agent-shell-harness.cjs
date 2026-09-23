@@ -280,6 +280,10 @@ function containmentFindings(callText, root, allowOutside) {
 //   # harness: subst <tok>=<value>  literal replace in the call text before execution
 //   # harness: skip <reason>        do not execute; status 'skipped'; counts as MISSING
 //
+// Anything else under `# harness:` — an unknown verb, or a known verb with a malformed
+// argument — is a FINDING. A typo that is quietly ignored is worse than no annotation at
+// all, because the prose then LOOKS asserted.
+//
 // `{root}` in any directive value expands to the scratch root.
 const HARNESS_DIRECTIVE_RE = /^#\s*harness:\s*(.+)$/;
 
@@ -288,7 +292,7 @@ function expandRoot(value, root) {
 }
 
 function parseAnnotations(annotations, root) {
-  const spec = { expects: [], expectCwd: null, expectExit: null, derives: {}, substs: [], skip: null };
+  const spec = { expects: [], expectCwd: null, expectExit: null, derives: {}, substs: [], skip: null, errors: [] };
   for (const raw of annotations || []) {
     const m = HARNESS_DIRECTIVE_RE.exec(String(raw == null ? '' : raw).trim());
     if (!m) continue;          // an ordinary prose comment is not a directive
@@ -296,19 +300,20 @@ function parseAnnotations(annotations, root) {
     const sp = body.search(/\s/);
     const verb = sp === -1 ? body : body.slice(0, sp);
     const arg = sp === -1 ? '' : expandRoot(body.slice(sp + 1).trim(), root);
-    if (verb === 'expect' && arg) { spec.expects.push(arg); continue; }
-    if (verb === 'expect-cwd' && arg) { spec.expectCwd = arg; continue; }
-    if (verb === 'expect-exit' && /^\d+$/.test(arg)) { spec.expectExit = Number(arg); continue; }
-    if (verb === 'skip' && arg) { spec.skip = arg; continue; }
+    if (verb === 'expect') { if (arg) { spec.expects.push(arg); continue; } }
+    if (verb === 'expect-cwd') { if (arg) { spec.expectCwd = arg; continue; } }
+    if (verb === 'expect-exit') { if (/^\d+$/.test(arg)) { spec.expectExit = Number(arg); continue; } }
+    if (verb === 'skip') { if (arg) { spec.skip = arg; continue; } }
     if (verb === 'subst') {
       const eq = arg.indexOf('=');
-      if (eq > 0) { spec.substs.push([arg.slice(0, eq), arg.slice(eq + 1)]); continue; }
+      if (eq > 0 && arg.slice(eq + 1)) { spec.substs.push([arg.slice(0, eq), arg.slice(eq + 1)]); continue; }
     }
     if (verb === 'derive') {
       // Split on the FIRST `=` only: a value may itself contain `=`.
       const eq = arg.indexOf('=');
       if (eq > 0) { spec.derives[arg.slice(0, eq).trim()] = arg.slice(eq + 1); continue; }
     }
+    spec.errors.push(body);
   }
   return spec;
 }
@@ -440,6 +445,20 @@ function runSection(calls, opts = {}) {
     // ...plus THIS call's `derive`s, and nothing else. The object is rebuilt every
     // iteration, so a derive cannot reach the next call: A4's negative half.
     const env = Object.assign({ PATH: searchPath, HOME: home, TMPDIR: tmpdir }, spec.derives);
+
+    for (const body of spec.errors) {
+      rec.findings.push({
+        type: 'unknown-annotation',
+        index: rec.index,
+        line: rec.line,
+        call: callText,
+        directive: body,
+        message:
+          `call ${rec.index + 1} carries an unrecognised harness directive ` +
+          `\`# harness: ${body}\`. A typo must not silently disable a check — the ` +
+          'vocabulary is expect / expect-cwd / expect-exit / derive / subst / skip.',
+      });
+    }
 
     // A declared skip is MISSING, never a pass: the call was not exercised, so nothing
     // about the prose was proven. It is reported, counted, and not run.
