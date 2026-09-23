@@ -482,3 +482,96 @@ test('Case S7 — every pre-TRD build-mode step survives the renumbering', () =>
     assert.ok(md.includes(heading), `the "${heading}" heading must survive`);
   }
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// R — design-stack-flutter.md's two new sections
+// ═══════════════════════════════════════════════════════════════════════════════════════
+
+// R3's baseline, captured from the pre-TRD file at commit f3e0cb3^ by extracting `^## ` from
+// design-stack-flutter.md. The two new sections APPEND; they do not reorganise.
+const PRE_TRD_STACK_SECTIONS = [
+  '## 1. Typography',
+  '## 2. Colour',
+  '## 3. Icons',
+  '## 4. Layout mechanics',
+  '## 5. Motion',
+  '## 6. Interactive states',
+  '## 7. Performance',
+  '## 8. Dependency verification',
+];
+
+test('Case R1 — `## Composition and semantics` states the four composition rules', () => {
+  const section = stackSection(COMPOSITION_HEADING);
+  assert.ok(section.length > 400, 'the section must actually say something');
+
+  // A control's semantics identifier IS its Surface Spec control id. The probe finds controls
+  // by identifier; a mismatch reads as `present` failing — "the control does not exist".
+  assert.match(section, /semantics identifier/i, 'it must name the semantics identifier');
+  assert.match(section, /control id/i, 'it must say the identifier equals the spec control id');
+
+  // Exactly one tap action per identified control — the ExcludeSemantics + Semantics(onTap:)
+  // double-declaration trap, which fires twice per activation.
+  assert.match(section, /ExcludeSemantics/, 'it must name the ExcludeSemantics half of the trap');
+  assert.match(section, /Semantics\(onTap:/, 'it must name the Semantics(onTap:) half of the trap');
+  assert.match(section, /fire twice per activation/, "it must name the spec's own `must_not` string for this defect");
+
+  // Sibling control hit rects are disjoint.
+  assert.match(section, /hit[ _]rect/i, 'it must state the hit-rect rule');
+  assert.match(section, /disjoint/i, 'sibling control hit rects must be disjoint');
+  assert.match(section, /disjoint_from/, 'it must name the spec key that declares a genuine nesting');
+
+  // The geometry note: a SemanticsNode.rect is read from the node itself, through its transform.
+  assert.match(section, /SemanticsNode\.rect/, 'it must name SemanticsNode.rect');
+  assert.match(section, /container: true/, 'it must name the `container: true` that a nested Semantics needs');
+  assert.match(section, /transform/i, 'the rect must be walked through the node transform, not taken from the parent');
+});
+
+test('Case R2 — `## Surface Spec` states the one-file rule and the re-lock rule', () => {
+  const section = stackSection(SURFACE_SPEC_HEADING);
+  assert.ok(section.length > 300, 'the section must actually say something');
+
+  // What it is and where it lives.
+  assert.match(section, /flutter\/ui_spec\/<surface>\.md/, 'it must name where a spec lives');
+  assert.match(section, /front matter/i, 'it must say the front matter is the machine truth');
+
+  // The one-file rule: everything else is DERIVED, never hand-edited.
+  assert.match(section, /derived/i, 'the one-file rule: the manifest, sheet and capture list are derived');
+  assert.match(section, /never hand-edited|not hand-edited/i, 'the one-file rule must forbid hand-editing the derived artefacts');
+  assert.ok(
+    extractUiArms(section).includes('spec render'),
+    'it must name the arm that does the deriving — `df-tools … ui spec render`',
+  );
+
+  // The re-lock rule: a shape change clears the lock; a prose change does not. BOTH directions,
+  // or the rule is half-stated and the half that is missing is the one people get wrong.
+  assert.match(section, /routes/, 're-lock rule: `routes`');
+  assert.match(section, /controls/, 're-lock rule: `controls`');
+  assert.match(section, /states/, 're-lock rule: `states`');
+  assert.match(section, /locked_sheet|clears the lock/i, 'it must say what a shape change clears');
+  assert.match(
+    section, /prose (change )?does not|not.*prose/i,
+    'it must say a PROSE change does NOT clear the lock — the half of the rule that keeps the gate usable',
+  );
+});
+
+test('Case R3 — the eight pre-existing sections are present, in order, and the two new ones append', () => {
+  const md = fs.readFileSync(STACK_MD, 'utf-8');
+  const headings = [...md.matchAll(/^## .*$/gm)].map((m) => m[0]);
+
+  const positions = PRE_TRD_STACK_SECTIONS.map((h) => {
+    const i = headings.indexOf(h);
+    assert.ok(i !== -1, `the pre-existing section "${h}" is gone — this TRD appends, it does not reorganise`);
+    return i;
+  });
+  assert.deepStrictEqual(
+    positions, positions.slice().sort((a, b) => a - b),
+    `the eight pre-existing sections must stay in their original order: ${headings.join(' | ')}`,
+  );
+
+  // The two new sections come after all eight.
+  for (const h of [COMPOSITION_HEADING, SURFACE_SPEC_HEADING]) {
+    const i = headings.indexOf(h);
+    assert.ok(i !== -1, `the new section "${h}" must exist`);
+    assert.ok(i > Math.max(...positions), `"${h}" must APPEND after the eight existing sections, not interleave`);
+  }
+});
