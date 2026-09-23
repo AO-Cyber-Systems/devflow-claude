@@ -295,3 +295,125 @@ test('Case G4 — no trailing whitespace on any line, exactly one trailing newli
     assert.strictEqual(line, line.replace(/[ \t]+$/, ''), `trailing whitespace on line ${i + 1}: ${JSON.stringify(line)}`);
   });
 });
+
+// ─── T: the plain-language control table ─────────────────────────────────────────────────────
+//
+// §8.3 quotes what this is supposed to read like:
+//   "Clicking the project header toggles its children and selects the project. It never
+//    navigates on close."
+// Its READABILITY is the point — a human reads it on the review sheet and objects to the
+// WORDING, which they cannot do if the renderer emits a key/value dump. The committed snapshot
+// is where that objection gets registered.
+
+/** The lines of one `### <id> (<kind>)` block, up to the next `###` or the end. */
+function controlBlock(md, id) {
+  const lines = md.split('\n');
+  const start = lines.findIndex((l) => l.startsWith(`### ${id} `));
+  assert.notStrictEqual(start, -1, `no block for control ${id} in:\n${md}`);
+  const rest = lines.slice(start + 1);
+  const end = rest.findIndex((l) => l.startsWith('### '));
+  return (end === -1 ? rest : rest.slice(0, end)).filter((l) => l.trim().length > 0);
+}
+
+test('Case T1 — a single-`does` control renders ONE sentence: the control, what it does, its effects', () => {
+  const { controlTableMd } = renderSurfaceSpec(loadPositiveControl());
+  const block = controlBlock(controlTableMd, 'rail.project.chevron');
+
+  const bullets = block.filter((l) => l.startsWith('- '));
+  assert.strictEqual(bullets.length, 1, `a single-does control renders one sentence, got:\n${bullets.join('\n')}`);
+  assert.strictEqual(
+    bullets[0],
+    '- Activating rail.project.chevron toggles children visibility only. (toggle)'
+  );
+  assert.ok(controlTableMd.includes('### rail.project.chevron (toggle)'), 'the heading names the control and its kind');
+});
+
+test('Case T2 — a `behaviors[]` control renders ONE LINE PER `when` clause, condition in words', () => {
+  const spec = loadPositiveControl();
+  const { controlTableMd } = renderSurfaceSpec(spec);
+
+  const header = spec.controls.find((c) => c.id === 'rail.project.header');
+  const bullets = controlBlock(controlTableMd, 'rail.project.header').filter((l) => l.startsWith('- '));
+
+  // THE assertion: the COUNT. A `contains('collapsed')` check passes on a table that merged
+  // three behaviours into one sentence, which is exactly the render this case exists to forbid.
+  assert.strictEqual(
+    bullets.length,
+    header.behaviors.length,
+    `expected one line per behaviour (${header.behaviors.length}), got ${bullets.length}:\n${bullets.join('\n')}`
+  );
+
+  assert.deepStrictEqual(bullets, [
+    '- When collapsed, on desktop: expands children; selects the project and scopes the middle pane. (toggle, select)',
+    '- When expanded, on desktop: collapses children; selection unchanged. It never changes route; it never loses selection. (toggle)',
+    '- On narrow: opens the project in the drawer. (navigation)'
+  ]);
+});
+
+test('Case T3 — must_not renders as explicit negations; control-level ONCE per control; manual marked', () => {
+  const spec = loadPositiveControl();
+  const { controlTableMd } = renderSurfaceSpec(spec);
+
+  // The control-level `must_not` applies to EVERY behaviour (§4.2's own comment), so it renders
+  // ONCE per control — not once per behaviour, which is how T2's count goes off by one.
+  const headerBlock = controlBlock(controlTableMd, 'rail.project.header');
+  const always = headerBlock.filter((l) => l.startsWith('*Always:*'));
+  assert.strictEqual(always.length, 1, `control-level must_not must render once, got:\n${always.join('\n')}`);
+  assert.strictEqual(
+    always[0],
+    '*Always:* It never fires twice per activation; it never covers sibling hit rects.'
+  );
+
+  // Behaviour-level negations belong to their own behaviour's line (pinned in T2), and the
+  // whole table carries five negations — two behaviour-level, three control-level.
+  assert.strictEqual(
+    (controlTableMd.match(/it never /gi) || []).length,
+    5,
+    `expected five negations across the table:\n${controlTableMd}`
+  );
+
+  // §4.3: free text is allowed only with `manual: true`, which keeps the item on the
+  // human-verify list instead of pretending it is machine-checkable.
+  const manual = renderSurfaceSpec(mutate(spec, (s) => {
+    const chevron = s.controls.find((c) => c.id === 'rail.project.chevron');
+    chevron.manual = true;
+    const header = s.controls.find((c) => c.id === 'rail.project.header');
+    header.behaviors[1].manual = true;
+  }));
+
+  const chevronAlways = controlBlock(manual.controlTableMd, 'rail.project.chevron')
+    .filter((l) => l.startsWith('*Always:*'));
+  assert.strictEqual(
+    chevronAlways[0],
+    '*Always:* [human-verify] It never selects the project; it never changes route.'
+  );
+
+  const manualBehaviour = controlBlock(manual.controlTableMd, 'rail.project.header')
+    .filter((l) => l.startsWith('- '))[1];
+  assert.strictEqual(
+    manualBehaviour,
+    '- When expanded, on desktop: collapses children; selection unchanged. [human-verify] It never changes route; it never loses selection. (toggle)'
+  );
+});
+
+test('Case T4 — the table names the surface, design_read and mode before the first control', () => {
+  const { controlTableMd } = renderSurfaceSpec(loadPositiveControl());
+  const lines = controlTableMd.split('\n');
+
+  assert.strictEqual(lines[0], '## Controls — projects-rail');
+
+  const firstControl = lines.findIndex((l) => l.startsWith('### '));
+  const preamble = lines.slice(0, firstControl);
+  assert.ok(
+    preamble.includes('*Design read:* utility rail; expression low, motion minimal, density compact'),
+    `design_read is not in the preamble:\n${preamble.join('\n')}`
+  );
+  assert.ok(preamble.includes('*Mode:* redesign'), `mode is not in the preamble:\n${preamble.join('\n')}`);
+
+  // Same whitespace contract as the graph — the snapshot is only a regression net if drift
+  // cannot hide in it.
+  assert.ok(controlTableMd.endsWith('\n') && !controlTableMd.endsWith('\n\n'));
+  lines.forEach((line, i) => {
+    assert.strictEqual(line, line.replace(/[ \t]+$/, ''), `trailing whitespace on line ${i + 1}`);
+  });
+});
