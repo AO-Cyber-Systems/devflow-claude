@@ -114,6 +114,18 @@ When flutter-skill MCP is available, use its tools for live inspection:
       `node ~/.claude/devflow/bin/df-tools.cjs ui spec validate flutter/ui_spec/<surface>.md`
 
       A spec that does not validate is not reviewable and cannot seed a TRD.
+
+      The exit code has three values, and the middle one is the point:
+
+      - `0` — every §4.5 invariant ran and none was violated.
+      - `1` — a real violation. Fix it. `errors[]` names each one with its own code.
+      - `2` — nothing violated, but one or more checks DID NOT RUN. `complete: false` and
+        `unchecked: [...]` say which. This is not a pass and not a failure: it is the list of
+        things the machine could not check, and it has to be carried to the human at look-lock
+        rather than absorbed here.
+
+      Never write this gate as `... || echo ok` or read `ok` on its own — `ok` answers only
+      "did anything violate", and a spec whose I5 never ran reports `ok: true`.
    d. Read the `lock` block of that same output. Its `lock` value is one of exactly four:
 
       - `held` — a human approved this surface and nothing in `routes`, `controls` or `states`
@@ -137,8 +149,15 @@ When flutter-skill MCP is available, use its tools for live inspection:
    composing against an unapproved design.
 
    `PAT000` and `HIT000` rows carry `status: MISSING` when the pattern catalogue or the hit-rect
-   probe was unreachable; they do not set `ok: false` and do not block composition. A check that
-   could not run is not a violation, and treating it as one would block every surface in the repo.
+   probe was unreachable. They do not set `ok: false` — a check that could not run is not a
+   violation, and treating it as one would block every surface in the repo, because W1b has no
+   pinned `eden-ui-flutter` release and so I5 cannot run at all today. They DO set
+   `complete: false` and exit 2.
+
+   So a 2 does not by itself block composition — but it is never silent. Name the `unchecked`
+   codes in the look-lock presentation, so the human approving the surface knows which rules
+   nobody checked. An unchecked invariant absorbed here is a silent pass, which is the exact
+   class this whole step exists to close.
 
    This step and the pre-flight step are different gates and do not overlap: this one is the
    **Phase A** gate on the *design* — does an approved spec exist to compose against — and runs

@@ -3,7 +3,9 @@
 /**
  * ui-spec-validate — the Surface Spec static invariants (objective 34-03 / 34-04).
  *
- *   validateSurfaceSpec(spec, {patterns, vocabulary}) -> {ok, errors, engine_version, schema_version}
+ *   validateSurfaceSpec(spec, {patterns, vocabulary})
+ *       -> {ok, complete, unchecked, errors, engine_version, schema_version}
+ *   exitCodeFor(verdict) -> 0 | 1 | 2   (EXIT.OK | EXIT.VIOLATION | EXIT.INCOMPLETE)
  *
  * One export does the work and it NEVER throws. The verdict is structured — an array of
  * `{code, path, msg}` — because 34-04's `df-tools ui spec validate` arm turns `errors` into an
@@ -46,13 +48,27 @@
  *   FLOW002  a flow's last step is neither a `back` nor a route declared `root: true`
  *   GUARD001 a route guard that names no denied state (see `resolveGuardDeniedState`)
  *
- * ── `ok`, and what a MISSING row means (read this before 34-08's "refuse to compose") ────────
+ * ── `ok`, `complete`, and what a MISSING row means (read before 34-08's "refuse to compose") ─
  * `ok` counts REAL VIOLATIONS only. A `*000` code carries `status: 'MISSING'`: the check could
  * not run, so the answer is neither pass nor fail, the row is reported so nobody can miss it,
  * and it does NOT flip `ok`. W1b has no pinned eden-ui-flutter release, so EVERY real run
  * carries one PAT000 row — treating that as a failure would block composition on every surface
  * in the repo, and treating it as a pass is the silent-green class §2 goal 5 forbids. MISSING
  * rows sort after real violations, so `errors[0]` is always the most important thing wrong.
+ *
+ * That leaves `ok` answering one of the two questions a caller has, which is how issue #90
+ * happened: `ok: true` with a PAT000 row exited 0, so `validate "$spec" || exit 1` read an
+ * invariant that was never evaluated as verified — the row's own message says "§4.5 I5 is
+ * UNCHECKED for this spec, which is not the same as passing", and the process said pass.
+ *
+ * So the verdict answers BOTH questions, side by side:
+ *   `ok`        nothing VIOLATED an invariant.
+ *   `complete`  every invariant actually RAN. False whenever any row is MISSING, and false for
+ *               the short-circuit verdicts (SPEC000, SPEC002) where nothing ran at all.
+ *   `unchecked` the codes of the checks that did not run, e.g. `['PAT000']`.
+ *
+ * and `exitCodeFor` turns the pair into 0 / 1 / 2. Neither field stands alone: a consumer
+ * reading `ok` on its own is reading half an answer, and the exit code no longer lets it.
  *
  * Still reserved, and NOT implemented here: `CTRL007` (the `must_not` vocabulary). 34-03 left
  * it to 34-04; 34-04's own code list and fixture table stop at GUARD001, so it stays reserved
@@ -998,11 +1014,52 @@ function order(errors) {
   });
 }
 
-function verdict(errors, schema_version) {
+/**
+ * Process exit codes. THREE outcomes, three numbers — because a gate written the way every gate
+ * is written (`validate "$spec" || exit 1`) can only tell zero from non-zero, and "clean" and
+ * "never checked" used to be the same zero (issue #90).
+ *
+ * `INCOMPLETE` does NOT mean the arm refused: `render`, `sheet` and `lock` produce their
+ * artifact and exit 2 beside it. Only `VIOLATION` refuses.
+ */
+const EXIT = Object.freeze({ OK: 0, VIOLATION: 1, INCOMPLETE: 2 });
+
+/**
+ * The ONE mapping from a verdict to a process exit code. Every `ui` arm calls this; an arm with
+ * its own `result.ok ? 0 : 1` is a second definition of what the gate means, and the two drift.
+ *
+ * A violation outranks an incomplete check. A caller that only sorts zero from non-zero has to
+ * see the worse of the two facts, and "something is wrong" is worse than "something is unknown".
+ */
+function exitCodeFor(result) {
+  if (!result || result.ok !== true) return EXIT.VIOLATION;
+  return result.complete === false ? EXIT.INCOMPLETE : EXIT.OK;
+}
+
+/**
+ * @param {Array} errors
+ * @param {number|null} schema_version
+ * @param {{evaluated?: boolean}} [opts]  `evaluated: false` for the SHORT-CIRCUIT verdicts
+ *        (SPEC000, SPEC002), where the engine stopped before running a single invariant. Those
+ *        carry no MISSING row — there was nothing to report a row *about* — and without this
+ *        flag they would claim `complete: true` on a spec nothing was ever checked against.
+ */
+function verdict(errors, schema_version, opts = {}) {
   const list = order(dropGenericDuplicates(errors));
+
+  // The codes of the checks that DID NOT RUN. Codes, not §4.5 invariant numbers: every code is
+  // already joined to its own row in `errors[]` (whose message names its invariant in words),
+  // and a second code -> invariant table would be one more thing that can drift out of step.
+  const unchecked = [...new Set(list.filter((e) => e.status === 'MISSING').map((e) => e.code))].sort();
+
   return {
     // `ok` counts REAL VIOLATIONS. MISSING rows are reported and do not flip it.
     ok: list.every((e) => e.status === 'MISSING'),
+    // …and `complete` answers the OTHER question, the one `ok` was being asked and could not
+    // answer: did every invariant actually get evaluated. It sits second in the object on
+    // purpose, so a human scanning the first lines of the payload sees both halves.
+    complete: opts.evaluated !== false && unchecked.length === 0,
+    unchecked,
     errors: list,
     engine_version: pluginVersion(),
     schema_version
@@ -1016,7 +1073,8 @@ function verdict(errors, schema_version) {
  * @param {{patterns?: string[], vocabulary?: string[]}} [ctx]
  *        `patterns` is read by I5 and `vocabulary` by CTRL007 — both TRD 34-04. Accepted here
  *        so the signature does not change under callers when those invariants land.
- * @returns {{ok: boolean, errors: Array<{code: string, path: string, msg: string}>,
+ * @returns {{ok: boolean, complete: boolean, unchecked: string[],
+ *            errors: Array<{code: string, path: string, msg: string}>,
  *            engine_version: string, schema_version: (number|null)}}
  */
 function validateSurfaceSpec(spec, ctx = {}) {
@@ -1042,7 +1100,8 @@ function validateSurfaceSpec(spec, ctx = {}) {
               : `a ${typeof spec}`;
       return verdict(
         [err('SPEC000', 'spec', `not a readable Surface Spec: expected the parsed front-matter mapping, got ${what}${line}`)],
-        null
+        null,
+        { evaluated: false } // nothing below this ran
       );
     }
 
@@ -1054,7 +1113,8 @@ function validateSurfaceSpec(spec, ctx = {}) {
     if (!supported.includes(schema_version)) {
       return verdict(
         [err('SPEC002', 'schema_version', `schema_version ${JSON.stringify(schema_version)} is outside this engine's supported range [${supported.join(', ')}] — no invariant was evaluated against this spec`)],
-        schema_version
+        schema_version,
+        { evaluated: false } // the message says it; `complete` has to say it too
       );
     }
 
@@ -1096,6 +1156,8 @@ function validateSurfaceSpec(spec, ctx = {}) {
 
 module.exports = {
   validateSurfaceSpec,
+  exitCodeFor,
+  EXIT,
   enumerateBehaviorCombinations,
   resolveGuardDeniedState,
   resolveCaptureDimensions,
