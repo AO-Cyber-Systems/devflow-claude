@@ -190,3 +190,26 @@ test('Case Y6 — scalar typing is explicit: dates and dimensions stay STRINGS',
   assert.strictEqual(typeof parsed.locked_at, 'string');
   assert.strictEqual(typeof parsed.numeric_string, 'string');
 });
+
+test('Case Y7 — comments: full-line and trailing are stripped; inside quotes and at a value start they are content', () => {
+  const Y7 = [
+    '# the surface this spec locks',
+    'surface: projects-rail   # trailing comment, stripped',
+    'color: #fff',
+    'accent: #fff # a hex value AND a trailing comment',
+    'note: "a # b"',
+    '  # an indented full-line comment',
+    'tags: [alpha, beta]   # after a flow list',
+    'must_show: ["#1 priority"]',
+    ''
+  ].join('\n');
+
+  assert.deepStrictEqual(parseYamlLite(Y7), {
+    surface: 'projects-rail',
+    color: '#fff',
+    accent: '#fff',
+    note: 'a # b',
+    tags: ['alpha', 'beta'],
+    must_show: ['#1 priority']
+  });
+});
