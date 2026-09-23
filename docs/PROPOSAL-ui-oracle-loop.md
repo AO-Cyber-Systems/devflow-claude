@@ -436,6 +436,7 @@ Checks are pure functions over `ProbeResult` + spec, each named by the rule it e
 | `content` | `must_show` absent or `must_not_show` present |
 | `effect` | activating a control yields an effect class ≠ the `effect` of the behaviour whose `when` matches the observed pre-activation state (classified from the before/after diff: `navigation` = route changed; `toggle` = announced state flipped; `select` = selection node changed; `dialog` = new modal node; `submit` = request + result node; `inert` = zero delta) |
 | `no-op` | effect is `inert` and the control is not `disabled_when` with `reason_shown` rendered |
+| `inert` | a control whose `kind` is interactive publishes **no** activation action at all — static, checked before any activation, and the precondition for every check below that locates its subject by interacting with it |
 | `must-not` | any `must_not` negation fails (e.g. route changed on close) |
 | `once` | one activation produced two effects |
 | `route-entry` | a route cannot be reached via a declared entry |
@@ -449,6 +450,34 @@ Checks are pure functions over `ProbeResult` + spec, each named by the rule it e
 
 A check that could not run (no probe, unknown seed, chrome missing) reports `MISSING` with the
 `ui doctor` reason. No check ever narrows itself; a flaky check is fixed or filed.
+
+**A dead control must never buy a clean report, and that is not automatic.** Several checks above
+locate their subject by interacting with it — `hit-target` and `contrast` find a node by hitting a
+point, `effect` and `once` need an activation to observe. When the control underneath is inert,
+those checks find nothing to measure and, unless told otherwise, find nothing to complain about
+either. The surface then scores *better* the more broken it is.
+
+This is not hypothetical. It was measured on 2026-09-23 in `eden-ui-flutter`, by a differential
+control that broke one line in the mobile nav (`ExcludeSemantics` → `IgnorePointer`, killing all
+four bottom-nav buttons). The oracle did not merely miss the dead buttons — it went **fully
+green**, `All tests passed!`, and a real WCAG contrast violation that had been correctly reported
+a moment earlier *disappeared*, because the guideline locates its paragraph by hit test. Four dead
+buttons bought a cleaner report than four working ones.
+
+Two rules follow, and neither is optional:
+
+1. `inert` is a **precondition**, not a peer. It runs first, statically, on the semantics tree.
+   A control that announces itself as activatable and carries no activation action fails here
+   before anything tries to activate it. (The library-level oracle had the upper bound — *never
+   more than one tap action* — and no lower bound at all, which is how zero passed.)
+2. A check whose subject could not be located reports **`MISSING`, never `pass`** — the same rule
+   §7 already states for a check that could not run, applied to the case where the check ran and
+   found nothing to run *on*. "Zero violations" is evidence only when read together with the
+   liveness verdict; alone it is compatible with a screen on which nothing works.
+
+The general form is worth stating because it outlives this instance: **an instrument that locates
+its subject by touching it cannot distinguish "nothing wrong" from "nothing there".** Any check
+added to the table later must say which of the two it reports.
 
 ## 8. Phase A — design and mockup
 
