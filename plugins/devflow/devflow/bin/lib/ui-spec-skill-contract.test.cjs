@@ -218,13 +218,20 @@ test('Case E2 — every path the new prose names resolves, or is a declared app-
     assert.ok(fs.existsSync(resolved), `@${ref} does not resolve (looked at ${resolved})`);
   }
 
-  // (b) Every devflow reference file the new prose names by `references/<name>.md` or by bare
-  //     `<name>.md` must exist under plugins/devflow/devflow/references/.
+  // (b) Every devflow reference file the new prose names — either by a `references/<name>.md`
+  //     path or as a bare backticked `<name>.md` basename — must exist under
+  //     plugins/devflow/devflow/references/.
+  //
+  //     The two patterns are deliberately narrow. A greedy `` `…<name>.md` `` would also swallow
+  //     the app-repo template paths (c) owns — `refs/<surface>/pattern-mapping.md` would be
+  //     demanded under devflow/references/, where it will never exist — and the case would then
+  //     fail for CORRECT prose. Same lesson, one level over, as 34-07's P2 regex: an extraction
+  //     that cannot tell two shapes apart is worse than one that matches less.
   const regions = newProseRegions({ partial: true });
   const referenced = new Set();
   for (const text of Object.values(regions)) {
-    for (const m of text.matchAll(/`[^`]*?(?:references\/)?([a-z0-9-]+\.md)`/g)) referenced.add(m[1]);
     for (const m of text.matchAll(/(?:~\/\.claude\/devflow\/)?references\/([a-z0-9-]+\.md)/g)) referenced.add(m[1]);
+    for (const m of text.matchAll(/`([a-z0-9-]+\.md)`/g)) referenced.add(m[1]);
   }
   assert.ok(referenced.size > 0, 'the new prose must name at least one reference file — E2 cannot pin what it cannot find');
   for (const name of referenced) {
