@@ -701,4 +701,23 @@ test.describe('agent-shell-harness — the `# harness:` annotation vocabulary (A
       'expect-cwd is a declaration, not a blanket amnesty');
   });
 
+  // A3 — `executor.md`'s chromedriver guard ends `|| { echo CHECKPOINT…; exit 1; }`.
+  // That exit 1 is CORRECT prose. Reporting it as a failure would push a reader to
+  // "fix" working prose — the most expensive kind of false finding.
+  test('Case A3 — `# harness: expect-exit <n>` makes a deliberate non-zero exit correct', () => {
+    const declared = harness.runSection(
+      harness.splitCalls('# harness: expect-exit 1\nfalse'), { root: makeRoot() });
+    assert.strictEqual(declared.ok, true, 'a declared exit 1 is not a finding');
+    assert.strictEqual(declared.calls[0].status, 1);
+    assert.strictEqual(declared.calls[0].expected_status, 1);
+
+    const unmet = harness.runSection(
+      harness.splitCalls('# harness: expect-exit 1\ntrue'), { root: makeRoot() });
+    assert.strictEqual(unmet.ok, false, 'a call that was supposed to fail and did not, FAILS');
+    assert.ok(unmet.findings.some(f => f.type === 'nonzero-status' && f.status === 0));
+
+    const undeclared = harness.runSection(harness.splitCalls('false'), { root: makeRoot() });
+    assert.strictEqual(undeclared.ok, false, 'the default expectation is still 0');
+  });
+
 });
