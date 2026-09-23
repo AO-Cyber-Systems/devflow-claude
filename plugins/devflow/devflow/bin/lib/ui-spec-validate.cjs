@@ -31,6 +31,9 @@
  *   STATE002 outage.content.must_show INTERSECTS empty.content.must_show (disjoint, not
  *            merely unequal — the amended §4.4 / §4.5 I4)
  *   STATE003 §4.4's minimum state set is incomplete (ONE error listing every missing state)
+ *   PAT000   the pattern catalogue is UNREACHABLE -> status MISSING, does NOT flip `ok`
+ *   PAT001   a referenced pattern is not in the catalogue
+ *   PAT002   a control of a pattern kind drops one of that pattern's `must_not` defaults
  *
  * ── The behaviour-coverage model (BINDING — 34-05's control table and W2's `effect` check
  *    resolve the active behaviour by this same rule; if they diverge, the spec says one thing
@@ -102,6 +105,20 @@ const DIMENSIONS = ['data_state', 'control_state', 'viewport', 'theme', 'guard']
 
 function err(code, path, msg) {
   return { code, path, msg };
+}
+
+/**
+ * A check that COULD NOT RUN. It carries the extra `status: 'MISSING'` key, it is reported in
+ * `errors` so no caller can miss it, and it does NOT flip `ok`.
+ *
+ * The rule, stated once for 34-08 ("refuse to compose without a valid spec") and for W2's
+ * verifier replay: `ok` reflects REAL VIOLATIONS only. A MISSING row is neither a pass nor a
+ * failure — it is the honest answer for a question this engine could not ask, and it stays on
+ * the human-verify list. An unreachable pattern catalogue must not block composition on every
+ * surface in the repo; it must also never read as "patterns check passed".
+ */
+function missing(code, path, msg) {
+  return { code, path, msg, status: 'MISSING' };
 }
 
 function isPlainObject(v) {
@@ -518,6 +535,81 @@ function checkStates(spec, errors) {
   }
 }
 
+// ─── I5: patterns, and the three states of the catalogue ─────────────────────
+
+/** A catalogue entry is either a bare id string or `{id, kind?, must_not?}`. */
+function patternIdOf(entry) {
+  if (typeof entry === 'string') return entry;
+  if (isPlainObject(entry) && typeof entry.id === 'string') return entry.id;
+  return null;
+}
+
+/**
+ * PAT000 the catalogue is UNREACHABLE -> MISSING · PAT001 a referenced pattern is not in the
+ * catalogue · PAT002 a control of a pattern kind drops one of that pattern`s `must_not`
+ * defaults.
+ *
+ * `ctx.patterns` has THREE states and the invariant turns on keeping them apart:
+ *   undefined (or null)  the pinned eden-ui-flutter release could not be read  -> PAT000
+ *   []                   read, and it declares no patterns                     -> PAT001 each
+ *   [...]                read                                                  -> PAT001/PAT002
+ * Collapsing `undefined` into `[]` reports every pattern of every real spec as unknown;
+ * collapsing it into "skip" turns an unreachable catalogue into a silent pass. W1b has no
+ * pinned release, so the CLI arm passes `undefined` and every real run carries one MISSING row.
+ */
+function checkPatterns(spec, catalogue, errors) {
+  const referenced = Array.isArray(spec.patterns)
+    ? spec.patterns.filter((v) => typeof v === 'string')
+    : [];
+  if (referenced.length === 0) return; // nothing referenced: nothing to check, and no MISSING
+
+  if (catalogue === undefined || catalogue === null) {
+    errors.push(missing('PAT000', 'patterns',
+      `the pattern catalogue is unreachable, so ${referenced.length} referenced pattern(s) could not be resolved and no \`must_not\` defaults could be inherited — §4.5 I5 is UNCHECKED for this spec, which is not the same as passing (supply one with \`--patterns\`)`));
+    return;
+  }
+
+  const entries = Array.isArray(catalogue) ? catalogue : [];
+  const byId = new Map();
+  for (const entry of entries) {
+    const id = patternIdOf(entry);
+    if (id !== null) byId.set(id, entry);
+  }
+
+  spec.patterns.forEach((id, i) => {
+    if (typeof id !== 'string' || byId.has(id)) return;
+    errors.push(err('PAT001', `patterns[${i}]`,
+      `pattern ${JSON.stringify(id)} is not in the pinned catalogue, which declares ${byId.size === 0 ? 'no patterns at all' : [...byId.keys()].join(', ')} — §4.5 I5 requires every referenced pattern to exist in the pinned eden-ui-flutter release`));
+  });
+
+  // PAT002 — the inherited `must_not` defaults of every REFERENCED pattern, by control kind.
+  const defaultsByKind = new Map();
+  for (const id of referenced) {
+    const entry = byId.get(id);
+    if (!isPlainObject(entry) || typeof entry.kind !== 'string' || !Array.isArray(entry.must_not)) continue;
+    const list = defaultsByKind.get(entry.kind) || [];
+    for (const term of entry.must_not) {
+      if (typeof term === 'string') list.push({ pattern: id, term });
+    }
+    defaultsByKind.set(entry.kind, list);
+  }
+  if (defaultsByKind.size === 0 || !Array.isArray(spec.controls)) return;
+
+  spec.controls.forEach((control, i) => {
+    if (!isPlainObject(control) || typeof control.kind !== 'string') return;
+    const defaults = defaultsByKind.get(control.kind) || [];
+    if (defaults.length === 0) return;
+
+    const own = new Set(Array.isArray(control.must_not) ? control.must_not.filter((v) => typeof v === 'string') : []);
+    const dropped = defaults.filter((d) => !own.has(d.term));
+    if (dropped.length === 0) return;
+
+    const cid = typeof control.id === 'string' ? control.id : `#${i}`;
+    errors.push(err('PAT002', `controls[${i}].must_not`,
+      `control ${cid} is of kind ${control.kind} and therefore inherits ${dropped.map((d) => `${JSON.stringify(d.term)} (from ${d.pattern})`).join(', ')}, which its own \`must_not\` drops — §4.5 I5: a surface may not silently drop a pattern's defaults`));
+  });
+}
+
 // ─── Assembly ─────────────────────────────────────────────────────────────────
 
 /**
@@ -525,12 +617,22 @@ function checkStates(spec, errors) {
  * generic structural check, the structural error is dropped.
  */
 function dropGenericDuplicates(errors) {
-  const specific = new Set(errors.filter((e) => e.code !== 'SPEC001').map((e) => e.path));
+  // A MISSING row never suppresses a structural error: "I could not check this" is not a more
+  // specific verdict than "this node is malformed".
+  const specific = new Set(
+    errors.filter((e) => e.code !== 'SPEC001' && e.status !== 'MISSING').map((e) => e.path)
+  );
   return errors.filter((e) => e.code !== 'SPEC001' || !specific.has(e.path));
 }
 
 function order(errors) {
   return errors.slice().sort((a, b) => {
+    // REAL VIOLATIONS first, MISSING rows after them. A reader (and `errors[0]`, which the CLI
+    // cases read) wants what is wrong before what could not be checked; within each group the
+    // order is (code, path, msg) and therefore deterministic across runs.
+    const am = a.status === 'MISSING' ? 1 : 0;
+    const bm = b.status === 'MISSING' ? 1 : 0;
+    if (am !== bm) return am - bm;
     if (a.code !== b.code) return a.code < b.code ? -1 : 1;
     if (a.path !== b.path) return a.path < b.path ? -1 : 1;
     return a.msg < b.msg ? -1 : a.msg > b.msg ? 1 : 0;
@@ -540,7 +642,8 @@ function order(errors) {
 function verdict(errors, schema_version) {
   const list = order(dropGenericDuplicates(errors));
   return {
-    ok: list.length === 0,
+    // `ok` counts REAL VIOLATIONS. MISSING rows are reported and do not flip it.
+    ok: list.every((e) => e.status === 'MISSING'),
     errors: list,
     engine_version: pluginVersion(),
     schema_version
@@ -611,6 +714,9 @@ function validateSurfaceSpec(spec, ctx = {}) {
 
     // I4 — states, seeds, and the outage/empty distinction.
     checkStates(spec, errors);
+
+    // I5 — patterns. `ctx.patterns` ABSENT means unreachable, not empty.
+    checkPatterns(spec, ctx ? ctx.patterns : undefined, errors);
   } catch (e) {
     // CRITICAL: an escaped exception becomes a verdict, never a stack trace. 34-04's exit-code
     // contract and case V3 both depend on it.

@@ -142,8 +142,7 @@ acceptance:
      deliberate, and both cases fail LOUDLY with a line number rather than mis-parsing.
 -->
 
-<!-- BROKEN: I5 — a referenced pattern that the catalogue does not carry — expected code
-     PAT001.
+<!-- BROKEN: I5 — a referenced pattern the catalogue does not carry — expected code PAT001.
 
      ONE edit of the positive control: the `patterns:` line now reads
      [navigation/does-not-exist] where the catalogue declares navigation/disclosure-group and
