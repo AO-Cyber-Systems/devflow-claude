@@ -11,7 +11,7 @@
  * house precedent for the shape; the code SPACE is separate (`SPEC*`, `ROUTE*`, `CTRL*`,
  * `STATE*`, `PAT*`, `HIT*`, `FLOW*`, `GUARD*`), never `validate.cjs`'s `E`/`W`/`I` numbering.
  *
- * Shipped in this module (34-03):
+ * Shipped by 34-03:
  *   SPEC000  the input is not a readable spec object (null, a scalar, an empty front matter,
  *            or a yaml-lite parse failure — whose `.line` is carried into the message)
  *   SPEC001  the spec violates the declared STRUCTURE of surface-spec.schema.json
@@ -43,6 +43,18 @@
  *            single-spec engine was entitled to resolve — see `isNamespaceLocal`)
  *   FLOW002  a flow's last step is neither a `back` nor a route declared `root: true`
  *   GUARD001 a route guard that names no denied state (see `resolveGuardDeniedState`)
+ *
+ * ── `ok`, and what a MISSING row means (read this before 34-08's "refuse to compose") ────────
+ * `ok` counts REAL VIOLATIONS only. A `*000` code carries `status: 'MISSING'`: the check could
+ * not run, so the answer is neither pass nor fail, the row is reported so nobody can miss it,
+ * and it does NOT flip `ok`. W1b has no pinned eden-ui-flutter release, so EVERY real run
+ * carries one PAT000 row — treating that as a failure would block composition on every surface
+ * in the repo, and treating it as a pass is the silent-green class §2 goal 5 forbids. MISSING
+ * rows sort after real violations, so `errors[0]` is always the most important thing wrong.
+ *
+ * Still reserved, and NOT implemented here: `CTRL007` (the `must_not` vocabulary). 34-03 left
+ * it to 34-04; 34-04's own code list and fixture table stop at GUARD001, so it stays reserved
+ * and `ctx.vocabulary` remains accepted-and-unused rather than being invented into a rule.
  *
  * ── The behaviour-coverage model (BINDING — 34-05's control table and W2's `effect` check
  *    resolve the active behaviour by this same rule; if they diverge, the spec says one thing
