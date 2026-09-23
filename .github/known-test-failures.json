@@ -17,14 +17,6 @@
   },
   "entries": [
     {
-      "test": "plugins/devflow/devflow/bin/handoff-e2e.test.cjs",
-      "file": "plugins/devflow/devflow/bin/handoff-e2e.test.cjs",
-      "reason": "Whole-FILE timeout, not a single assertion: withDaemon's teardown sends SIGTERM and waits 3s, which is not enough, so devflow-watch daemons survive their tests holding the file process's stdio handles open and node can never exit that file. Observed locally with two daemons still alive 8+ minutes after their tests ended; on CI it surfaces as 'test timed out after 180000ms'. Licensing this entry licenses losing that whole file's coverage until issue #93 lands.",
-      "nondeterministic": true,
-      "tracking": "https://github.com/AO-Cyber-Systems/devflow-claude/issues/93",
-      "expires": "2026-12-31"
-    },
-    {
       "test": "PW-9 exit 7 reports exit_code=7",
       "file": "plugins/devflow/devflow/bin/lib/wrappers/powershell.test.cjs",
       "reason": "Runs only where pwsh is on PATH, which ubuntu-latest has and a typical macOS checkout does not, so it skips locally and runs in CI. `exit 7` inside `& { ... }` terminates the whole `pwsh -Command` host before the __DFW_END_ sentinel line executes, so stdout is empty — the test's own comment asserts the opposite premise. PW-8 (same shape, no exit) passes, so pwsh itself is fine. Decide whether wrappers/powershell.cjs can report a non-zero exit code at all before touching the assertion. Issue #95."

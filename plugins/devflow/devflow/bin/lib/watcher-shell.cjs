@@ -71,6 +71,11 @@ function _loadPTY() {
   }
 }
 
+// Liveness ceiling for the PTY readiness handshake (issue #93). NOT a guess
+// about how long the shell takes to start — that guess is what this replaced.
+// It only bounds a shell that will never answer at all.
+const READY_TIMEOUT_MS = 10000;
+
 class ShellSessionClosed extends Error {
   constructor(msg) {
     super(msg || 'shell session closed');
@@ -98,6 +103,7 @@ class ShellSession extends EventEmitter {
     this._stdoutBuf = '';
     this._stderrBuf = '';
     this._activeDispatch = null; // { id, beginRx, endRx, resolve, timeout }
+    this._readyProbe = null;     // { token, resolve, abort, timer, settled } — PTY only
     // TRD 19-02: external data listeners for token-passing prompt detection.
     // Daemon attaches a detector that scans the data stream for prompt
     // regexes and writes resolved secrets back to the shell. Both PTY mode
@@ -180,6 +186,7 @@ class ShellSession extends EventEmitter {
         // _tryComplete so the detector can inject a secret in time for the
         // running command to consume it before the END sentinel arrives.
         this._emitExtData(chunk);
+        this._tryReady();
         this._tryComplete();
       });
       this.proc.onExit(() => this._onExit());
@@ -193,10 +200,19 @@ class ShellSession extends EventEmitter {
       // only program output, identical-shape to pipe mode.
       const initLines = this._wrapper.initLines('pty');
       this._writeRaw(initLines.concat(['']).join('\r'));
-      // Drain any prelude noise (PS1 prompt before clear, login messages,
-      // etc.) so the first dispatch's buffer scan starts clean. Also gives
-      // `stty -echo` enough time to take effect before the next write.
-      await new Promise((r) => setTimeout(r, 100));
+      // Then WAIT FOR PROOF, not for a duration (issue #93). This used to be
+      // `await sleep(100)` — a guess about how long `bash -i` takes to start
+      // and apply `stty -echo`. When the guess lost (a loaded machine, a slow
+      // runner, several agents building at once) the tty was still in cooked
+      // mode when the first dispatch was written, so it echoed the wrapper's
+      // own lines back into the buffer the sentinel scanner reads, and the
+      // echo of `cat $__DFW_OUT` landed BETWEEN the BEGIN and DELIM sentinels.
+      // The capture was then the command text instead of the command's output.
+      // See _awaitShellReady: no timing assumption survives it.
+      await this._awaitShellReady();
+      // Drain the prelude (PS1 before it was cleared, login messages, the
+      // readiness probe itself) so the first dispatch's buffer scan starts
+      // clean.
       this._stdoutBuf = '';
       this._stderrBuf = '';
     } else {
@@ -244,8 +260,72 @@ class ShellSession extends EventEmitter {
     else this.proc.stdin.write(s);
   }
 
+  /**
+   * Block until the PTY shell has PROVED it is ready, rather than until a
+   * duration has elapsed (issue #93).
+   *
+   * Writes `echo <token>` after the init lines and waits for a line that ENDS
+   * with the token but is not the echo of that input — the echoed input line
+   * ends with `echo <token>`, the shell's answer ends with the token alone.
+   * That distinction is the whole trick: an echo can never be mistaken for the
+   * answer, so seeing the answer proves the shell consumed every init line
+   * before it and produced output, which means `stty -echo` has already run —
+   * however long that took.
+   *
+   * Only the END of the line is matched, not the whole of it. Whatever the
+   * shell printed before PS1 was cleared shares the physical line with the
+   * answer: on macOS bash 3.2 the real buffer reads
+   * `bash-3.2$ bash-3.2$ bash-3.2$ bash-3.2$ __DFW_READY_x__`. Requiring
+   * whole-line equality there waits forever.
+   *
+   * The ceiling is a liveness bound, not a readiness assumption: a shell that
+   * cannot echo a token in 10s is not one we can dispatch to, and failing
+   * loudly here beats a session that silently captures the wrong bytes.
+   */
+  _awaitShellReady(timeoutMs = READY_TIMEOUT_MS) {
+    const token = `__DFW_READY_${Math.random().toString(36).slice(2, 10)}__`;
+    return new Promise((resolve, reject) => {
+      const probe = { token, settled: false, timer: null };
+      const settle = (fn, arg) => {
+        if (probe.settled) return;
+        probe.settled = true;
+        clearTimeout(probe.timer);
+        this._readyProbe = null;
+        fn(arg);
+      };
+      probe.resolve = () => settle(resolve);
+      // The shell dying during startup must not park spawn() on the ceiling.
+      // Resolve rather than reject: the session is _closed by then, isAlive()
+      // is false and dispatch() rejects with ShellSessionClosed, which is the
+      // path every caller already handles.
+      probe.abort = () => settle(resolve);
+      probe.timer = setTimeout(() => settle(reject, new Error(
+        `PTY shell did not become ready within ${timeoutMs}ms ` +
+        `(readiness probe ${token} was never echoed back cleanly)`
+      )), timeoutMs);
+      this._readyProbe = probe;
+      this._writeRaw(`echo ${token}\r`);
+      this._tryReady(); // in case the answer already landed
+    });
+  }
+
+  _tryReady() {
+    const probe = this._readyProbe;
+    if (!probe || probe.settled) return;
+    for (const line of this._stdoutBuf.split('\n')) {
+      const text = stripAnsi(line).replace(/\s+$/, '');
+      if (!text.endsWith(probe.token)) continue;
+      // Reject the echo of our own input: it reads `… echo <token>`.
+      const before = text.slice(0, text.length - probe.token.length);
+      if (/echo\s*$/.test(before)) continue;
+      probe.resolve();
+      return;
+    }
+  }
+
   _onExit() {
     this._closed = true;
+    if (this._readyProbe && !this._readyProbe.settled) this._readyProbe.abort();
     if (this._activeDispatch && !this._activeDispatch.settled) {
       this._activeDispatch.settled = true;
       clearTimeout(this._activeDispatch.timer);

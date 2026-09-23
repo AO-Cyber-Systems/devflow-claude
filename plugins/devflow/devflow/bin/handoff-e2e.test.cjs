@@ -36,6 +36,10 @@ const TEST_ALLOW_JSON = JSON.stringify({
     { pattern: '^echo\\b', label: 'test:echo' },
     { pattern: '^printf\\b', label: 'test:printf' },
     { pattern: '^true\\b', label: 'test:true' },
+    // Issue #93: a command that outlives the daemon's shutdown deadline by two
+    // orders of magnitude, so "the daemon exits on SIGTERM" can be asserted
+    // with a dispatch genuinely in flight rather than against an idle process.
+    { pattern: '^sleep\\b', label: 'test:sleep' },
   ],
 });
 
@@ -70,6 +74,77 @@ function writePending(projectRoot, id, cmd) {
   return filePath;
 }
 
+const DAEMON_TERM_GRACE_MS = 5000;
+const DAEMON_KILL_GRACE_MS = 5000;
+
+function hasExited(child) {
+  return child.exitCode !== null || child.signalCode !== null;
+}
+
+function waitForExit(child, ms) {
+  return new Promise((resolve) => {
+    if (hasExited(child)) return resolve(true);
+    let done = false;
+    const t = setTimeout(() => { if (!done) { done = true; resolve(false); } }, ms);
+    child.once('exit', () => { if (!done) { done = true; clearTimeout(t); resolve(true); } });
+  });
+}
+
+/**
+ * Kill a daemon and PROVE it is gone (issue #93).
+ *
+ * The old teardown sent SIGTERM and waited 3s. That is not a guarantee: the
+ * daemon's own SIGTERM handler awaits its in-flight dispatch, and a dispatch
+ * that never sees its END sentinel runs to DEFAULT_DISPATCH_TIMEOUT_MS — ten
+ * minutes. So the daemon outlived the test holding the write end of the pipes
+ * this process is reading, node could never exit the file, and `npm test` did
+ * not fail, it never RETURNED. A hang in CI is an unattributable job timeout
+ * rather than a named failure, which is strictly worse than a red.
+ *
+ * Escalates SIGTERM → SIGKILL, signals the whole process GROUP so the shell
+ * the daemon spawned dies with it, releases our ends of the pipes, and returns
+ * a message (never throws) if the process is still addressable at the end.
+ *
+ * @returns {Promise<string|null>} null when reaped, else why not
+ */
+async function stopDaemon(child) {
+  const pid = child.pid;
+  const signal = (sig) => {
+    // Negative pid = process group. The daemon was spawned detached, so it
+    // leads its own group and anything it spawned is signalled with it.
+    try { process.kill(-pid, sig); } catch {}
+    try { child.kill(sig); } catch {}
+  };
+
+  if (!hasExited(child)) {
+    signal('SIGTERM');
+    if (!(await waitForExit(child, DAEMON_TERM_GRACE_MS))) {
+      signal('SIGKILL');
+      await waitForExit(child, DAEMON_KILL_GRACE_MS);
+    }
+  }
+
+  // Our ends of the pipes keep this file's event loop alive even once the
+  // process is gone.
+  for (const s of [child.stdout, child.stderr]) {
+    try { s.destroy(); } catch {}
+  }
+
+  if (!hasExited(child)) {
+    return `daemon pid ${pid} survived SIGTERM and SIGKILL — it is leaking into the rest of the run`;
+  }
+  // SIGKILL is not instantaneous for a process blocked in the kernel; confirm
+  // the pid is genuinely unaddressable rather than trusting the signal.
+  try {
+    process.kill(pid, 0);
+    return `daemon pid ${pid} reported exit but is still addressable — not reaped`;
+  } catch (e) {
+    if (e.code === 'ESRCH') return null;
+    if (e.code === 'EPERM') return `daemon pid ${pid} still exists and is not ours to signal`;
+    return null;
+  }
+}
+
 async function withDaemon({ home, project, shell }, fn) {
   // Use bash with interactive=false-equivalent at the daemon level.
   // The daemon's ShellSession defaults to interactive:true; the test allow
@@ -81,7 +156,22 @@ async function withDaemon({ home, project, shell }, fn) {
   ], {
     env: { ...process.env, HOME: home },
     stdio: ['ignore', 'pipe', 'pipe'],
+    // Its own process group, so teardown can signal the daemon AND the shell
+    // session it spawned in one go instead of orphaning the grandchild.
+    detached: true,
   });
+
+  // Drain both pipes unconditionally. Nothing read them before, so a chatty
+  // daemon could fill the 64KB pipe buffer and block on its own write —
+  // wedged in a syscall, with its SIGTERM handler queued behind it. The tail
+  // is kept only to make a teardown failure diagnosable.
+  let log = '';
+  const keep = (c) => { log = (log + c).slice(-4096); };
+  child.stdout.setEncoding('utf8');
+  child.stderr.setEncoding('utf8');
+  child.stdout.on('data', keep);
+  child.stderr.on('data', keep);
+  child.on('error', () => {});
 
   // Wait for PID file with our child's pid
   const pidFile = path.join(home, '.devflow', 'devflow-watch.pid');
@@ -96,16 +186,36 @@ async function withDaemon({ home, project, shell }, fn) {
     await new Promise(r => setTimeout(r, 50));
   }
 
+  // Teardown is UNCONDITIONAL and must not mask the body's failure: a throw
+  // inside `finally` replaces the original error, and the original error is
+  // the one worth reading. Capture, tear down, then rethrow in priority order.
+  let primary = null;
   try {
     await fn(child);
-  } finally {
-    try { child.kill('SIGTERM'); } catch {}
-    // Wait for clean exit
-    await new Promise((resolve) => {
-      const t = setTimeout(() => resolve(), 3000);
-      child.on('exit', () => { clearTimeout(t); resolve(); });
-    });
+  } catch (e) {
+    primary = e;
   }
+  const leak = await stopDaemon(child);
+  if (primary) throw primary;
+  if (leak) throw new Error(`${leak}\n--- daemon output (tail) ---\n${log}`);
+}
+
+/**
+ * Poll a file until its contents match — a readiness SIGNAL, not a sleep.
+ * Used to observe the daemon reaching a state (PID written, dispatch started)
+ * instead of guessing how long it takes to get there.
+ */
+async function waitForFileMatch(file, rx, timeoutMs, what) {
+  const start = Date.now();
+  let last = '';
+  while (Date.now() - start < timeoutMs) {
+    try {
+      last = fs.readFileSync(file, 'utf8');
+      if (rx.test(last)) return last;
+    } catch {}
+    await new Promise(r => setTimeout(r, 25));
+  }
+  throw new Error(`${what} within ${timeoutMs}ms (last contents: ${JSON.stringify(last.slice(-500))})`);
 }
 
 async function waitForDoneRecord(projectRoot, id, timeoutMs = 10000) {
@@ -207,6 +317,71 @@ describe('handoff pipeline — end-to-end', () => {
       assert.match(ctx, /third/);
     });
   });
+
+  // ─── Issue #93: a daemon must not outlive the test that started it ───────
+  //
+  // These two are the file's own guard rails. Before them, a leaked daemon did
+  // not make this file FAIL — it made `npm test` never return, which is worse,
+  // because a hang in CI is an unattributable job timeout with nothing to read.
+
+  test('LK-1: teardown reaps the daemon — no devflow-watch outlives withDaemon',
+    { timeout: 30000 }, async () => {
+      let pid = null;
+      await withDaemon({ home, project }, async (child) => {
+        pid = child.pid;
+        assert.ok(pid, 'daemon spawned');
+        // Prove it is running before we claim teardown killed it: an assertion
+        // that a dead process is dead proves nothing.
+        assert.doesNotThrow(() => process.kill(pid, 0), 'daemon should be alive inside the body');
+      });
+      assert.throws(
+        () => process.kill(pid, 0),
+        (e) => e.code === 'ESRCH',
+        `devflow-watch pid ${pid} is still addressable after teardown`
+      );
+    });
+
+  test('LK-2: SIGTERM kills the daemon within its deadline even with a dispatch in flight',
+    { timeout: 60000 }, async () => {
+      // THE mechanism from #93. The daemon's SIGTERM handler awaits
+      // loop.stop(), which awaits the in-flight dispatch, which runs to
+      // DEFAULT_DISPATCH_TIMEOUT_MS (600_000). Before the shutdown deadline
+      // landed, this test hit its own 60s timeout; in the wild it presented as
+      // daemons alive 8+ minutes after their tests ended.
+      const child = spawn('node', [CLI, 'start',
+        '--project', project, '--shell', 'bash', '--foreground',
+      ], {
+        env: { ...process.env, HOME: home },
+        stdio: ['ignore', 'pipe', 'pipe'],
+        detached: true,
+      });
+      child.stdout.resume();
+      child.stderr.resume();
+      child.on('error', () => {});
+      try {
+        const logFile = path.join(home, '.devflow', 'devflow-watch.log');
+        const pidFile = path.join(home, '.devflow', 'devflow-watch.pid');
+        await waitForFileMatch(pidFile, new RegExp(`"pid":\\s*${child.pid}\\b`), 15000,
+          'daemon never wrote its PID file');
+
+        writePending(project, 'h-hang', 'sleep 300');
+        // Wait for PROOF the dispatch started — the daemon logs the command it
+        // is dispatching — rather than sleeping for a poll interval.
+        await waitForFileMatch(logFile, /dispatching h-hang/, 15000,
+          'daemon never started the hanging dispatch');
+
+        const t0 = Date.now();
+        process.kill(-child.pid, 'SIGTERM');
+        const exited = await waitForExit(child, 30000);
+        const elapsed = Date.now() - t0;
+        assert.ok(exited, `daemon did not exit within 30s of SIGTERM (waited ${elapsed}ms)`);
+        assert.ok(elapsed < 20000,
+          `daemon took ${elapsed}ms to honour SIGTERM; the shutdown deadline is ${5000}ms`);
+      } finally {
+        const leak = await stopDaemon(child);
+        assert.equal(leak, null, leak || '');
+      }
+    });
 });
 
 // ---------------------------------------------------------------------------
@@ -327,7 +502,20 @@ describe('handoff pipeline — PTY-path mock auth (TRD 19-05)', () => {
     ], {
       env,
       stdio: ['ignore', 'pipe', 'pipe'],
+      detached: true,
     });
+
+    // These are the tests that leave a dispatch hanging (MA-6-synth and MA-7
+    // both skip out on an architectural gap while the daemon is still waiting
+    // for a sentinel that never comes), so they are the ones whose daemons
+    // actually leaked. Same teardown contract as withDaemon — issue #93.
+    let log = '';
+    const keep = (c) => { log = (log + c).slice(-4096); };
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
+    child.stdout.on('data', keep);
+    child.stderr.on('data', keep);
+    child.on('error', () => {});
 
     // Wait for PID file with our child's pid (mirrors withDaemon)
     const pidFile = path.join(home, '.devflow', 'devflow-watch.pid');
@@ -342,15 +530,15 @@ describe('handoff pipeline — PTY-path mock auth (TRD 19-05)', () => {
       await new Promise(r => setTimeout(r, 50));
     }
 
+    let primary = null;
     try {
       await fn(child);
-    } finally {
-      try { child.kill('SIGTERM'); } catch {}
-      await new Promise((resolve) => {
-        const t = setTimeout(() => resolve(), 3000);
-        child.on('exit', () => { clearTimeout(t); resolve(); });
-      });
+    } catch (e) {
+      primary = e;
     }
+    const leak = await stopDaemon(child);
+    if (primary) throw primary;
+    if (leak) throw new Error(`${leak}\n--- daemon output (tail) ---\n${log}`);
   }
 
   let home, project, mockGh, mockDoctl, mockGhPort, mockDoctlPort;

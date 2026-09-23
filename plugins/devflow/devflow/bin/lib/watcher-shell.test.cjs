@@ -18,6 +18,8 @@
 
 const { test, describe, beforeEach, afterEach } = require('node:test');
 const assert = require('node:assert');
+const fs = require('node:fs');
+const path = require('node:path');
 
 const { ShellSession, ShellSessionClosed } = require('./watcher-shell.cjs');
 
@@ -563,5 +565,85 @@ describe('watcher-shell — bracketed-paste capture hygiene (issue #95)', () => 
     const r = splitDispatchOutput(buf, begin, delim, end);
     assert.equal(normalizePTY(r.stdout), 'hello\n');
     assert.equal(normalizePTY(r.stderr), 'oops\n');
+  });
+});
+
+// =============================================================================
+// Group RD — PTY startup is a handshake, not a sleep (issue #93)
+// =============================================================================
+//
+// spawn()'s PTY branch used to `await sleep(100)` and call the shell ready.
+// When that guess lost, the tty was still in cooked mode for the first
+// dispatch, so the echo of `cat $__DFW_OUT` landed BETWEEN the BEGIN and DELIM
+// sentinels and the captured stdout was the command TEXT:
+//
+//   AssertionError: Input: 'cat $__DFW_OUT 2>/dev/null\n'
+//
+// The readiness probe replaces the duration with an ordering proof. These
+// exercise _tryReady directly — no PTY, no shell, no timing — so the rule the
+// proof rests on is pinned rather than inferred from a green PTY run.
+//
+//   RD-1: the shell's answer (a line ending in the bare token) resolves
+//   RD-2: the ECHO of our own input (`echo <token>`) does NOT resolve
+//   RD-3: leftover prompt text on the same physical line still resolves
+//   RD-4: the answer wrapped in control sequences still resolves
+//   RD-5: an unrelated buffer does not resolve
+//   RD-6: spawn()'s PTY startup contains no fixed-duration wait
+// =============================================================================
+
+describe('watcher-shell — PTY readiness handshake (issue #93)', () => {
+  const TOKEN = '__DFW_READY_abc123__';
+
+  // A session that was never spawned: _tryReady touches only _stdoutBuf and
+  // _readyProbe, which is exactly the surface under test.
+  function probeOn(buf) {
+    const s = new ShellSession({ shell: SHELL, interactive: false });
+    let resolved = false;
+    s._stdoutBuf = buf;
+    s._readyProbe = { token: TOKEN, settled: false, resolve: () => { resolved = true; } };
+    s._tryReady();
+    return resolved;
+  }
+
+  test('RD-1: a line ending in the bare token resolves the probe', () => {
+    assert.equal(probeOn(`${TOKEN}\r\n`), true);
+  });
+
+  test('RD-2: the echo of our own input does NOT resolve the probe', () => {
+    // This is the case a substring match would get wrong: with the tty still
+    // in cooked mode the input comes back before the shell has run anything.
+    assert.equal(probeOn(`echo ${TOKEN}\r\n`), false);
+  });
+
+  test('RD-3: leftover prompt text on the same line still resolves', () => {
+    // Verbatim from a macOS bash 3.2 PTY: PS1 is printed until `PS1=''` takes
+    // effect, and shares the physical line with the answer.
+    const real = `bash-3.2$ bash-3.2$ bash-3.2$ bash-3.2$ ${TOKEN}\r\n`;
+    assert.equal(probeOn(real), true);
+  });
+
+  test('RD-4: the answer wrapped in control sequences still resolves', () => {
+    assert.equal(probeOn(`\x1B[?2004h\x1B[0m${TOKEN}\x1B[0m\r\r\n`), true);
+  });
+
+  test('RD-5: an unrelated buffer does not resolve the probe', () => {
+    assert.equal(probeOn('The default interactive shell is now zsh.\r\n'), false);
+  });
+
+  test('RD-6: spawn() PTY startup contains no fixed-duration wait', () => {
+    // #93's acceptance criterion is structural — "no timing assumption about
+    // shell readiness" — and a behavioural test cannot see a sleep that is
+    // merely long enough today. Read the source and say so.
+    const src = fs.readFileSync(path.join(__dirname, 'watcher-shell.cjs'), 'utf8');
+    const spawnBody = src.slice(src.indexOf('async spawn()'), src.indexOf('_writeRaw(s) {'));
+    assert.ok(spawnBody.length > 0, 'failed to locate spawn() in the source');
+    assert.ok(
+      !/setTimeout\(\s*\(?\s*r\s*\)?\s*=>/.test(spawnBody),
+      'spawn() must not sleep for a duration to decide the shell is ready'
+    );
+    assert.ok(
+      /_awaitShellReady\(\)/.test(spawnBody),
+      'spawn() must wait on the readiness handshake'
+    );
   });
 });
