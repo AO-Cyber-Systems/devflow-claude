@@ -810,3 +810,56 @@ test('Case I7c — the positive control`s flow produces no FLOW error, instance 
   assert.strictEqual(spec.flows[0].steps[2].back, 'app-back');
   assert.ok(!spec.controls.some((c) => c.id === 'app-back'));
 });
+
+// ─── I8: guards (TRD 34-04) ──────────────────────────────────────────────────
+//
+// §4.5 I8: `guards` name the denied state each renders.
+//
+// THE LINKAGE RULE, decided here and pinned by these cases because §4.2's own example does NOT
+// name its denied state directly — the route declares `guards: [member-of-workspace]` and the
+// state is called `guard-denied`. A guard `G` is resolved against `states[].id` in order:
+//   1. `G` itself,
+//   2. `${G}-denied`,
+//   3. the canonical `guard-denied` (the single-denied-state form §4.2 uses).
+// The resolved state must ALSO declare an `as:` identity — the identity the guard denies. That
+// is the field which makes it a denied state rather than a data state, and it is the label
+// 34-05's nav graph puts on the guard edge. GUARD001 fires when nothing resolves, or when what
+// resolved carries no `as`.
+
+test('Case I8a — guard-without-denied-state.md is exactly GUARD001, naming guard and route', () => {
+  const result = validateSurfaceSpec(loadBroken('guard-without-denied-state.md').frontMatter, ctx());
+
+  assert.deepStrictEqual(codesOf(result), ['GUARD001'], JSON.stringify(result.errors));
+  assert.strictEqual(result.errors.length, 1);
+  assert.strictEqual(result.errors[0].path, 'routes[0].guards[0]');
+  assert.match(result.errors[0].msg, /member-of-workspace/);
+  assert.match(result.errors[0].msg, /project\.conversations/);
+});
+
+test('Case I8b — the positive control`s guard resolves through `guard-denied` + its `as`', () => {
+  const spec = loadPositiveControl();
+
+  // The shape the linkage rule reads, asserted directly.
+  assert.deepStrictEqual(spec.routes[0].guards, ['member-of-workspace']);
+  const denied = spec.states.find((st) => st.id === 'guard-denied');
+  assert.strictEqual(denied.as, 'non-member');
+
+  const result = validateSurfaceSpec(spec, ctx());
+  assert.ok(!result.errors.some((e) => e.code.startsWith('GUARD')), JSON.stringify(result.errors));
+
+  // Rung 1 of the ladder: a state named for the guard itself resolves too.
+  const namedForGuard = mutate(spec, (s) => {
+    s.states.find((st) => st.id === 'guard-denied').id = 'member-of-workspace';
+  });
+  assert.ok(!validateSurfaceSpec(namedForGuard, ctx()).errors.some((e) => e.code.startsWith('GUARD')));
+
+  // And the `as` half of the rule: a denied state with no identity is still GUARD001, because
+  // "who is denied" is the fact the guard edge is drawn from.
+  const noIdentity = mutate(spec, (s) => {
+    delete s.states.find((st) => st.id === 'guard-denied').as;
+  });
+  const b = validateSurfaceSpec(noIdentity, ctx());
+  assert.deepStrictEqual(codesOf(b), ['GUARD001'], JSON.stringify(b.errors));
+  assert.match(b.errors[0].msg, /guard-denied/);
+  assert.match(b.errors[0].msg, /\bas\b/);
+});
