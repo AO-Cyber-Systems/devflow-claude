@@ -6,6 +6,173 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.9.0] - 2026-09-22
+
+W1b of the UI Oracle Loop (`docs/PROPOSAL-ui-oracle-loop.md`): a UI surface can now be
+described once, in one hand-authored file, and machine-checked. The Surface Spec gets a schema,
+a validator with eight invariants and named error codes, a renderer that derives the ui-eval
+manifest and the human-readable review artifacts from the same file, a review sheet, and a
+look-lock that survives a typo fix but not a shape change. Alongside it, a shell harness that
+executes the fenced bash in agent prose under the real Bash-tool model — and which found 40
+defects in `agents/executor.md`'s own Flutter instructions on first contact.
+
+### Added
+- **`df-tools ui spec validate <file> [--patterns <catalogue.json>]`** — the eight §4.5 invariants
+  (I1–I8), each with its own error code: `SPEC000-002`, `ROUTE001-003`, `CTRL001-006`,
+  `STATE001-003`, `PAT000-002`, `HIT000-002`, `FLOW001-002`, `GUARD001`. Twelve known-broken
+  fixtures live in `__fixtures__/ui-spec/broken/`, each one a copy of the positive control plus a
+  single edit, and each failing with **exactly one** code equal to its own `<!-- BROKEN: -->`
+  marker — a gate whose every branch is proven reachable from the real binary, not from a unit
+  test that stubs the CLI away. Exit 1 on any real violation (c1f7027, 346a450, a1d8e0a, 89e7c61,
+  cfa5bce, e574962, 3588ed2, 3f3e854, 97283ef)
+- **`df-tools ui spec render <file> [--manifest|--graph|--table]`** — four artifacts derived from
+  the one hand-authored spec, so they cannot drift from it: a `flutter-ui-eval` manifest that
+  carries all eight keys on **every** state (`state_id`, `seed`, `as`, `fault`, `references`,
+  `theme`, `viewport`, `content`) and loads through the existing engine untouched; a mermaid nav
+  graph whose node ids are kind-prefixed (`route_`/`ctrl_`/`state_`) so two namespaces cannot
+  collapse onto one node; a control table rendered as plain English, one line per `when`, with
+  negations spelled out; and a capture list over state × theme × width with a filename-safe
+  `capture_id`. Three byte-stable snapshots are committed as the determinism control (a67137b,
+  50aff43, 981c9e3, 70367e7, 171913d, 6f7315f)
+- **`df-tools ui sheet <spec> --out <file>`** — a single-page review sheet a human can actually
+  look at: the nav graph, the control table, and one row per capture with its render inlined as a
+  `data:` URI. Its `sheet_hash` is a sha256 over the *model*, not the HTML, so a CSS tweak to the
+  template does not invalidate a human's approval — while a state moving `MISSING` → `present`
+  does move it. `engine_version` is deliberately excluded from the hash: had it been included,
+  this very release's version bump would have silently cleared every look-lock in every repo
+  (08aefee, e492fa0, 145030c)
+- **`df-tools ui lock <spec> --sheet-hash <64 hex> --by <email>`** — the look-lock. It hashes
+  exactly three keys (`routes`, `controls`, `states`) through the sheet's one canonicalisation
+  path, and stores per-section hashes so a cleared verdict can name *which* section moved. Proven
+  in both directions by mutating a real spec and re-reading the status: a `kind:`, `path:` or
+  `seed:` edit reports `cleared` and names the section; an appended paragraph, a heading edit, or a
+  `design_read`/`references`/`flows` change reports `held` with `locked_at` untouched. A lock that
+  survives a shape change is a false approval; a lock that dies on a typo fix is worse than no lock
+  (5111793, 3e46c04)
+- **Surface Spec schema v1** (`devflow/schemas/surface-spec.schema.json`, `$id`
+  `.../surface-spec/v1`) and the fixed seven-term `must_not` vocabulary, both mirrored to
+  `~/.claude/devflow` and loaded relative to `__dirname` so they resolve from the mirror as well as
+  the checkout (ba6dc36, dd0f241, 261de0d)
+- **`yaml-lite`** — a dependency-free YAML **subset** parser (`bin/lib/yaml-lite.cjs`, zero
+  `require()` calls of any kind), because this repo permits no new npm dependency and a Surface
+  Spec's front matter must not be parsed by the lenient splitter DevFlow's own TRD files use. Its
+  refusal list is **closed**, not best-effort: twelve constructs (anchors, aliases, the merge key,
+  block scalars, tags, tab indentation, document markers, nested inline sequences, explicit keys,
+  a dedent to an unopened column, duplicate keys, implicit single-pair flow maps) each throw with a
+  1-based line number. A 29-construct audit of the finished parser found two *silent mis-parses*
+  the planned test list never named — `- - x` read as the string `'- x'`, and `"a b": 1` keeping
+  its quotes in the key — and both are now refused by name (32dd182, d6ae517, 7d7685d, 3d79a5e,
+  1f135f6, a2e1646, d2229cd, 1d5a362)
+- **`frontend-design` build mode refuses to compose without a valid, locked spec** — a new step 5
+  locates or drafts the Surface Spec, and the skill declines to compose when `ok: false` or the
+  lock is anything but `held`, with a separate imperative for each of `absent`, `cleared` and
+  `MISSING`. `PAT000`/`HIT000` MISSING rows deliberately do **not** block: had the refusal read
+  `errors.length > 0` instead of `ok`, every surface in the repo would be blocked today. Proven
+  across five real spec states through the real binary — four refuse, one proceeds (2cbd0a7,
+  3412be9)
+- **The agent shell harness** (`bin/lib/agent-shell-harness.cjs`) — it extracts the fenced bash
+  from a named section of an agent file and runs it under the model agents actually face: cwd
+  persists between calls, shell variables do **not**, one logical command per call, `set -u`, a
+  hermetic PATH, a 10s timeout and a containment pre-check. A bare `cd sub` is a `cwd-leak`
+  finding and exits 1; `( cd sub && cmd )` exits 0. A `# harness:` annotation vocabulary
+  (`expect`, `expect-cwd`, `expect-exit`, `derive`, `subst`, `skip`) lets correct-but-illustrative
+  prose declare its intent, and an unknown annotation is a finding rather than a silent no-op — as
+  is a `skip`, which counts toward MISSING and never toward pass (7eba11e, d66153a, 89586ba,
+  4a1d871, bcdfddf, efabe1d, 8d64c34, 7ebc391, 0354015, cfcdacd, d15e0b1, 39b6f44, 0c30bdf,
+  d8619cb, aeca056, 35646f8, a2358a1, 153e06f)
+- **CI runs the harness against `agents/executor.md` on every agent-prose PR** —
+  `.github/workflows/agent-shell-harness.yml`, with the stub binaries' executable bit checked up
+  front and the harness's exit code unswallowed, so a finding fails the job (c005bfc)
+- **`look-lock` is a documented checkpoint variant** — `references/checkpoints.md` gains the
+  variant that the verifier agent may **not** stand in for. It asks "is this the right design",
+  not "does it work", so machine evidence cannot answer it; in autonomous mode it falls through to
+  the user exactly as `checkpoint:human-action` does, and is never blind-approved (593b8fc)
+
+### Fixed
+- **`agents/executor.md`'s Flutter instructions did not work, and nobody could have known** — the
+  first run of the new harness against the real file produced **40 findings across three sections,
+  all three failing**. The prose had been read many times and had never been executed. Eight
+  concrete defects were fixed and one deliberate non-change recorded: the bootstrap capture chained
+  four shell variables across four separate Bash calls (`BOOTSTRAP: unbound variable`) while the
+  paragraph directly beneath it already said they would not survive; the setup-task extraction
+  repeated the same defect and its bash block was deleted in favour of prose; the hard-fail message
+  interpolated a `$MISSING` that was never set, exiting 127; the analyze baseline-diff carried both
+  a dead variable and a multi-line `if/fi` that split into `syntax error near unexpected token
+  'fi'`; fourteen `$REPO_ROOT`/`$PACKAGE_DIR`/`$OBJECTIVE_DIR` placeholders are now declared per
+  call with `# harness: derive`, which reaches exactly one call so an *undeclared* variable still
+  fails; illustrative `<path/to/test.dart>` placeholders are declared with `subst` rather than
+  rewritten, turning the prose's own "MUST exit non-zero" into a real assertion; five evidence
+  `mv`s that exited 0 whether or not anything moved gained `# harness: expect <artifact>`; and the
+  chromedriver guard's correct `exit 1` is now declared rather than flagged. The three sections now
+  run 22 calls with **zero** findings. Explicitly *not* changed:
+  `CURRENT_ANALYZE=$(cd "$PACKAGE_DIR" && …)` — a `$( … )` subshell never moved the observed cwd
+  and was never flagged (4a3acc0, 153e06f)
+- **`devflow/schemas/` never reached the `~/.claude/devflow` mirror** — `sync-runtime.js`'s
+  `SUBDIRS` is an allowlist (`workflows`, `references`, `templates`, `bin`) and the new `schemas/`
+  directory was not on it. Every test passed in the checkout while `loadSurfaceSpecSchema()` would
+  have thrown ENOENT on **every real skill invocation**, because skills run the mirror and not the
+  repo — the exact silent-green class this objective exists to close. `schemas` is now in the
+  allowlist, with a test that asserts every shipped runtime subdir reaches the mirror (c6f636a,
+  d973f72)
+- **The W1b interface list was a fiction at the release audit** — `ui-spec.cjs` exported only
+  `parseSurfaceSpec`; `validateSurfaceSpec` and `renderSurfaceSpec` were `undefined` on it, living
+  unre-exported in sibling modules. W1c, W1★ and W2 are all planned against that one front door, so
+  three downstream objectives would have planned against names that did not resolve. All three are
+  now reachable from `ui-spec.cjs`, re-exported as **lazy getters** — `ui-spec-render` requires
+  `ui-spec-validate`, which requires `ui-spec`, so a top-level require here would close that cycle
+  and hand the sibling a half-initialised module. Four cases pin it, asserting function *identity*
+  with the sibling export rather than `typeof` (a stub of the right shape would satisfy a `typeof`
+  check and still be a fiction), plus a cold-require differential control in a child process
+  (959e403)
+- **Two self-contradictions in the amended proposal, resolved normative-rule-over-illustrative-example** —
+  §4.2's `acceptance.locked_sheet` literal is **65** hex characters and therefore cannot be a
+  sha256, and §4.2's example declares both `within` and `disjoint_from` on the same target while
+  §4.5 I6 — added in the same commit — forbids exactly that. The fixtures follow the rules: the
+  positive control drops the extra character and the chevron's `within` line, and §4.2's literal
+  text survives verbatim as the known-broken fixture `hit-rect-within-and-disjoint.md`. **The
+  proposal itself still reads both ways and needs a follow-up amendment to one side** (261de0d,
+  fd1b312, 89e7c61)
+
+### Known limitations
+- **The pattern catalogue is unreachable, so every real spec carries one `PAT000 / MISSING` row.**
+  W1b ships no pinned `eden-ui-flutter` release, so the validator has no catalogue to resolve
+  `patterns:` references against and §4.5 I5 is **UNCHECKED** — which is deliberately *not* the
+  same as passing. `ok` is `errors.every(e => e.status === 'MISSING')`, so a MISSING row does not
+  block composition; treating it as a failure would block every surface in the repo, and treating
+  it as a pass is the silent-green class this loop exists to forbid. Supply a catalogue with
+  `--patterns <catalogue.json>` to reach the real `PAT001`/`PAT002` codes. This will look like a
+  bug to the first person who runs `ui spec validate` on a real surface. It is not.
+- **The I6 hit-rect model is resolvability and consistency only.** `within` and `disjoint_from`
+  are checked for resolving to controls in the same spec, for reciprocity, and for never being
+  declared together on one target. **Overlap itself is not statically checked** — §4.2 gives
+  `hit_rect` no coordinates, so there is no field from which an overlap could be computed. Measuring
+  the actual rects is W2's probe. `HIT000` remains the answer where the check could not run.
+- **None of these arms is reachable from a skill until the plugin is upgraded and a new session
+  starts.** Skills invoke the `~/.claude/devflow` mirror, which `sync-runtime` refreshes only when
+  the bundled version differs from the cached marker. Until 2.9.0 is installed, `ui spec`,
+  `ui sheet` and `ui lock` exist only in this checkout — and so does the harness binary.
+- **W1b does not close the loop.** It ships the spec, the validator, the renderer, the sheet, the
+  lock, the skill gate and the prose harness. There is no probe, no checks and no executor CONFORM
+  loop — those are W2. The `projects-rail` dogfood is W1★. `references[]` is populated but
+  uncalibrated, and no `expected` judge anchor is synthesised.
+- **The review sheet's `sheet_hash` covers the engine-rendered control-table prose.** A
+  wording-only change in `ui-spec-render.cjs` would therefore clear every look-lock — the same
+  over-trigger the design already rejected for `engine_version`. The look-lock's own shape hash is
+  unaffected (it hashes `{routes, controls, states}` only). **This needs a decision before W1★.**
+- **`ui spec validate`'s `lock` is nested** (`lock.lock`), so the obvious `if (out.lock !== 'held')`
+  compares an object to a string and refuses every surface, including approved ones. A flattened
+  alias is a W1★ candidate.
+- **The harness CI job is path-filtered and is not yet a required check.** Until branch protection
+  lists it, a PR that touches none of the filtered paths merges on a green tick that never ran this
+  gate. Also open: `<worktree_command_discipline>` in `executor.md` forbids `&&`, pipes and `cd`
+  prefixes, while the Flutter sections it shares a file with mandate `( cd "$PACKAGE_DIR" && … )`
+  and pipe through `sort`/`grep`. Both rules are individually well-founded; the harness currently
+  sides with the subshell form. This is a design decision, not a wording fix, and was deliberately
+  left open.
+- **`CTRL007` (the `must_not` vocabulary check) is reserved but not implemented**, and
+  `terminal: true` is not in the schema — only `root: true`. `flows` is excluded from the look-lock's
+  shape hash, on the reasoning that a flow is a walk over structure the reviewer has already seen.
+
 ## [2.8.0] - 2026-09-21
 
 Wave 0 of the UI Oracle Loop (`docs/PROPOSAL-ui-oracle-loop.md`): the visual gate stops lying, resolution is objective-scoped, health reports engine lag, monorepo Flutter packages resolve, and a UI-loop baseline metric ships.

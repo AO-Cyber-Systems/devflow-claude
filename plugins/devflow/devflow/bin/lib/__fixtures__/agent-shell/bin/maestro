@@ -1,0 +1,32 @@
+#!/usr/bin/env node
+'use strict';
+/**
+ * `maestro` stub (TRD 34-10). Accepts ONLY `maestro test <dir> --format junit --output
+ * <file>` — the single invocation `agents/executor.md` makes — and writes both artifacts
+ * the prose then moves: the junit xml at --output, and screenshots under
+ * ~/.maestro/tests/<run>/screenshots/ (which the prose moves with an absolute `~` source).
+ */
+const fs = require('fs');
+const path = require('path');
+
+const a = process.argv.slice(2);
+function reject() {
+  process.stderr.write('maestro stub: unexpected argv: ' + JSON.stringify(a) + '\n');
+  process.exit(2);
+}
+if (a[0] !== 'test' || a.length !== 6) reject();
+const flowDir = a[1];
+if (a[2] !== '--format' || a[3] !== 'junit' || a[4] !== '--output') reject();
+const out = a[5];
+if (!fs.existsSync(path.resolve(process.cwd(), flowDir))) {
+  process.stderr.write('maestro stub: flow dir not found: ' + flowDir + '\n');
+  process.exit(1);
+}
+fs.mkdirSync(path.dirname(path.resolve(process.cwd(), out)), { recursive: true });
+fs.writeFileSync(path.resolve(process.cwd(), out),
+  '<?xml version="1.0"?>\n<testsuites tests="1" failures="0"><testsuite name="stub"/></testsuites>\n');
+
+const shots = path.join(process.env.HOME || '', '.maestro', 'tests', 'run-1', 'screenshots');
+fs.mkdirSync(shots, { recursive: true });
+fs.writeFileSync(path.join(shots, 'flow-1.png'), 'stub artifact\n');
+process.exit(0);

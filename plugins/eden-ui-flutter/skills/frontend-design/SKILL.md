@@ -95,13 +95,63 @@ When flutter-skill MCP is available, use its tools for live inspection:
 
 4. **Check eden-ui-flutter for matching widgets** — Read `../eden-ui-flutter/lib/src/components/` to find matching widget APIs. Check constructor parameters, required vs optional fields, available variants.
 
-5. **Plan the composition** — List which eden-ui-flutter widgets will compose the screen. Identify:
+5. **Locate or draft the Surface Spec** — The Phase A gate. Before planning composition, the
+   surface must have a Surface Spec that validates and carries a current look-lock. (Proposal
+   §4 and §8.1 call this build mode's *step 0*; it is numbered here by its position in the run.)
+
+   a. Look for `flutter/ui_spec/<surface>.md` in the app repository. One spec per navigation
+      destination group — in practice one per `lib/features/<x>/` folder. A shared widget is
+      specified by the consumer that composes it; the library owns its pattern spec.
+   b. If it is absent, draft it. The inputs are: the **pattern library** (default control
+      behaviours, `must_not` rules, breakpoint, a11y and content rules), the **router table**
+      (routes that already exist), the **mockup or donor** captures, and the design read — carry
+      the sentence from the design-read step into the spec's `design_read` field **verbatim**
+      rather than writing a second one. `mode` is `greenfield` or `redesign`, from the detection
+      step. For a `redesign` that ports a donor screen, write the pattern-mapping page
+      (`refs/<surface>/pattern-mapping.md`: donor screen -> Eden pattern -> deltas) **first**.
+   c. Validate it, and fix every error:
+
+      `node ~/.claude/devflow/bin/df-tools.cjs ui spec validate flutter/ui_spec/<surface>.md`
+
+      A spec that does not validate is not reviewable and cannot seed a TRD.
+   d. Read the `lock` block of that same output. Its `lock` value is one of exactly four:
+
+      - `held` — a human approved this surface and nothing in `routes`, `controls` or `states`
+        has moved since. Proceed to composition.
+      - `absent` — this surface has never been look-locked. Render the review sheet
+        (`node ~/.claude/devflow/bin/df-tools.cjs ui sheet flutter/ui_spec/<surface>.md --renders <dir> --refs <dir> --out <sheet.html>`)
+        and run the look-lock checkpoint. **Do not compose.**
+      - `cleared` — it was approved, and `routes`, `controls` or `states` has changed since; the
+        `reason` names which. Re-render the changed states, re-run the sheet, and run the
+        look-lock checkpoint again. **Do not compose.**
+      - `MISSING` — the lock could not be determined, so whether a human ever approved this
+        surface is unknown. Stop and ask the user. **Do not compose.**
+
+      The look-lock checkpoint itself — what the human is shown, the approval command
+      (`node ~/.claude/devflow/bin/df-tools.cjs ui lock <spec> --sheet-hash <sheet_hash> --by <email>`),
+      and what happens on a rejection — is documented once, in the **look-lock variant** section
+      of `~/.claude/devflow/references/checkpoints.md`. Read it there; do not restate it here.
+
+   **Refusal:** Do not compose a surface whose spec reports `ok: false`, or whose `lock` is
+   anything other than `held` — report the errors or the lock status and stop, rather than
+   composing against an unapproved design.
+
+   `PAT000` and `HIT000` rows carry `status: MISSING` when the pattern catalogue or the hit-rect
+   probe was unreachable; they do not set `ok: false` and do not block composition. A check that
+   could not run is not a violation, and treating it as one would block every surface in the repo.
+
+   This step and the pre-flight step are different gates and do not overlap: this one is the
+   **Phase A** gate on the *design* — does an approved spec exist to compose against — and runs
+   before any Dart is written. The pre-flight step is the **Phase B** gate on the *render*, and
+   runs after.
+
+6. **Plan the composition** — List which eden-ui-flutter widgets will compose the screen. Identify:
    - Layout type (scaffold with sidebar, tab-based, single-scroll, modal flow)
    - State management approach (Provider, Riverpod, BLoC — match the project's existing pattern)
    - Navigation integration (GoRouter, Navigator 2.0 — match existing)
    - Data flow from state to widgets
 
-6. **Generate Dart files** — Write the screen/widget files using eden-ui-flutter widgets:
+7. **Generate Dart files** — Write the screen/widget files using eden-ui-flutter widgets:
    - Use `EdenScaffold` for screen structure with app bar, sidebar, FAB
    - Use `EdenCard` for content containers with proper elevation and padding
    - Use `EdenDataTable` for tabular data with sorting, pagination, selection
@@ -114,9 +164,9 @@ When flutter-skill MCP is available, use its tools for live inspection:
    - Include `Semantics` widgets for accessibility where eden-ui-flutter doesn't handle it internally
    - Use `EdenResponsive` / `LayoutBuilder` for adaptive layouts
 
-7. **Verify** — Confirm all widget constructors use valid parameters by cross-referencing eden-ui-flutter source. Check that state management follows project conventions. Verify imports are correct.
+8. **Verify** — Confirm all widget constructors use valid parameters by cross-referencing eden-ui-flutter source. Check that state management follows project conventions. Verify imports are correct.
 
-8. **Run the pre-flight check** — Work every box in `design-preflight.md` before
+9. **Run the pre-flight check** — Work every box in `design-preflight.md` before
    reporting the surface complete. It is a gate, not a checklist to note.
 
    Flutter has a stronger option than a screenshot: run `/devflow:ui-eval` to

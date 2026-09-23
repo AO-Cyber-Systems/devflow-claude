@@ -1,0 +1,43 @@
+# The agent shell harness (TRD 34-09/34-10) runs the fenced bash of the named sections of
+# `plugins/devflow/agents/executor.md` under the real Bash-tool model — cwd persists,
+# shell variables do not, one command per call — and fails on any finding.
+#
+# This job is PATH-FILTERED, which is a known false-green class in this fleet
+# (fleet memory: path-filtered-ci-hides-red). Two mitigations, both deliberate:
+#   1. the filter includes this workflow's own path and the harness's own sources, so a
+#      PR that weakens the gate re-runs the gate;
+#   2. the job must be added to branch protection as a REQUIRED check. That is a repo
+#      setting and is OUT OF BAND of this file — until it is set, a PR that skips this
+#      job merges on a green tick that never ran.
+name: Agent shell harness
+
+on:
+  pull_request:
+    paths:
+      - 'plugins/devflow/agents/**'
+      - 'plugins/devflow/devflow/workflows/**'
+      - 'plugins/devflow/devflow/bin/lib/agent-shell-harness*'
+      - 'plugins/devflow/devflow/bin/lib/__fixtures__/agent-shell/**'
+      - '.github/workflows/agent-shell-harness.yml'
+
+jobs:
+  harness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # The stub binaries are reached through a prepended PATH. If the checkout lost the
+      # executable bit, every section would report MISSING rather than pass — but only
+      # after a confusing run, so check the fixture mode up front and fail loudly.
+      - name: Stub binaries are executable
+        run: |
+          git ls-files -s plugins/devflow/devflow/bin/lib/__fixtures__/agent-shell/bin/
+          test "$(git ls-files -s plugins/devflow/devflow/bin/lib/__fixtures__/agent-shell/bin/ | grep -c '^100755')" -eq 6
+
+      # Nothing swallows this step's exit code: a finding must fail the job.
+      - name: Run the harness against agents/executor.md
+        run: node --test plugins/devflow/devflow/bin/lib/agent-shell-harness.test.cjs

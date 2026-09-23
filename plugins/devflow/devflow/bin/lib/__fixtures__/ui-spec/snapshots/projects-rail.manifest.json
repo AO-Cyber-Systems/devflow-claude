@@ -1,0 +1,125 @@
+{
+  "surface": "projects-rail",
+  "engine_version": "<engine_version>",
+  "schema_version": 1,
+  "states": [
+    {
+      "state_id": "populated",
+      "seed": "projects-3-conversations-12",
+      "as": "workspace-member",
+      "fault": null,
+      "references": [
+        "locked/populated.png"
+      ],
+      "theme": "light",
+      "viewport": null,
+      "content": {
+        "must_show": [
+          "{project.name}"
+        ],
+        "must_not_show": []
+      }
+    },
+    {
+      "state_id": "long-content",
+      "seed": "projects-long-names",
+      "as": "primary",
+      "fault": null,
+      "references": [],
+      "theme": "light",
+      "viewport": null,
+      "content": {
+        "rule": "names ellipsize; rail width unchanged"
+      }
+    },
+    {
+      "state_id": "empty",
+      "seed": "projects-0",
+      "as": "primary",
+      "fault": null,
+      "references": [],
+      "theme": "light",
+      "viewport": null,
+      "content": {
+        "must_show": [
+          "Create a project"
+        ],
+        "must_not_show": [
+          "unavailable",
+          "error"
+        ]
+      }
+    },
+    {
+      "state_id": "error",
+      "seed": "projects-3",
+      "as": "primary",
+      "fault": "projects-list-500",
+      "references": [],
+      "theme": "light",
+      "viewport": null,
+      "content": {
+        "must_show": [
+          "Try again"
+        ],
+        "must_not_show": [
+          "Create a project"
+        ]
+      }
+    },
+    {
+      "state_id": "outage",
+      "seed": "projects-3",
+      "as": "primary",
+      "fault": "knowledge-service-503",
+      "references": [],
+      "theme": "light",
+      "viewport": null,
+      "content": {
+        "must_show": [
+          "unavailable"
+        ],
+        "must_not_show": [
+          "Create a project"
+        ]
+      }
+    },
+    {
+      "state_id": "guard-denied",
+      "seed": "projects-3",
+      "as": "non-member",
+      "fault": null,
+      "references": [],
+      "theme": "light",
+      "viewport": null,
+      "content": {
+        "must_show": [
+          "You don't have access"
+        ],
+        "must_not_show": [
+          "{project.name}"
+        ]
+      }
+    },
+    {
+      "state_id": "narrow",
+      "seed": "projects-3-conversations-12",
+      "as": "primary",
+      "fault": null,
+      "references": [],
+      "theme": "light",
+      "viewport": "390x844",
+      "content": null
+    },
+    {
+      "state_id": "dark",
+      "seed": "projects-3-conversations-12",
+      "as": "primary",
+      "fault": null,
+      "references": [],
+      "theme": "dark",
+      "viewport": null,
+      "content": null
+    }
+  ]
+}

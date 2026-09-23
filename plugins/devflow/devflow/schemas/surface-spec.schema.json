@@ -1,0 +1,394 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devflow.aocyber.ai/schemas/surface-spec/v1",
+  "schema_version": 1,
+  "title": "Surface Spec v1",
+  "description": "The machine statement of PROPOSAL-ui-oracle-loop.md §4.2: how one surface — a feature area with its own routes and controls — is supposed to function. This file declares STRUCTURE only. The cross-field invariants (§4.5 I1-I8: 'every route has a back unless it is the root', 'behaviors cover visible_in', 'outage.must_show and empty.must_show are disjoint', hit_rect reciprocity) are implemented in code by `df-tools ui spec validate`, not encoded here — a schema that half-expresses a rule gives it two homes and lets them drift. JSON has no comments, so every `description` in this file IS its documentation.",
+  "type": "object",
+  "required": ["surface", "routes", "controls", "states", "flows"],
+  "additionalProperties": false,
+
+  "$defs": {
+    "id": {
+      "description": "§4.2: all ids are lower-case, dot- and hyphen-separated. A control id MUST equal the widget's semantics identifier.",
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9.\\-]*$"
+    },
+    "idList": {
+      "description": "A list of ids resolved against this spec (or, for route entries, another spec in the same repo).",
+      "type": "array",
+      "items": { "$ref": "#/$defs/id" }
+    },
+    "stringList": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "effect": {
+      "description": "§7.5: the machine-classifiable effect classes, read off the before/after diff of one activation. `navigation` = route changed; `toggle` = announced state flipped; `select` = selection node changed; `dialog` = new modal node; `submit` = request + result node; `inert` = zero delta.",
+      "type": "string",
+      "enum": ["navigation", "toggle", "select", "dialog", "submit", "inert"]
+    },
+    "whenClause": {
+      "description": "§4.3: the observed pre-activation state a behaviour applies to. `when` clauses on one control are mutually exclusive and together cover every state in `visible_in`; the probe resolves the active behaviour from the state it observes.",
+      "type": "object",
+      "properties": {
+        "control_state": { "type": "string" },
+        "viewport": { "type": "string" },
+        "theme": { "type": "string" },
+        "data_state": { "type": "string" },
+        "guard": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "contentContract": {
+      "description": "§4.4: the content contract for one state — literal strings that must or must not be on screen, or a prose `rule` for the cases a string match cannot express. `{placeholder}` braces are resolved from the seed.",
+      "type": "object",
+      "properties": {
+        "must_show": { "$ref": "#/$defs/stringList" },
+        "must_not_show": { "$ref": "#/$defs/stringList" },
+        "rule": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "hitRect": {
+      "description": "§4.2 / §4.5 I6: the DECLARED hit-target intent. Overlap itself is not statically checkable and is not checked — the spec declares intent, the probe measures rects (§7.5 `disjoint`, `hit-target`, `within`). The static check is resolvability and consistency only.",
+      "type": "object",
+      "properties": {
+        "max": {
+          "description": "An upper bound on the control's rect, `WxH` in logical pixels, that the probe asserts. Not a layout instruction.",
+          "type": "string",
+          "pattern": "^[0-9]+x[0-9]+$"
+        },
+        "within": {
+          "description": "This control sits inside the named control's area but MUST own its own hit target — the declarable form of the aodex#544 defect, where a chevron's semantics node spanned the whole 360px row. Resolves to a control in this spec, and must not also appear in this control's `disjoint_from`.",
+          "$ref": "#/$defs/id"
+        },
+        "disjoint_from": {
+          "description": "Controls whose rects must not overlap this one's. Reciprocal: both controls name each other, and neither names itself.",
+          "$ref": "#/$defs/idList"
+        }
+      },
+      "additionalProperties": false
+    },
+    "behavior": {
+      "description": "§4.3: one state-conditional behaviour of a control. A UI may support several behaviours for one control, never two for the same observed state.",
+      "type": "object",
+      "required": ["does", "effect"],
+      "properties": {
+        "when": { "$ref": "#/$defs/whenClause" },
+        "does": {
+          "description": "What activating the control does, in one sentence, for the reader of the spec.",
+          "type": "string"
+        },
+        "effect": {
+          "description": "The effect classes this activation is allowed to produce (§7.5 `effect`).",
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/effect" }
+        },
+        "must_not": {
+          "description": "§4.3: negations drawn from must_not_vocabulary.json. Free text needs `manual: true`, which keeps the item on the human-verify list.",
+          "$ref": "#/$defs/stringList"
+        },
+        "manual": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "route": {
+      "type": "object",
+      "required": ["id", "path", "entry"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "path": {
+          "description": "§4.2: the route path, `:param` segments included.",
+          "type": "string"
+        },
+        "entry": {
+          "description": "§4.5 I2: at least one declared way in. An element is either `{control: <id>}` or a literal entry kind such as `deeplink`.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "anyOf": [
+              { "type": "string" },
+              {
+                "type": "object",
+                "required": ["control"],
+                "properties": { "control": { "$ref": "#/$defs/id" } },
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "back": {
+          "description": "§4.5 I2: required unless the route declares `root: true`. `target` is the route landed on; `via` lists the back affordances that must work (§7.5 `route-back`).",
+          "type": "object",
+          "required": ["target"],
+          "properties": {
+            "target": { "$ref": "#/$defs/id" },
+            "via": { "$ref": "#/$defs/stringList" }
+          },
+          "additionalProperties": false
+        },
+        "root": {
+          "description": "§4.5 I2: this route is the declared root and therefore needs no `back`.",
+          "type": "boolean"
+        },
+        "guards": {
+          "description": "§4.5 I8: each guard names the denied state it renders.",
+          "$ref": "#/$defs/stringList"
+        },
+        "reachable_from_nav": {
+          "description": "§4.2: false requires a `justification` (aodex#517 — four screens unreachable).",
+          "type": "boolean"
+        },
+        "justification": { "type": "string" },
+        "title": {
+          "description": "§4.2 / §7.5 `title`: every route has a visible title. `{placeholder}` braces are resolved from the seed.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "control": {
+      "description": "§4.3: `controls[]` is the interaction contract. Either one `does` + `effect` pair, or a `behaviors[]` list whose `when` clauses are exclusive and cover `visible_in`.",
+      "type": "object",
+      "required": ["id", "kind", "visible_in"],
+      "properties": {
+        "id": {
+          "description": "MUST equal the semantics identifier the widget publishes — this is what the probe looks the control up by.",
+          "$ref": "#/$defs/id"
+        },
+        "kind": {
+          "description": "§4.2: the control kind, which selects the pattern defaults it inherits (§4.5 I5).",
+          "type": "string",
+          "enum": ["button", "toggle", "link", "menu", "disclosure-header", "input"]
+        },
+        "visible_in": {
+          "description": "§4.5 I3: the states this control is on screen in. A subset of `states[].id`.",
+          "$ref": "#/$defs/idList"
+        },
+        "does": { "type": "string" },
+        "effect": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/effect" }
+        },
+        "behaviors": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/behavior" }
+        },
+        "must_not": {
+          "description": "§4.3: applies to EVERY behaviour of this control. Terms from must_not_vocabulary.json.",
+          "$ref": "#/$defs/stringList"
+        },
+        "manual": { "type": "boolean" },
+        "activation": {
+          "description": "§4.2 (amended): a MAP, not a list. `pointer` is a boolean; `keyboard` lists the keys that must activate the control (§7.5 `keyboard-complete`).",
+          "type": "object",
+          "properties": {
+            "pointer": { "type": "boolean" },
+            "keyboard": { "$ref": "#/$defs/stringList" }
+          },
+          "additionalProperties": false
+        },
+        "disabled_when": {
+          "description": "§4.3: null, or a condition together with the reason SHOWN to the user. There is no honestly-non-functional control without a surfaced reason (§7.5 `no-op`).",
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "required": ["condition", "reason_shown"],
+              "properties": {
+                "condition": { "type": "string" },
+                "reason_shown": { "type": "string" }
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "a11y": {
+          "description": "§4.2: the semantics role and the state changes the control announces.",
+          "type": "object",
+          "properties": {
+            "role": { "type": "string" },
+            "announces": { "$ref": "#/$defs/stringList" }
+          },
+          "additionalProperties": false
+        },
+        "hit_rect": { "$ref": "#/$defs/hitRect" },
+        "destructive": {
+          "description": "§4.3: true requires `confirm` naming the dialog control.",
+          "type": "boolean"
+        },
+        "confirm": { "$ref": "#/$defs/id" }
+      },
+      "additionalProperties": false
+    },
+    "state": {
+      "description": "§4.4: every surface declares at minimum populated, empty, error, outage, long-content, narrow and dark; `loading` when the surface owns an async fetch. Every state has a seed.",
+      "type": "object",
+      "required": ["id"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "seed": {
+          "description": "§7.4: the seed profile the e2e entrypoint honours.",
+          "type": "string"
+        },
+        "as": {
+          "description": "§7.4: the identity from the e2e identity set. Default: the primary user.",
+          "type": "string"
+        },
+        "ref": {
+          "description": "§8.3: the locked render this state is judged against, as `<kind>/<file>` (e.g. `locked/populated.png`) relative to the directory passed as `df-tools ui sheet --refs <dir>`. The FIRST path segment is the reference kind and is what labels the ref pane on the sheet — one of `mockup`, `donor`, `locked`; any other first segment leaves `ref_kind: null`. The top-level `references` block is NOT the resolution root — nothing reads it — so a path written relative to the paths it names comes back `ref_status: MISSING` with `ref_kind: null` on every row.",
+          "type": "string"
+        },
+        "fault": {
+          "description": "§7.4: the injected fault that produces this state (a 500, a dependency 503).",
+          "type": "string"
+        },
+        "theme": { "type": "string" },
+        "viewport": {
+          "description": "`WxH` in logical pixels.",
+          "type": "string",
+          "pattern": "^[0-9]+x[0-9]+$"
+        },
+        "content": { "$ref": "#/$defs/contentContract" }
+      },
+      "additionalProperties": false
+    },
+    "flow": {
+      "description": "§4.5 I7: every step references existing controls and routes, and the flow ends in a `back` or a declared terminal route.",
+      "type": "object",
+      "required": ["id", "steps"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "properties": {
+              "click": { "type": "string" },
+              "type": { "type": "string" },
+              "key": { "type": "string" },
+              "back": { "type": "string" },
+              "expect": {
+                "type": "object",
+                "properties": {
+                  "route": { "$ref": "#/$defs/id" },
+                  "control_state": { "type": "object" },
+                  "content": { "$ref": "#/$defs/contentContract" }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "scopeRule": {
+      "description": "§4.6: what resets or is invalidated on a scope event. The planner derives provider-invalidation tests from these; the crawl fires each event and checks the list (§10.1, §7.5 `scope-reset`).",
+      "type": "object",
+      "required": ["on"],
+      "properties": {
+        "on": {
+          "type": "string",
+          "enum": ["workspace-switch", "company-switch", "project-switch", "project-move", "logout"]
+        },
+        "reset": { "$ref": "#/$defs/stringList" },
+        "invalidate": { "$ref": "#/$defs/stringList" }
+      },
+      "additionalProperties": false
+    }
+  },
+
+  "properties": {
+    "schema_version": {
+      "description": "§4.5 I1: the spec's schema version, checked against the engine's supported range. Absent means 1.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "surface": {
+      "description": "§4.1: unique within the repo. One spec per navigation destination group — in practice one per `lib/features/<x>/`.",
+      "$ref": "#/$defs/id"
+    },
+    "patterns": {
+      "description": "§4.5 I5: pattern-library ids from the pinned eden-ui-flutter release. A control of a pattern kind inherits that pattern's `must_not` defaults and may not silently drop them.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "references": {
+      "description": "§4.1: where the mockup, the donor captures (completeness only) and the look-locked renders live, relative to the spec. DOCUMENTATION FOR A HUMAN — no module reads these three paths. `df-tools ui sheet --refs <dir>` is what resolves a `state.ref`, and that directory is the one holding the `mockup/`, `donor/` and `locked/` subdirectories these keys name.",
+      "type": "object",
+      "properties": {
+        "mockup": { "type": "string" },
+        "donor": { "type": "string" },
+        "locked": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "design_read": {
+      "description": "§5 / design-craft §1-2: the design read recorded once per surface rather than once per SUMMARY.",
+      "type": "string"
+    },
+    "mode": {
+      "description": "§5: `redesign` triggers design-redesign.md's audit before look-lock.",
+      "type": "string",
+      "enum": ["greenfield", "redesign"]
+    },
+    "routes": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/route" }
+    },
+    "controls": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/control" }
+    },
+    "states": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/state" }
+    },
+    "flows": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/flow" }
+    },
+    "scope_rules": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/scopeRule" }
+    },
+    "acceptance": {
+      "description": "§4.1 re-lock rule: any change to `routes`, `controls` or `states` CLEARS `locked_sheet`. Phase B refuses to run a judge against a surface whose lock is cleared.",
+      "type": "object",
+      "properties": {
+        "locked_sheet": {
+          "description": "The sha256 of the approved review sheet.",
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "locked_by": { "type": "string" },
+        "locked_at": { "type": "string" },
+        "locked_shape_hash": {
+          "description": "TRD 34-07. The sha256 of the canonical JSON of `{routes, controls, states}` ONLY — the three keys §4.1's re-lock rule names. Deliberately NOT over the whole front matter: if a `design_read` rewording cleared the lock, the team would learn to re-approve without reading, which is worse than no lock. `df-tools ui lock` writes it; `ui spec validate` compares it to report `lock: held | cleared`. An `acceptance` block WITHOUT it reports `lock: MISSING` — never `held`.",
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "locked_section_hashes": {
+          "description": "TRD 34-07. One hash per §4.1 key, as at the lock. Stored rather than recomputed because telling routes-changed from states-changed after the fact is impossible without the values at lock time — and `lock: cleared` with no named section sends a human back to diff the file by hand. Optional: a hand-written lock without them still resolves held/cleared, and the reason says the section cannot be named.",
+          "type": "object",
+          "properties": {
+            "routes": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+            "controls": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+            "states": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -275,3 +275,57 @@ flutter analyze
 
 Never import a package on the assumption it is present. If it is missing, output
 the `flutter pub add` command before writing code against it.
+
+---
+
+## Composition and semantics
+
+Every rule here exists because a probe reads the rendered semantics tree, and a
+composition that is visually right but semantically wrong fails as if the control
+were absent. The Surface Spec's `must_not` vocabulary asserts against exactly these.
+
+- **A control's semantics identifier IS its Surface Spec control id.** Not a
+  label, not a key — the `identifier` field. `rail.project.header` in the spec
+  means `Semantics(identifier: 'rail.project.header', …)` in the widget. The probe
+  finds controls by identifier, so a mismatch does not read as "wrong label"; it
+  reads as `present` failing — *the control does not exist*.
+- **Exactly one tap action per identified control.** `ExcludeSemantics` on the
+  outside plus `Semantics(onTap:)` on the inside declares two, and the result fires
+  twice per activation. This is a real defect class from the nav work, and
+  `must_not: ["fire twice per activation"]` in a spec is the assertion that catches
+  it. Declare the gesture once, on the node that carries the identifier.
+- **Sibling control hit rects are disjoint.** A chevron rendered inside a header
+  row that takes the row's rect swallows the header's hit target — both controls
+  are then "present" and one of them can never be tapped. Where two controls
+  genuinely nest, the spec declares `hit_rect.disjoint_from` on each side and the
+  probe measures the rects rather than trusting the tree.
+- **Read a `SemanticsNode.rect` from the node itself**, walked through its own
+  `transform` — never from the parent. A nested `Semantics` without
+  `container: true` reports the parent's rect, which makes two controls look
+  coincident when they are not, and makes the disjointness check above lie in the
+  direction that passes.
+
+---
+
+## Surface Spec
+
+- **One file per surface**, `flutter/ui_spec/<surface>.md` in the app repository,
+  next to the code it constrains: YAML front matter plus prose. One spec per
+  navigation destination group — in practice one per `lib/features/<x>/` folder. A
+  shared widget is specified by the consumer that composes it; the library owns
+  its pattern spec.
+- **The front matter is the machine truth.** The ui-eval manifest, the capture
+  list, the review sheet and the crawl's expected graph are all *derived* from it
+  by `df-tools ui spec render` and `df-tools ui sheet`, and are never hand-edited.
+  Editing a derived artefact puts the truth in two places, which is how the
+  `<name>_states.yaml` + `manifests/<name>.manifest.json` pair drifted.
+- **The re-lock rule:** any change to `routes`, `controls` or `states` clears
+  `acceptance.locked_sheet` — the human approved a different surface, so their
+  signature no longer applies. A prose change does not clear the lock: editing the
+  body, `design_read`, `references` or `flows` leaves it `held`, because a lock
+  that dies on a typo fix gets re-approved without being read, which is worse than
+  no lock at all. Re-approval usually costs a minute, because only the changed
+  states re-render.
+- **Where to go next:** build mode's Surface Spec step in the
+  `eden-flutter:frontend-design` skill is the gate that reads all of this, and the
+  **look-lock variant** section of `checkpoints.md` is the approval procedure.
