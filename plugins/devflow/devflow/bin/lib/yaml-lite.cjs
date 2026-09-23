@@ -192,6 +192,12 @@ function tokenise(text) {
     const trimmed = raw.trim();
     if (trimmed === '') continue;
     if (trimmed.charAt(0) === '#') continue;
+    if (/^ *\t/.test(raw)) {
+      throw new YamlLiteError(
+        'tab indentation is not supported by yaml-lite; indent with two spaces per level',
+        i + 1
+      );
+    }
     const indent = raw.length - raw.replace(/^ +/, '').length;
     const content = raw.slice(indent).replace(/\s+$/, '');
     const parsed = splitLine(content, indent, i + 1);
@@ -306,6 +312,11 @@ function buildMap(tokens, start, indent) {
   let i = start;
   while (i < tokens.length) {
     const tok = tokens[i];
+    // A line indented deeper than this mapping, reached after its own block closed, sits at a
+    // column no open block occupies. Refuse rather than guess which block it meant to join.
+    if (tok.indent > indent) {
+      throw new YamlLiteError('indentation does not match any open block', tok.line);
+    }
     if (tok.indent !== indent || tok.dash || tok.key === null) break;
     i++;
     let value;
@@ -375,7 +386,11 @@ function buildSeq(tokens, start, indent) {
 function parseYamlLite(text) {
   const tokens = tokenise(text);
   if (tokens.length === 0) return null;
-  return buildBlock(tokens, 0, tokens[0].indent).value;
+  const built = buildBlock(tokens, 0, tokens[0].indent);
+  if (built.next < tokens.length) {
+    throw new YamlLiteError('indentation does not match any open block', tokens[built.next].line);
+  }
+  return built.value;
 }
 
 module.exports = { parseYamlLite, YamlLiteError };
