@@ -140,6 +140,9 @@
  * UI Metrics:
  *   ui metrics baseline [--since D] [--paths p1,p2] [--out f]  Fix/feat commit baseline JSON for UI paths
  *
+ * UI Surface Specs:
+ *   ui spec validate <file> [--patterns catalogue.json]  Static invariants (§4.5); EXITS 1 when invalid
+ *
  * Compound Commands (workflow-specific initialization):
  *   init execute-objective <objective>         All context for execute-objective workflow
  *   init plan-objective <objective>            All context for plan-objective workflow
@@ -192,6 +195,7 @@ const { cmdVerifyFlutterStateCoverage } = require('./lib/flutter-state-coverage.
 const { cmdVerifyFlutterUIEval } = require('./lib/flutter-ui-eval.cjs');
 const { cmdDesignReview } = require('./lib/flutter-ui-design-review.cjs');
 const { cmdUiMetrics } = require('./lib/ui-metrics.cjs');
+const { cmdUiSpec } = require('./lib/ui-spec-cli.cjs');
 const { cmdDetectNovelDomain } = require('./lib/novel-domain.cjs');
 const { cmdDetectBrownfieldMap } = require('./lib/brownfield-detector.cjs');
 const { cmdDetectFlutterUIScope } = require('./lib/flutter-ui-scope.cjs');
@@ -452,11 +456,17 @@ async function main() {
       // ui metrics baseline [--since YYYY-MM-DD] [--paths p1,p2] [--out file]
       //   Classifies conventional-commit subjects on given paths and writes a
       //   fix/feat baseline JSON (W0-6, UI-process redesign "before" numbers).
+      // ui spec validate <file> [--patterns <catalogue.json>]
+      //   Validates a Surface Spec against the §4.5 static invariants. Prints the verdict
+      //   JSON on stdout and EXITS 1 when the spec is invalid — that exit code is the gate
+      //   (34-04); `ok` drives it, so a MISSING row never fails a run.
       const subcommand = args[1];
       if (subcommand === 'metrics') {
         cmdUiMetrics(cwd, args.slice(2), raw);
+      } else if (subcommand === 'spec') {
+        cmdUiSpec(cwd, args.slice(2), raw);
       } else {
-        error('Unknown ui subcommand. Available: metrics');
+        error('Unknown ui subcommand. Available: metrics, spec');
       }
       break;
     }
