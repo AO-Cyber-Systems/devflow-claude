@@ -1,0 +1,13 @@
+{
+  "$note": "A hand-built pattern catalogue for the Surface Spec tests and for the `df-tools ui spec validate --patterns` probe (objective 34-04). W1b has NO pinned eden-ui-flutter release, so the real catalogue is unreachable and the CLI arm's default is `undefined` — which I5 reports as PAT000/MISSING. This file exists so I5's real codes (PAT001, PAT002) are reachable from the REAL binary: a gate that cannot fail for one of its own known-broken fixtures is the verification trap this objective exists to close. Entry shape: a bare id string, or {id, kind?, must_not?} — `kind` binds the pattern to a control kind, and `must_not` is the negation set a control of that kind INHERITS and may not silently drop (§4.5 I5).",
+  "patterns": [
+    {
+      "id": "navigation/disclosure-group",
+      "kind": "disclosure-header",
+      "must_not": ["cover sibling hit rects"]
+    },
+    {
+      "id": "navigation/section-caption"
+    }
+  ]
+}

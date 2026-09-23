@@ -558,3 +558,80 @@ test('Case I4e — `loading` is NOT in the minimum set (the negative, so I4d can
   });
   assert.deepStrictEqual(validateSurfaceSpec(withLoading, ctx()).errors, []);
 });
+
+// ─── I5: patterns, and the MISSING case (TRD 34-04) ──────────────────────────
+//
+// `ctx.patterns` is the pattern catalogue of the pinned eden-ui-flutter release. THREE states,
+// and the whole invariant turns on keeping them apart:
+//   undefined  the catalogue is UNREACHABLE          -> PAT000, status MISSING, `ok` unchanged
+//   []         reachable and declares no patterns    -> PAT001 for every referenced pattern
+//   [...]      reachable                             -> PAT001 / PAT002 as the entries say
+// Collapsing `undefined` into `[]` makes an unreachable catalogue read as "checked, and every
+// pattern is unknown"; collapsing it into "skip" makes it read as a pass. Neither is true.
+
+const PATTERN_CATALOGUE = path.join(FIXTURE_DIR, 'pattern-catalogue.json');
+
+/** The ctx of `ctx()`, but with the hand-built catalogue that carries `kind` + `must_not`. */
+function ctxWithCatalogue() {
+  const file = JSON.parse(fs.readFileSync(PATTERN_CATALOGUE, 'utf-8'));
+  return { patterns: file.patterns, vocabulary: loadMustNotVocabulary().terms };
+}
+
+test('Case I5a — unknown-pattern.md fails with exactly PAT001, naming the pattern', () => {
+  const result = validateSurfaceSpec(loadBroken('unknown-pattern.md').frontMatter, ctx());
+
+  assert.deepStrictEqual(codesOf(result), ['PAT001'], JSON.stringify(result.errors));
+  assert.strictEqual(result.errors.length, 1);
+  assert.strictEqual(result.errors[0].path, 'patterns[0]');
+  assert.match(result.errors[0].msg, /navigation\/does-not-exist/);
+
+  // And the same fixture through the RICHER catalogue reaches the same one code — the shape of
+  // the entries (bare id vs {id, kind, must_not}) is not what decides PAT001.
+  assert.deepStrictEqual(
+    codesOf(validateSurfaceSpec(loadBroken('unknown-pattern.md').frontMatter, ctxWithCatalogue())),
+    ['PAT001']
+  );
+});
+
+test('Case I5b — a control dropping one of its pattern`s must_not defaults is exactly PAT002', () => {
+  const dropped = mutate(loadPositiveControl(), (s) => {
+    const header = s.controls.find((c) => c.id === 'rail.project.header');
+    header.must_not = header.must_not.filter((m) => m !== 'cover sibling hit rects');
+  });
+
+  const result = validateSurfaceSpec(dropped, ctxWithCatalogue());
+
+  assert.deepStrictEqual(codesOf(result), ['PAT002'], JSON.stringify(result.errors));
+  assert.strictEqual(result.errors.length, 1);
+  assert.strictEqual(result.errors[0].path, 'controls[0].must_not');
+  assert.match(result.errors[0].msg, /cover sibling hit rects/);
+  assert.match(result.errors[0].msg, /navigation\/disclosure-group/);
+
+  // The positive control keeps the default, so the SAME catalogue leaves it green — PAT002
+  // fires for a dropped default, not for having a pattern at all.
+  assert.deepStrictEqual(validateSurfaceSpec(loadPositiveControl(), ctxWithCatalogue()).errors, []);
+});
+
+test('Case I5c — an UNREACHABLE catalogue is PAT000/MISSING, never PAT001, and never flips ok', () => {
+  const spec = loadPositiveControl();
+
+  const unreachable = validateSurfaceSpec(spec, { vocabulary: loadMustNotVocabulary().terms });
+  assert.deepStrictEqual(codesOf(unreachable), ['PAT000'], JSON.stringify(unreachable.errors));
+  assert.strictEqual(unreachable.errors[0].status, 'MISSING');
+  assert.strictEqual(unreachable.errors[0].path, 'patterns');
+
+  // A check that could not run is not a failure. `ok` reflects real violations only — 34-08's
+  // "refuse to compose" reads `ok`, and a MISSING catalogue must not block every surface.
+  assert.strictEqual(unreachable.ok, true, 'a MISSING row must not flip ok');
+
+  // An EMPTY catalogue is a different fact: it was reachable and declares no patterns, so every
+  // referenced pattern is genuinely unknown.
+  const emptyCatalogue = validateSurfaceSpec(spec, { patterns: [], vocabulary: loadMustNotVocabulary().terms });
+  assert.deepStrictEqual(codesOf(emptyCatalogue), ['PAT001'], JSON.stringify(emptyCatalogue.errors));
+  assert.strictEqual(emptyCatalogue.errors.length, 2, 'one PAT001 per referenced pattern');
+  assert.strictEqual(emptyCatalogue.ok, false);
+
+  // And a spec that references NO patterns has nothing to check: no MISSING row, no error.
+  const noPatterns = mutate(spec, (s) => { delete s.patterns; });
+  assert.deepStrictEqual(validateSurfaceSpec(noPatterns, { vocabulary: loadMustNotVocabulary().terms }).errors, []);
+});
