@@ -195,7 +195,7 @@ const { cmdVerifyFlutterStateCoverage } = require('./lib/flutter-state-coverage.
 const { cmdVerifyFlutterUIEval } = require('./lib/flutter-ui-eval.cjs');
 const { cmdDesignReview } = require('./lib/flutter-ui-design-review.cjs');
 const { cmdUiMetrics } = require('./lib/ui-metrics.cjs');
-const { cmdUiSpec, cmdUiSheet } = require('./lib/ui-spec-cli.cjs');
+const { cmdUiSpec, cmdUiSheet, cmdUiLock } = require('./lib/ui-spec-cli.cjs');
 const { cmdDetectNovelDomain } = require('./lib/novel-domain.cjs');
 const { cmdDetectBrownfieldMap } = require('./lib/brownfield-detector.cjs');
 const { cmdDetectFlutterUIScope } = require('./lib/flutter-ui-scope.cjs');
@@ -466,6 +466,14 @@ async function main() {
       //   look-lock anchors on it, and a hash that moved on a CSS tweak would train the lock
       //   out of existence. A declared state with no render is a MISSING cell, never a
       //   dropped row.
+      // ui lock <spec> --sheet-hash <64 hex> --by <email> [--at YYYY-MM-DD]
+      //   The §8.3 look-lock: writes `acceptance: {locked_sheet, locked_by, locked_at,
+      //   locked_shape_hash, locked_section_hashes}` into the spec's OWN front matter, as a
+      //   surgical text splice that leaves the prose body byte-identical. `locked_shape_hash`
+      //   covers `{routes, controls, states}` and nothing else — §4.1's three keys — so a
+      //   prose or `design_read` edit does NOT clear a human's approval and a control edit
+      //   DOES. Refuses (exit 1, writes nothing) on an invalid spec, a `--sheet-hash` that is
+      //   not 64 hex, or an absent `--by`.
       const subcommand = args[1];
       if (subcommand === 'metrics') {
         cmdUiMetrics(cwd, args.slice(2), raw);
@@ -473,8 +481,10 @@ async function main() {
         cmdUiSpec(cwd, args.slice(2), raw);
       } else if (subcommand === 'sheet') {
         cmdUiSheet(cwd, args.slice(2), raw);
+      } else if (subcommand === 'lock') {
+        cmdUiLock(cwd, args.slice(2), raw);
       } else {
-        error('Unknown ui subcommand. Available: metrics, spec, sheet');
+        error('Unknown ui subcommand. Available: metrics, spec, sheet, lock');
       }
       break;
     }

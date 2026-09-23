@@ -3,9 +3,11 @@
 /**
  * ui-spec-cli — the `df-tools ui spec …` arms (objective 34-04).
  *
- *   cmdUiSpec(cwd, args, raw)   ->  `validate` and `render`; 34-07 adds `lock` beside them.
+ *   cmdUiSpec(cwd, args, raw)   ->  `validate` and `render`.
  *   cmdUiSheet(cwd, args, raw)  ->  `df-tools ui sheet …`, a THIRD `ui` subcommand beside
  *                                   `metrics` and `spec` (§8.3 names it `ui sheet <surface>`).
+ *   cmdUiLock(cwd, args, raw)   ->  `df-tools ui lock …`, a FOURTH one: the look-lock a human's
+ *                                   approval actually runs (34-07).
  *
  * ── The one thing this file exists to get right ───────────────────────────────
  * The plan's W1b gate for this row is literally `df-tools ui spec validate <file>` **exit 1
@@ -60,6 +62,7 @@ const { parseSurfaceSpec, loadMustNotVocabulary } = require('./ui-spec.cjs');
 const { validateSurfaceSpec } = require('./ui-spec-validate.cjs');
 const { renderSurfaceSpec } = require('./ui-spec-render.cjs');
 const { buildSheetModel, sheetHash, renderSheetHtml, loadSheetTemplate } = require('./ui-sheet.cjs');
+const { lockStatus, writeLock } = require('./ui-spec-lock.cjs');
 const { error } = require('./helpers.cjs');
 
 const SPEC_SUBCOMMANDS = ['validate', 'render'];
@@ -156,13 +159,22 @@ function parseAndValidate(cwd, args, usage) {
   return { file, frontMatter, result: validateSurfaceSpec(frontMatter, { patterns, vocabulary }) };
 }
 
-/** `ui spec validate <file> [--patterns <file>]` */
+/**
+ * `ui spec validate <file> [--patterns <file>]`
+ *
+ * ── `lock` rides ALONGSIDE the verdict, and never inside it ───────────────────
+ * `ok` answers "is this spec structurally sound"; `lock` answers "has a human looked at this
+ * shape". They are different questions and a caller needs both: a spec can be perfect and
+ * un-approved (that is every spec during authoring, before any sheet exists), and a spec whose
+ * lock is `cleared` is not thereby broken. So `lock: 'cleared'` does NOT set `ok: false` and
+ * does NOT flip the exit code — 34-08's refusal to compose reads the `lock` field explicitly.
+ */
 function cmdUiSpecValidate(cwd, args) {
-  const { file, result } = parseAndValidate(
+  const { file, frontMatter, result } = parseAndValidate(
     cwd, args, 'usage: df-tools ui spec validate <file> [--patterns <catalogue.json>]'
   );
 
-  process.stdout.write(`${JSON.stringify({ ...result, spec: file }, null, 2)}\n`);
+  process.stdout.write(`${JSON.stringify({ ...result, lock: lockStatus(frontMatter), spec: file }, null, 2)}\n`);
 
   // CRITICAL: process.exitCode, never process.exit() and never helpers.output().
   process.exitCode = result.ok ? 0 : 1;
@@ -321,6 +333,80 @@ function cmdUiSheet(cwd, args) {
   process.exitCode = 0;
 }
 
+/** A `--flag value` whose value is another flag is an ABSENT value, not a value of `"--by"`. */
+function optionValue(args, name) {
+  const v = flagValue(args, name);
+  if (v === undefined || typeof v !== 'string' || v.startsWith('--')) return undefined;
+  return v;
+}
+
+/**
+ * `ui lock <spec> --sheet-hash <h> --by <email> [--at YYYY-MM-DD] [--patterns <c.json>]`
+ *
+ * What a human's approval at the §8.3 look-lock checkpoint actually RUNS. It records, in the
+ * spec's own front matter, which review sheet was approved, by whom, when — and the sha256 of
+ * `{routes, controls, states}` as they stood at that moment, so `ui spec validate` can say
+ * afterwards whether the approval still covers what is on disk.
+ *
+ * ── REFUSALS ARE THE POINT ───────────────────────────────────────────────────
+ * An invalid spec, a `--sheet-hash` that is not 64 hex, or an absent `--by` each exit 1 and
+ * write NOTHING. A lock recorded against a broken spec is a lie with a signature on it, and an
+ * approval nobody signed is not an approval. The verdict for an invalid spec is printed in
+ * `validate`'s own shape so a caller that pipes either arm reads one format.
+ *
+ * `process.exitCode` throughout — never `process.exit()`, never `helpers.output()` (which
+ * calls `process.exit(0)` unconditionally and would make the refusals unreachable).
+ */
+function cmdUiLock(cwd, args) {
+  const { file, result } = parseAndValidate(
+    cwd, args,
+    'usage: df-tools ui lock <spec> --sheet-hash <64 hex> --by <email> [--at YYYY-MM-DD] [--patterns <catalogue.json>]'
+  );
+
+  // An invalid spec is refused BEFORE any flag is judged: the spec is the thing being signed,
+  // and telling an author their `--by` is missing on a spec that does not validate buries the
+  // finding that matters.
+  if (!result.ok) {
+    process.stdout.write(`${JSON.stringify({ ...result, lock: lockStatus(undefined), spec: file }, null, 2)}\n`);
+    process.stderr.write(`Error: the spec does not validate; no lock was written to ${file}\n`);
+    process.exitCode = 1;
+    return;
+  }
+
+  const written = writeLock(file, {
+    sheetHash: optionValue(args, '--sheet-hash'),
+    by: optionValue(args, '--by'),
+    at: optionValue(args, '--at'),
+    patterns: readPatternCatalogue(cwd, args)
+  });
+
+  if (!written.ok) {
+    // `writeLock` re-validates as its own guard (it is callable without this arm), so a verdict
+    // can still come back here; a flag refusal is a one-line stderr message, not a stack trace.
+    if (written.verdict) {
+      process.stdout.write(`${JSON.stringify({ ...written.verdict, lock: lockStatus(undefined), spec: file }, null, 2)}\n`);
+      process.stderr.write(`Error: ${written.msg}\n`);
+      process.exitCode = 1;
+      return;
+    }
+    error(written.msg);
+  }
+
+  const { acceptance } = written;
+  process.stdout.write(`${JSON.stringify({
+    spec: file,
+    locked_sheet: acceptance.locked_sheet,
+    locked_by: acceptance.locked_by,
+    locked_at: acceptance.locked_at,
+    locked_shape_hash: acceptance.locked_shape_hash,
+    locked_section_hashes: acceptance.locked_section_hashes,
+    engine_version: result.engine_version,
+    schema_version: result.schema_version
+  }, null, 2)}\n`);
+
+  process.exitCode = 0;
+}
+
 /**
  * `df-tools ui spec <subcommand> …`
  *
@@ -344,6 +430,7 @@ function cmdUiSpec(cwd, args, raw) { // eslint-disable-line no-unused-vars
 module.exports = {
   cmdUiSpec,
   cmdUiSheet,
+  cmdUiLock,
   SPEC_SUBCOMMANDS,
   RENDER_FLAGS
 };
