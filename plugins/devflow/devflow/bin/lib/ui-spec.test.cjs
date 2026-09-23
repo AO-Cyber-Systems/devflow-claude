@@ -16,7 +16,11 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { parseSurfaceSpec } = require('./ui-spec.cjs');
+const {
+  parseSurfaceSpec,
+  loadSurfaceSpecSchema,
+  loadMustNotVocabulary
+} = require('./ui-spec.cjs');
 
 // ─── P: the front-matter split, and the two ways it must refuse ───────────────
 
@@ -233,4 +237,153 @@ test('Case F4 — the scalars yaml-lite is most likely to get wrong, on the REAL
   const outage = f.states.find((s) => s.id === 'outage');
   const overlap = outage.content.must_show.filter((t) => empty.content.must_show.includes(t));
   assert.deepStrictEqual(overlap, []);
+});
+
+// ─── P5 / L: the schema and the vocabulary, on the path that actually runs ────
+//
+// Skills and agents run the MIRROR at `~/.claude/devflow/`, not this checkout. `schemas/` and
+// `bin/` are SIBLINGS there, with no package.json, no .git and no repo above them. The W0
+// retrospective's headline defect was a lookup that passed every test in the checkout and was
+// dead on the mirror path — so P5 builds that layout and executes the load in it, from a cwd
+// unrelated to either tree, rather than asserting that the code "looks __dirname-relative".
+
+const os = require('node:os');
+const { after } = require('node:test');
+const { execFileSync } = require('node:child_process');
+
+const MIRROR_TMP = [];
+
+after(() => {
+  for (const dir of MIRROR_TMP) fs.rmSync(dir, { recursive: true, force: true });
+});
+
+function buildMirrorTree() {
+  const root = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'df-ui-spec-mirror-'));
+  MIRROR_TMP.push(root);
+  fs.mkdirSync(path.join(root, 'bin', 'lib'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'schemas'), { recursive: true });
+  for (const f of ['ui-spec.cjs', 'yaml-lite.cjs']) {
+    fs.copyFileSync(path.join(__dirname, f), path.join(root, 'bin', 'lib', f));
+  }
+  const schemaSrc = path.join(__dirname, '..', '..', 'schemas');
+  for (const f of fs.readdirSync(schemaSrc)) {
+    if (f.endsWith('.json')) fs.copyFileSync(path.join(schemaSrc, f), path.join(root, 'schemas', f));
+  }
+  return root;
+}
+
+test('Case P5 (the mirror guard) — the loaders work from a ~/.claude/devflow-shaped tree', () => {
+  const root = buildMirrorTree();
+
+  // Nothing that could rescue a cwd-relative or repo-walking lookup exists above the tree.
+  assert.ok(!fs.existsSync(path.join(root, 'package.json')), 'no package.json in the mirror tree');
+  assert.ok(!fs.existsSync(path.join(root, '.git')), 'no .git in the mirror tree');
+
+  // A CHILD process, cwd = the OS temp dir, requiring the COPIED module by absolute path. A
+  // child rather than an in-process require so nothing about this test file's own resolution,
+  // require cache or cwd can carry the load.
+  const script = [
+    'const m = require(process.argv[1]);',
+    'const s = m.loadSurfaceSpecSchema();',
+    'const v = m.loadMustNotVocabulary();',
+    'process.stdout.write(JSON.stringify({',
+    '  cwd: process.cwd(),',
+    '  schema_version: s.schema_version,',
+    '  required: s.required,',
+    '  terms: v.terms.length',
+    '}));'
+  ].join('\n');
+
+  const out = execFileSync(
+    process.execPath,
+    ['-e', script, path.join(root, 'bin', 'lib', 'ui-spec.cjs')],
+    { cwd: fs.realpathSync(os.tmpdir()), encoding: 'utf-8' }
+  );
+  const got = JSON.parse(out);
+
+  assert.notStrictEqual(
+    path.resolve(got.cwd),
+    path.resolve(__dirname),
+    'the load must not have run from the checkout'
+  );
+  assert.strictEqual(got.schema_version, 1);
+  assert.deepStrictEqual(got.required, ['surface', 'routes', 'controls', 'states', 'flows']);
+  assert.ok(got.terms > 0, 'the vocabulary loaded too');
+});
+
+test('Case L1 — loadSurfaceSpecSchema(): version, required keys, and the id pattern', () => {
+  const schema = loadSurfaceSpecSchema();
+
+  assert.strictEqual(schema.schema_version, 1);
+  assert.deepStrictEqual(schema.required, ['surface', 'routes', 'controls', 'states', 'flows']);
+  assert.strictEqual(schema.$defs.id.pattern, '^[a-z0-9][a-z0-9.\\-]*$');
+
+  // The optional keys 34-03 validates against, declared in the shipped file rather than only
+  // in the TRD's draft.
+  for (const key of [
+    'patterns', 'references', 'scope_rules', 'acceptance', 'design_read', 'mode', 'schema_version'
+  ]) {
+    assert.ok(schema.properties[key], `optional key \`${key}\` is declared`);
+    assert.ok(!schema.required.includes(key), `optional key \`${key}\` is not required`);
+  }
+
+  // The positive control's ids all satisfy the pattern the schema declares — the pattern and
+  // the fixture are checked against each other, not each against a copy of the rule.
+  const idRe = new RegExp(schema.$defs.id.pattern);
+  const f = loadFixture().frontMatter;
+  for (const id of [f.surface, ...f.routes.map((r) => r.id), ...f.controls.map((c) => c.id),
+    ...f.states.map((s) => s.id), ...f.flows.map((x) => x.id)]) {
+    assert.ok(idRe.test(id), `id \`${id}\` matches ${schema.$defs.id.pattern}`);
+  }
+});
+
+test('Case L2 — loadMustNotVocabulary(): sorted, unique, sourced, and complete', () => {
+  const vocab = loadMustNotVocabulary();
+
+  assert.strictEqual(vocab.schema_version, 1);
+  assert.match(vocab.source, /eden-ui-flutter design\/must_not_vocabulary\.json/);
+
+  const terms = vocab.terms;
+  assert.ok(Array.isArray(terms));
+  assert.ok(terms.every((t) => typeof t === 'string'));
+  assert.deepStrictEqual(terms, [...terms].sort(), 'terms are sorted');
+  assert.strictEqual(new Set(terms).size, terms.length, 'terms are unique');
+
+  for (const term of [
+    'navigate on close', 'fire twice per activation', 'cover sibling hit rects',
+    'change route', 'lose selection', 'steal focus', 'select the project'
+  ]) {
+    assert.ok(terms.includes(term), `vocabulary contains "${term}"`);
+  }
+
+  // Every must_not the positive control uses is in the vocabulary — the fixture cannot drift
+  // into free text that 34-03's CTRL007 would then reject.
+  const f = loadFixture().frontMatter;
+  const used = [];
+  for (const c of f.controls) {
+    if (c.must_not) used.push(...c.must_not);
+    for (const b of c.behaviors || []) if (b.must_not) used.push(...b.must_not);
+  }
+  assert.ok(used.length > 0, 'the fixture actually uses must_not terms');
+  for (const term of used) assert.ok(terms.includes(term), `fixture term "${term}" is in the vocabulary`);
+});
+
+test('Case L3 — both loaders are pure reads: a mutated result never reaches the next caller', () => {
+  const a = loadMustNotVocabulary();
+  const b = loadMustNotVocabulary();
+  assert.deepStrictEqual(a, b);
+  assert.notStrictEqual(a, b, 'a fresh object per call, not a shared cache');
+  assert.notStrictEqual(a.terms, b.terms, 'a fresh array per call');
+
+  a.terms.push('poisoned');
+  a.schema_version = 99;
+  assert.deepStrictEqual(loadMustNotVocabulary(), b, '34-03 cannot corrupt the next caller');
+
+  const s1 = loadSurfaceSpecSchema();
+  const s2 = loadSurfaceSpecSchema();
+  assert.deepStrictEqual(s1, s2);
+  assert.notStrictEqual(s1, s2);
+  s1.required.push('poisoned');
+  delete s1.properties.routes;
+  assert.deepStrictEqual(loadSurfaceSpecSchema(), s2);
 });
