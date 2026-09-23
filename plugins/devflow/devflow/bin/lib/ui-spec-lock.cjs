@@ -192,16 +192,36 @@ function acceptanceRange(front) {
   return { start, end };
 }
 
+/**
+ * A value emitted as a YAML DOUBLE-QUOTED scalar.
+ *
+ * EVERY value this module writes goes through here, the free-form ones most of all. The hashes
+ * and the ISO date are validated into a known-safe alphabet before they arrive, but `locked_by`
+ * is whatever a human typed after `--by`: an apostrophe (`O'Brien`), a ` #` (`mark # 2`), a
+ * `: `, a leading `*`/`&`/`{`. Emitted BARE, each of those makes `ui lock` exit 0, print a
+ * success record, and leave behind a spec that `ui spec validate` then reports as SPEC000 with
+ * `lock: MISSING` — a corruption that reads as a parser or authoring bug, never as a lock bug.
+ * Quoting is not cosmetic here; it is the difference between a signature and a broken file.
+ *
+ * Only `\` and `"` need escaping inside a double-quoted YAML scalar. Anything that would need
+ * more than that — a newline, a tab, a control character — never reaches this function:
+ * `writeLock` refuses it, because the acceptance block is spliced in LINE by line and a value
+ * that cannot be written on one line cannot be written at all.
+ */
+function yamlQuoted(value) {
+  return `"${String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+}
+
 /** The acceptance block's lines, in a fixed order so a re-lock produces a stable diff. */
 function acceptanceLines(acceptance) {
   return [
     'acceptance:',
-    `  locked_sheet: "${acceptance.locked_sheet}"`,
-    `  locked_by: ${acceptance.locked_by}`,
-    `  locked_at: ${acceptance.locked_at}`,
-    `  locked_shape_hash: "${acceptance.locked_shape_hash}"`,
+    `  locked_sheet: ${yamlQuoted(acceptance.locked_sheet)}`,
+    `  locked_by: ${yamlQuoted(acceptance.locked_by)}`,
+    `  locked_at: ${yamlQuoted(acceptance.locked_at)}`,
+    `  locked_shape_hash: ${yamlQuoted(acceptance.locked_shape_hash)}`,
     '  locked_section_hashes:',
-    ...SHAPE_KEYS.map((k) => `    ${k}: "${acceptance.locked_section_hashes[k]}"`)
+    ...SHAPE_KEYS.map((k) => `    ${k}: ${yamlQuoted(acceptance.locked_section_hashes[k])}`)
   ];
 }
 
@@ -276,6 +296,13 @@ function writeLock(specPath, opts = {}) {
   const by = typeof opts.by === 'string' ? opts.by.trim() : '';
   if (!by) {
     return refuse('LOCK002', '--by <email> is required: an approval nobody signed is not an approval');
+  }
+  // The acceptance block is spliced in LINE by line. A newline in the signer would split the
+  // block and leave the tail of the name parsed as a key; a control character would survive
+  // into the file unprintable. Both are refusals — the documented contract is `{ok:false}` and
+  // an untouched file, never a best-effort write that corrupts the spec being signed.
+  if (/[\u0000-\u001f\u007f]/.test(by)) {
+    return refuse('LOCK002', '--by must be writable on one line: it carries a newline or a control character');
   }
 
   const at = opts.at == null ? today() : String(opts.at);
