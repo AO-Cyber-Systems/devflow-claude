@@ -24,6 +24,44 @@ class YamlLiteError extends Error {
   }
 }
 
+// ─── Where a scalar begins ────────────────────────────────────────────────────
+//
+// THE rule the whole prose-safety story rests on, stated once and read by three callers: the
+// quote masker, the anchor/alias refusal, and nothing else may re-derive it.
+//
+// A Surface Spec is prose-heavy on purpose — `does`, `rule`, `design_read`, `reason_shown` and
+// every `must_show` entry are sentences a human wrote. In a sentence, `'`, `&` and `*` are
+// ordinary characters: `Shows the user's projects`, `Tools &settings`, `rating *stars* shown`.
+// In YAML they are structural ONLY where a scalar begins. Scanning for them "anywhere after
+// whitespace" is what made three separate defects out of one mistake, and the fix for all
+// three is this predicate.
+//
+// A scalar begins at index `i` of `s` when, skipping spaces backwards:
+//   * nothing precedes it (the start of the region, or only indentation); or
+//   * the previous character opens a flow collection (`[`, `{`); or
+//   * the previous character is a `,` separator AND we are inside a flow collection; or
+//   * the previous character is a `:` separator.
+//
+// The depth condition on `,` is not decoration: at depth 0 a comma is prose (`Shows tags,
+// *starred* first`), inside `[…]`/`{…}` it is a real separator. `depth` is the caller's
+// bracket depth at `i`.
+//
+// `:` is the one asymmetry between the two callers, and `afterColon` names it. At depth 0 a
+// colon is the KEY SEPARATOR, so the masker must treat `key: "value"` as opening a scalar —
+// it passes `true`. For the anchor/alias refusal a second colon at depth 0 is prose (`does:
+// note: &c`), so it passes `false` and only counts a colon inside a flow collection.
+function atScalarHead(s, i, depth, from, afterColon) {
+  const floor = from || 0;
+  let j = i - 1;
+  while (j >= floor && (s[j] === ' ' || s[j] === '\t')) j--;
+  if (j < floor) return true;
+  const p = s[j];
+  if (p === '[' || p === '{') return true;
+  if (p === ',' && depth > 0) return true;
+  if (p === ':' && (depth > 0 || afterColon)) return true;
+  return false;
+}
+
 // ─── Quote masking ────────────────────────────────────────────────────────────
 //
 // Everything that scans for a structural character — the `: ` key separator, a `,` between
@@ -31,30 +69,42 @@ class YamlLiteError extends Error {
 // which the contents of quoted strings are blanked to spaces. Slices are then taken from the
 // ORIGINAL, so `title: "{project.name}: overview # 1"` keeps its colon and its hash.
 // Same length in, same length out, so indices carry over unchanged.
-
-function maskQuoted(s, line) {
+//
+// TWO rules keep prose out of this. A quote opens a quoted scalar only where a scalar can
+// BEGIN (see `atScalarHead`) — so the apostrophe in `the user's projects` is a character, not
+// an opener. And an opener with no closing quote on the line is RE-READ as a character rather
+// than thrown on: the throw belongs to whoever actually tries to decode the scalar
+// (`readQuoted`, via `parseScalar`), which still reports `unterminated …-quoted string` with
+// the right line for a value that really is a broken quoted scalar. Masking runs over the whole
+// line INCLUDING its trailing comment, so without the re-read a lone `'` in `# the widget's
+// identifier` would fail the file — a documented authoring trap in the §4.2 transcription.
+function maskQuoted(s) {
   let out = '';
+  let depth = 0;
   let i = 0;
   while (i < s.length) {
     const c = s[i];
-    if (c !== '"' && c !== "'") { out += c; i++; continue; }
+    if (c === '[' || c === '{') { out += c; depth++; i++; continue; }
+    if (c === ']' || c === '}') { out += c; depth--; i++; continue; }
+    if ((c !== '"' && c !== "'") || !atScalarHead(s, i, depth, 0, true)) { out += c; i++; continue; }
+
     const quote = c;
-    out += quote;
-    i++;
-    for (;;) {
-      if (i >= s.length) {
-        throw new YamlLiteError(`unterminated ${quote === '"' ? 'double' : 'single'}-quoted string`, line);
-      }
-      if (quote === '"' && s[i] === '\\') { out += '  '; i += 2; continue; }
-      if (s[i] === quote) {
-        if (quote === "'" && s[i + 1] === "'") { out += '  '; i += 2; continue; }
+    const body = [];
+    let j = i + 1;
+    let closed = false;
+    while (j < s.length) {
+      if (quote === '"' && s[j] === '\\') { body.push('  '); j += 2; continue; }
+      if (s[j] === quote) {
+        if (quote === "'" && s[j + 1] === "'") { body.push('  '); j += 2; continue; }
+        closed = true;
         break;
       }
-      out += ' ';
-      i++;
+      body.push(' ');
+      j++;
     }
-    out += quote;
-    i++;
+    if (!closed) { out += quote; i++; continue; }
+    out += quote + body.join('') + quote;
+    i = j + 1;
   }
   return out;
 }
@@ -111,7 +161,7 @@ function splitKeyValue(body, line) {
   // over the raw text eats `must_show: ["#1 priority"]`. A `#` is a comment only when it is
   // preceded by whitespace AND is not the first character of the value — `color: #fff` is the
   // string '#fff', and `accent: #fff # why` is '#fff' with the SECOND hash starting the comment.
-  const masked = maskQuoted(body, line);
+  const masked = maskQuoted(body);
   const flowHead = body.charAt(0) === '{' || body.charAt(0) === '[';
   let keyEnd = -1;
   if (!flowHead) {
@@ -132,7 +182,10 @@ function splitKeyValue(body, line) {
     // The masked, comment-free code region of this line. Every refusal pattern is matched
     // against THIS, so `title: "a & b"` is not mistaken for an anchor and a `# &x` comment
     // is not mistaken for anything at all.
-    code: masked.slice(0, end)
+    code: masked.slice(0, end),
+    // Where the VALUE starts inside `code`. The anchor/alias refusal needs it: `&`/`*` are
+    // structural at the head of a value and ordinary characters anywhere else in one.
+    valueStart: start
   };
 }
 
@@ -152,7 +205,15 @@ function splitLine(content, indent, line) {
   const kv = splitKeyValue(body, line);
   // A block-list item `- id: x` opens a mapping whose column is the column of the character
   // AFTER `- `, not the column of `-`. Continuation keys align to that column.
-  return { dash, itemIndent: indent + off, body, key: kv.key, value: kv.value, code: kv.code };
+  return {
+    dash,
+    itemIndent: indent + off,
+    body,
+    key: kv.key,
+    value: kv.value,
+    code: kv.code,
+    valueStart: kv.valueStart
+  };
 }
 
 // ─── Refusals ─────────────────────────────────────────────────────────────────
@@ -163,13 +224,39 @@ function splitLine(content, indent, line) {
 // is the one outcome that makes a spec quietly wrong instead of loudly broken.
 
 const MERGE_KEY_RE = /^<<\s*:/;
-const ANCHOR_RE = /(^|\s)&[A-Za-z0-9_-]+/;
-const ALIAS_RE = /(^|\s)\*[A-Za-z0-9_-]+/;
+const NAME_CHAR_RE = /[A-Za-z0-9_-]/;
 const BLOCK_SCALAR_RE = /:\s*[|>][-+0-9]*\s*$/;
 const TAG_RE = /(^|\s)!!?[A-Za-z]/;
 const EXPLICIT_KEY_RE = /^\?(\s|$)/;
 
-function refuse(code, line) {
+/**
+ * `'anchor'` / `'alias'` when the VALUE region of this line really declares one, else null.
+ *
+ * `&` and `*` are structural only where a scalar begins (`atScalarHead`) — `x: &base`,
+ * `- *item`, `[a, *b]`, `{k: *v}`. Everywhere else in a value they are characters a human
+ * typed: `Tools &settings`, `rating *stars* shown`, `Shows tags, *starred* first`. A pattern
+ * that fired on "after any whitespace" refused all three, and did it on the one field class —
+ * prose — the Surface Spec is made of. (It also MISSED `[*a]`, where no whitespace precedes
+ * the `*`; the head rule catches that and the old one never did.)
+ *
+ * The scan starts at `valueStart`, so a key is never examined, and it tracks bracket depth so
+ * `,` and `:` count as separators inside a flow collection and as prose outside one.
+ */
+function anchorOrAlias(code, valueStart) {
+  let depth = 0;
+  for (let i = valueStart; i < code.length; i++) {
+    const c = code[i];
+    if (c === '[' || c === '{') { depth++; continue; }
+    if (c === ']' || c === '}') { depth--; continue; }
+    if (c !== '&' && c !== '*') continue;
+    if (!NAME_CHAR_RE.test(code[i + 1] || '')) continue;
+    if (!atScalarHead(code, i, depth, valueStart, false)) continue;
+    return c === '&' ? 'anchor' : 'alias';
+  }
+  return null;
+}
+
+function refuse(code, line, valueStart) {
   if (EXPLICIT_KEY_RE.test(code.trim())) {
     throw new YamlLiteError(
       'an explicit key (`? key` / `: value`) is not supported by yaml-lite; use `key: value`',
@@ -182,13 +269,14 @@ function refuse(code, line) {
       line
     );
   }
-  if (ANCHOR_RE.test(code)) {
+  const node = anchorOrAlias(code, valueStart || 0);
+  if (node === 'anchor') {
     throw new YamlLiteError(
       'an anchor (`&name`) is not supported by yaml-lite; write the value out in full',
       line
     );
   }
-  if (ALIAS_RE.test(code)) {
+  if (node === 'alias') {
     throw new YamlLiteError(
       'an alias (`*name`) is not supported by yaml-lite; write the value out in full',
       line
@@ -232,7 +320,7 @@ function tokenise(text) {
     const indent = raw.length - raw.replace(/^ +/, '').length;
     const content = raw.slice(indent).replace(/\s+$/, '');
     const parsed = splitLine(content, indent, i + 1);
-    refuse(parsed.code, i + 1);
+    refuse(parsed.code, i + 1, parsed.valueStart);
     tokens.push({ line: i + 1, indent, content, ...parsed });
   }
   return tokens;
@@ -269,7 +357,7 @@ function splitTopLevel(inner, masked) {
 }
 
 function splitFlowPair(el, line) {
-  const masked = maskQuoted(el, line);
+  const masked = maskQuoted(el);
   let depth = 0;
   for (let i = 0; i < masked.length; i++) {
     const c = masked[i];
@@ -289,7 +377,7 @@ function splitFlowPair(el, line) {
 function refuseImplicitPair(el, line) {
   const t = el.trim();
   if (t === '') return;
-  const masked = maskQuoted(t, line);
+  const masked = maskQuoted(t);
   let depth = 0;
   for (let i = 0; i < masked.length; i++) {
     const c = masked[i];
@@ -310,7 +398,7 @@ function parseFlowValue(text, line) {
   const head = t.charAt(0);
   if (head !== '[' && head !== '{') return parseScalar(t, line);
 
-  const masked = maskQuoted(t, line);
+  const masked = maskQuoted(t);
   const close = matchingClose(masked, line);
   if (close !== t.length - 1) throw new YamlLiteError('unexpected content after a flow collection', line);
   const inner = t.slice(1, close);
@@ -446,7 +534,15 @@ function buildSeq(tokens, start, indent) {
       arr.push(buildMap(sub, 0, itemIndent).value);
       i = j;
     } else {
-      arr.push(parseValue(tok.body, tok.line));
+      // `tok.value`, NOT `tok.body`. `splitKeyValue` has already stripped this item's trailing
+      // comment off the MASKED copy — the only place that can be done safely, since `- "#1
+      // priority"` must keep its hash. Pushing the raw body instead put the comment inside the
+      // item: `- Enter  # the keyboard key` became the string "Enter  # the keyboard key",
+      // which in a `content.must_show` list is an assertion no render can ever satisfy — and it
+      // fails at PROBE time, against a screenshot, rather than at spec time with a line number.
+      // (The flow case was worse still: `- [a, b] # why` threw `unexpected content after a flow
+      // collection`, refusing legal YAML outright.)
+      arr.push(parseValue(tok.value, tok.line));
     }
   }
   return { value: arr, next: i };

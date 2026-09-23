@@ -141,19 +141,23 @@ acceptance:
      * Section-order, key-order and comments follow §4.2. Comments that ran to three lines in
        the proposal are compressed to one; no field is added, renamed or dropped.
 
-     TWO yaml-lite traps the transcription had to route around. Both are COMMENT-level and
-     neither touches a value, but both are worth knowing before authoring a real spec:
-       a. An apostrophe in a TRAILING comment ("the widget's identifier") is read as an
-          opening single quote and refused as `unterminated single-quoted string`. yaml-lite
-          masks quotes over the whole line before it locates the comment, so a lone `'` after
-          a `#` is still a quote to it. Two comments here were reworded to avoid apostrophes.
-       b. A key whose value is ENTIRELY a trailing comment (`behaviors:   # ...`) does not
-          read as an empty value: yaml-lite starts its comment scan one character past the
-          value start, so the comment BECOMES the value and the block beneath it then fails
+     TWO yaml-lite traps the transcription had to route around. Both were COMMENT-level and
+     neither touched a value. ONE OF THEM IS NOW FIXED; the other still stands:
+       a. FIXED (34-01, review round 2). An apostrophe in a TRAILING comment ("the widget's
+          identifier") used to be read as an opening single quote and refused as
+          `unterminated single-quoted string`, because yaml-lite masks quotes over the whole
+          line before it locates the comment. A quote now opens a scalar only where a scalar
+          can BEGIN, and an opener with no closing quote is re-read as an ordinary character,
+          so an apostrophe anywhere in prose — comment or value — is just a character. Case
+          Y15a pins it. The two comments reworded here to avoid apostrophes were left as they
+          are; rewording them back would prove nothing the case does not.
+       b. STILL STANDS. A key whose value is ENTIRELY a trailing comment (`behaviors:   # ...`)
+          does not read as an empty value: yaml-lite starts its comment scan one character past
+          the value start, so the comment BECOMES the value and the block beneath it then fails
           with `indentation does not match any open block`. The `behaviors:` comment was
-          moved onto its own full line above the key.
-     Neither was normalised by editing yaml-lite — its refusal list is 34-01's, closed and
-     deliberate, and both cases fail LOUDLY with a line number rather than mis-parsing.
+          moved onto its own full line above the key. This one is deliberate — it is the same
+          rule that makes `color: #fff` the string '#fff' (case Y7) — and it fails LOUDLY with
+          a line number rather than mis-parsing.
 -->
 
 ## Intent
