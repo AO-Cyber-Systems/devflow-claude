@@ -122,3 +122,71 @@ test('Case Y4 — quoted strings: `: ` and `#` inside quotes survive; escapes; q
     must_show: ['{project.name}', 'plain text, quoted']
   });
 });
+
+test('Case Y5 — a colon NOT followed by a space is content, not a key separator', () => {
+  // YAML separates on `': '` (colon-space) or a line-terminal `:`. A colon glued to the next
+  // character is part of the value. `path: /projects/:id/conversations` is the single most
+  // common value shape in `routes`; `locked_sheet: sha256:…` is the second.
+  const Y5 = [
+    'locked_sheet: sha256:9f2b1c4ae0d3',
+    'path: /projects/:id/conversations',
+    'at: 12:30',
+    'ratio: 16:9',
+    'digests:',
+    '  - sha256:9f2b1c4ae0d3',
+    '  - sha256:0011aa22bb33',
+    'paths: [/projects/:id, /conversations]',
+    ''
+  ].join('\n');
+
+  assert.deepStrictEqual(parseYamlLite(Y5), {
+    locked_sheet: 'sha256:9f2b1c4ae0d3',
+    path: '/projects/:id/conversations',
+    at: '12:30',
+    ratio: '16:9',
+    // A block-list item is where a naive `:` separator does real damage: it would turn each
+    // digest into the one-key map {sha256: '9f2b…'} instead of leaving it a string.
+    digests: ['sha256:9f2b1c4ae0d3', 'sha256:0011aa22bb33'],
+    paths: ['/projects/:id', '/conversations']
+  });
+});
+
+test('Case Y6 — scalar typing is explicit: dates and dimensions stay STRINGS', () => {
+  const Y6 = [
+    'count: 1',
+    'offset: -3',
+    'ratio: 1.5',
+    'enabled: true',
+    'hidden: false',
+    'nothing: null',
+    'also_nothing: ~',
+    'locked_at: 2026-09-18',
+    'viewport: 390x844',
+    'blank: ""',
+    'numeric_string: "1"',
+    'guards:',
+    'must_not_show: []',
+    ''
+  ].join('\n');
+
+  const parsed = parseYamlLite(Y6);
+  assert.deepStrictEqual(parsed, {
+    count: 1,
+    offset: -3,
+    ratio: 1.5,
+    enabled: true,
+    hidden: false,
+    nothing: null,
+    also_nothing: null,
+    locked_at: '2026-09-18',
+    viewport: '390x844',
+    blank: '',
+    numeric_string: '1',
+    guards: null,
+    must_not_show: []
+  });
+  // deepStrictEqual already pins the types, but these are the two that a JSON-coercion
+  // shortcut would silently get wrong, so say so out loud.
+  assert.strictEqual(typeof parsed.locked_at, 'string');
+  assert.strictEqual(typeof parsed.numeric_string, 'string');
+});
