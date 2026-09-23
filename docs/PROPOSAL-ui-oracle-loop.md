@@ -243,6 +243,26 @@ has a `seed` (§7.4) and a `content` block: `must_show` / `must_not_show` string
 
 A spec that fails validation is not reviewable and cannot seed a TRD.
 
+**Exit contract (all four `ui` arms — `spec validate`, `spec render`, `sheet`, `lock`):**
+
+| Code | Meaning |
+|---|---|
+| `0` | every check ran, nothing violated |
+| `1` | a real violation |
+| `2` | nothing violated, but one or more checks reported `MISSING` |
+
+`2` is what §2 goal 5 ("a check that did not run reports `MISSING`, never `pass`") costs at the
+process boundary. A gate is written `validate "$spec" || exit 1`, and that idiom can only tell
+zero from non-zero — so while *incomplete* shared the `0` with *clean*, an invariant that was
+never evaluated read as verified (issue #90). A caller who genuinely accepts an incomplete check
+now says so (`[ $? -eq 2 ]`) instead of inheriting it. The verdict JSON says the same thing to a
+JSON consumer: `complete: false` and `unchecked: ["PAT000"]` sit beside `ok`, so `ok` is never
+the whole answer on its own.
+
+On `render`, `sheet` and `lock`, **exit 2 means the artifact was produced** — the graph printed,
+the sheet written, the lock recorded. Only `1` refuses. `sheet` counts its own second axis of
+incompleteness: a declared state with no render is a cell nobody looked at, and it exits 2 too.
+
 ### 4.6 Scope rules
 
 `scope_rules` state what resets or invalidates on a scope event (`workspace-switch`,
@@ -414,7 +434,8 @@ Checks are pure functions over `ProbeResult` + spec, each named by the rule it e
 | `bundle` | served hash ≠ worktree build hash |
 
 A check that could not run (no probe, unknown seed, chrome missing) reports `MISSING` with the
-`ui doctor` reason. No check ever narrows itself; a flaky check is fixed or filed.
+`ui doctor` reason. No check ever narrows itself; a flaky check is fixed or filed. `MISSING`
+never passes — at the process boundary that is exit 2, §4.5's exit contract.
 
 ## 8. Phase A — design and mockup
 
@@ -432,7 +453,13 @@ under `refs/<surface>/donor/` as completeness references.
 
 ### 8.2 Validation
 
-`ui spec validate` (§4.5) must pass. The navigation graph is rendered (mermaid) from `routes`;
+`ui spec validate` (§4.5) must pass. "Pass" is exit **0**, not merely "not 1": exit 2 says some
+invariant was never evaluated, and §2 goal 5 forbids reading that as a pass. Until the
+`eden-ui-flutter` catalogue is pinned (§6, §13) I5 cannot run at all and every real spec is a 2,
+so for now Phase A proceeds on a 2 with the `unchecked` codes named to the human at look-lock —
+what the machine did not check is precisely what the human is being asked to carry. Once the
+catalogue is pinned, 2 becomes a defect to fix rather than a fact to report.
+The navigation graph is rendered (mermaid) from `routes`;
 "can the user get back from here" is answered by arrows before code exists.
 
 ### 8.3 Look-lock on the review sheet

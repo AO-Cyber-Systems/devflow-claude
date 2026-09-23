@@ -141,7 +141,10 @@
  *   ui metrics baseline [--since D] [--paths p1,p2] [--out f]  Fix/feat commit baseline JSON for UI paths
  *
  * UI Surface Specs:
- *   ui spec validate <file> [--patterns catalogue.json]  Static invariants (§4.5); EXITS 1 when invalid
+ *   ui spec validate <file> [--patterns catalogue.json]  Static invariants (§4.5)
+ *     EXIT 0 checked and clean · 1 a real violation · 2 clean, but a check DID NOT RUN.
+ *     `render`, `sheet` and `lock` share the three codes; on those, 2 still produced the
+ *     artifact. Only 1 refuses.
  *
  * Compound Commands (workflow-specific initialization):
  *   init execute-objective <objective>         All context for execute-objective workflow
@@ -458,10 +461,17 @@ async function main() {
       //   fix/feat baseline JSON (W0-6, UI-process redesign "before" numbers).
       // ui spec validate <file> [--patterns <catalogue.json>]
       //   Validates a Surface Spec against the §4.5 static invariants. Prints the verdict
-      //   JSON on stdout and EXITS 1 when the spec is invalid — that exit code is the gate
-      //   (34-04); `ok` drives it, so a MISSING row never fails a run.
+      //   JSON on stdout; the exit code is the gate (34-04), and it has THREE values:
+      //     0  every check ran and nothing violated
+      //     1  a real violation
+      //     2  nothing violated, but one or more checks DID NOT RUN (a MISSING row)
+      //   2 exists because `validate "$spec" || exit 1` cannot tell 0 from 0: before issue
+      //   #90 an invariant that was never evaluated exited 0 and so read as verified. The
+      //   payload carries `complete` and `unchecked` beside `ok` for the same reason.
       // ui sheet <spec> [--renders <dir>] [--refs <dir>] --out <file> [--patterns <c.json>]
-      //   Writes the §8.3 static review sheet and prints {sheet_hash, out, states, missing}.
+      //   Writes the §8.3 static review sheet and prints {sheet_hash, out, states, missing,
+      //   complete, unchecked}. Exits 2 when a declared state has no render or a spec check
+      //   did not run — the sheet is still written; only an invalid spec (exit 1) refuses.
       //   `sheet_hash` is the sha256 of the canonical MODEL, never of the HTML — 34-07's
       //   look-lock anchors on it, and a hash that moved on a CSS tweak would train the lock
       //   out of existence. A declared state with no render is a MISSING cell, never a
@@ -473,7 +483,8 @@ async function main() {
       //   covers `{routes, controls, states}` and nothing else — §4.1's three keys — so a
       //   prose or `design_read` edit does NOT clear a human's approval and a control edit
       //   DOES. Refuses (exit 1, writes nothing) on an invalid spec, a `--sheet-hash` that is
-      //   not 64 hex, or an absent `--by`.
+      //   not 64 hex, or an absent `--by`. Exits 2 when the lock WAS written over a spec one
+      //   of whose invariants never ran — a signature standing over an unchecked spec.
       const subcommand = args[1];
       if (subcommand === 'metrics') {
         cmdUiMetrics(cwd, args.slice(2), raw);

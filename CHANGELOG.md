@@ -6,6 +6,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **BREAKING (exit contract) — `df-tools ui spec validate|render`, `ui sheet` and `ui lock` now
+  exit `2` when a check did not run.** `0` is checked and clean, `1` is a real violation, `2` is
+  "nothing violated, but one or more checks reported MISSING". Previously a MISSING row exited
+  `0`, so the two outcomes a gate has to distinguish — *checked and clean* versus *never checked*
+  — were the same number to the idiom every gate is written with (`validate "$spec" || exit 1`),
+  and an invariant that was never evaluated read as verified. The row's own message already said
+  "§4.5 I5 is UNCHECKED for this spec, which is not the same as passing"; the process now says it
+  too. `PROPOSAL-ui-oracle-loop.md` states the rule in three places (§2 goal 5, §4.5, §7.5) and
+  this was the one place the engine contradicted it. A caller that genuinely accepts an
+  incomplete check tests for it (`[ $? -eq 2 ]`) rather than inheriting it. On `render`, `sheet`
+  and `lock`, **exit 2 means the artifact was produced** — the graph printed, the sheet written,
+  the lock recorded; only `1` refuses. `ui sheet` counts its own second axis of incompleteness:
+  a declared state with no render exits 2 as well. (#90)
+- **The verdict JSON carries `complete` and `unchecked` beside `ok`.** `ok` is unchanged and
+  still honestly named — it counts REAL VIOLATIONS — but it never stood alone as an answer.
+  `complete: false` and `unchecked: ["PAT000"]` (the codes of the checks that did not run,
+  joinable to `errors[]`) make the payload unreadable as a pass by a consumer that reads only
+  `ok`. `ui spec render`'s bare (all-artifacts) payload and `ui sheet`'s and `ui lock`'s payloads
+  carry the same two fields. The short-circuit verdicts (`SPEC000`, `SPEC002`) report
+  `complete: false` too: they stop before any invariant runs. (#90)
+
 ## [2.9.0] - 2026-09-22
 
 W1b of the UI Oracle Loop (`docs/PROPOSAL-ui-oracle-loop.md`): a UI surface can now be
