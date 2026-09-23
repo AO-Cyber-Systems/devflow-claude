@@ -3,8 +3,8 @@
   "spec": "devflow-claude/docs/PROPOSAL-ui-oracle-loop.md",
   "plan": "devflow-claude/docs/IMPLEMENTATION-PLAN-ui-oracle-loop.md",
   "design_artifact": "https://claude.ai/code/artifact/5029f906-28d2-418f-8f38-b03923725985",
-  "updated": "2026-09-23T14:30:00Z",
-  "now": "Wave 1 is nearly closed. W1b MERGED and released as devflow-claude v2.9.0 \u2014 verified configured end to end (running/mirror/installed/main all 2.9.0, engine runs from the mirror). W1c MERGED in both consumers. W1a is feature-complete at 4784 tests; the last two pre-golden items are in flight (the google_fonts test-order fix, and whether the top-bar search pill really paints 16px). Then: regenerate baselines, ship v2.2.0, which lights up the probe bridges sitting as documented no-ops in both merged W1c PRs. W1\u2605 dogfood is next, and it also gates the deferred Trades headless-UI decision.",
+  "updated": "2026-09-23T18:20:00Z",
+  "now": "Autonomous issue-fixing run. Five PRs open, none merged beyond the three Mark approved: aodex #632 (boot extraction + fault seam build-tagged out of shipped binaries), eden-biz #797 (8 seed profiles + the flaky rate-limit test), devflow #91 (validate's 0/1/2 exit contract), devflow #94 (spec amendments, the Trades assessment, and \u00a722). Still running: devflow #89 (ungated CI), #87/#86 (tooling safety), and two in eden-ui (the CI toolchain incompatibility, and a lossy pattern catalogue). W1a is blocked on the toolchain fix before baselines can be regenerated.",
   "waiting_on_user": [
     {
       "id": "Review sheet",
@@ -584,6 +584,12 @@
       "task": "Trades headless UI",
       "ruling": "Mark deferred the decision pending W1\u2605. Assessment written with the evidence that would move it toward each option, so the deferral is a scheduled decision rather than an open question.",
       "cost_if_wrong": "If W1\u2605 is delayed, the Trades replan question stays parked with it."
+    },
+    {
+      "when": "2026-09-23",
+      "task": "pattern catalogue verification",
+      "ruling": "Rejected the catalogue as delivered. It claimed to carry 'every must_not term the doc body states'; it carried 2 of ~78, and its freshness test could not see the loss because it round-tripped the generator's own input. Rebuilt to generate from the body prose as the single source, with a test that fails when a rule exists in prose and not in JSON.",
+      "cost_if_wrong": "A larger catalogue may surface real PAT002 violations against devflow's fixture \u2014 a finding, not a regression."
     }
   ],
   "deferred_minors": [
@@ -691,12 +697,45 @@
       "repo": "devflow-claude",
       "n": 88,
       "state": "merged"
+    },
+    {
+      "repo": "aodex",
+      "n": 632,
+      "state": "open"
+    },
+    {
+      "repo": "eden-biz",
+      "n": 797,
+      "state": "open"
+    },
+    {
+      "repo": "devflow-claude",
+      "n": 91,
+      "state": "open"
+    },
+    {
+      "repo": "devflow-claude",
+      "n": 94,
+      "state": "open"
     }
   ],
   "retro": {
     "wave": "W0",
     "fix_feat": "11 fix / 3 feat / 4 docs / 1 test on df/w0-honest-gate",
-    "lesson": "prose encoding runtime semantics needs an executable check; briefs carry a runtime model; /code-review mandatory pre-merge (spec \u00a721)"
+    "lesson": "prose encoding runtime semantics needs an executable check; briefs carry a runtime model; /code-review mandatory pre-merge (spec \u00a721)",
+    "wave_1": {
+      "rule": "A check whose failure mode is indistinguishable from its success mode is not a check.",
+      "instances": [
+        "expectUiSane went fully green on four dead nav buttons \u2014 a real contrast failure vanished with them",
+        "aodex's fault-seam gate printed PASS when `go list` failed outright, because no output read as no dependency",
+        "ui spec validate exited 0 whether every invariant passed or one never ran",
+        "the pattern catalogue's freshness test compared the JSON to the generator's own input, never the doc bodies \u2014 2 of ~78 rules carried",
+        "db-reset.sh reported success by exiting; one of the two 'working' seed profiles could not run at all",
+        "flutter analyze was clean on a toolchain five months behind the one CI pins",
+        "a devflow-claude PR's green tick never included the 3,248-test suite, which CI does not run"
+      ],
+      "note": "Two of the seven were in gates written that same day to prevent false greens. Written up as PROPOSAL \u00a722 with five binding rules."
+    }
   },
   "issues": [
     {
@@ -758,6 +797,11 @@
       "repo": "eden-biz",
       "n": 794,
       "title": "TestMCPRateLimit_FullChain is flaky and names a cause it never measured"
+    },
+    {
+      "repo": "eden-ui-flutter",
+      "n": 34,
+      "title": "Library verified on a NEWER Flutter than a consumer builds with; nothing compares them"
     }
   ],
   "corrections": [
@@ -776,6 +820,10 @@
     {
       "when": "2026-09-23",
       "what": "I briefed the liveness check as 'an interactive control must publish at least one tap action'. Wrong: RenderIgnorePointer sets isBlockingUserActions, stripping the inner route while the outer Semantics(onTap:) survives \u2014 so each dead button published exactly one well-formed action. The rule would have been written from the incident and never fired on it. Corrected to assert reachability (e4bfff9). Caught because the implementer dumped the semantics tree instead of trusting my premise."
+    },
+    {
+      "when": "2026-09-23",
+      "what": "I reported W1a's figures \u2014 '4,840 passing, analyze at baseline' \u2014 repeatedly through the wave. They were measured on Flutter 3.41.9 while CI pins 3.47.4. The work looks sound; the evidence was weaker than I stated. Filed as eden-ui-flutter#34 and written into \u00a722.3 as the caveat on this document's own reporting."
     }
   ]
 }
