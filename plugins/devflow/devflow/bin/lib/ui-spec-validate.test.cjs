@@ -559,6 +559,66 @@ test('Case I4e — `loading` is NOT in the minimum set (the negative, so I4d can
   assert.deepStrictEqual(validateSurfaceSpec(withLoading, ctx()).errors, []);
 });
 
+test('Case I4f — a `narrow` with no sub-600 viewport, and a `dark` with no `theme: dark`, are errors', () => {
+  // §4.4 makes both states mandatory, and the only field STATE001 requires of any state is a
+  // `seed`. So the spec an author writes on the first pass declares `narrow` and `dark` by ID
+  // ALONE — and until this check existed nothing in the system objected, while 34-05's capture
+  // list rendered both at the desktop width in the light theme. The surface then reported dark
+  // and narrow covered having rendered neither: a false green in the mechanism that exists to
+  // prove state coverage. The name of a state is not evidence about what was captured; the
+  // declaration is, so the declaration is required.
+  const undeclared = mutate(loadPositiveControl(), (s) => {
+    delete s.states.find((st) => st.id === 'narrow').viewport;
+    delete s.states.find((st) => st.id === 'dark').theme;
+  });
+
+  const result = validateSurfaceSpec(undeclared, ctx());
+  assert.strictEqual(result.ok, false, 'a narrow/dark that declares nothing must not validate');
+
+  const narrow = result.errors.filter((e) => e.code === 'STATE004');
+  assert.strictEqual(narrow.length, 1, `expected ONE STATE004: ${JSON.stringify(result.errors)}`);
+  assert.match(narrow[0].path, /^states\[\d+\]\.viewport$/, 'STATE004 points at the missing field');
+  assert.match(narrow[0].msg, new RegExp(String(NARROW_MAX_WIDTH)), 'the message names the breakpoint');
+
+  const dark = result.errors.filter((e) => e.code === 'STATE005');
+  assert.strictEqual(dark.length, 1, `expected ONE STATE005: ${JSON.stringify(result.errors)}`);
+  assert.match(dark[0].path, /^states\[\d+\]\.theme$/, 'STATE005 points at the missing field');
+
+  // A DECLARED viewport that is not actually narrow is the same defect wearing a number.
+  const wide = mutate(loadPositiveControl(), (s) => {
+    s.states.find((st) => st.id === 'narrow').viewport = '1280x800';
+  });
+  assert.deepStrictEqual(
+    codesOf(validateSurfaceSpec(wide, ctx())), ['STATE004'],
+    'a `narrow` declared at 1280px is STATE004, not a pass'
+  );
+
+  // Ditto a `dark` declared light.
+  const light = mutate(loadPositiveControl(), (s) => {
+    s.states.find((st) => st.id === 'dark').theme = 'light';
+  });
+  assert.deepStrictEqual(
+    codesOf(validateSurfaceSpec(light, ctx())), ['STATE005'],
+    'a `dark` declared `theme: light` is STATE005, not a pass'
+  );
+
+  // The negative, so the check cannot over-fire: the positive control declares both properly
+  // and stays green (Case V1 asserts the whole verdict; this asserts THESE two codes).
+  const clean = validateSurfaceSpec(loadPositiveControl(), ctx());
+  assert.ok(!clean.errors.some((e) => e.code === 'STATE004' || e.code === 'STATE005'),
+    JSON.stringify(clean.errors));
+
+  // And a surface that declares NEITHER state is STATE003's business, not STATE004/STATE005's —
+  // one missing state must not produce two codes for the same fact.
+  const absent = mutate(loadPositiveControl(), (s) => {
+    s.states = s.states.filter((st) => st.id !== 'dark' && st.id !== 'narrow');
+    s.controls.forEach((c) => { c.visible_in = c.visible_in.filter((v) => v !== 'narrow'); });
+  });
+  const absentResult = validateSurfaceSpec(absent, ctx());
+  assert.ok(!absentResult.errors.some((e) => e.code === 'STATE004' || e.code === 'STATE005'),
+    `an ABSENT state is STATE003 alone: ${JSON.stringify(absentResult.errors)}`);
+});
+
 // ─── I5: patterns, and the MISSING case (TRD 34-04) ──────────────────────────
 //
 // `ctx.patterns` is the pattern catalogue of the pinned eden-ui-flutter release. THREE states,

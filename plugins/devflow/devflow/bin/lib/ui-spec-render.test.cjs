@@ -34,7 +34,11 @@ const {
 // The guard -> denied-state linkage rule has ONE home (34-04). The graph must draw its edge
 // from THAT function, so the test resolves the expected denied state with it too — a second
 // implementation here would let the graph and the invariant drift apart unnoticed.
-const { resolveGuardDeniedState } = require('./ui-spec-validate.cjs');
+const {
+  resolveGuardDeniedState,
+  enumerateBehaviorCombinations,
+  NARROW_MAX_WIDTH
+} = require('./ui-spec-validate.cjs');
 
 const FIXTURE_DIR = path.join(__dirname, '__fixtures__', 'ui-spec');
 const POSITIVE_CONTROL = path.join(FIXTURE_DIR, 'projects-rail.md');
@@ -499,6 +503,80 @@ test('Case C1 — one triple per declared state; dark from `theme`, 390 from `vi
       ['capture_id', 'state_id', 'theme', 'width'],
       `unexpected keys on ${entry.state_id}: ${Object.keys(entry).join(', ')}`
     );
+  }
+});
+
+test('Case C1b — an UNDECLARED `narrow`/`dark` is still captured narrow and dark', () => {
+  // §4.4 makes `narrow` and `dark` MANDATORY states, and the only thing a spec has to say
+  // about a state is its `seed` — so this is the shape a real author produces on the first
+  // pass, not a contrived one. Derived from `viewport:`/`theme:` alone, the two mandatory
+  // states came back at the DESKTOP width in the LIGHT theme: the surface reports dark and
+  // narrow covered while rendering neither. That is a false green in the one mechanism built
+  // to prove state coverage, and nothing downstream can detect it — the capture exists, it is
+  // named `--narrow--`, and it is a desktop screenshot.
+  const spec = mutate(loadPositiveControl(), (s) => {
+    delete s.states.find((st) => st.id === 'narrow').viewport;
+    delete s.states.find((st) => st.id === 'dark').theme;
+  });
+
+  const { captureList } = renderSurfaceSpec(spec, { validate: false });
+  const byState = new Map(captureList.map((c) => [c.state_id, c]));
+
+  assert.ok(byState.get('narrow').width < NARROW_MAX_WIDTH,
+    `\`narrow\` must be captured below ${NARROW_MAX_WIDTH}px, got ${byState.get('narrow').width}`);
+  assert.strictEqual(byState.get('dark').theme, 'dark', '`dark` must be captured in the dark theme');
+
+  // The id carries the dimensions, and 34-06 looks renders up by it, so the fallback has to
+  // reach the FILENAME too — not just the record.
+  assert.match(byState.get('dark').capture_id, /--dark--dark--/);
+  assert.doesNotMatch(byState.get('narrow').capture_id, new RegExp(`--${DEFAULT_WIDTH}$`));
+});
+
+test('Case C1c — the capture list and the validator coverage model NEVER disagree', () => {
+  // The divergence net. 34-05's capture list and 34-03's behaviour-coverage model each resolve
+  // a state to (theme, viewport) — and they used to do it from two different rules, while
+  // ui-spec-validate.cjs's own header claimed they "read the same rule". Each side was
+  // internally consistent and green; only asking them the same question at once catches it.
+  //
+  // Every row below is a state SHAPE, and the assertion is agreement, not a literal: a future
+  // change to the rule has to move both sides or this goes red.
+  const shapes = [
+    { id: 'populated', seed: 's' },
+    { id: 'empty', seed: 's' },
+    { id: 'error', seed: 's' },
+    { id: 'outage', seed: 's' },
+    { id: 'long-content', seed: 's' },
+    { id: 'narrow', seed: 's' },                            // mandatory, declares NOTHING
+    { id: 'dark', seed: 's' },                              // mandatory, declares NOTHING
+    { id: 'narrow', seed: 's', viewport: '390x844' },       // declared, agrees with its id
+    { id: 'dark', seed: 's', theme: 'dark' },               // declared, agrees with its id
+    { id: 'tablet', seed: 's', viewport: '834x1112' },      // declared wide, id says nothing
+    { id: 'compact', seed: 's', viewport: '360x640' },      // declared narrow, id says nothing
+    { id: 'midnight', seed: 's', theme: 'dark' }            // dark by declaration, not by id
+  ];
+
+  for (const shape of shapes) {
+    const spec = mutate(loadPositiveControl(), (s) => {
+      s.states = [shape];
+      s.controls = [{
+        id: 'rail.probe',
+        kind: 'button',
+        visible_in: [shape.id],
+        does: 'does the thing',
+        effect: ['toggle']
+      }];
+    });
+
+    const capture = renderSurfaceSpec(spec, { validate: false }).captureList[0];
+    const combo = enumerateBehaviorCombinations(spec.controls[0], spec)[0].combo;
+
+    const captureViewport = capture.width < NARROW_MAX_WIDTH ? 'narrow' : 'desktop';
+    assert.strictEqual(captureViewport, combo.viewport,
+      `${JSON.stringify(shape)}: the capture list says ${captureViewport} (${capture.width}px), `
+        + `the coverage model says ${combo.viewport}`);
+    assert.strictEqual(capture.theme, combo.theme,
+      `${JSON.stringify(shape)}: the capture list says theme=${capture.theme}, `
+        + `the coverage model says theme=${combo.theme}`);
   }
 });
 
