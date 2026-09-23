@@ -3,8 +3,8 @@
   "spec": "devflow-claude/docs/PROPOSAL-ui-oracle-loop.md",
   "plan": "devflow-claude/docs/IMPLEMENTATION-PLAN-ui-oracle-loop.md",
   "design_artifact": "https://claude.ai/code/artifact/5029f906-28d2-418f-8f38-b03923725985",
-  "updated": "2026-09-23T03:10:00Z",
-  "now": "W1b (devflow-claude obj 34) executed 11/11 TRDs \u2014 Surface Spec schema, parser, validator, renderer, review sheet + sheet_hash, look-lock, frontend-design step 0, and the executor shell harness. Two checkpoints outstanding: the human-verify eyeball of the review sheet, and the v2.9.0 tag. W1c is in review \u2014 eden-biz #793 (CLEAN) and aodex #625 (two CI failures found and fixed). W1a (eden-ui-flutter obj 23) still executing.",
+  "updated": "2026-09-23T04:20:00Z",
+  "now": "W1c cleared code review. 21 findings across eden-biz #793 and aodex #625 \u2014 four of them tests that could not fail, in the very stub built to make UI verification trustworthy. All fixed, each reproduced before being fixed, with a live differential control proving the eden-biz outage spec now fails when the fault flag is unset (it used to pass). W1b is in /code-review. W1a (eden-ui-flutter obj 23) still executing.",
   "waiting_on_user": [
     {
       "id": "Look-lock eyeball",
@@ -301,7 +301,7 @@
         }
       ],
       "outcome": "The test apps can be put into any state on demand \u2014 empty, full, long names, a dependency outage, a user without access \u2014 so those states can actually be checked.",
-      "note": "eden-biz #793 CLEAN. aodex #625 arrived UNSTABLE \u2014 an errcheck on our new seed tool, and the SDK-03 drop-in gate correctly catching lib/main_e2e.dart. Both fixed (89ad3e3c); the second recorded as a justified exception with a digest, not widened out of the gate."
+      "note": "Reviewed and repaired. eden-biz #793 arrived CLEAN on CI and still carried 10 findings; aodex #625 carried 11 plus two CI failures. The decisive evidence: against a server with EDEN_E2E_FAULT unset, the PRE-FIX outage spec passed and the fixed one fails with the right message \u2014 same DOM, same screenshot, different truth."
     },
     {
       "id": "W1\u2605",
@@ -558,6 +558,18 @@
       "task": "34-06 Q1 (control-table English)",
       "ruling": "Fix the wording now rather than after W1\u2605. The prose is inside the hashed model, so changing it moves sheet_hash and would clear every look-lock \u2014 but zero look-locks exist anywhere yet, so today the fix is free and after the dogfood it costs a re-approval.",
       "cost_if_wrong": "If the new wording is also wrong, a second hash move \u2014 still free until W1\u2605 locks."
+    },
+    {
+      "when": "2026-09-23",
+      "task": "aodex #625 finding 6 follow-through",
+      "ruling": "The idempotency fix added a DELETE on `users` behind a guard refusing only GO_ENV=production \u2014 the same defect finding 1 had just fixed one file over. Inverted it to fail closed (allow development, refuse everything else including unset) rather than accepting the reviewer's 'worth an eye' and moving on.",
+      "cost_if_wrong": "Callers that do not set GO_ENV=development now refuse loudly instead of writing. Noisy, not destructive."
+    },
+    {
+      "when": "2026-09-23",
+      "task": "aodex prove-script claim",
+      "ruling": "The fix agent reported W1c's 'PROVEN' claim as never having been produced by a passing run. Checked the summary: it is properly scoped \u2014 fault arm proven at the rendered-UI level with a screenshot, control arm documented as not provable here, script exits 1 by design. What was weak was the machine assertion, not the claim. Did not downgrade it.",
+      "cost_if_wrong": "If the screenshot evidence is weaker than it reads, a scoped claim stands on less than stated."
     }
   ],
   "deferred_minors": [
@@ -702,6 +714,11 @@
       "repo": "aodex",
       "n": 626,
       "title": "main_e2e.dart duplicates main.dart's boot sequence with no drift guard"
+    },
+    {
+      "repo": "devflow-claude",
+      "n": 87,
+      "title": "df-tools commit --help creates a commit titled '--help' instead of printing usage"
     }
   ],
   "corrections": [
@@ -712,6 +729,10 @@
     {
       "when": "2026-09-23",
       "what": "My own I6 spec amendment contradicted itself twice, and W1b's executor had to rule against the illustrative text to build against the normative text: acceptance.locked_sheet carried 65 hex characters (a sha256 is 64), and \u00a74.2's chevron declared both `within` and `disjoint_from` against the same control, which \u00a74.5 invariant 6 \u2014 added in the same commit \u2014 forbids. Both fixed (0d783b0). The old chevron literal now lives on as the known-broken fixture for HIT002, so the contradiction became a regression test."
+    },
+    {
+      "when": "2026-09-23",
+      "what": "I wrote a justification into aodex's SDK-03 gate claiming main_e2e.dart's probe block is compiled out unless EDEN_PROBE is set. No such guard exists and there is no probe code at all \u2014 strip the comments and the file is byte-identical to main.dart. The conclusion held; the argument was false. Caught by /code-review, not by the gate's own digest \u2014 which documents this as exactly what it cannot catch. Corrected in ef2c1a88."
     }
   ]
 }
