@@ -22,7 +22,9 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const os = require('node:os');
 const { execFileSync } = require('node:child_process');
+const { pluginVersion } = require('./helpers.cjs');
 
 // ─── Section / fence scanning ─────────────────────────────────────────────────────────
 
@@ -472,9 +474,86 @@ function runSection(calls, opts = {}) {
   return { ok: findings.length === 0, root, calls: results, findings };
 }
 
+// ─── The public entry point ───────────────────────────────────────────────────────────
+
+/**
+ * checkSection(mdPath, section, opts) ->
+ *   {
+ *     ok:             boolean — true ONLY when a section was found, had bash, ran, and
+ *                     produced zero findings. Never true for anything that did not run.
+ *     section:        the matched heading text (or the requested string when not found)
+ *     missing:        null when the section ran; otherwise the REASON it did not
+ *     calls:          [{index, line, call, annotations, cwd_before, cwd_after,
+ *                       status, stdout, stderr, findings[]}] — EVERY call, passing ones
+ *                     included, so a reviewer can see what actually ran
+ *     findings:       every call's findings, flattened, in order
+ *     engine_version: the running engine, so evidence from a stale mirror is detectable
+ *     root:           the scratch root the section ran in
+ *   }
+ *
+ * opts: {root, pathPrepend, timeout, allowOutside, keepRoot}. Without `root` a scratch
+ * root is created and removed again; pass one to inspect what the section wrote.
+ */
+function checkSection(mdPath, section, opts = {}) {
+  const engine_version = pluginVersion();
+  const md = fs.readFileSync(mdPath, 'utf-8');
+  const extracted = extractBashBlocks(md, section);
+
+  if (!extracted.ok) {
+    // Honest output: "the section your prose names is gone" and "the section is there
+    // but has nothing to run" are both MISSING with a reason — neither is a pass.
+    return {
+      ok: false,
+      section: extracted.section || section,
+      missing: extracted.missing || extracted.error,
+      calls: [],
+      findings: [],
+      engine_version,
+      root: null,
+      path: mdPath,
+    };
+  }
+
+  const calls = extracted.blocks.flatMap(block => splitCalls(block));
+  if (calls.length === 0) {
+    return {
+      ok: false,
+      section: extracted.section,
+      missing: 'bash blocks contained no executable calls',
+      calls: [],
+      findings: [],
+      engine_version,
+      root: null,
+      path: mdPath,
+    };
+  }
+  // splitCalls numbers each block independently; renumber across the whole section so
+  // `index` is the position in the run, which is what a finding cites.
+  calls.forEach((c, i) => { c.index = i; });
+
+  const ownRoot = !opts.root;
+  const root = opts.root || fs.mkdtempSync(path.join(os.tmpdir(), 'agent-shell-harness-'));
+  try {
+    const run = runSection(calls, { ...opts, root });
+    return {
+      ok: run.ok,
+      section: extracted.section,
+      missing: null,
+      calls: run.calls,
+      findings: run.findings,
+      engine_version,
+      root: run.root,
+      path: mdPath,
+    };
+  } finally {
+    if (ownRoot && !opts.keepRoot) fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
 module.exports = {
   extractBashBlocks,
   normalizeHeading,
   splitCalls,
   runSection,
+  checkSection,
 };
