@@ -213,6 +213,61 @@ function checkStructure(value, node, root, ptr) {
   return out;
 }
 
+// ─── I2: routes ───────────────────────────────────────────────────────────────
+
+/**
+ * ROUTE001 entry absent or empty · ROUTE002 no `back` and not `root: true` ·
+ * ROUTE003 an `{control: id}` entry names a control this spec does not declare.
+ *
+ * A bare string in `entry` (`deeplink`, `browser-back`) is a declared NON-control entry and is
+ * valid — §4.2's own example mixes the two forms in one list. Resolving it as a control id is
+ * the single easiest way to break the positive control (case I2e).
+ */
+function checkRoutes(spec, errors) {
+  if (!Array.isArray(spec.routes)) return; // structure is SPEC001's to report, not ours
+
+  const controlIds = new Set(
+    (Array.isArray(spec.controls) ? spec.controls : [])
+      .filter(isPlainObject)
+      .map((c) => c.id)
+      .filter((id) => typeof id === 'string')
+  );
+  const surface = typeof spec.surface === 'string' ? spec.surface : null;
+
+  spec.routes.forEach((route, i) => {
+    if (!isPlainObject(route)) return;
+    const at = `routes[${i}]`;
+    const rid = typeof route.id === 'string' ? route.id : `#${i}`;
+
+    if (!Array.isArray(route.entry) || route.entry.length === 0) {
+      errors.push(err('ROUTE001', `${at}.entry`,
+        `route ${rid} declares no way in — §4.5 I2 requires at least one \`entry\`, a control or an entry kind such as deeplink`));
+    }
+
+    if (!isPlainObject(route.back) && route.root !== true) {
+      errors.push(err('ROUTE002', `${at}.back`,
+        `route ${rid} declares no \`back\` and is not the declared root — §4.5 I2 requires one or the other, so add \`back: {target: ...}\` or \`root: true\``));
+    }
+
+    if (Array.isArray(route.entry)) {
+      route.entry.forEach((entry, j) => {
+        if (!isPlainObject(entry) || typeof entry.control !== 'string') return; // a bare string is valid
+        const id = entry.control;
+        if (controlIds.has(id)) return;
+
+        // Cross-surface honesty (§4.5 I2): an entry control "may live in another spec of the
+        // same repo". W1b validates ONE spec with no repo scan, so an id this surface does not
+        // prefix is reported as MISSING — visible, never silently passed and never claimed
+        // absent. W2's repo-wide resolution replaces this branch.
+        const isLocalId = surface !== null && (id === surface || id.startsWith(`${surface}.`));
+        errors.push(err('ROUTE003', `${at}.entry[${j}]`, isLocalId
+          ? `route ${rid} entry[${j}] names control ${id}, which surface ${surface} declares no control for — resolution: UNRESOLVED`
+          : `route ${rid} entry[${j}] names control ${id}, which is not declared in this spec and is not prefixed by surface ${surface || '(unnamed)'} — resolution: MISSING (cross-surface entries are resolved in W2, not by this engine)`));
+      });
+    }
+  });
+}
+
 // ─── Assembly ─────────────────────────────────────────────────────────────────
 
 /**
@@ -294,7 +349,10 @@ function validateSurfaceSpec(spec, ctx = {}) {
     // I1 — the declared structure.
     errors.push(...checkStructure(spec, schema, schema, ''));
 
-    // I2/I3 land in task 3; I4-I8 in TRD 34-04.
+    // I2 — routes.
+    checkRoutes(spec, errors);
+
+    // I3 lands next; I4-I8 in TRD 34-04.
   } catch (e) {
     // CRITICAL: an escaped exception becomes a verdict, never a stack trace. 34-04's exit-code
     // contract and case V3 both depend on it.
