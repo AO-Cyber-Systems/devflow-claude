@@ -320,6 +320,108 @@ test('Case Y11b — an implicit single-pair map inside a flow sequence is refuse
   );
 });
 
+// ─── Prose in a plain scalar — ONE table, because these three interact ────────
+//
+// A Surface Spec is PROSE-HEAVY by design: `does`, `rule`, `design_read`, `reason_shown` and
+// every `must_show` entry are sentences a human wrote. Three separate defects all landed on
+// that one input class — an apostrophe read as an opening quote, `&word`/`*word` read as an
+// anchor/alias, and a block-sequence item keeping its trailing comment — and they cannot be
+// fixed independently: each of the three touches how a line is scanned for structural
+// characters, so a patch that fixes one and regresses another is worse than the bug. Hence ONE
+// table, asserted in both directions.
+//
+// The load-bearing half is the SECOND table. Every structural character that stops being
+// structural inside prose must STILL be structural where YAML says it is — a parser that stops
+// refusing anchors is not a fix, it is the same silent-mis-parse failure wearing a new hat.
+
+test('Case Y15a — prose punctuation in a plain scalar is CONTENT, not structure', () => {
+  const table = [
+    // ── apostrophes (finding 4) ──────────────────────────────────────────────
+    ["does: Shows the user's projects",
+      { does: "Shows the user's projects" }],
+    ["rule: names ellipsize; the rail's width is unchanged",
+      { rule: "names ellipsize; the rail's width is unchanged" }],
+    // In a BLOCK SEQUENCE item, which takes a different code path from a mapping value.
+    ["must_show:\n  - the project's name\n  - You don't have access",
+      { must_show: ["the project's name", "You don't have access"] }],
+    // In a FLOW sequence element.
+    ["must_show: [alpha, the user's name]",
+      { must_show: ['alpha', "the user's name"] }],
+    // In a trailing COMMENT — the trap 34-02's transcription had to route around by rewording
+    // two comments in the positive control.
+    ['surface: projects-rail  # MUST equal the widget\'s semantics identifier',
+      { surface: 'projects-rail' }],
+    // A quote that DOES open a scalar still opens one, `''` and all.
+    ["does: 'the user''s projects'",
+      { does: "the user's projects" }],
+
+    // ── `&` and `*` in prose (finding 5) ─────────────────────────────────────
+    ['does: Tools &settings sit side by side',
+      { does: 'Tools &settings sit side by side' }],
+    ['must_show: rating *stars* shown',
+      { must_show: 'rating *stars* shown' }],
+    // After a comma at depth 0 — a comma is only a separator INSIDE a flow collection.
+    ['does: Shows tags, *starred* first',
+      { does: 'Shows tags, *starred* first' }],
+    ['must_show:\n  - rating *stars* shown\n  - Tools &settings',
+      { must_show: ['rating *stars* shown', 'Tools &settings'] }],
+
+    // ── trailing comments on a block-sequence item (finding 3) ───────────────
+    ['affordances:\n  - Enter  # the keyboard key\n  - Space',
+      { affordances: ['Enter', 'Space'] }],
+    ['affordances:\n  - [a, b] # a flow item with a trailing comment',
+      { affordances: [['a', 'b']] }],
+    ['affordances:\n  - {keyboard: Enter} # a flow map with a trailing comment',
+      { affordances: [{ keyboard: 'Enter' }] }],
+    // `#` NOT preceded by whitespace, and `#` at the head of an item value, are both content —
+    // the same rule a mapping value already follows (case Y7).
+    ['tags:\n  - "#1 priority"\n  - #fff\n  - a#b',
+      { tags: ['#1 priority', '#fff', 'a#b'] }],
+    // A `#` inside a quoted item is content; the SECOND one is the comment.
+    ['tags:\n  - "a # b"  # and a real comment',
+      { tags: ['a # b'] }]
+  ];
+
+  for (const [yaml, expected] of table) {
+    let got;
+    try {
+      got = parseYamlLite(`${yaml}\n`);
+    } catch (e) {
+      assert.fail(`refused legal prose ${JSON.stringify(yaml)}: ${e.message}`);
+    }
+    assert.deepStrictEqual(got, expected, `parsed ${JSON.stringify(yaml)} wrong`);
+  }
+});
+
+test('Case Y15b — the SAME characters are still structural where YAML says they are', () => {
+  // The differential control for Y15a. Each line below is the prose case with the character
+  // moved to a position where it really is structure. If Y15a's fix over-reached, these go red.
+  const stillRefused = [
+    ['base: &b {x: 1}', 1, /anchor/i],                      // an anchor at the value head
+    ['surface: rail\ncopy: *b', 2, /alias/i],               // an alias at the value head
+    ['tags:\n  - &anchored item', 2, /anchor/i],            // at the head of a sequence item
+    ['tags:\n  - *aliased', 2, /alias/i],                   // ditto
+    ['tags: [alpha, *aliased]', 1, /alias/i],               // after a comma INSIDE a flow list
+    ['expect: {route: *aliased}', 1, /alias/i],             // after `: ` inside a flow map
+    ['defaults: {x: 1}\nstates:\n  <<: *defaults', 3, /merge key/i]
+  ];
+
+  for (const [yaml, line, match] of stillRefused) {
+    refuses(`${yaml}\n`, { line, match });
+  }
+
+  // A quote that really does open a scalar and is never closed is still a refusal — with the
+  // line number, because `ui spec validate` reports it as SPEC000 and the author needs the line.
+  refuses('surface: rail\nbad: "unterminated\n', { line: 2, match: /unterminated double/i });
+  refuses("surface: rail\nbad: 'unterminated\n", { line: 2, match: /unterminated single/i });
+
+  // And quoting still masks structure, exactly as case Y4/Y7 pin it.
+  assert.deepStrictEqual(
+    parseYamlLite('note: "a # b"\ntitle: "{project.name}: overview"\nmust_show: ["#1 priority"]\n'),
+    { note: 'a # b', title: '{project.name}: overview', must_show: ['#1 priority'] }
+  );
+});
+
 // ─── Regression guard (must stay green) ───────────────────────────────────────
 
 test('Case Y12 — the module is require-able with zero side effects and pulls in NO dependency', () => {
