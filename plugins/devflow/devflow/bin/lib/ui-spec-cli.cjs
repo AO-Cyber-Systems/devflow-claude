@@ -3,8 +3,9 @@
 /**
  * ui-spec-cli — the `df-tools ui spec …` arms (objective 34-04).
  *
- *   cmdUiSpec(cwd, args, raw)   ->  `validate` and `render` today; 34-06 adds `sheet`,
- *                                   34-07 `lock`, each BESIDE the others in one dispatch.
+ *   cmdUiSpec(cwd, args, raw)   ->  `validate` and `render`; 34-07 adds `lock` beside them.
+ *   cmdUiSheet(cwd, args, raw)  ->  `df-tools ui sheet …`, a THIRD `ui` subcommand beside
+ *                                   `metrics` and `spec` (§8.3 names it `ui sheet <surface>`).
  *
  * ── The one thing this file exists to get right ───────────────────────────────
  * The plan's W1b gate for this row is literally `df-tools ui spec validate <file>` **exit 1
@@ -58,6 +59,7 @@ const path = require('path');
 const { parseSurfaceSpec, loadMustNotVocabulary } = require('./ui-spec.cjs');
 const { validateSurfaceSpec } = require('./ui-spec-validate.cjs');
 const { renderSurfaceSpec } = require('./ui-spec-render.cjs');
+const { buildSheetModel, sheetHash, renderSheetHtml, loadSheetTemplate } = require('./ui-sheet.cjs');
 const { error } = require('./helpers.cjs');
 
 const SPEC_SUBCOMMANDS = ['validate', 'render'];
@@ -227,6 +229,99 @@ function cmdUiSpecRender(cwd, args) {
 }
 
 /**
+ * A directory argument: resolved, and REQUIRED TO EXIST when it was supplied.
+ *
+ * A typo in `--renders` must not quietly become "every state is MISSING" — that reads exactly
+ * like a surface nobody rendered, which is the one message this sheet has to be trusted to
+ * mean. Absent (no flag at all) is a different thing and is allowed: it says up front that no
+ * renders were supplied.
+ */
+function resolveDir(cwd, args, flag) {
+  const given = flagValue(args, flag);
+  if (given === undefined) return null;
+  if (!given || given.startsWith('--')) {
+    error(`${flag} needs a directory path`);
+  }
+  const dir = path.resolve(cwd, given);
+  if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) {
+    error(`${flag} directory not found: ${dir}`);
+  }
+  return dir;
+}
+
+/**
+ * `ui sheet <spec> --renders <dir> --refs <dir> --out <file>`
+ *
+ * The §8.3 review artifact: one static, self-contained HTML page showing every declared
+ * state x theme x width beside its reference, the navigation graph, the plain-language
+ * control table and the per-state content contract.
+ *
+ * ── ONE HASHING PATH ─────────────────────────────────────────────────────────
+ * The `sheet_hash` printed here is `sheetHash(buildSheetModel(...))` and nothing else. A CLI
+ * with its own digest would be a second definition of what a look-lock covers, and the two
+ * would eventually disagree about whether a human's approval still stands. Case A4 pins it.
+ *
+ * ── AN INVALID SPEC PRODUCES NO FILE ─────────────────────────────────────────
+ * Same guard as `render` (34-05's R3): validate FIRST, and on a real violation print the
+ * verdict in `validate`'s own shape, exit 1, and write nothing. A review sheet derived from
+ * an unchecked spec is the most authoritative-looking wrong artifact this program can make —
+ * a human signs it.
+ */
+function cmdUiSheet(cwd, args) {
+  const { file, frontMatter, result } = parseAndValidate(
+    cwd, args, 'usage: df-tools ui sheet <spec> [--renders <dir>] [--refs <dir>] --out <file> [--patterns <catalogue.json>]'
+  );
+
+  if (!result.ok) {
+    process.stdout.write(`${JSON.stringify({ ...result, spec: file }, null, 2)}\n`);
+    process.exitCode = 1;
+    return;
+  }
+
+  const givenOut = flagValue(args, '--out');
+  if (givenOut === undefined || !givenOut || givenOut.startsWith('--')) {
+    error('--out <file> is required: df-tools ui sheet <spec> [--renders <dir>] [--refs <dir>] --out <file>');
+  }
+  const out = path.resolve(cwd, givenOut);
+
+  const renders = resolveDir(cwd, args, '--renders');
+  const refs = resolveDir(cwd, args, '--refs');
+
+  // A MISSING invariant row is not a violation and does not refuse the sheet — but it is a
+  // check that DID NOT RUN. stderr, so the written file and stdout stay clean.
+  const missingChecks = (result.errors || []).filter((e) => e.status === 'MISSING');
+  for (const row of missingChecks) {
+    process.stderr.write(`advisory: ${row.code} MISSING — ${row.msg}\n`);
+  }
+  if (missingChecks.length > 0) {
+    process.stderr.write(
+      `advisory: ${missingChecks.length} check(s) did not run for ${file}; a MISSING row is not a pass.\n`
+    );
+  }
+
+  // Already validated above — `validate: false` here, exactly as `render` does, so the
+  // invariant set has one home and runs once.
+  const model = buildSheetModel(frontMatter, { renders, refs, validate: false });
+  const html = renderSheetHtml(model, loadSheetTemplate(), { renders, refs });
+
+  fs.mkdirSync(path.dirname(out), { recursive: true });
+  fs.writeFileSync(out, html, 'utf-8');
+
+  process.stdout.write(`${JSON.stringify({
+    sheet_hash: sheetHash(model),
+    out,
+    states: model.rows.length,
+    missing: model.rows.filter((r) => r.status === 'MISSING').map((r) => r.capture_id),
+    engine_version: model.engine_version,
+    schema_version: model.schema_version,
+    spec: file
+  }, null, 2)}\n`);
+
+  // CRITICAL: process.exitCode, never process.exit() and never helpers.output().
+  process.exitCode = 0;
+}
+
+/**
  * `df-tools ui spec <subcommand> …`
  *
  * @param {string} cwd
@@ -248,6 +343,7 @@ function cmdUiSpec(cwd, args, raw) { // eslint-disable-line no-unused-vars
 
 module.exports = {
   cmdUiSpec,
+  cmdUiSheet,
   SPEC_SUBCOMMANDS,
   RENDER_FLAGS
 };

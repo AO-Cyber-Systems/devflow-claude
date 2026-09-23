@@ -195,7 +195,7 @@ const { cmdVerifyFlutterStateCoverage } = require('./lib/flutter-state-coverage.
 const { cmdVerifyFlutterUIEval } = require('./lib/flutter-ui-eval.cjs');
 const { cmdDesignReview } = require('./lib/flutter-ui-design-review.cjs');
 const { cmdUiMetrics } = require('./lib/ui-metrics.cjs');
-const { cmdUiSpec } = require('./lib/ui-spec-cli.cjs');
+const { cmdUiSpec, cmdUiSheet } = require('./lib/ui-spec-cli.cjs');
 const { cmdDetectNovelDomain } = require('./lib/novel-domain.cjs');
 const { cmdDetectBrownfieldMap } = require('./lib/brownfield-detector.cjs');
 const { cmdDetectFlutterUIScope } = require('./lib/flutter-ui-scope.cjs');
@@ -460,13 +460,21 @@ async function main() {
       //   Validates a Surface Spec against the §4.5 static invariants. Prints the verdict
       //   JSON on stdout and EXITS 1 when the spec is invalid — that exit code is the gate
       //   (34-04); `ok` drives it, so a MISSING row never fails a run.
+      // ui sheet <spec> [--renders <dir>] [--refs <dir>] --out <file> [--patterns <c.json>]
+      //   Writes the §8.3 static review sheet and prints {sheet_hash, out, states, missing}.
+      //   `sheet_hash` is the sha256 of the canonical MODEL, never of the HTML — 34-07's
+      //   look-lock anchors on it, and a hash that moved on a CSS tweak would train the lock
+      //   out of existence. A declared state with no render is a MISSING cell, never a
+      //   dropped row.
       const subcommand = args[1];
       if (subcommand === 'metrics') {
         cmdUiMetrics(cwd, args.slice(2), raw);
       } else if (subcommand === 'spec') {
         cmdUiSpec(cwd, args.slice(2), raw);
+      } else if (subcommand === 'sheet') {
+        cmdUiSheet(cwd, args.slice(2), raw);
       } else {
-        error('Unknown ui subcommand. Available: metrics, spec');
+        error('Unknown ui subcommand. Available: metrics, spec, sheet');
       }
       break;
     }
