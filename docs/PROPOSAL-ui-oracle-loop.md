@@ -259,6 +259,26 @@ equality.
    unequal (the stronger reading; §4.4 states it the same way);
 5. every referenced pattern exists in the pinned `eden-ui-flutter` release; a control of a
    pattern kind inherits that pattern's `must_not` defaults (a surface may not silently drop them);
+
+   **Measured enforcement surface, 2026-09-23 — I5 is narrower than it reads.** The first real
+   catalogue (`eden-ui-flutter@design/patterns.json`) states **78** `must_not` rules across ten
+   patterns. PAT002 can enforce **2** of them. The reason is structural, not a bug: inheritance
+   is keyed on a control `kind`, **one** of the ten patterns has a kind at all (seven are
+   compositions — a shell, a three-pane layout, a state matrix — which are not a control
+   archetype), and that one kind (`disclosure-header`) is **one of the six** the schema admits.
+   The other 76 rules are `must_not_scoped`: rules a spec author is expected to declare per
+   behaviour, which no consumer currently reads.
+
+   So the honest statement is that I5 enforces *inherited defaults*, and inherited defaults are
+   a small and legitimate subset of what a pattern states. What is **not** yet checked is
+   whether a spec that references a pattern has acknowledged that pattern's scoped rules at all
+   — a coverage question, not an inheritance one, and a different check. It is deliberately not
+   added here: it would change what W1★ enforces before W1★ has run once, and a check that
+   surfaces 76 findings on the first surface is not a gate, it is a wall. Revisit with the
+   dogfood's evidence.
+
+   Recorded rather than quietly fixed, because "every referenced pattern's rules are enforced"
+   is what this line reads like and is not what it does.
 6. every `hit_rect.disjoint_from` entry resolves to a control in this spec, is reciprocal (both
    controls name each other) and never names its own control; a `hit_rect.within` entry resolves
    and does not also appear in that control's `disjoint_from` — a control cannot be both inside
