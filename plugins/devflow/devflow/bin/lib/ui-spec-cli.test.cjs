@@ -16,7 +16,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { execSync } = require('node:child_process');
+const { spawnSync } = require('node:child_process');
 
 const DF_TOOLS = path.join(__dirname, '..', 'df-tools.cjs');
 const LIB_DIR = __dirname;
@@ -28,18 +28,29 @@ const PATTERN_CATALOGUE = path.join(FIXTURE_DIR, 'pattern-catalogue.json');
 const TMP_FILES = [];
 
 /**
- * Run the real binary. `execSync` THROWS on a non-zero exit, so the catch is where the
- * interesting half of this suite lives: `e.status` is the exit code the gate contract is
- * about, and `e.stdout`/`e.stderr` are still readable on the error object.
+ * Run the real binary and return BOTH streams plus the exit code, on every path.
+ *
+ * `spawnSync`, not `execSync`: execSync returns only stdout and throws on a non-zero exit, so
+ * stderr on a SUCCESSFUL run was silently discarded — and case R5 is about exactly that stream
+ * on exactly that path (the arm renders, exit 0, and reports a check that did not run). A
+ * harness that cannot see stderr on success cannot fail for a missing advisory, which is the
+ * same class of blind gate this objective exists to close.
  */
+function splitArgv(argv) {
+  // Call sites quote paths with JSON.stringify (tmp dirs contain no spaces today, but the
+  // quoting is there so one can). spawnSync takes an argv ARRAY and does no shell parsing, so
+  // the quotes have to come off here or they reach the binary as literal characters.
+  return (argv.match(/"(?:[^"\\]|\\.)*"|\S+/g) || []).map((tok) => (
+    tok.startsWith('"') && tok.endsWith('"') ? JSON.parse(tok) : tok
+  ));
+}
+
 function runArm(argv, opts = {}) {
-  const cmd = `node ${JSON.stringify(DF_TOOLS)} ${argv}`;
-  try {
-    const stdout = execSync(cmd, { cwd: opts.cwd || LIB_DIR, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'] });
-    return { status: 0, stdout, stderr: '' };
-  } catch (e) {
-    return { status: e.status, stdout: e.stdout || '', stderr: e.stderr || '' };
-  }
+  const r = spawnSync('node', [DF_TOOLS, ...splitArgv(argv)], {
+    cwd: opts.cwd || LIB_DIR,
+    encoding: 'utf-8'
+  });
+  return { status: r.status, stdout: r.stdout || '', stderr: r.stderr || '' };
 }
 
 function parseStdout(result) {

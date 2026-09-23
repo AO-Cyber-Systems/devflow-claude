@@ -3,8 +3,8 @@
 /**
  * ui-spec-cli — the `df-tools ui spec …` arms (objective 34-04).
  *
- *   cmdUiSpec(cwd, args, raw)   ->  `validate` today; 34-05 adds `render`, 34-06 `sheet`,
- *                                   34-07 `lock`, each BESIDE validate in one dispatch.
+ *   cmdUiSpec(cwd, args, raw)   ->  `validate` and `render` today; 34-06 adds `sheet`,
+ *                                   34-07 `lock`, each BESIDE the others in one dispatch.
  *
  * ── The one thing this file exists to get right ───────────────────────────────
  * The plan's W1b gate for this row is literally `df-tools ui spec validate <file>` **exit 1
@@ -23,6 +23,18 @@
  * It resolves argv, reads the file, calls `parseSurfaceSpec` then `validateSurfaceSpec`,
  * prints, and sets the code. Every invariant lives in `ui-spec-validate.cjs` where the
  * known-broken fixtures can reach it without a subprocess.
+ *
+ * ── `render`, and why it shares validate's front half (34-05) ─────────────────
+ * `ui spec render <file> [--manifest|--graph|--table]` derives the four artifacts of §4.1's
+ * one-file rule. It parses and validates FIRST, and an invalid spec renders NOTHING and exits
+ * 1 — a manifest, a graph and a table derived from a spec nobody checked look authoritative
+ * and are not, and everything downstream treats them as the truth. With no flag it prints all
+ * four under named keys, so a caller wanting everything does not run the arm three times and
+ * hope the runs agree.
+ *
+ * A MISSING row does NOT refuse the render (it is not a violation) and is NOT swallowed
+ * either: it is written to STDERR as an advisory. stdout carries only the artifact, because
+ * the byte-stability contract diffs stdout.
  *
  * ── The pattern catalogue (I5) ────────────────────────────────────────────────
  * `ctx.patterns` is `undefined` when the catalogue is UNREACHABLE and an array when it is
@@ -45,9 +57,11 @@ const path = require('path');
 
 const { parseSurfaceSpec, loadMustNotVocabulary } = require('./ui-spec.cjs');
 const { validateSurfaceSpec } = require('./ui-spec-validate.cjs');
+const { renderSurfaceSpec } = require('./ui-spec-render.cjs');
 const { error } = require('./helpers.cjs');
 
-const SPEC_SUBCOMMANDS = ['validate'];
+const SPEC_SUBCOMMANDS = ['validate', 'render'];
+const RENDER_FLAGS = ['--manifest', '--graph', '--table'];
 
 /** `--flag value` out of an argv slice. Returns undefined when the flag is absent. */
 function flagValue(args, name) {
@@ -96,12 +110,19 @@ function readPatternCatalogue(cwd, args) {
   return list;
 }
 
-/** `ui spec validate <file> [--patterns <file>]` */
-function cmdUiSpecValidate(cwd, args) {
+/**
+ * The front half BOTH arms share: resolve the file, read it, parse it, validate it. One home
+ * for it, because `render` refusing an invalid spec and `validate` reporting one are the same
+ * question asked by two callers — and two implementations of it would eventually disagree
+ * about which specs are valid.
+ *
+ * @returns {{file: string, frontMatter: (object|Error), result: object}}
+ */
+function parseAndValidate(cwd, args, usage) {
   const rest = positionals(args);
   const given = rest[0];
   if (!given) {
-    error('usage: df-tools ui spec validate <file> [--patterns <catalogue.json>]');
+    error(usage);
   }
 
   const file = path.resolve(cwd, given);
@@ -130,7 +151,14 @@ function cmdUiSpecValidate(cwd, args) {
     frontMatter = e;
   }
 
-  const result = validateSurfaceSpec(frontMatter, { patterns, vocabulary });
+  return { file, frontMatter, result: validateSurfaceSpec(frontMatter, { patterns, vocabulary }) };
+}
+
+/** `ui spec validate <file> [--patterns <file>]` */
+function cmdUiSpecValidate(cwd, args) {
+  const { file, result } = parseAndValidate(
+    cwd, args, 'usage: df-tools ui spec validate <file> [--patterns <catalogue.json>]'
+  );
 
   process.stdout.write(`${JSON.stringify({ ...result, spec: file }, null, 2)}\n`);
 
@@ -139,23 +167,87 @@ function cmdUiSpecValidate(cwd, args) {
 }
 
 /**
+ * `ui spec render <file> [--manifest|--graph|--table] [--patterns <file>]`
+ *
+ * Derives §4.1's four artifacts from the ONE hand-authored spec. Refuses an invalid one.
+ */
+function cmdUiSpecRender(cwd, args) {
+  const { file, frontMatter, result } = parseAndValidate(
+    cwd, args, `usage: df-tools ui spec render <file> [${RENDER_FLAGS.join('|')}] [--patterns <catalogue.json>]`
+  );
+
+  // CRITICAL: an invalid spec renders NOTHING. The verdict goes out in `validate`'s own shape
+  // so a caller that pipes either arm reads one format, and the exit code is the gate.
+  if (!result.ok) {
+    process.stdout.write(`${JSON.stringify({ ...result, spec: file }, null, 2)}\n`);
+    process.exitCode = 1;
+    return;
+  }
+
+  // A MISSING row is not a violation and does not refuse the render — but it is a check that
+  // DID NOT RUN, and rendering four confident-looking artifacts without saying so is the
+  // silent-green class this objective exists to close. stderr, so the artifact on stdout stays
+  // byte-stable.
+  const missing = (result.errors || []).filter((e) => e.status === 'MISSING');
+  for (const row of missing) {
+    process.stderr.write(`advisory: ${row.code} MISSING — ${row.msg}\n`);
+  }
+  if (missing.length > 0) {
+    process.stderr.write(
+      `advisory: ${missing.length} check(s) did not run for ${file}; a MISSING row is not a pass.\n`
+    );
+  }
+
+  // Already validated above — re-running the whole invariant set here would do the same work
+  // twice and give the verdict two homes.
+  const rendered = renderSurfaceSpec(frontMatter, { validate: false });
+
+  const flags = args.filter((a) => typeof a === 'string' && a.startsWith('--') && a !== '--patterns');
+  const flag = flags[0];
+
+  if (flag === undefined) {
+    process.stdout.write(`${JSON.stringify({
+      spec: file,
+      manifest: rendered.manifest,
+      navGraphMermaid: rendered.navGraphMermaid,
+      controlTableMd: rendered.controlTableMd,
+      captureList: rendered.captureList
+    }, null, 2)}\n`);
+  } else if (flag === '--manifest') {
+    process.stdout.write(`${JSON.stringify(rendered.manifest, null, 2)}\n`);
+  } else if (flag === '--graph') {
+    process.stdout.write(rendered.navGraphMermaid);
+  } else if (flag === '--table') {
+    process.stdout.write(rendered.controlTableMd);
+  } else {
+    error(`Unknown render flag ${flag}. Available: ${RENDER_FLAGS.join(', ')}`);
+  }
+
+  process.exitCode = 0;
+}
+
+/**
  * `df-tools ui spec <subcommand> …`
  *
  * @param {string} cwd
  * @param {string[]} args  argv with `ui spec` stripped by df-tools.cjs: args[0] is the spec
- *                         subcommand (`validate`), args[1] the file.
- * @param {boolean} raw    accepted for dispatch symmetry; this arm's output is always the
- *                         verdict JSON, because the exit code and the codes are the contract.
+ *                         subcommand (`validate` | `render`), args[1] the file.
+ * @param {boolean} raw    accepted for dispatch symmetry; the shape of each arm's output is
+ *                         fixed by its own contract (the verdict codes; the artifact bytes).
  */
 function cmdUiSpec(cwd, args, raw) { // eslint-disable-line no-unused-vars
   const sub = Array.isArray(args) ? args[0] : undefined;
-  if (sub !== 'validate') {
+  if (sub === 'validate') {
+    cmdUiSpecValidate(cwd, args.slice(1));
+  } else if (sub === 'render') {
+    cmdUiSpecRender(cwd, args.slice(1));
+  } else {
     error(`Unknown ui spec subcommand. Available: ${SPEC_SUBCOMMANDS.join(', ')}`);
   }
-  cmdUiSpecValidate(cwd, args.slice(1));
 }
 
 module.exports = {
   cmdUiSpec,
-  SPEC_SUBCOMMANDS
+  SPEC_SUBCOMMANDS,
+  RENDER_FLAGS
 };
