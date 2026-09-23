@@ -218,6 +218,42 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
 
 **For each wave:**
 
+0. **Fix the repo and the base for this wave (BEFORE spawning) — issue #86:**
+
+   An executor must be told which repository it is working in and which commit its work
+   builds on. Neither may be left to the harness to infer: it used to resolve the repo
+   from *this* session's cwd (dispatching an aodex objective from a session rooted
+   elsewhere put the executor in a different repository entirely) and the base from the
+   default branch (so wave 2 started without wave 1's commits).
+
+   Read both, here, at the start of every wave — not once at the start of the objective.
+   `WAVE_BASE` must be re-read per wave; that is what makes wave N+1 see wave N:
+
+   ```bash
+   git rev-parse --show-toplevel
+   ```
+   ```bash
+   git rev-parse HEAD
+   ```
+
+   Note the two values down as literals (`REPO_ROOT`, `WAVE_BASE`) — a shell variable does
+   not survive into the next Bash call. Both go into every executor prompt in this wave.
+
+   **Sequential wave (`PARALLELIZATION=false`, or a single plan):** the executor runs in
+   `REPO_ROOT` itself, on the branch already checked out. `WAVE_BASE` is the current HEAD,
+   so the previous wave's commits are present by construction, and its preflight proves it.
+
+   **Parallel wave (2+ plans):** give each plan its own worktree, provisioned explicitly
+   from `WAVE_BASE` in the target repo — never from the default branch:
+
+   ```bash
+   node ~/.claude/devflow/bin/df-tools.cjs exec-context worktree --repo <REPO_ROOT> --id <plan_id> --base <WAVE_BASE>
+   ```
+
+   Run one per plan. Each prints `worktree_path`, `branch`, `merge_back` and `remove`;
+   note them down. Pass `worktree_path` as that executor's working directory, and merge
+   the branches back in step 5b before the next wave reads `WAVE_BASE` again.
+
 1. **Describe what's being built (BEFORE spawning):**
 
    Read each job's `<objective>`. Extract what's being built and why.
@@ -261,10 +297,10 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
 
 4. **Spawn executor agents:**
 
-   Embed the full TRD content inline in every executor spawn prompt. Executors may run in
-   an isolated git worktree (isolation: worktree in executor frontmatter) where uncommitted
-   .planning/ files from the parent tree are not visible. Embedding the TRD guarantees the
-   executor has its plan regardless of worktree state. Context cost: ~plan size per spawn;
+   Embed the full TRD content inline in every executor spawn prompt. A parallel-wave
+   executor runs in the worktree you provisioned in step 0, where uncommitted .planning/
+   files from the parent tree are not visible. Embedding the TRD guarantees the executor
+   has its plan regardless of worktree state. Context cost: ~plan size per spawn;
    acceptable because TRDs are 2-3 tasks.
 
    Before spawning, read the plan file into orchestrator context:
@@ -298,8 +334,23 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
        --- END TRD ---
        </plan_content>
 
+       <repo_and_base>
+       REPO_ROOT:  {REPO_ROOT}
+       WAVE_BASE:  {WAVE_BASE}
+
+       Before anything else, prove you are where you are supposed to be:
+
+         node ~/.claude/devflow/bin/df-tools.cjs exec-context check --repo {REPO_ROOT} --base {WAVE_BASE}
+
+       Exit 1 means WRONG REPOSITORY or BASE NOT VISIBLE — both are hard stops. Report
+       which fired, quote the output, and end your turn without writing anything. Do not
+       try the paths anyway: a wrong-repo spawn cannot land a single commit where it is
+       being looked for, and it fails silently if you let it.
+       </repo_and_base>
+
        <worktree_protocol>
-       - You may be in an isolated git worktree. Commit to your current branch as normal.
+       - You may be in a git worktree the orchestrator provisioned for you. Commit to your
+         current branch as normal.
        - Write SUMMARY.md at the path given in the TRD output section and COMMIT it —
          the orchestrator reads it from your branch after merging.
        - STATE.md/ROADMAP.md updates: include them in your commits; conflicts are resolved
@@ -350,42 +401,46 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
 
    Use standard blocking Task() calls (existing behavior).
 
-5b. **Merge worktree branches (when executors run with isolation: worktree):**
+5b. **Merge the wave's worktree branches (parallel waves only):**
 
-   Platform-managed worktrees (created via `isolation: worktree` in executor frontmatter)
-   run on branches auto-created by Claude Code. After all wave agents complete, merge those
-   branches back into the current branch BEFORE any disk-based spot-checks. File-existence
-   checks read the working tree, so merge-before-spot-check ordering is mandatory.
+   A sequential wave has nothing to merge — the executor committed to the branch you are
+   already on, which is why `WAVE_BASE` for the next wave is simply the new HEAD.
 
-   Prior art: workstreams.cjs already provisions worktrees with `worktree_prefix` and
-   `merge_strategy: "squash"` — the same concept applied to platform-managed worktrees.
+   For a parallel wave, you provisioned each worktree yourself in step 0 and noted its
+   `branch` and `merge_back` command, so there is no branch-list diffing to do — you know
+   the names. Merge every one back into the current branch BEFORE any disk-based
+   spot-check: file-existence checks read the working tree, so merge-before-spot-check
+   ordering is mandatory.
 
-   **Branch merge protocol:**
+   Prior art: workstreams.cjs provisions worktrees the same way, with `worktree_prefix`
+   and `merge_strategy: "squash"`.
+
+   **Branch merge protocol** — one plain command per call, for each plan in the wave:
    ```bash
-   # 1. Snapshot branch list before spawning the wave (do this BEFORE step 4):
-   git branch --format='%(refname:short)' > /tmp/df-branches-before-wave-{N}
-
-   # 2. After all wave agents complete, diff to find agent-created branches:
-   git branch --format='%(refname:short)' > /tmp/df-branches-after-wave-{N}
-   diff /tmp/df-branches-before-wave-{N} /tmp/df-branches-after-wave-{N}
-
-   # 3. For each new branch, merge into current branch:
-   git merge --no-ff {agent-branch}
-   # File ownership is exclusive per wave (each TRD owns different files),
-   # so conflicts indicate a planning error. On conflict:
+   git merge --no-ff df/exec-{plan_id}
+   ```
+   File ownership is exclusive per wave (each TRD owns different files), so a conflict
+   indicates a planning error. On conflict:
+   ```bash
    git merge --abort
-   # Route to the failure handler with: "Merge conflict on {branch} — planning error,
-   # two TRDs in the same wave modified the same file."
+   ```
+   Route to the failure handler with: "Merge conflict on {branch} — planning error, two
+   TRDs in the same wave modified the same file."
+
+   Then remove each worktree (the `remove` command `exec-context worktree` printed):
+   ```bash
+   git worktree remove <worktree_path>
    ```
 
-   **Caution:** Worktree isolation branches from the DEFAULT branch, not the parent HEAD
-   (research Pitfall 5). On feature branches, commits from prior waves may be missing in
-   a fresh worktree. Worktree isolation is safest when executing on the default branch or
-   with `branching_strategy: "none"` where prior waves' commits are merged back before the
-   next wave spawns. The 5b merge step guarantees exactly this sequencing between waves.
+   **Why the base is stated rather than inferred (issue #86):** platform-managed isolation
+   branched from the default branch, not the parent HEAD, so on a feature branch the prior
+   waves' commits were simply missing from a fresh worktree — each wave silently re-did or
+   contradicted the last. Provisioning from `WAVE_BASE` and merging back here is what makes
+   wave N+1 see wave N. The executor's `exec-context check --base` proves it rather than
+   trusting it.
 
-   After all new branches are merged, `git log --all --grep` and file-existence spot-checks
-   in step 6 will see all wave commits.
+   After all branches are merged, `git log --all --grep` and the file-existence spot-checks
+   in step 6 will see every wave commit.
 
 6. **Report completion — spot-check claims first:**
 

@@ -64,8 +64,11 @@ commit.
 
 **Produces:** code, commits, `NN-YY-SUMMARY.md` per job
 
-Executors run with `isolation: worktree` — each gets its own git worktree, so
-parallel jobs cannot collide on the working tree.
+A parallel wave gives each executor its own git worktree, so concurrent jobs cannot
+collide on the working tree. The orchestrator provisions those worktrees explicitly —
+in the target repo, from the wave's base — and each executor proves it landed in the
+right one before it writes anything. A sequential wave runs in the repo itself, on the
+branch already checked out, which is how wave N+1 sees wave N.
 
 ## 5. verify-work
 

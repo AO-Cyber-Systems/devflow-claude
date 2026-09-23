@@ -872,7 +872,7 @@
       "effort": "xhigh",
       "color": "yellow",
       "maxTurns": 50,
-      "isolation": "worktree",
+      "isolation": null,
       "memory": null,
       "models": {
         "quality": "opus",
