@@ -1,0 +1,11 @@
+flowchart TD
+  external[["external"]]
+  route_project_conversations["project.conversations<br/>{project.name}"]
+  route_conversations_all["conversations.all<br/>Conversations"]
+  ctrl_rail_project_header(["rail.project.header"])
+  state_guard_denied{{"guard-denied<br/>as non-member"}}
+  ctrl_rail_project_header -- "rail.project.header" --> route_project_conversations
+  external -- "deeplink" --> route_project_conversations
+  route_project_conversations -. "app-back, browser-back" .-> route_conversations_all
+  route_project_conversations -- "guard: member-of-workspace (as non-member)" --> state_guard_denied
+  external -- "deeplink" --> route_conversations_all
