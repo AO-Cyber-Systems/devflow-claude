@@ -124,6 +124,26 @@ function extractBashBlocks(md, section) {
   return { ok: true, blocks, section: heading.text, headingLine: heading.index + 1, match };
 }
 
+// Finds the offset of a TRAILING comment: the first `#` that is outside single/double
+// quotes and either starts the text or follows whitespace. Deliberately a small scanner,
+// not a bash parser — its documented limit is that a `#` inside a heredoc BODY would be
+// misread, which is why heredoc calls skip this extraction entirely.
+function trailingCommentIndex(text) {
+  let quote = null;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (quote) {
+      if (ch === '\\' && quote === '"') { i++; continue; }
+      if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === '\\') { i++; continue; }
+    if (ch === '\'' || ch === '"') { quote = ch; continue; }
+    if (ch === '#' && (i === 0 || /\s/.test(text[i - 1]))) return i;
+  }
+  return -1;
+}
+
 // A line ending in an ODD number of backslashes continues onto the next line — `foo \\`
 // (an escaped backslash) does not.
 const CONTINUES_RE = /(^|[^\\])(\\\\)*\\$/;
@@ -151,9 +171,15 @@ function splitCalls(block, opts = {}) {
   const calls = [];
   let pending = null;   // an open backslash continuation: {startIdx, parts}
 
+  let annotations = [];  // full-line comments awaiting the call they annotate
+
   const flush = () => {
     const call = pending.parts.map(p => p.replace(/\s+$/, '')).join('\n').trim();
-    calls.push({ index: calls.length, line: base + pending.startIdx + 1, call, annotations: [] });
+    // A trailing comment stays IN the call text (bash ignores it) and is ALSO recorded.
+    const ci = pending.heredoc ? -1 : trailingCommentIndex(call);
+    if (ci !== -1) annotations.push(call.slice(ci).trim());
+    calls.push({ index: calls.length, line: base + pending.startIdx + 1, call, annotations });
+    annotations = [];
     pending = null;
   };
 
@@ -168,7 +194,8 @@ function splitCalls(block, opts = {}) {
     }
 
     if (raw.trim() === '') continue;                  // blank lines are separators, not calls
-    if (/^\s*#/.test(raw)) continue;                  // full-line comment (S3 attaches these)
+    // A full-line comment is an ANNOTATION on the NEXT call, never a call of its own.
+    if (/^\s*#/.test(raw)) { annotations.push(raw.trim()); continue; }
 
     pending = { startIdx: i, parts: [raw] };
     if (!CONTINUES_RE.test(raw)) flush();
