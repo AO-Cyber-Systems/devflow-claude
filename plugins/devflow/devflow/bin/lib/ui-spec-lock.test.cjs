@@ -401,3 +401,109 @@ test('Case A5 — re-locking OVERWRITES the acceptance block and does not duplic
   assert.strictEqual(fm.acceptance.locked_by, 'someone@else.test');
   assert.strictEqual(fm.acceptance.locked_at, '2026-09-23');
 });
+
+// ═════════════════════════════════════════════════════════════════════════════
+// P — the prose, ASSERTED rather than reviewed
+//
+// The wave-0 retrospective's failure class was prose that named a command which did not
+// exist. Proposal §21 amendment 1 makes the check executable, so P2 below extracts every
+// `df-tools.cjs …` string out of the sections this TRD added and RUNS each one's subcommand.
+//
+// EXTRACTION GUARD FIRST (`verifier-ui-eval-invocation.test.cjs`'s V4 pattern): a regex that
+// matches zero times and a loop that iterates zero times is a green test proving nothing. Each
+// case below asserts that the section exists and that the extraction found something, BEFORE
+// asserting anything about the content.
+// ═════════════════════════════════════════════════════════════════════════════
+
+const { spawnSync } = require('node:child_process');
+
+const DEVFLOW_ROOT = path.join(__dirname, '..', '..');
+const DF_TOOLS = path.join(DEVFLOW_ROOT, 'bin', 'df-tools.cjs');
+const CHECKPOINTS_MD = path.join(DEVFLOW_ROOT, 'references', 'checkpoints.md');
+const EXECUTOR_MD = path.join(DEVFLOW_ROOT, '..', 'agents', 'executor.md');
+
+const LOOK_LOCK_HEADING = '### look-lock variant';
+
+/** The `look-lock` section of checkpoints.md, bounded by the next heading of any level. */
+function lookLockSection() {
+  const md = fs.readFileSync(CHECKPOINTS_MD, 'utf-8');
+  const start = md.indexOf(LOOK_LOCK_HEADING);
+  assert.ok(start !== -1, `checkpoints.md must contain a "${LOOK_LOCK_HEADING}" heading`);
+  const rest = md.slice(start + LOOK_LOCK_HEADING.length);
+  const nextHeading = rest.search(/\n#{1,6} /);
+  const nextCloseTag = rest.search(/\n<\/[A-Za-z_][A-Za-z0-9_-]*>\s*\n/);
+  const ends = [nextHeading, nextCloseTag].filter((i) => i !== -1);
+  const end = ends.length ? Math.min(...ends) : rest.length;
+  return LOOK_LOCK_HEADING + rest.slice(0, end);
+}
+
+test('Case P1 — checkpoints.md documents the look-lock variant, end to end', () => {
+  const section = lookLockSection();
+  assert.ok(section.length > 200, 'the look-lock section must actually say something');
+
+  // It is a VARIANT of human-verify, not a fourth checkpoint type — the three-type taxonomy
+  // is load-bearing for the orchestrator.
+  const md = fs.readFileSync(CHECKPOINTS_MD, 'utf-8');
+  assert.ok(
+    md.indexOf('## checkpoint:human-verify') < md.indexOf(LOOK_LOCK_HEADING)
+      && md.indexOf(LOOK_LOCK_HEADING) < md.indexOf('## checkpoint:decision'),
+    'the look-lock section must sit INSIDE the human-verify section, not beside it as a fourth type'
+  );
+  assert.doesNotMatch(section, /checkpoint:look-lock/, 'look-lock is a variant, never its own `type=`');
+
+  // What approval runs, what the human is shown, and what rejection does.
+  assert.match(section, /df-tools\.cjs ui lock/, 'it must name the command approval runs');
+  assert.match(section, /sheet_hash/, 'it must name the hash the human is approving');
+  assert.match(section, /missing/i, 'it must name the MISSING capture list the human is shown');
+  assert.match(section, /reject/i, 'it must state what a rejection does');
+  assert.match(section, /not\s+written|no\s+lock\s+is\s+written/i, 'a rejection must write no lock');
+
+  // Autonomous mode: never blind-approved. A look-lock is a design decision, not a functional
+  // verification — the verifier agent cannot stand in for the human here.
+  assert.match(section, /autonomous/i, 'it must state the autonomous-mode rule');
+  assert.match(section, /never\s+(blind-)?approved|falls?\s+through\s+to\s+the\s+user/i,
+    'the autonomous-mode rule must say a look-lock is never blind-approved');
+});
+
+test('Case P2 — every `df-tools.cjs` command the new prose names is a REAL arm', () => {
+  const sources = {
+    'checkpoints.md': lookLockSection(),
+    'executor.md': (() => {
+      const md = fs.readFileSync(EXECUTOR_MD, 'utf-8');
+      const hits = [...md.matchAll(/^.*look-lock.*$/gm)].map((m) => m[0]);
+      assert.ok(hits.length > 0, 'executor.md must reference the look-lock variant');
+      return hits.join('\n');
+    })()
+  };
+
+  // Extract `df-tools.cjs ui <subcommand>` occurrences. The `ui` family is the one this TRD
+  // touches; a bare `df-tools.cjs <other>` in the same prose is out of scope for this net.
+  const found = [];
+  for (const [label, text] of Object.entries(sources)) {
+    for (const m of text.matchAll(/df-tools\.cjs\s+ui\s+([a-z-]+)/g)) {
+      found.push({ label, sub: m[1] });
+    }
+  }
+  assert.ok(found.length > 0, 'the extraction found no `df-tools.cjs ui …` command — P2 cannot pin what it cannot find');
+  assert.ok(found.some((f) => f.sub === 'lock'), 'the approval command `ui lock` must be among them');
+
+  // RUN each one, with a nonexistent spec. A REGISTERED arm refuses with "spec not found";
+  // an unregistered one refuses with "Unknown ui subcommand" — which is exactly the wave-0
+  // failure class, one level up.
+  for (const { label, sub } of found) {
+    const r = spawnSync('node', [DF_TOOLS, 'ui', sub, '/nonexistent/spec-that-does-not-exist.md'], { encoding: 'utf-8' });
+    const stderr = r.stderr || '';
+    assert.doesNotMatch(
+      stderr, /Unknown ui subcommand/,
+      `${label} names \`ui ${sub}\`, which df-tools does not register`
+    );
+    assert.match(stderr, /not found/, `\`ui ${sub}\` should refuse a nonexistent spec by name (${label}); got: ${stderr}`);
+  }
+});
+
+test('Case P3 — 34-10\'s agent-shell harness suite is still green after the executor.md edit', () => {
+  // This TRD edits an agent file, so 34-10's gate applies. Run it; do not assume. The harness
+  // is the authority on what `agents/executor.md` may contain.
+  const r = spawnSync('node', ['--test', 'agent-shell-harness.test.cjs'], { cwd: __dirname, encoding: 'utf-8' });
+  assert.strictEqual(r.status, 0, `the harness suite went red:\n${r.stdout}\n${r.stderr}`);
+});
