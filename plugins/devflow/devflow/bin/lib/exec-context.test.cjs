@@ -82,7 +82,7 @@ describe('exec-context check — repo identity (issue #86)', () => {
 
   test('cwd inside the named repo passes', () => {
     const repo = makeRepo('target');
-    const r = run(['exec-context', 'check', '--repo', repo, '--raw'], repo);
+    const r = run(['exec-context', 'check', '--repo', repo], repo);
     assert.strictEqual(r.status, 0, `expected pass; stderr: ${r.stderr}`);
     const json = JSON.parse(r.stdout);
     assert.strictEqual(json.ok, true);
@@ -105,7 +105,7 @@ describe('exec-context check — repo identity (issue #86)', () => {
     const wt = path.join(path.dirname(repo), `${path.basename(repo)}-wt`);
     tmpRoots.push(wt);
     git(repo, `worktree add -q -b side "${wt}"`);
-    const r = run(['exec-context', 'check', '--repo', repo, '--raw'], wt);
+    const r = run(['exec-context', 'check', '--repo', repo], wt);
     assert.strictEqual(r.status, 0, `a worktree of the target must pass; stderr: ${r.stderr}`);
     const json = JSON.parse(r.stdout);
     assert.strictEqual(json.ok, true);
@@ -137,7 +137,7 @@ describe('exec-context check — explicit base (issue #86)', () => {
     const waveOne = landWaveOne(repo);
     // Wave 2 is dispatched with the base the orchestrator actually means: the
     // branch tip that wave 1 produced.
-    const r = run(['exec-context', 'check', '--repo', repo, '--base', waveOne, '--raw'], repo);
+    const r = run(['exec-context', 'check', '--repo', repo, '--base', waveOne], repo);
     assert.strictEqual(r.status, 0, `wave 2 must see wave 1; stderr: ${r.stderr}`);
     const json = JSON.parse(r.stdout);
     assert.strictEqual(json.ok, true);
@@ -163,7 +163,7 @@ describe('exec-context check — explicit base (issue #86)', () => {
   test('--base accepts a ref, not only a sha', () => {
     const repo = makeRepo('target');
     landWaveOne(repo);
-    const r = run(['exec-context', 'check', '--repo', repo, '--base', 'df/objective-571', '--raw'], repo);
+    const r = run(['exec-context', 'check', '--repo', repo, '--base', 'df/objective-571'], repo);
     assert.strictEqual(r.status, 0, `stderr: ${r.stderr}`);
     assert.strictEqual(JSON.parse(r.stdout).base_visible, true);
   });
@@ -182,7 +182,7 @@ describe('exec-context worktree — explicit repo and base (issue #86)', () => {
   test('ACCEPTANCE: the provisioned worktree contains the previous wave\'s commit', () => {
     const repo = makeRepo('target');
     const waveOne = landWaveOne(repo);
-    const r = run(['exec-context', 'worktree', '--repo', repo, '--id', '571-02', '--raw'], repo);
+    const r = run(['exec-context', 'worktree', '--repo', repo, '--id', '571-02'], repo);
     assert.strictEqual(r.status, 0, `stderr: ${r.stderr}`);
     const json = JSON.parse(r.stdout);
     tmpRoots.push(json.worktree_path);
@@ -200,7 +200,7 @@ describe('exec-context worktree — explicit repo and base (issue #86)', () => {
     const other = makeRepo('other');
 
     // The #86 incident, inverted: run from the wrong repo, land in the right one.
-    const r = run(['exec-context', 'worktree', '--repo', target, '--id', '571-03', '--raw'], other);
+    const r = run(['exec-context', 'worktree', '--repo', target, '--id', '571-03'], other);
     assert.strictEqual(r.status, 0, `stderr: ${r.stderr}`);
     const json = JSON.parse(r.stdout);
     tmpRoots.push(json.worktree_path);
@@ -217,7 +217,7 @@ describe('exec-context worktree — explicit repo and base (issue #86)', () => {
     const repo = makeRepo('target');
     const mainSha = git(repo, 'rev-parse main');
     landWaveOne(repo);
-    const r = run(['exec-context', 'worktree', '--repo', repo, '--id', '571-04', '--base', 'main', '--raw'], repo);
+    const r = run(['exec-context', 'worktree', '--repo', repo, '--id', '571-04', '--base', 'main'], repo);
     assert.strictEqual(r.status, 0, `stderr: ${r.stderr}`);
     const json = JSON.parse(r.stdout);
     tmpRoots.push(json.worktree_path);
@@ -227,7 +227,7 @@ describe('exec-context worktree — explicit repo and base (issue #86)', () => {
   test('a second worktree for the same id fails loudly rather than reusing a stale tree', () => {
     const repo = makeRepo('target');
     landWaveOne(repo);
-    const first = run(['exec-context', 'worktree', '--repo', repo, '--id', '571-05', '--raw'], repo);
+    const first = run(['exec-context', 'worktree', '--repo', repo, '--id', '571-05'], repo);
     assert.strictEqual(first.status, 0, `stderr: ${first.stderr}`);
     tmpRoots.push(JSON.parse(first.stdout).worktree_path);
 

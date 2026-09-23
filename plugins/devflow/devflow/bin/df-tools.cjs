@@ -249,6 +249,7 @@ const { cmdMicro } = require('./lib/micro.cjs');
 const { cmdProjectDecline, cmdProjectAccept } = require('./lib/decline-tracker.cjs');
 const { cmdProjectState } = require('./lib/project-state.cjs');
 const { cmdGlobalConfig } = require('./lib/global-config.cjs');
+const { cmdExecContextRoute } = require('./lib/exec-context.cjs');
 const { hasHelpFlag, HELP_FLAGS, printHelp } = require('./lib/help.cjs');
 const { cmdGenerateUAT } = require('./lib/uat-generator.cjs');
 
@@ -1172,6 +1173,13 @@ async function main() {
       // df-tools micro commit [--files <path>...]
       // df-tools micro abort
       cmdMicro(cwd, args.slice(1), raw);
+      break;
+    }
+
+    case 'exec-context': {
+      // df-tools exec-context check --repo <path> [--base <ref>]
+      // df-tools exec-context worktree --repo <path> --id <slug> [--base <ref>] [--path <dir>]
+      cmdExecContextRoute(cwd, args.slice(1), raw);
       break;
     }
 

@@ -310,6 +310,23 @@ const COMMANDS = {
     summary: 'The micro workflow: start, commit, abort.',
     mutates: true,
   },
+  'exec-context': {
+    usage: 'df-tools exec-context <check|worktree> --repo <path> [--base <ref>] [--id <slug>] [--path <dir>] [--raw]',
+    summary: 'Prove a spawn is in the intended repo on an explicit base; provision a worktree from that base.',
+    mutates: true,
+    details: [
+      '  check     Exit 1 unless the current directory belongs to --repo (a linked',
+      '            worktree of it counts) and, with --base, HEAD contains that commit.',
+      '            Run this FIRST in any dispatched executor: a wrong-repo spawn then',
+      '            stops loudly instead of writing where nobody is looking.',
+      '  worktree  Provision isolation explicitly, in --repo, from --base (default: that',
+      '            repo\'s current HEAD — never the default branch). Prints the path,',
+      '            branch, and the merge-back and removal commands.',
+      '',
+      'Issue #86: forced `isolation: worktree` resolved the repo from the controller',
+      'session and the base from the default branch. Both are stated here instead.',
+    ],
+  },
   'global-config': {
     usage: 'df-tools global-config <get <key>|set <key> <value>> [--raw]',
     summary: 'Read or write the user-level DevFlow config.',
