@@ -28,8 +28,32 @@
 
 const test = require('node:test');
 const assert = require('node:assert');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 
 const harness = require('./agent-shell-harness.cjs');
+
+// ─── Scratch roots ────────────────────────────────────────────────────────────────────
+//
+// Registered BEFORE the first test that creates a root (TRD error_recovery): every root
+// goes on a module-level array and one after() removes them all, so a FAILING test still
+// cleans up. A harness that leaves directories behind is disabled within a month.
+const ROOTS = [];
+
+test.after(() => {
+  for (const root of ROOTS) fs.rmSync(root, { recursive: true, force: true });
+});
+
+// realpath, because on macOS os.tmpdir() is a symlink (/var -> /private/var) and bash's
+// $PWD is always the PHYSICAL path. Without this every call would look like a cwd leak
+// and X2 could never pass.
+function makeRoot() {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'harn-')));
+  ROOTS.push(root);
+  fs.mkdirSync(path.join(root, 'sub'));
+  return root;
+}
 
 // ─── Hand-written markdown factory ────────────────────────────────────────────────────
 //
@@ -249,6 +273,57 @@ test.describe('agent-shell-harness — call splitting (S)', () => {
       'a `#` line inside a heredoc BODY is content, not an annotation');
     assert.deepStrictEqual(calls[2].annotations, [],
       'and it must not leak onto the call after the heredoc either');
+  });
+
+});
+
+test.describe('agent-shell-harness — the runtime model (X)', () => {
+
+  // Case X1 — the reason this TRD exists, negative direction. `cd sub` succeeds, and the
+  // Bash tool would carry that directory into EVERY later call. The harness must detect
+  // it and FAIL the section, naming the call and both working directories.
+  test('Case X1 — a bare `cd sub` leaks the persisted cwd and FAILS the section', () => {
+    const root = makeRoot();
+    const sub = path.join(root, 'sub');
+
+    const res = harness.runSection(harness.splitCalls('cd sub\ntouch marker.txt'), { root });
+
+    assert.strictEqual(res.ok, false, 'a bare `cd X` must FAIL the section');
+    assert.strictEqual(res.calls.length, 2, 'both calls are reported');
+
+    const leak = res.calls[0].findings.find(f => f.type === 'cwd-leak');
+    assert.ok(leak, 'call 1 must carry a cwd-leak finding');
+    assert.ok(leak.message.includes(root), `the finding must name cwd_before: ${leak.message}`);
+    assert.ok(leak.message.includes(sub), `the finding must name cwd_after: ${leak.message}`);
+    assert.ok(leak.message.includes('cd sub'), 'the finding must name the offending call');
+
+    assert.strictEqual(res.calls[0].cwd_before, root);
+    assert.strictEqual(res.calls[0].cwd_after, sub);
+
+    // The harness REPORTS the model, it does not correct it: call 2 really did run inside
+    // sub. Resetting cwd to the root between calls would make X1 unfalsifiable.
+    assert.strictEqual(res.calls[1].cwd_before, sub);
+    assert.ok(fs.existsSync(path.join(sub, 'marker.txt')),
+      'call 2 wrote into the leaked directory, exactly as the real Bash tool would');
+  });
+
+  // Case X2 — the same work, positive direction: the subshell form the executor is
+  // required to use. cwd is unchanged, the section PASSES, and the file still lands in
+  // sub/. Without this half, X1 would also pass on a harness that fails everything.
+  test('Case X2 — `( cd sub && touch marker.txt )` leaves cwd unchanged and PASSES', () => {
+    const root = makeRoot();
+
+    const res = harness.runSection(harness.splitCalls('( cd sub && touch marker.txt )'), { root });
+
+    assert.strictEqual(res.ok, true,
+      `the subshell form must pass: ${JSON.stringify(res.findings || [])}`);
+    assert.strictEqual(res.calls.length, 1);
+    assert.strictEqual(res.calls[0].cwd_before, root);
+    assert.strictEqual(res.calls[0].cwd_after, root, 'the subshell must not move the persisted cwd');
+    assert.strictEqual(res.calls[0].status, 0);
+    assert.deepStrictEqual(res.calls[0].findings, []);
+    assert.ok(fs.existsSync(path.join(root, 'sub', 'marker.txt')),
+      'and the work still happened inside sub/');
   });
 
 });
