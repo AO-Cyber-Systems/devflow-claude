@@ -575,7 +575,9 @@ harness currently sides with the subshell form (a bare `cd` is a `cwd-leak` find
 | MISSING (never pass) when a stub is absent or a section cannot be located | F4, A6, X6b; `checkSection().missing` |
 
 - **Gate failures:** None.
-- **`npm test` (explicitly NOT a gate):** baseline at TRD start 3073 / 3012 pass / **11 fail** / 50 skipped, all pre-existing (`handoff-e2e` ×4, `devflow-watch` ×4, `org-awareness-cli` ×2, `awareness` ×1). After this TRD the harness suite contributes 37 passing tests and no new failures.
+- **`npm test` (explicitly NOT a gate):**
+  - Baseline at TRD start: **3073 tests / 3012 pass / 11 fail / 50 skipped** — `handoff-e2e` ×4, `devflow-watch` ×4, `org-awareness-cli` ×2, `awareness` ×1.
+  - After this TRD: **3098 tests / 3038 pass / 10 fail / 50 skipped** — `initiatives-cli` ×12 assertions, `devflow-watch` ×5, `handoff-e2e` ×4, `awareness` ×1. All pre-existing; the set shifts run-to-run because those are process-spawning CLI tests, which is why `npm test` is not this TRD's gate. All 37 harness tests pass inside the full run (7/7 describes green); the +25 tests are this TRD's 21 new cases plus 34-01's/34-02's.
 
 ## CI: this job must be added to branch protection
 
