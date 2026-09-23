@@ -356,3 +356,31 @@ test('Case Y12 — the module is require-able with zero side effects and pulls i
   );
   assert.deepStrictEqual(Object.keys(manifest.dependencies), ['node-pty']);
 });
+
+// ─── Audit cases (beyond the planned Y1-Y12) ──────────────────────────────────
+//
+// The TRD requires the SUMMARY to state that no construct is "neither supported nor refused".
+// Auditing for that turned up two silent mis-parses that the planned test list did not name,
+// so they are pinned here rather than written up as a caveat.
+
+test('Case Y13 — a quoted block key is unquoted, like a quoted flow key already was', () => {
+  // Before this case, `"a b": 1` parsed to { '"a b"': 1 } — the quotes ended up IN the key,
+  // silently, while the same key inside a flow map came out clean. Two spellings, two answers.
+  assert.deepStrictEqual(parseYamlLite('"a b": 1\n'), { 'a b': 1 });
+  assert.deepStrictEqual(parseYamlLite("'a b': 1\n"), { 'a b': 1 });
+  assert.deepStrictEqual(parseYamlLite('"a: b": 1\n'), { 'a: b': 1 });
+  assert.deepStrictEqual(parseYamlLite('a: {"x y": 1}\n'), { a: { 'x y': 1 } });
+});
+
+test('Case Y14 — nested inline sequences, document markers and explicit keys are refused by name', () => {
+  // Before this case, `- - x` parsed to the STRING '- x' — the exact failure mode this parser
+  // exists to prevent: neither supported nor refused.
+  refuses(['a:', '  - - x', ''].join('\n'), { line: 2, match: /nested inline (block )?sequence/i });
+
+  refuses(['---', 'surface: rail', ''].join('\n'), { line: 1, match: /document marker/i });
+  refuses(['surface: rail', '...', ''].join('\n'), { line: 2, match: /document marker/i });
+  refuses(['? complex', ': value', ''].join('\n'), { line: 1, match: /explicit key/i });
+
+  // And a document whose top level is not a mapping says so, instead of blaming indentation.
+  refuses('just a bare scalar\n', { line: 1, match: /top level|mapping/i });
+});
