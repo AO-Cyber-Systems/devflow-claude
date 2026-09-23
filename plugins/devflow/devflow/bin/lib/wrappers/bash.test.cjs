@@ -45,6 +45,44 @@ describe('wrappers/bash.cjs — Group BW', () => {
     assert.ok(!init.some((l) => l.includes('stty -echo')), 'pipe mode skips stty');
   });
 
+  // Issue #95. `stty -echo` silences the tty driver and nothing readline writes
+  // itself; readline >= 8.1 brackets every line it reads in ESC[?2004h /
+  // ESC[?2004l, which lands inside the sentinel-fenced capture region on every
+  // current Linux bash. The mode has to be turned off at the source, and this
+  // asserts the directive is actually issued — the capture-side strip in
+  // watcher-shell.cjs would otherwise hide its absence.
+  test('BW-5b initLines("pty") disables readline bracketed-paste (bash)', () => {
+    const init = bash.initLines('pty');
+    assert.ok(
+      init.some((l) => /bind\s+'set enable-bracketed-paste off'/.test(l)),
+      'pty init must turn readline bracketed-paste off'
+    );
+  });
+
+  test('BW-5c initLines("pty") also disables zsh bracketed-paste (zsh routes here)', () => {
+    const init = bash.initLines('pty');
+    assert.ok(
+      init.some((l) => /unset zle_bracketed_paste/.test(l)),
+      'pty init must unset zle_bracketed_paste for the zsh callers of this wrapper'
+    );
+  });
+
+  test('BW-5d bracketed-paste directives run BEFORE the prompt/monitor lines', () => {
+    // They must take effect before anything else is read, or the lines that
+    // follow are themselves bracketed.
+    const init = bash.initLines('pty');
+    const bindAt = init.findIndex((l) => l.includes('enable-bracketed-paste'));
+    const ps1At = init.findIndex((l) => l.startsWith("PS1="));
+    assert.ok(bindAt >= 0 && ps1At >= 0);
+    assert.ok(bindAt < ps1At, 'bracketed-paste must be disabled before later init lines are read');
+  });
+
+  test('BW-6b initLines("pipe") does NOT touch bracketed-paste (no TTY, no readline)', () => {
+    const init = bash.initLines('pipe');
+    assert.ok(!init.some((l) => l.includes('bracketed-paste')), 'pipe mode has no line editor');
+    assert.ok(!init.some((l) => l.includes('zle_bracketed_paste')), 'pipe mode has no zle');
+  });
+
   test('BW-7 shellArgs(true) returns ["-i"]; shellArgs(false) returns []', () => {
     assert.deepEqual(bash.shellArgs(true), ['-i']);
     assert.deepEqual(bash.shellArgs(false), []);

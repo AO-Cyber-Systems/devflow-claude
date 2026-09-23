@@ -491,3 +491,77 @@ describe('watcher-shell — Group W: cross-shell integration (TRD 20-05)', () =>
     assert.equal(r.stderr, '');
   });
 });
+
+// =============================================================================
+// Group BP — readline bracketed-paste pollution of the fenced capture (#95)
+// =============================================================================
+//
+// These run on EVERY platform, on the real buffers ubuntu-latest produced, so
+// the mechanism is pinned somewhere a macOS developer can see it. The PTY-*
+// tests above only expose it on a bash with readline >= 8.1; macOS ships bash
+// 3.2 / readline 6.x, which has no bracketed-paste mode at all — which is how
+// this shipped to Linux users unseen until CI first ran the suite.
+//
+//   BP-1: the exact stdout region CI captured for `echo hello` normalizes to 'hello\n'
+//   BP-2: the exact stderr region CI captured for a clean run normalizes to ''
+//   BP-3: a blank line the COMMAND produced is preserved (no over-stripping)
+//   BP-4: ESC[200~ / ESC[201~ paste delimiters are removed
+//   BP-5: a buffer with no ESC at all is returned unchanged
+//   BP-6: end-to-end through splitDispatchOutput on a full polluted PTY buffer
+// =============================================================================
+
+describe('watcher-shell — bracketed-paste capture hygiene (issue #95)', () => {
+  const { stripBracketedPaste, splitDispatchOutput } = require('./watcher-shell.cjs');
+
+  // What _tryComplete does to a PTY capture, in order. The strip MUST precede
+  // the \r\n collapse: the artifact carries its own CRLF.
+  const normalizePTY = (s) => stripBracketedPaste(s).replace(/\r\n/g, '\n');
+
+  // The artifact's own terminator is `\r\r\n`, not `\r\n`: readline writes a
+  // carriage return and the PTY's ONLCR expands the newline into a second one.
+  // Captured verbatim off a bash 5.2 PTY (node:22 image, aarch64). Getting this
+  // wrong is not cosmetic — matching only `\r\n` leaves a stray `\n` per line
+  // and the capture is still not the command's output.
+  const BP = '\x1B[?2004h\x1B[?2004l\r\r\n';
+
+  test('BP-1: the Linux capture of "echo hello" normalizes to "hello\\n"', () => {
+    const captured = `${BP}hello\r\n${BP}`;
+    assert.equal(normalizePTY(captured), 'hello\n');
+  });
+
+  test('BP-2: the Linux capture of a clean stderr region normalizes to ""', () => {
+    const captured = `${BP}${BP}`;
+    assert.equal(normalizePTY(captured), '');
+  });
+
+  test('BP-2b: the plain \\r\\n form is stripped too (terminals without ONLCR)', () => {
+    const captured = '\x1B[?2004h\x1B[?2004l\r\nhello\n\x1B[?2004h\x1B[?2004l\r\n';
+    assert.equal(normalizePTY(captured), 'hello\n');
+  });
+
+  test('BP-3: a blank line produced by the command survives the strip', () => {
+    // The line terminator is consumed only as the disable sequence's own. A
+    // bare \r\n from `printf 'a\n\nb\n'` has no escape in front of it.
+    const captured = `${BP}a\r\n\r\nb\r\n${BP}`;
+    assert.equal(normalizePTY(captured), 'a\n\nb\n');
+  });
+
+  test('BP-4: ESC[200~ / ESC[201~ paste delimiters are removed', () => {
+    assert.equal(stripBracketedPaste('\x1B[200~pasted\x1B[201~'), 'pasted');
+  });
+
+  test('BP-5: a buffer with no escape byte is returned unchanged', () => {
+    const clean = 'a\nb\nc\n';
+    assert.equal(stripBracketedPaste(clean), clean);
+  });
+
+  test('BP-6: a full polluted PTY buffer splits and normalizes to clean streams', () => {
+    const begin = '__DFW_BEGIN_bp-6__';
+    const delim = '__DFW_DELIM_bp-6__';
+    const end = '__DFW_END_bp-6__';
+    const buf = `${BP}${begin}\r\n${BP}hello\r\n${BP}${delim}\r\n${BP}oops\r\n${BP}${end}:0\r\n`;
+    const r = splitDispatchOutput(buf, begin, delim, end);
+    assert.equal(normalizePTY(r.stdout), 'hello\n');
+    assert.equal(normalizePTY(r.stderr), 'oops\n');
+  });
+});

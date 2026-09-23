@@ -273,12 +273,15 @@ class ShellSession extends EventEmitter {
     // Split the stdout buffer into the three sections fenced by
     // BEGIN / DELIM / END sentinels.
     let { stdout, stderr } = splitDispatchOutput(this._stdoutBuf, d.begin, d.delim, d.end);
-    // PTY mode normalization: PTY emits \r\n line endings (PTY cooked-mode
-    // convention). Strip the \r so the result shape is byte-identical to
-    // pipe-mode output. Pipe mode never emits \r so this is a no-op there.
+    // PTY mode normalization: drop readline's bracketed-paste artifacts (see
+    // stripBracketedPaste — they carry their own CRLF, so this MUST run before
+    // the \r\n collapse below or it leaves blank lines behind), then strip the
+    // \r of the PTY's cooked-mode line endings so the result shape is
+    // byte-identical to pipe-mode output. Pipe mode has neither, so neither
+    // step exists there.
     if (this._isPTY) {
-      stdout = stdout.replace(/\r\n/g, '\n');
-      stderr = stderr.replace(/\r\n/g, '\n');
+      stdout = stripBracketedPaste(stdout).replace(/\r\n/g, '\n');
+      stderr = stripBracketedPaste(stderr).replace(/\r\n/g, '\n');
     }
     // Trim everything up through the END line.
     this._stdoutBuf = trimAfter(this._stdoutBuf, d.end);
@@ -425,6 +428,54 @@ function escapeRegex(s) {
 }
 
 /**
+ * readline's bracketed-paste artifacts, as they appear inside a PTY capture.
+ *
+ * Since readline 8.1 (every current Linux bash; NOT macOS's bash 3.2) the line
+ * editor turns bracketed-paste mode on before reading a line and off when it
+ * accepts one, and the accept is followed by the CRLF it writes itself. On the
+ * wire, one line read looks like:
+ *
+ *   ESC[?2004h            enable, written before the read
+ *   ESC[?2004l \r\r\n     disable + accept-line newline
+ *
+ * Both of those sit between the BEGIN and DELIM sentinels of the dispatch
+ * wrapper, which is why captured stdout on Linux was
+ * `ESC[?2004hESC[?2004l\r\r\nhello\r\n…` rather than `hello\n` (issue #95).
+ *
+ * The line terminator is consumed WITH the disable sequence and only there: it
+ * is the artifact's own terminator, not output. Note the DOUBLE carriage
+ * return — readline writes its own `\r` and the PTY's ONLCR then turns the `\n`
+ * into `\r\n`. Captured verbatim from a bash 5.2 PTY; matching only `\r\n` here
+ * leaves a stray newline behind and the capture is still wrong, so the pattern
+ * allows any run of `\r`. A blank line produced by the command is a bare `\r\n`
+ * with no escape in front of it and survives untouched.
+ *
+ * ESC[200~ / ESC[201~ are the paste delimiters the terminal injects around
+ * pasted text when the mode is on; they are stripped for the same reason.
+ *
+ * This is the SECOND layer. The first is wrappers/bash.cjs initLines('pty'),
+ * which turns the mode off at the source — a denylist cannot know about the
+ * next readline feature, so it is defence in depth and not the fix.
+ */
+const BRACKETED_PASTE_RX = /\x1b\[\?2004[hl](?:\r*\n)?|\x1b\[20[01]~/g;
+
+function stripBracketedPaste(s) {
+  return s.indexOf('\x1b') === -1 ? s : s.replace(BRACKETED_PASTE_RX, '');
+}
+
+/**
+ * Drop CSI / OSC escape sequences from a line so its *content* can be compared.
+ * Used by the PTY readiness probe, which matches a line by equality and must
+ * not be defeated by whatever the terminal decided to wrap it in.
+ */
+function stripAnsi(s) {
+  return s
+    .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, '')
+    .replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, '')
+    .replace(/[\r\x00]/g, '');
+}
+
+/**
  * Split a stdout buffer fenced by BEGIN / DELIM / END sentinels into
  * { stdout, stderr } sections. Each section is the content of the lines
  * BETWEEN its bounding sentinels (exclusive of the sentinel lines).
@@ -470,4 +521,11 @@ function trimAfter(buf, end) {
   return buf.slice(eol + 1);
 }
 
-module.exports = { ShellSession, ShellSessionClosed, splitDispatchOutput, UnsupportedShell };
+module.exports = {
+  ShellSession,
+  ShellSessionClosed,
+  splitDispatchOutput,
+  stripBracketedPaste,
+  stripAnsi,
+  UnsupportedShell,
+};
