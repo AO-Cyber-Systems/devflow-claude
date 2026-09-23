@@ -227,6 +227,42 @@ function splitCalls(block, opts = {}) {
   return calls;
 }
 
+// ─── Containment ──────────────────────────────────────────────────────────────────────
+
+// Absolute paths mentioned in a call's TEXT. Deliberately conservative: a `/…` token at
+// the start, or after whitespace or a shell delimiter. `//…` is skipped so `https://x`
+// is not read as a path.
+const ABS_PATH_RE = /(?:^|[\s='"(\[{<>|&;`])(\/(?!\/)[^\s'"`;|&()\[\]{}<>]*)/g;
+
+// Read-only system prefixes a contained call may legitimately name: interpreters, system
+// binaries, /dev/null. Everything else outside the scratch root is a containment finding.
+const SYSTEM_PREFIXES = ['/bin/', '/sbin/', '/usr/', '/opt/', '/etc/', '/dev/', '/Library/', '/System/', '/Applications/'];
+
+function absolutePathsIn(text) {
+  const out = [];
+  ABS_PATH_RE.lastIndex = 0;
+  let m;
+  while ((m = ABS_PATH_RE.exec(text)) !== null) out.push(m[1]);
+  return out;
+}
+
+// Containment is TWO mechanisms, and the SUMMARY states both plus their limits:
+//   (1) HOME and TMPDIR are set inside the scratch root, so tooling that writes to a
+//       cache or a temp file stays inside it;
+//   (2) this static scan of the call TEXT, which blocks the call before it runs.
+// What it cannot catch, stated plainly: a path BUILT at runtime (`d=$(echo /tmp); touch
+// "$d/x"`), a relative escape (`../../x`), a path reached through a symlink inside the
+// root, and anything a process it spawns does on its own. A stated limit is a limit; an
+// unstated one is a false green.
+function containmentFindings(callText, root, allowOutside) {
+  const allowed = SYSTEM_PREFIXES.concat(allowOutside || []);
+  const offenders = absolutePathsIn(callText).filter(p => {
+    if (p === root || p.startsWith(root + '/')) return false;
+    return !allowed.some(prefix => p === prefix.replace(/\/$/, '') || p.startsWith(prefix));
+  });
+  return [...new Set(offenders)];
+}
+
 // ─── The runtime model ────────────────────────────────────────────────────────────────
 
 // Every call gets its own 10s budget. An interactive command must become a FINDING, not
@@ -300,6 +336,28 @@ function runSection(calls, opts = {}) {
       HOME: home,
       TMPDIR: tmpdir,
     };
+
+    // Containment is a PRE-check: an offending call is blocked, not executed and then
+    // regretted. A harness that will one day run in CI against a file someone just
+    // edited must not be the thing that writes outside its own scratch root.
+    const offenders = containmentFindings(callText, root, opts.allowOutside);
+    if (offenders.length) {
+      for (const p of offenders) {
+        rec.findings.push({
+          type: 'containment',
+          index: rec.index,
+          line: rec.line,
+          call: callText,
+          path: p,
+          message:
+            `call ${rec.index + 1} names an absolute path outside the scratch root: ${p} ` +
+            `(root=${root}). The call was BLOCKED and not executed: \`${callText}\``,
+        });
+      }
+      rec.status = 'blocked';
+      results.push(rec);
+      continue;   // cwd is unchanged: a blocked call moves nothing
+    }
 
     try { fs.unlinkSync(cwdFile); } catch { /* first call, or already gone */ }
     try { fs.unlinkSync(errFile); } catch { /* ditto */ }
