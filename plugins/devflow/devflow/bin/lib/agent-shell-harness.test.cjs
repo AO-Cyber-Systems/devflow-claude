@@ -858,3 +858,79 @@ test.describe('agent-shell-harness — the `# harness:` annotation vocabulary (A
   });
 
 });
+
+// ══════════════════════════════════════════════════════════════════════════════════════
+// The real file (R). R4 and R5 are written and asserted BEFORE the verdict cases: a green
+// R1 on a section the harness could not parse — or could never fail — is the wave-0
+// lag-check defect reproduced inside the tool built to prevent it.
+// ══════════════════════════════════════════════════════════════════════════════════════
+
+const EXECUTOR_MD = path.resolve(__dirname, '..', '..', '..', 'agents', 'executor.md');
+const SECTIONS = [
+  '## Flutter UI bootstrap detector (REQ-10-07)',
+  '## Flutter UI per-task verification (REQ-10-04)',
+  '## Flutter UI post-all-tasks verification (REQ-10-04)',
+];
+
+test.describe('agent-shell-harness — the real agents/executor.md (R)', () => {
+
+  // R4 — the anti-vacuity guard. Two halves: the harness must find a non-trivial number
+  // of calls in each section (a harness that finds nothing and reports green IS the
+  // defect), and it must not over-collect — `executor.md`'s `##` headings live inside
+  // `<step>` elements, and a section that runs past its `</step>` swallows the git commit
+  // protocol and the state-advance block, neither of which is Flutter verification.
+  test('Case R4 — each section yields a real, BOUNDED set of calls', () => {
+    const md = fs.readFileSync(EXECUTOR_MD, 'utf-8');
+    let total = 0;
+    const counts = {};
+
+    for (const section of SECTIONS) {
+      const ex = harness.extractBashBlocks(md, section);
+      assert.strictEqual(ex.ok, true, `${section} must be found with bash in it: ${ex.error || ex.missing}`);
+      const calls = ex.blocks.flatMap(b => harness.splitCalls(b));
+      assert.ok(calls.length >= 1, `${section} must yield at least one call`);
+      counts[section] = calls.length;
+      total += calls.length;
+
+      // Over-collection is as bad as under-collection: it makes the section's verdict a
+      // statement about prose the section does not own.
+      const text = calls.map(c => c.call).join('\n');
+      for (const foreign of ['git add ', 'git commit', 'state advance-job', 'PLAN_START_TIME',
+        'roadmap update-job-progress', 'trd-tdd inspect']) {
+        assert.ok(!text.includes(foreign),
+          `${section} must stop at its own </step>: it captured \`${foreign}\``);
+      }
+    }
+
+    assert.ok(total >= 12, `the three sections must total at least 12 calls, got ${total}`);
+    // The measured counts, recorded so a later prose edit that deletes half the blocks
+    // trips this rather than quietly shrinking the gate.
+    assert.deepStrictEqual(counts, {
+      '## Flutter UI bootstrap detector (REQ-10-07)': 8,
+      '## Flutter UI per-task verification (REQ-10-04)': 6,
+      '## Flutter UI post-all-tasks verification (REQ-10-04)': 11,
+    });
+  });
+
+  // R5 — the differential control. Without it, R1-R3 passing proves the harness is
+  // permissive, not that the prose is correct. Never mutate the real file: a crashed
+  // test would leave the agent file broken.
+  test('Case R5 — a deliberately broken COPY of executor.md FAILS', () => {
+    const src = fs.readFileSync(EXECUTOR_MD, 'utf-8');
+    const subshell = '( cd "$PACKAGE_DIR" && flutter test <path/to/test.dart> )';
+    const bare = 'cd "$PACKAGE_DIR" && flutter test <path/to/test.dart>';
+    assert.ok(src.includes(subshell), 'the prose under test must still contain the subshell form');
+
+    const root = makeScratchRepo();
+    const broken = path.join(root, 'broken-executor.md');
+    fs.writeFileSync(broken, src.replace(subshell, bare));
+
+    const res = harness.checkSection(broken, SECTIONS[1], {
+      root, pathPrepend: factory.stubBinDir(),
+    });
+    assert.strictEqual(res.ok, false, 'the harness must be able to FAIL the file it checks');
+    assert.ok(res.findings.some(f => f.type === 'cwd-leak'),
+      'and it must fail it for the RIGHT reason — the bare `cd` leaking the cwd');
+  });
+
+});
