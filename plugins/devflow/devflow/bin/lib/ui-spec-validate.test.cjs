@@ -206,3 +206,109 @@ test('Case I1c — schema_version out of range is SPEC002 and SHORT-CIRCUITS eve
   assert.strictEqual(result.ok, false);
   assert.strictEqual(result.schema_version, 99);
 });
+
+// ─── I2: routes ───────────────────────────────────────────────────────────────
+//
+// Two of the five known-broken fixtures live here. Each is `cp projects-rail.md` plus ONE edit
+// plus its `<!-- BROKEN: … -->` marker, so the ONLY difference from the positive control is the
+// invariant under test — and case I3h holds every one of them to a single code.
+
+const BROKEN_DIR = path.join(FIXTURE_DIR, 'broken');
+
+function loadBroken(name) {
+  const file = path.join(BROKEN_DIR, name);
+  return parseSurfaceSpec(fs.readFileSync(file, 'utf-8'), { source: file });
+}
+
+/** The code a fixture's own `<!-- BROKEN: … expected code XXXNNN -->` marker names. */
+function declaredCode(body) {
+  const m = /BROKEN:[\s\S]*?expected code ([A-Z]+[0-9]{3})/.exec(body);
+  return m ? m[1] : null;
+}
+
+test('Case I2a — route-without-back.md fails with exactly ROUTE002', () => {
+  const result = validateSurfaceSpec(loadBroken('route-without-back.md').frontMatter, ctx());
+
+  assert.deepStrictEqual(codesOf(result), ['ROUTE002'], JSON.stringify(result.errors));
+  assert.strictEqual(result.errors.length, 1);
+  assert.strictEqual(result.errors[0].path, 'routes[0].back');
+  assert.match(result.errors[0].msg, /project\.conversations/);
+  assert.match(result.errors[0].msg, /root/);
+});
+
+test('Case I2b — a route with root:true and no back is NOT an error (the declared-root exemption)', () => {
+  // The positive control's second route is exactly this shape and V1 already covers it; assert
+  // it directly too, because ROUTE002 written without the exemption reddens V1 for the wrong
+  // reason and the diagnosis then costs an hour.
+  const spec = loadPositiveControl();
+  assert.strictEqual(spec.routes[1].root, true);
+  assert.strictEqual('back' in spec.routes[1], false);
+
+  const result = validateSurfaceSpec(spec, ctx());
+  assert.ok(!result.errors.some((e) => e.path.startsWith('routes[1]')), JSON.stringify(result.errors));
+
+  // And the exemption is `root: true` ONLY — not "any truthy root key".
+  const notRoot = mutate(spec, (s) => {
+    s.routes[1].root = false;
+  });
+  assert.deepStrictEqual(codesOf(validateSurfaceSpec(notRoot, ctx())), ['ROUTE002']);
+});
+
+test('Case I2c — an empty entry list is exactly ROUTE001; an ABSENT one is ROUTE001 too', () => {
+  const empty = mutate(loadPositiveControl(), (s) => {
+    s.routes[0].entry = [];
+  });
+  const emptyResult = validateSurfaceSpec(empty, ctx());
+  assert.deepStrictEqual(codesOf(emptyResult), ['ROUTE001'], JSON.stringify(emptyResult.errors));
+  assert.strictEqual(emptyResult.errors[0].path, 'routes[0].entry');
+
+  // Absent is the same rule at the same node, and the schema's `required` says so too. One
+  // node, one verdict: the specific code wins and SPEC001 is dropped at that path.
+  const absent = mutate(loadPositiveControl(), (s) => {
+    delete s.routes[0].entry;
+  });
+  const absentResult = validateSurfaceSpec(absent, ctx());
+  assert.deepStrictEqual(codesOf(absentResult), ['ROUTE001'], JSON.stringify(absentResult.errors));
+  assert.strictEqual(absentResult.errors[0].path, 'routes[0].entry');
+});
+
+test('Case I2d — entry-control-unknown.md is exactly ROUTE003, naming route and entry index', () => {
+  const result = validateSurfaceSpec(loadBroken('entry-control-unknown.md').frontMatter, ctx());
+
+  assert.deepStrictEqual(codesOf(result), ['ROUTE003'], JSON.stringify(result.errors));
+  assert.strictEqual(result.errors.length, 1);
+
+  const e = result.errors[0];
+  assert.strictEqual(e.path, 'routes[0].entry[0]'); // the offending route and entry INDEX
+  assert.match(e.msg, /project\.conversations/); // ... and the route by ID, for a human
+  assert.match(e.msg, /rail\.project\.missing/);
+
+  // The honest answer for an id this engine cannot resolve: MISSING, not silence and not a
+  // claim the control does not exist. W2's repo-wide resolution replaces this branch.
+  assert.match(e.msg, /MISSING/);
+});
+
+test('Case I2e — a bare string in `entry` (deeplink) is VALID, not an unresolvable control', () => {
+  const spec = loadPositiveControl();
+  assert.strictEqual(spec.routes[0].entry[1], 'deeplink');
+  assert.strictEqual(spec.routes[1].entry[0], 'deeplink');
+
+  // Both routes' bare-string entries, and no {control: …} left anywhere to resolve.
+  const onlyStrings = mutate(spec, (s) => {
+    s.routes[0].entry = ['deeplink', 'browser-back'];
+  });
+  assert.deepStrictEqual(codesOf(validateSurfaceSpec(onlyStrings, ctx())), [], JSON.stringify(validateSurfaceSpec(onlyStrings, ctx()).errors));
+});
+
+test('Case I2f — a local unresolvable control reports UNRESOLVED, not MISSING', () => {
+  // Prefixed by this surface's own id, so it cannot be living in another spec: this engine
+  // KNOWS it is absent, and says so in different words from the cross-surface case.
+  const spec = mutate(loadPositiveControl(), (s) => {
+    s.routes[0].entry[0] = { control: 'projects-rail.nope' };
+  });
+  const result = validateSurfaceSpec(spec, ctx());
+
+  assert.deepStrictEqual(codesOf(result), ['ROUTE003'], JSON.stringify(result.errors));
+  assert.match(result.errors[0].msg, /UNRESOLVED/);
+  assert.doesNotMatch(result.errors[0].msg, /MISSING/);
+});
