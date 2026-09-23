@@ -888,7 +888,34 @@ Two of these were in gates written *that same day, specifically to prevent false
    different runner or different data than the gate uses is evidence about the measurer, not the
    gate. State the environment alongside the number, or the number is not a result.
 
-### 22.3 The honest caveat
+### 22.3 Five more, found after this section was written
+
+§22.1 was written at seven instances. Within the same day it reached twelve, and
+the five below are worth listing separately because they are **different in kind** —
+they are not checks in the ordinary sense, which is the point. The rule is not
+about test assertions; it is about anything whose output a reader treats as a
+verdict.
+
+| # | The thing | "fine" and "could not tell" were both… |
+|---|---|---|
+| 8 | aodex's fault-seam gate, take two | every PASS line printed — while it enumerated **2 of 6** shipped binaries, so a seam in `cmd/migrate` passed unseen |
+| 9 | the golden **regeneration workflow step** | nothing uploaded — the regenerate step sat after an unconditional comparison that fails by definition whenever regeneration is needed, so the recovery path could only run when it was not needed |
+| 10 | `.gitignore`'s golden re-include | baselines absent — `!test/**/goldens/*.png` matched one level above where the job writes, so the gate compared at tolerance 0 against files the repo forbade storing. **Nobody had ever had a baseline, and the reason was not that nobody generated one** |
+| 11 | aodex's chromedp gate | `0 matching packages` — whether the closure was clean or `go list` had failed outright. A package that does not exist scored 0 and printed PASS |
+| 12 | a CI run that is "not green" | one word — covering `failure`, `cancelled`, and *cancelled by supersession when a newer push arrived*. Only the first means something is wrong |
+
+Instances 9 and 10 are the sharpest, because neither is a test. One is the order of
+two steps in a workflow; the other is a glob one asterisk short. Both produced a
+confident, wrong verdict for the entire life of the feature they gated — and both
+were found only by asking why an expected artifact was *absent*, which is the same
+question §22.2(2) says to make expensive.
+
+Instance 12 is the one to watch for in reporting rather than in code: three distinct
+outcomes collapse into "CI isn't green", and an agent or a person who does not open
+the run will act on the wrong one. It was caught here only because a subagent
+checked the conclusion field instead of the colour.
+
+### 22.4 The honest caveat
 
 W1a's reported figures — "4,840 passing, analyze at baseline" and similar, repeated through the
 wave — were measured on Flutter 3.41.9 while CI pins 3.47.4. The work appears sound; the
