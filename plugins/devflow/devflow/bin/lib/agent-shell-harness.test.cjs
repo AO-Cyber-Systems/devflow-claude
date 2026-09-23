@@ -577,8 +577,9 @@ test.describe('agent-shell-harness — the scratch monorepo and the stubs (F)', 
     fs.rmSync(path.join(pkg, 'build/integration_test_screenshots'), { recursive: true, force: true });
     run('flutter', ['drive', '--driver=test_driver/integration_test.dart',
       '--target=integration_test/app_test.dart', '-d', 'chrome']);
-    assert.ok(fs.existsSync(path.join(pkg, 'build/integration_test_screenshots/shot.png')),
-      'flutter drive emits the web screenshots');
+    assert.ok(fs.existsSync(path.join(pkg, 'build/integration_test_screenshots/web-shot.png')),
+      'flutter drive emits the WEB screenshots under their own name, so the web and '
+      + 'mobile evidence moves in executor.md are each independently falsifiable');
 
     const junit = path.join(root, '.planning/objectives/34-demo/evidence/maestro.xml');
     fs.mkdirSync(path.dirname(junit), { recursive: true });
@@ -906,7 +907,7 @@ test.describe('agent-shell-harness — the real agents/executor.md (R)', () => {
     // The measured counts, recorded so a later prose edit that deletes half the blocks
     // trips this rather than quietly shrinking the gate.
     assert.deepStrictEqual(counts, {
-      '## Flutter UI bootstrap detector (REQ-10-07)': 8,
+      '## Flutter UI bootstrap detector (REQ-10-07)': 5,
       '## Flutter UI per-task verification (REQ-10-04)': 6,
       '## Flutter UI post-all-tasks verification (REQ-10-04)': 11,
     });
@@ -932,5 +933,22 @@ test.describe('agent-shell-harness — the real agents/executor.md (R)', () => {
     assert.ok(res.findings.some(f => f.type === 'cwd-leak'),
       'and it must fail it for the RIGHT reason — the bare `cd` leaking the cwd');
   });
+
+  // R1-R3 — the deliverable. The CURRENT `agents/executor.md` Flutter sections, executed
+  // under the real Bash-tool model against a hand-built monorepo and argument-checking
+  // stubs. Only meaningful because R4 proved the harness found the blocks and R5 proved
+  // it can fail.
+  for (const [caseName, section] of [['R3', SECTIONS[0]], ['R1', SECTIONS[1]], ['R2', SECTIONS[2]]]) {
+    test(`Case ${caseName} — ${section} passes end-to-end`, () => {
+      const root = makeScratchRepo();
+      const res = harness.checkSection(EXECUTOR_MD, section, { root, pathPrepend: factory.stubBinDir() });
+      assert.strictEqual(res.missing, null, `MISSING: ${res.missing}`);
+      assert.strictEqual(res.ok, true,
+        'findings: ' + JSON.stringify(res.findings.map(f => ({ type: f.type, line: f.line, m: f.message })), null, 2));
+      assert.ok(res.calls.length >= 1);
+      assert.ok(res.calls.every(c => c.status === 0 || c.status === c.expected_status),
+        'every call ended on the status its prose declares');
+    });
+  }
 
 });

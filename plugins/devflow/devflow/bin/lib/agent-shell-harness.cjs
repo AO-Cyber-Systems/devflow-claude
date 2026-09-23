@@ -33,6 +33,15 @@ const { pluginVersion } = require('./helpers.cjs');
 const FENCE_RE = /^ {0,3}(`{3,}|~{3,})(.*)$/;
 const ATX_RE = /^(#{1,6})\s+(.*)$/;
 
+// DevFlow agent prose is markdown INSIDE an XML skeleton: `agents/executor.md`'s
+// `## Flutter UI …` headings all live inside `<step name="…">` elements, and there is no
+// sibling `##` after the last of them. Bounding a section only by the next heading of the
+// same-or-higher level therefore ran the post-all-tasks section to the end of the file —
+// it swallowed the git commit protocol, the state-advance block and the SUMMARY template,
+// twenty calls of prose that section does not own, and whose verdict says nothing about
+// Flutter verification. A close tag at column 0 is the document's real structural edge.
+const CLOSE_TAG_RE = /^<\/[A-Za-z_][A-Za-z0-9_-]*>\s*$/;
+
 // Section matching rule (documented, because 34-10 names real agents/executor.md headings
 // against it): the `section` argument is normalised by stripping its leading `#`s and
 // whitespace, and every ATX heading in the document is normalised the same way. An EXACT
@@ -47,6 +56,7 @@ function normalizeHeading(s) {
 function scanDocument(lines) {
   const headings = [];
   const fences = [];
+  const closeTags = [];
   let open = null;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -62,6 +72,7 @@ function scanDocument(lines) {
       open = { char: fm[1][0], len: fm[1].length, info: fm[2].trim(), line: i + 1, index: i };
       continue;
     }
+    if (CLOSE_TAG_RE.test(line)) { closeTags.push(i); continue; }
     const hm = line.match(ATX_RE);
     if (hm) headings.push({ level: hm[1].length, text: hm[2].trim(), index: i });
   }
@@ -69,7 +80,7 @@ function scanDocument(lines) {
   if (open) {
     fences.push({ info: open.info, startLine: open.line, openIndex: open.index, bodyStart: open.index + 1, bodyEnd: lines.length });
   }
-  return { headings, fences };
+  return { headings, fences, closeTags };
 }
 
 /**
@@ -88,7 +99,7 @@ function extractBashBlocks(md, section) {
   }
   const wanted = normalizeHeading(section);
   const lines = md.split('\n');
-  const { headings, fences } = scanDocument(lines);
+  const { headings, fences, closeTags } = scanDocument(lines);
 
   let match = 'exact';
   let heading = wanted ? headings.find(h => h.text === wanted) : undefined;
@@ -102,8 +113,13 @@ function extractBashBlocks(md, section) {
 
   // The section ends at the next heading of the SAME OR HIGHER level (lower `level`
   // number == higher level). A deeper subheading stays inside the section.
+  // …or at the close of the XML element the heading sits in, whichever comes FIRST.
   const next = headings.find(h => h.index > heading.index && h.level <= heading.level);
-  const endIndex = next ? next.index : lines.length;
+  const close = closeTags.find(i => i > heading.index);
+  const endIndex = Math.min(
+    next ? next.index : lines.length,
+    close == null ? lines.length : close,
+  );
 
   const blocks = fences
     .filter(f => f.openIndex > heading.index && f.openIndex < endIndex)

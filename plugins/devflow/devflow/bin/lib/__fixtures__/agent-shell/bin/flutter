@@ -80,7 +80,10 @@ switch (words[0]) {
         process.exit(1);
       }
     }
-    touch('build/integration_test_screenshots/shot.png');
+    // `flutter drive` is the WEB verifier and `flutter test integration_test/` the mobile
+    // one; they write distinctly-named screenshots so the two evidence `mv`s in
+    // executor.md can each be asserted on their own artifact.
+    touch('build/integration_test_screenshots/web-shot.png');
     process.exit(0);
     break;
   }
