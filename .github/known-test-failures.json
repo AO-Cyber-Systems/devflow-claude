@@ -1,0 +1,19 @@
+{
+  "$consumed-by": "scripts/ci-unit-gate.cjs",
+  "$what-an-entry-is": "A licence for ONE test, keyed by <repo-relative file>::<test name>, to fail without failing CI.",
+  "$rules": [
+    "A failure that is NOT on this list fails the gate. That is the whole point of the gate.",
+    "The list may only SHRINK. If a listed test PASSES, the gate fails until the entry is deleted — so a fix and its deletion land in the same PR.",
+    "Every reason must name a mechanism: what the test binds, spawns, writes, reads, or assumes about the machine or the calendar. The loader REJECTS the words 'flaky', 'intermittent' and 'unstable' — a failure with no named mechanism is indistinguishable from a real regression, which is how a real regression hides.",
+    "A test that is genuinely nondeterministic cannot satisfy the shrink-only ratchet, so it may set \"nondeterministic\": true to opt out of it. That is a bigger licence and costs more: such an entry MUST carry \"tracking\" (the issue where the defect is being fixed) and \"expires\" (an ISO date after which the gate fails). A quarantine with no meter is a parking space."
+  ],
+  "$fields": {
+    "file": "repo-relative path of the test file",
+    "test": "the test name exactly as the runner reports it",
+    "reason": "the mechanism — at least 40 characters, and not the word 'flaky'",
+    "nondeterministic": "optional; true opts the entry out of the shrink-only ratchet",
+    "tracking": "required when nondeterministic — the issue tracking the fix",
+    "expires": "required when nondeterministic — ISO date after which this entry fails the gate"
+  },
+  "entries": []
+}

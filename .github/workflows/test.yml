@@ -1,0 +1,68 @@
+# The unit suite — the gate that did not exist until issue #89.
+#
+# Before this file, `.github/workflows/` ran exactly ONE test file
+# (agent-shell-harness.test.cjs, and only on a path filter). `npm test` — 3,248
+# tests — was never executed by CI, so every green tick on every PR merged into
+# this repo to date said nothing whatsoever about the unit suite. Those merges
+# remain unverified at this layer; the clock starts here, it does not
+# retroactively cover them.
+#
+# Three properties this job is built to hold:
+#
+#   1. NO PATH FILTER. The harness workflow is path-filtered, which is a known
+#      false-green class in this fleet. This job runs on every push and every
+#      pull request, so "the job did not run" can never read as "the job passed".
+#
+#   2. IT CANNOT PASS BY NOT RUNNING. `node --test` exits 0 when its file
+#      patterns match nothing. scripts/ci-unit-gate.cjs asserts floors on the
+#      number of tests AND the number of distinct test files, and fails when the
+#      reporter produced no output at all.
+#
+#   3. THE GATE IS ITSELF GATED. The gate's own tests run first, as their own
+#      step, before the suite it guards — a broken gate fails loudly rather than
+#      waving the suite through. They are also inside `npm test`, so a change to
+#      the gate is checked twice.
+#
+# OUT OF BAND: this job must be added to branch protection as a REQUIRED check.
+# That is a repo setting, not a file in this tree. Until it is set, a PR can
+# still merge with this job red.
+name: Unit suite
+
+on:
+  push:
+  pull_request:
+
+# A superseded run tells you nothing about the tip; do not spend a runner on it.
+concurrency:
+  group: unit-suite-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test (npm test, gated)
+    runs-on: ubuntu-latest
+    # The suite takes ~10 min locally. A generous ceiling still fails rather than
+    # hanging the required check forever.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Run the gate's own tests BEFORE the gate runs the suite. If the gate's
+      # parsing, floors or allowlist ratchet are broken, that is a failure of the
+      # check itself and must not be reported as a suite result.
+      - name: Gate self-test
+        run: node --test scripts/ci-unit-gate.test.cjs
+
+      # Fails on: any undeclared test failure; any allowlist entry that passed
+      # (the list may only shrink); a suite that matched too few tests or files;
+      # or a runner that produced no report.
+      - name: Run the unit suite
+        run: node scripts/ci-unit-gate.cjs
