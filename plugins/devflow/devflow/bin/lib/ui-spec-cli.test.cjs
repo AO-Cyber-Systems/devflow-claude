@@ -633,3 +633,34 @@ test('Case L8 — `--at` defaults to today, and a locked spec still validates', 
   assert.strictEqual(validated.status, 0, validated.stdout);
   assert.strictEqual(parseStdout(validated).ok, true);
 });
+
+test('Case L9 — `ui lock` NEVER dies with a stack trace on a spec `ui spec validate` accepts', () => {
+  // Two documents that validate but that the raw-text splice used to choke on. Whatever the
+  // arm decides about them, the one thing it may not do is escape its own refusal contract:
+  // `{ok:false, code, msg}` -> one stderr line and exit 1. A stack trace tells the author
+  // nothing about the spec and everything about the tool.
+  const documents = {
+    // A BOM: `parseSurfaceSpec` strips it, so validation passed while the writer compared the
+    // first raw line against `---` and found `"﻿---"`.
+    bom: (text) => '﻿' + text,
+    // Mixed line endings: `parseSurfaceSpec` normalises them, the splice picks ONE.
+    mixedEol: (text) => text.replace('\n## Intent', '\r\n## Intent')
+  };
+
+  for (const [label, transform] of Object.entries(documents)) {
+    const file = lockTmpSpec(`l9-${label}.md`, (text) => transform(stripAcceptance(text)));
+
+    // Precondition, asserted rather than assumed: the arm that JUDGES the spec says it is fine.
+    const validated = runArm(`ui spec validate ${JSON.stringify(file)}`);
+    assert.strictEqual(parseStdout(validated).ok, true, `${label}: precondition — the spec must validate`);
+
+    const locked = runLock(file);
+    assert.doesNotMatch(locked.stderr, /node:internal|\bat [A-Za-z]+ \(/,
+      `${label}: ui lock must never print a stack trace — got:\n${locked.stderr}`);
+    assert.ok(locked.status === 0 || locked.status === 1,
+      `${label}: exit must be 0 (written) or 1 (refused), got ${locked.status}`);
+    if (locked.status === 1) {
+      assert.match(locked.stderr, /^Error: .+/m, `${label}: a refusal is a one-line Error: message`);
+    }
+  }
+});

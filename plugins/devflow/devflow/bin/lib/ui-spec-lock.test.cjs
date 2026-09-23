@@ -470,6 +470,51 @@ test('Case A7 — a `--by` that cannot be written on one line is a REFUSAL, not 
   }
 });
 
+test('Case A8 — a BOM-prefixed spec locks like any other, and keeps its BOM', () => {
+  // `parseSurfaceSpec` strips a leading BOM, so a BOM'd spec VALIDATES. The splice then re-read
+  // the raw bytes and compared `lines[0] !== '---'` against `"﻿---"`. The two halves
+  // disagreed about the same file: validation said yes, the writer threw — and because nothing
+  // caught it, `ui lock` died with a stack trace instead of its documented refusal.
+  const BOM = '﻿';
+  const file = specFile('rail.md', BOM + withoutAcceptance(positiveControlText()));
+
+  const res = lock.writeLock(file, { sheetHash: SHEET_HASH, by: BY, at: AT });
+  assert.strictEqual(res.ok, true, `writeLock refused a spec that validates: ${res.code} ${res.msg}`);
+
+  const after = fs.readFileSync(file, 'utf-8');
+  assert.ok(after.startsWith(BOM), 'the BOM the author had must survive — the writer edits the block, not the encoding');
+
+  const fm = frontMatterOf(file);
+  assert.strictEqual(fm.acceptance.locked_by, BY);
+  assert.strictEqual(lock.lockStatus(fm).lock, 'held');
+});
+
+test('Case A9 — a document the splice cannot navigate REFUSES; writeLock never throws', () => {
+  // The contract every caller codes against is `{ok:false, code, msg}` — `cmdUiLock` prints
+  // `msg` and exits 1. A throw escapes that contract entirely and reaches the user as a stack
+  // trace, which is the one output shape this CLI promises never to produce.
+  //
+  // The generator is a REAL divergence between the two halves, not a synthetic one:
+  // `parseSurfaceSpec` normalises every line ending before it parses, so a document with MIXED
+  // endings VALIDATES; the splice picks ONE end-of-line for the whole file and then cannot find
+  // the fence. Same file, two answers — exactly the class the BOM case belongs to.
+  const text = withoutAcceptance(positiveControlText());
+  const mixed = text.replace('\n## Intent', '\r\n## Intent');
+  assert.notStrictEqual(mixed, text, 'the generator must actually have introduced a CRLF');
+
+  const file = specFile('rail.md', mixed);
+  const before = fs.readFileSync(file, 'utf-8');
+
+  let res;
+  assert.doesNotThrow(() => { res = lock.writeLock(file, { sheetHash: SHEET_HASH, by: BY, at: AT }); },
+    'writeLock must return a refusal, never throw');
+
+  assert.strictEqual(res.ok, false, 'a document the splice cannot navigate is a refusal');
+  assert.strictEqual(typeof res.code, 'string', 'a refusal carries a code');
+  assert.ok(res.msg.length > 0, 'a refusal carries a message a human can act on');
+  assert.strictEqual(fs.readFileSync(file, 'utf-8'), before, 'a refusal writes nothing');
+});
+
 // ═════════════════════════════════════════════════════════════════════════════
 // P — the prose, ASSERTED rather than reviewed
 //
