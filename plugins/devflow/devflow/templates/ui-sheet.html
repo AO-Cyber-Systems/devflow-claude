@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Review sheet — {{SURFACE}}</title>
+<!--
+  The §8.3 review sheet template.
+
+  SELF-CONTAINED BY CONTRACT (case G7): no external stylesheet, no script tag, no font or
+  image fetched over the network. Everything is in this one file, so the sheet renders when
+  it is pasted into a Claude Artifact AND when it is opened from disk with no network at all.
+  A later edit that adds a CDN link breaks the offline half silently — G7's regex is what
+  stops it.
+
+  EDITING THIS FILE CANNOT CHANGE `sheet_hash`. The hash is the sha256 of the canonical
+  MODEL (bin/lib/ui-sheet.cjs), which never sees this template. That is deliberate: if the
+  hash tracked the markup, every CSS tweak here would invalidate a human's look-lock and the
+  lock would be re-approved without being read. Case H1 is the executable form of this
+  sentence — change the CSS freely; do not make the model depend on it.
+
+  Placeholders are literal `{{NAME}}` and are substituted by string split/join, not by a
+  template engine (there is no dependency here and there must not be one).
+-->
+<style>
+  :root {
+    --ink: #17191c;
+    --ink-soft: #55606b;
+    --rule: #d9dee4;
+    --ground: #ffffff;
+    --panel: #f6f8fa;
+    --missing: #a4262c;
+    --missing-ground: #fdf2f2;
+    --ok: #0f6d3d;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 2rem 1.5rem 4rem;
+    background: var(--ground);
+    color: var(--ink);
+    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  .sheet { max-width: 1180px; margin: 0 auto; }
+  h1 { font-size: 1.55rem; margin: 0 0 .35rem; letter-spacing: -.01em; }
+  h2 {
+    font-size: 1.05rem; margin: 2.4rem 0 .8rem; padding-bottom: .35rem;
+    border-bottom: 1px solid var(--rule); letter-spacing: .02em; text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+  h3 { font-size: 1.02rem; margin: 0 0 .2rem; }
+  .meta { display: flex; flex-wrap: wrap; gap: .35rem 1.6rem; margin: .6rem 0 0; padding: 0; }
+  .meta div { margin: 0; }
+  .meta dt { font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-soft); }
+  .meta dd { margin: 0; font-size: .95rem; }
+  pre {
+    background: var(--panel); border: 1px solid var(--rule); border-radius: 6px;
+    padding: .9rem 1rem; overflow-x: auto; margin: 0;
+    font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .state-row {
+    border: 1px solid var(--rule); border-radius: 8px; padding: 1rem 1.1rem 1.1rem;
+    margin: 0 0 1rem;
+  }
+  .state-row.is-missing { border-color: var(--missing); background: var(--missing-ground); }
+  .row-head { display: flex; align-items: baseline; gap: .6rem; flex-wrap: wrap; }
+  .capture-id {
+    font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--ink-soft);
+  }
+  .badge {
+    display: inline-block; padding: .1rem .5rem; border-radius: 999px;
+    font-size: .7rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  }
+  .badge-present { background: #e6f4ec; color: var(--ok); }
+  .badge-missing { background: var(--missing); color: #fff; }
+  .panes { display: flex; flex-wrap: wrap; gap: 1rem; margin: .8rem 0 0; }
+  .pane { margin: 0; flex: 1 1 260px; min-width: 240px; }
+  .pane figcaption {
+    font-size: .72rem; text-transform: uppercase; letter-spacing: .05em;
+    color: var(--ink-soft); margin-bottom: .3rem;
+  }
+  .pane img {
+    max-width: 100%; height: auto; display: block;
+    border: 1px solid var(--rule); border-radius: 4px; background: #fff;
+  }
+  .missing-cell {
+    border: 2px dashed var(--missing); border-radius: 4px; padding: 1.1rem .9rem;
+    color: var(--missing); background: #fff;
+  }
+  .missing-cell strong { display: block; font-size: 1.1rem; letter-spacing: .06em; }
+  .missing-cell span {
+    display: block; margin-top: .3rem; font-size: .78rem; color: var(--ink-soft);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; word-break: break-all;
+  }
+  .none-cell {
+    border: 1px dashed var(--rule); border-radius: 4px; padding: 1.1rem .9rem;
+    color: var(--ink-soft); font-size: .85rem; background: #fff;
+  }
+  .contract { margin: .9rem 0 0; font-size: .88rem; }
+  .contract dl { display: grid; grid-template-columns: max-content 1fr; gap: .2rem .8rem; margin: .3rem 0 0; }
+  .contract dt { font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-soft); }
+  .contract dd { margin: 0; }
+  footer {
+    margin-top: 3rem; padding-top: .9rem; border-top: 1px solid var(--rule);
+    font-size: .8rem; color: var(--ink-soft);
+  }
+  footer code { word-break: break-all; }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink: #e9edf2; --ink-soft: #9aa5b1; --rule: #343a42; --ground: #14171a;
+      --panel: #1c2024; --missing: #ff7b7b; --missing-ground: #2a1a1a; --ok: #6ee7a8;
+    }
+    .pane img, .missing-cell, .none-cell { background: #0f1114; }
+  }
+</style>
+</head>
+<body>
+<main class="sheet">
+
+<header>
+  <h1>Review sheet — {{SURFACE}}</h1>
+  <dl class="meta">
+    <div><dt>Design read</dt><dd>{{DESIGN_READ}}</dd></div>
+    <div><dt>Mode</dt><dd>{{MODE}}</dd></div>
+    <div><dt>States</dt><dd>{{ROW_COUNT}}</dd></div>
+    <div><dt>Missing renders</dt><dd>{{MISSING_COUNT}}</dd></div>
+  </dl>
+</header>
+
+<h2>Navigation graph</h2>
+<pre class="mermaid">{{NAV_GRAPH}}</pre>
+
+<h2>Controls, in plain language</h2>
+<pre class="control-table">{{CONTROL_TABLE}}</pre>
+
+<h2>States — render, reference, content contract</h2>
+{{ROWS}}
+
+<footer>
+  <p>sheet_hash <code>{{SHEET_HASH}}</code></p>
+  <p>engine_version {{ENGINE_VERSION}} &middot; schema_version {{SCHEMA_VERSION}}</p>
+  <p>A cell that reads MISSING is a state that was never rendered. It is not a pass.</p>
+</footer>
+
+</main>
+</body>
+</html>

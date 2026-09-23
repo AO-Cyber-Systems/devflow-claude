@@ -268,6 +268,13 @@ function buildMirrorTree() {
   for (const f of fs.readdirSync(schemaSrc)) {
     if (f.endsWith('.json')) fs.copyFileSync(path.join(schemaSrc, f), path.join(root, 'schemas', f));
   }
+  // `references/` is part of the mirrored tree too — `helpers.cjs` reads model-profiles.json at
+  // MODULE LOAD, so a tree without it is not the mirror, it is a broken copy of it.
+  fs.mkdirSync(path.join(root, 'references'), { recursive: true });
+  const refSrc = path.join(__dirname, '..', '..', 'references');
+  for (const f of fs.readdirSync(refSrc)) {
+    if (f.endsWith('.json')) fs.copyFileSync(path.join(refSrc, f), path.join(root, 'references', f));
+  }
   fs.copyFileSync(
     path.join(__dirname, '..', '..', 'templates', 'ui-sheet.html'),
     path.join(root, 'templates', 'ui-sheet.html')
