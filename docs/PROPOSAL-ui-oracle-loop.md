@@ -436,7 +436,7 @@ Checks are pure functions over `ProbeResult` + spec, each named by the rule it e
 | `content` | `must_show` absent or `must_not_show` present |
 | `effect` | activating a control yields an effect class ≠ the `effect` of the behaviour whose `when` matches the observed pre-activation state (classified from the before/after diff: `navigation` = route changed; `toggle` = announced state flipped; `select` = selection node changed; `dialog` = new modal node; `submit` = request + result node; `inert` = zero delta) |
 | `no-op` | effect is `inert` and the control is not `disabled_when` with `reason_shown` rendered |
-| `inert` | a control whose `kind` is interactive publishes **no** activation action at all — static, checked before any activation, and the precondition for every check below that locates its subject by interacting with it |
+| `inert` | a control whose `kind` is interactive either publishes **no** activation action, **or** publishes one that nothing can reach — a pointer at the centre of the rect the control publishes does not land on the object that owns it. Two different defects, one verdict: *never wired up* and *wired up, but something in between eats the pointer*. Checked before any activation, and the precondition for every check that locates its subject by interacting with it |
 | `must-not` | any `must_not` negation fails (e.g. route changed on close) |
 | `once` | one activation produced two effects |
 | `route-entry` | a route cannot be reached via a declared entry |
@@ -466,10 +466,23 @@ buttons bought a cleaner report than four working ones.
 
 Two rules follow, and neither is optional:
 
-1. `inert` is a **precondition**, not a peer. It runs first, statically, on the semantics tree.
-   A control that announces itself as activatable and carries no activation action fails here
-   before anything tries to activate it. (The library-level oracle had the upper bound — *never
-   more than one tap action* — and no lower bound at all, which is how zero passed.)
+1. `inert` is a **precondition**, not a peer. It runs first, before anything tries to activate
+   anything. The library-level oracle had only the upper bound — *never more than one tap
+   action* — so zero passed in silence.
+
+   **A count is not enough, and this is the part worth reading twice.** The obvious rule —
+   *an interactive control must publish at least one activation action* — does **not** catch the
+   case above. Measured on Flutter 3.41.9: `RenderIgnorePointer` refuses the hit test *and* sets
+   `isBlockingUserActions`, which strips the inner gesture detector's implicit route from the
+   published tree. The outer `Semantics(onTap:)` survives, so each of the four dead buttons
+   published **exactly one** well-formed tap action. A lower-bound-only rule would have been
+   written, shipped, and stayed silent on the very defect that motivated it.
+
+   So `inert` has to assert **reachability**, not arity: a pointer at the centre of the rect the
+   control publishes must land on the object that owns it. Both arms are kept, because they are
+   genuinely different faults — zero means nothing was ever wired up; unreachable means it was
+   wired up and something in between eats the pointer. Only the second one describes what
+   actually happened here.
 2. A check whose subject could not be located reports **`MISSING`, never `pass`** — the same rule
    §7 already states for a check that could not run, applied to the case where the check ran and
    found nothing to run *on*. "Zero violations" is evidence only when read together with the
