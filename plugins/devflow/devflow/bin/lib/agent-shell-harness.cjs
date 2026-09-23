@@ -274,6 +274,7 @@ function containmentFindings(callText, root, allowOutside) {
 // (34-09's rule) to the call that FOLLOWS it.
 //
 //   # harness: expect <path>        the path must exist under the scratch root afterwards
+//   # harness: expect-cwd <path>    the persisted cwd after the call must equal <path>
 //
 // `{root}` in any directive value expands to the scratch root.
 const HARNESS_DIRECTIVE_RE = /^#\s*harness:\s*(.+)$/;
@@ -283,7 +284,7 @@ function expandRoot(value, root) {
 }
 
 function parseAnnotations(annotations, root) {
-  const spec = { expects: [] };
+  const spec = { expects: [], expectCwd: null };
   for (const raw of annotations || []) {
     const m = HARNESS_DIRECTIVE_RE.exec(String(raw == null ? '' : raw).trim());
     if (!m) continue;          // an ordinary prose comment is not a directive
@@ -292,6 +293,7 @@ function parseAnnotations(annotations, root) {
     const verb = sp === -1 ? body : body.slice(0, sp);
     const arg = sp === -1 ? '' : expandRoot(body.slice(sp + 1).trim(), root);
     if (verb === 'expect' && arg) { spec.expects.push(arg); continue; }
+    if (verb === 'expect-cwd' && arg) { spec.expectCwd = arg; continue; }
   }
   return spec;
 }
@@ -496,7 +498,24 @@ function runSection(calls, opts = {}) {
       rec.cwd_captured = true;
     }
 
-    if (rec.cwd_after !== rec.cwd_before) {
+    if (spec.expectCwd != null) {
+      // A DECLARED move is not a leak. The declaration is in the prose, where a reviewer
+      // reads it; what would be unfalsifiable is a harness that decided for itself which
+      // `cd` was intentional.
+      if (rec.cwd_after !== spec.expectCwd) {
+        rec.findings.push({
+          type: 'cwd-mismatch',
+          index: rec.index,
+          line: rec.line,
+          call: callText,
+          expected_cwd: spec.expectCwd,
+          cwd_after: rec.cwd_after,
+          message:
+            `call ${rec.index + 1} declared \`# harness: expect-cwd ${spec.expectCwd}\` but left ` +
+            `the persisted working directory at ${rec.cwd_after}: \`${callText}\``,
+        });
+      }
+    } else if (rec.cwd_after !== rec.cwd_before) {
       rec.findings.push({
         type: 'cwd-leak',
         index: rec.index,
