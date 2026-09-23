@@ -193,3 +193,89 @@ test('Case C5 — --patterns supplies the catalogue; without it I5 is MISSING, n
   assert.match(bad.stderr, /patterns/);
   assert.doesNotMatch(bad.stderr, /node:internal/);
 });
+
+// ─── R: the `render` arm (objective 34-05) ───────────────────────────────────
+//
+// A second subcommand beside `validate`, sharing the parse+validate front half. The whole
+// reason it shares that half is R3: deriving a manifest, a graph and a table from a spec nobody
+// checked produces three artifacts that look authoritative and are not, and everything
+// downstream treats them as the truth.
+//
+// Same exit-code discipline as `validate`: `process.exitCode`, never `process.exit()` and never
+// `helpers.output()` (which calls `process.exit(0)` UNCONDITIONALLY and would make this arm
+// structurally incapable of failing).
+
+test('Case R1 — `render --manifest` exits 0 and prints a manifest with a states array', () => {
+  const result = runArm('ui spec render __fixtures__/ui-spec/projects-rail.md --manifest');
+
+  assert.strictEqual(result.status, 0, `expected exit 0, got ${result.status}. stderr: ${result.stderr}`);
+
+  const manifest = parseStdout(result);
+  assert.ok(Array.isArray(manifest.states), `no states array:\n${result.stdout}`);
+  assert.strictEqual(manifest.states.length, 8);
+  assert.strictEqual(manifest.surface, 'projects-rail');
+  assert.ok(manifest.engine_version.length > 0, 'the manifest says which engine produced it');
+});
+
+test('Case R2 — `--graph` prints mermaid, `--table` prints markdown, no flag prints all four', () => {
+  const graph = runArm('ui spec render __fixtures__/ui-spec/projects-rail.md --graph');
+  assert.strictEqual(graph.status, 0, `--graph exit ${graph.status}: ${graph.stderr}`);
+  assert.match(graph.stdout, /^(graph|flowchart)\b/, `--graph did not print mermaid:\n${graph.stdout}`);
+
+  const table = runArm('ui spec render __fixtures__/ui-spec/projects-rail.md --table');
+  assert.strictEqual(table.status, 0, `--table exit ${table.status}: ${table.stderr}`);
+  assert.match(table.stdout, /^#{1,3} /, `--table did not open with a heading:\n${table.stdout}`);
+
+  // The DEFAULT (no flag) is all four artifacts under named keys, so a caller that wants
+  // everything does not have to run the arm three times and hope the three runs agree.
+  const all = runArm('ui spec render __fixtures__/ui-spec/projects-rail.md');
+  assert.strictEqual(all.status, 0, `bare render exit ${all.status}: ${all.stderr}`);
+  const payload = parseStdout(all);
+  assert.deepStrictEqual(
+    Object.keys(payload).sort(),
+    ['captureList', 'controlTableMd', 'manifest', 'navGraphMermaid', 'spec'],
+    `unexpected default keys: ${Object.keys(payload).join(', ')}`
+  );
+  assert.strictEqual(payload.navGraphMermaid, graph.stdout, 'the bare render and --graph must agree');
+  assert.strictEqual(payload.controlTableMd, table.stdout, 'the bare render and --table must agree');
+});
+
+test('Case R3 — render REFUSES an invalid spec: exit 1, the codes, and no artifact at all', () => {
+  const result = runArm('ui spec render __fixtures__/ui-spec/broken/route-without-back.md --manifest');
+
+  assert.strictEqual(result.status, 1, `an invalid spec must exit 1, got ${result.status}`);
+
+  const payload = parseStdout(result);
+  assert.ok(codesOf(payload).includes('ROUTE002'), `expected ROUTE002: ${JSON.stringify(payload.errors)}`);
+  assert.strictEqual(payload.ok, false);
+
+  // NOTHING was rendered. A manifest printed beside its own validation errors is a manifest
+  // someone downstream will read and believe.
+  assert.strictEqual(payload.manifest, undefined, 'a refused render must print no manifest');
+  assert.strictEqual(payload.navGraphMermaid, undefined, 'a refused render must print no graph');
+  assert.strictEqual(payload.controlTableMd, undefined, 'a refused render must print no table');
+});
+
+test('Case R4 — an unknown render flag exits 1 naming --manifest, --graph and --table', () => {
+  const result = runArm('ui spec render __fixtures__/ui-spec/projects-rail.md --mainfest');
+
+  assert.strictEqual(result.status, 1, `expected exit 1, got ${result.status}`);
+  const text = `${result.stdout}${result.stderr}`;
+  for (const flag of ['--manifest', '--graph', '--table']) {
+    assert.ok(text.includes(flag), `the refusal must name ${flag}:\n${text}`);
+  }
+});
+
+test('Case R5 — a MISSING row is reported on stderr, never laundered into a silent pass', () => {
+  // W1b has no pinned eden-ui-flutter release, so EVERY real run carries a PAT000/MISSING row:
+  // the pattern check COULD NOT RUN. `ok` does not flip (a MISSING row is not a violation), so
+  // render proceeds — but it says so. Rendering four artifacts while silently swallowing "one
+  // of my checks did not run" is the silent-green class this objective exists to close.
+  const result = runArm('ui spec render __fixtures__/ui-spec/projects-rail.md --graph');
+
+  assert.strictEqual(result.status, 0, 'a MISSING row is not a failure');
+  assert.ok(result.stderr.includes('PAT000'), `the MISSING row must be reported:\n${result.stderr}`);
+  assert.ok(result.stderr.includes('MISSING'), `the row must be named MISSING:\n${result.stderr}`);
+  // …and it must NOT contaminate stdout, which the byte-stability probe diffs.
+  assert.ok(!result.stdout.includes('PAT000'), 'the advisory belongs on stderr, not in the artifact');
+});
