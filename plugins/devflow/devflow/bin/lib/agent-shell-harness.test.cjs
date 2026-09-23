@@ -679,4 +679,26 @@ test.describe('agent-shell-harness — the `# harness:` annotation vocabulary (A
     assert.strictEqual(sub.ok, true, 'a root-relative expect resolves against the root');
   });
 
+  // A2 — the harness reports a cwd change as a LEAK because that is what it is, unless
+  // the prose DECLARES the move. A declaration is visible in the file; a harness that
+  // guessed which moves were intentional would be unfalsifiable.
+  test('Case A2 — `# harness: expect-cwd <path>` declares an intentional directory change', () => {
+    const root = makeRoot();
+    const declared = harness.runSection(
+      harness.splitCalls('# harness: expect-cwd {root}/sub\ncd sub'), { root });
+    assert.strictEqual(declared.ok, true, 'a DECLARED move is not a leak');
+    assert.strictEqual(declared.calls[0].cwd_after, path.join(root, 'sub'));
+
+    const wrong = harness.runSection(
+      harness.splitCalls('# harness: expect-cwd {root}/sub\ntrue'), { root: makeRoot() });
+    assert.strictEqual(wrong.ok, false, 'a declaration the call did not honour FAILS');
+    assert.ok(wrong.findings.some(f => f.type === 'cwd-mismatch'),
+      'and it is its own finding type, distinct from an undeclared leak');
+
+    // The negative control: without the declaration the same call is still a leak.
+    const undeclared = harness.runSection(harness.splitCalls('cd sub'), { root: makeRoot() });
+    assert.ok(undeclared.findings.some(f => f.type === 'cwd-leak'),
+      'expect-cwd is a declaration, not a blanket amnesty');
+  });
+
 });
