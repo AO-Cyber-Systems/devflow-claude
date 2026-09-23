@@ -427,3 +427,91 @@ test('Case T4 — the table names the surface, design_read and mode before the f
     assert.strictEqual(line, line.replace(/[ \t]+$/, ''), `trailing whitespace on line ${i + 1}`);
   });
 });
+
+// ─── C: the capture list ─────────────────────────────────────────────────────────────────────
+//
+// 34-06's sheet grid and W2's `ui probe` BOTH iterate this list, so its ordering and its
+// `capture_id` template are a contract, not an implementation detail: the sheet looks renders up
+// on disk by capture_id and the probe names its captures with it.
+
+test('Case C1 — one triple per declared state; dark from `theme`, 390 from `viewport`, defaults otherwise', () => {
+  const spec = loadPositiveControl();
+  const { captureList } = renderSurfaceSpec(spec);
+
+  // EVERY state contributes. A state with no ref, no fault and no `as` is still a capture —
+  // filtering it out is how a gate stops seeing the thing it was built to see.
+  assert.strictEqual(captureList.length, spec.states.length, 'every declared state contributes a capture');
+
+  const byState = new Map(captureList.map((c) => [c.state_id, c]));
+
+  assert.deepStrictEqual(
+    { theme: byState.get('populated').theme, width: byState.get('populated').width },
+    { theme: DEFAULT_THEME, width: DEFAULT_WIDTH },
+    'a state declaring neither theme nor viewport takes both defaults'
+  );
+  assert.deepStrictEqual(
+    { theme: byState.get('dark').theme, width: byState.get('dark').width },
+    { theme: 'dark', width: DEFAULT_WIDTH },
+    'a state declaring `theme: dark` contributes a dark entry at the default width'
+  );
+  assert.deepStrictEqual(
+    { theme: byState.get('narrow').theme, width: byState.get('narrow').width },
+    { theme: DEFAULT_THEME, width: 390 },
+    'a state declaring `viewport: 390x844` contributes THAT width'
+  );
+
+  for (const entry of captureList) {
+    assert.deepStrictEqual(
+      Object.keys(entry).sort(),
+      ['capture_id', 'state_id', 'theme', 'width'],
+      `unexpected keys on ${entry.state_id}: ${Object.keys(entry).join(', ')}`
+    );
+  }
+});
+
+test('Case C2 — capture_id is `<surface>--<state_id>--<theme>--<width>` and filename-safe', () => {
+  const { captureList } = renderSurfaceSpec(loadPositiveControl());
+  const byState = new Map(captureList.map((c) => [c.state_id, c]));
+
+  assert.strictEqual(byState.get('populated').capture_id, 'projects-rail--populated--light--1280');
+  assert.strictEqual(byState.get('narrow').capture_id, 'projects-rail--narrow--light--390');
+  assert.strictEqual(byState.get('dark').capture_id, 'projects-rail--dark--dark--1280');
+  assert.strictEqual(byState.get('guard-denied').capture_id, 'projects-rail--guard-denied--light--1280');
+
+  // 34-06 looks renders up on disk by this id and W2's probe writes files named with it, so a
+  // path separator or a shell metacharacter in a state id must never reach a filename.
+  for (const entry of captureList) {
+    assert.match(entry.capture_id, /^[A-Za-z0-9._-]+$/, `capture_id is not filename-safe: ${entry.capture_id}`);
+  }
+  const dotted = renderSurfaceSpec(
+    mutate(loadPositiveControl(), (s) => { s.states[0].id = 'weird/id with spaces'; }),
+    { validate: false } // the id pattern is SPEC001's rule; filename safety is this case's
+  ).captureList[0];
+  assert.match(dotted.capture_id, /^[A-Za-z0-9._-]+$/, `capture_id is not filename-safe: ${dotted.capture_id}`);
+  assert.strictEqual(dotted.capture_id, 'projects-rail--weird_id_with_spaces--light--1280');
+
+  // capture_ids are unique — two captures sharing a filename means one silently overwrites the
+  // other and the sheet shows a render of a state nobody looked at.
+  const ids = captureList.map((c) => c.capture_id);
+  assert.strictEqual(new Set(ids).size, ids.length, `duplicate capture_id: ${ids.join(', ')}`);
+});
+
+test('Case C3 — the list order is the spec states order, then theme, then width', () => {
+  const spec = loadPositiveControl();
+  const { captureList } = renderSurfaceSpec(spec);
+
+  assert.deepStrictEqual(
+    captureList.map((c) => c.state_id),
+    spec.states.map((s) => s.id),
+    'the sheet grid and the probe both inherit this ordering'
+  );
+
+  // The secondary keys are stable and declared, so a state that later fans out to more than one
+  // theme or width lands in a defined place rather than wherever the loop happened to put it.
+  const reordered = renderSurfaceSpec(mutate(spec, (s) => { s.states.reverse(); }));
+  assert.deepStrictEqual(
+    reordered.captureList.map((c) => c.state_id),
+    spec.states.map((s) => s.id).reverse(),
+    'the order follows the spec, not an internal sort'
+  );
+});
