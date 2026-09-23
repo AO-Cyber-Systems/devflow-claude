@@ -262,3 +262,21 @@ test('Case Y9 — block scalars (`|`, `>`) and tags (`!!`) are refused', () => {
   // A `!` inside quotes is content, not a tag — the refusal must not fire here.
   assert.deepStrictEqual(parseYamlLite('title: "watch out!! really"\n'), { title: 'watch out!! really' });
 });
+
+test('Case Y10 — indentation faults: a TAB, and a dedent to a column that matches no open block', () => {
+  // (a) TAB used for indentation. Written as an explicit \t so the case survives an editor
+  // that helpfully converts tabs to spaces on save.
+  refuses(['references:', '\tmockup: refs/x.png', ''].join('\n'), { line: 2, match: /tab/i });
+
+  // (b) a dedent to a column no open block sits at: 4 -> 2, but the only open columns are 4 and 0.
+  refuses(
+    ['states:', '    - id: empty', '      does: nothing', '  id: stray', ''].join('\n'),
+    { line: 4, match: /indent/i }
+  );
+
+  // (c) the same fault one level up: a top-level key indented by one space after a nested block.
+  refuses(
+    ['references:', '  mockup: refs/x.png', ' kind: rail', ''].join('\n'),
+    { line: 3, match: /indent/i }
+  );
+});
