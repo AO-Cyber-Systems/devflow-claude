@@ -40,6 +40,10 @@
     background: var(--ground);
     color: var(--ink);
     font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    /* 34-06 gap 2 (Q3): wide content (the graph, the control table) may scroll inside its OWN
+       container — both already carry `overflow-x: auto` — but the PAGE must never grow wider
+       than the viewport and force a page-level horizontal scrollbar at 1280px. */
+    overflow-x: hidden;
   }
   .sheet { max-width: 1180px; margin: 0 auto; }
   h1 { font-size: 1.55rem; margin: 0 0 .35rem; letter-spacing: -.01em; }
@@ -131,13 +135,35 @@
     font-size: .8rem; color: var(--ink-soft);
   }
   footer code { word-break: break-all; }
+  /*
+    34-06 gap 2 (Q3) — "light and dark both legible". The sheet is opened both from disk (a real
+    browser, following the OS/system theme) and pasted into a Claude Artifact, whose viewer can
+    carry an EXPLICIT `data-theme="dark"|"light"` choice that overrides the system preference. Two
+    rules, so an explicit choice always wins over guessing from the OS in BOTH directions:
+      1. `prefers-color-scheme: dark` applies the dark palette on system default — but GUARDED
+         with `:not([data-theme="light"])`, so an explicit light choice still wins even when the
+         OS is dark.
+      2. `:root[data-theme="dark"]` applies the SAME palette outside any media query, so an
+         explicit dark choice wins even when the OS is light.
+    Responding to `prefers-color-scheme` alone silently gets this backwards whenever a viewer's
+    explicit choice disagrees with their OS setting.
+  */
   @media (prefers-color-scheme: dark) {
-    :root {
+    :root:not([data-theme="light"]) {
       --ink: #e9edf2; --ink-soft: #9aa5b1; --rule: #343a42; --ground: #14171a;
       --panel: #1c2024; --missing: #ff7b7b; --missing-ground: #2a1a1a; --ok: #6ee7a8;
     }
-    .pane img, .missing-cell, .none-cell { background: #0f1114; }
+    :root:not([data-theme="light"]) .pane img,
+    :root:not([data-theme="light"]) .missing-cell,
+    :root:not([data-theme="light"]) .none-cell { background: #0f1114; }
   }
+  :root[data-theme="dark"] {
+    --ink: #e9edf2; --ink-soft: #9aa5b1; --rule: #343a42; --ground: #14171a;
+    --panel: #1c2024; --missing: #ff7b7b; --missing-ground: #2a1a1a; --ok: #6ee7a8;
+  }
+  :root[data-theme="dark"] .pane img,
+  :root[data-theme="dark"] .missing-cell,
+  :root[data-theme="dark"] .none-cell { background: #0f1114; }
 </style>
 </head>
 <body>
