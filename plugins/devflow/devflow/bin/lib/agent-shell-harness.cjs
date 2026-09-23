@@ -278,6 +278,7 @@ function containmentFindings(callText, root, allowOutside) {
 //   # harness: expect-exit <n>      the call's status must equal <n> (default: 0)
 //   # harness: derive VAR=value     inject VAR into THIS call's environment only
 //   # harness: subst <tok>=<value>  literal replace in the call text before execution
+//   # harness: skip <reason>        do not execute; status 'skipped'; counts as MISSING
 //
 // `{root}` in any directive value expands to the scratch root.
 const HARNESS_DIRECTIVE_RE = /^#\s*harness:\s*(.+)$/;
@@ -287,7 +288,7 @@ function expandRoot(value, root) {
 }
 
 function parseAnnotations(annotations, root) {
-  const spec = { expects: [], expectCwd: null, expectExit: null, derives: {}, substs: [] };
+  const spec = { expects: [], expectCwd: null, expectExit: null, derives: {}, substs: [], skip: null };
   for (const raw of annotations || []) {
     const m = HARNESS_DIRECTIVE_RE.exec(String(raw == null ? '' : raw).trim());
     if (!m) continue;          // an ordinary prose comment is not a directive
@@ -298,6 +299,7 @@ function parseAnnotations(annotations, root) {
     if (verb === 'expect' && arg) { spec.expects.push(arg); continue; }
     if (verb === 'expect-cwd' && arg) { spec.expectCwd = arg; continue; }
     if (verb === 'expect-exit' && /^\d+$/.test(arg)) { spec.expectExit = Number(arg); continue; }
+    if (verb === 'skip' && arg) { spec.skip = arg; continue; }
     if (verb === 'subst') {
       const eq = arg.indexOf('=');
       if (eq > 0) { spec.substs.push([arg.slice(0, eq), arg.slice(eq + 1)]); continue; }
@@ -438,6 +440,24 @@ function runSection(calls, opts = {}) {
     // ...plus THIS call's `derive`s, and nothing else. The object is rebuilt every
     // iteration, so a derive cannot reach the next call: A4's negative half.
     const env = Object.assign({ PATH: searchPath, HOME: home, TMPDIR: tmpdir }, spec.derives);
+
+    // A declared skip is MISSING, never a pass: the call was not exercised, so nothing
+    // about the prose was proven. It is reported, counted, and not run.
+    if (spec.skip) {
+      rec.status = 'skipped';
+      rec.findings.push({
+        type: 'skipped',
+        index: rec.index,
+        line: rec.line,
+        call: callText,
+        reason: spec.skip,
+        message:
+          `call ${rec.index + 1} was SKIPPED by declaration (${spec.skip}) and therefore ` +
+          `proves nothing about the prose: \`${callText}\``,
+      });
+      results.push(rec);
+      continue;   // not executed: it can move nothing and produce nothing
+    }
 
     // Containment is a PRE-check: an offending call is blocked, not executed and then
     // regretted. A harness that will one day run in CI against a file someone just
@@ -617,6 +637,7 @@ function missingReason(results) {
   for (const r of results) {
     for (const f of r.findings) {
       if (f.type === 'missing-binary') reasons.push(`call ${r.index + 1}: missing binary \`${f.binary}\``);
+      if (f.type === 'skipped') reasons.push(`call ${r.index + 1}: skipped (${f.reason})`);
     }
   }
   return reasons.length ? reasons.join('; ') : null;
