@@ -75,11 +75,32 @@ function flagValue(args, name) {
   return args[i + 1];
 }
 
+/**
+ * Flags that take NO value. `--manifest`, `--graph` and `--table` select which artifact `ui
+ * spec render` prints; there is nothing after them to consume.
+ *
+ * Listing them is the point. `positionals()` used to skip the argv element after EVERY `--flag`,
+ * so `ui spec render --graph <file>` ate the file and the arm printed its usage error without
+ * ever reading the spec — while `<file> --graph` worked. Flag-before-path is the ordering half
+ * the world types, and the error names the missing file, so the user re-types the command they
+ * already typed. The `startsWith('--')` rule below catches a valued flag whose value is absent;
+ * this list catches the case where there is no value to be absent.
+ */
+const VALUELESS_FLAGS = new Set([...RENDER_FLAGS, '--raw']);
+
 function positionals(args) {
   const out = [];
   for (let i = 0; i < args.length; i++) {
-    if (typeof args[i] === 'string' && args[i].startsWith('--')) { i += 1; continue; }
-    out.push(args[i]);
+    const arg = args[i];
+    if (typeof arg === 'string' && arg.startsWith('--')) {
+      // Consume the NEXT element as this flag's value only when the flag actually takes one and
+      // the next element is not itself a flag. `--patterns --graph <file>` therefore leaves
+      // `<file>` a positional, rather than reporting a missing spec for a missing catalogue.
+      const next = args[i + 1];
+      if (!VALUELESS_FLAGS.has(arg) && typeof next === 'string' && !next.startsWith('--')) i += 1;
+      continue;
+    }
+    out.push(arg);
   }
   return out;
 }

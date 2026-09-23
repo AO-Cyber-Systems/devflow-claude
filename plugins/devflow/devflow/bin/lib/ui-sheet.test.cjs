@@ -427,7 +427,11 @@ test('Case G3b — the schema says where `state.ref` resolves, and says the thin
   // description pointing at a field NOTHING READS is the drift this objective exists to close.
   const schemaPath = path.join(__dirname, '..', '..', 'schemas', 'surface-spec.schema.json');
   const schema = JSON.parse(fs.readFileSync(schemaPath, 'utf-8'));
-  const refDoc = schema.properties.states.items.properties.ref.description;
+  // `states.items` is a `$ref` into `$defs/state`; resolve it rather than assuming it is inline,
+  // or this net reads `undefined.description` and dies instead of judging the prose.
+  const stateRef = schema.properties.states.items.$ref;
+  assert.strictEqual(stateRef, '#/$defs/state', `unexpected states.items shape: ${JSON.stringify(schema.properties.states.items)}`);
+  const refDoc = schema.$defs.state.properties.ref.description;
 
   assert.ok(refDoc && refDoc.length > 0, 'the guard must have found the description it is about');
   assert.match(refDoc, /--refs/, '`state.ref` resolves against the `--refs` directory — say so');

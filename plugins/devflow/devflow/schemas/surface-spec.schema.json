@@ -240,7 +240,7 @@
           "type": "string"
         },
         "ref": {
-          "description": "§8.3: the locked render this state is judged against, relative to `references.locked`.",
+          "description": "§8.3: the locked render this state is judged against, as `<kind>/<file>` (e.g. `locked/populated.png`) relative to the directory passed as `df-tools ui sheet --refs <dir>`. The FIRST path segment is the reference kind and is what labels the ref pane on the sheet — one of `mockup`, `donor`, `locked`; any other first segment leaves `ref_kind: null`. The top-level `references` block is NOT the resolution root — nothing reads it — so a path written relative to the paths it names comes back `ref_status: MISSING` with `ref_kind: null` on every row.",
           "type": "string"
         },
         "fault": {
@@ -321,7 +321,7 @@
       "items": { "type": "string" }
     },
     "references": {
-      "description": "§4.1: where the mockup, the donor captures (completeness only) and the look-locked renders live, relative to the spec.",
+      "description": "§4.1: where the mockup, the donor captures (completeness only) and the look-locked renders live, relative to the spec. DOCUMENTATION FOR A HUMAN — no module reads these three paths. `df-tools ui sheet --refs <dir>` is what resolves a `state.ref`, and that directory is the one holding the `mockup/`, `donor/` and `locked/` subdirectories these keys name.",
       "type": "object",
       "properties": {
         "mockup": { "type": "string" },
