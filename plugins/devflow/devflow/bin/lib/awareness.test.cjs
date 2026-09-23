@@ -792,10 +792,20 @@ test('S1: scanPeer with 1 valid branch returns 1 entry with all fields', () => {
   requireScanPeer();
   requireSetRunGit();
   requireResetGitMock();
+  // The fixture's age is RELATIVE to this assertion, not pinned to a date
+  // (issue #96). A literal timestamp here met scanPeer's Date.now()-relative
+  // 30-day staleness window: the branch passed the filter until 2026-06-03 and
+  // was silently discarded every day after, so S1 failed deterministically with
+  // no code change. A fixture that has to be nudged forward periodically is a
+  // deferred outage, so it is computed instead.
+  //
+  // S1 asserts FIELD MAPPING, not staleness — SS1..SS4 own the window. Two days
+  // is comfortably inside the default 30 and cannot expire.
+  const lastCommitTs = daysAgoISO(2);
   _setRunGit(buildMockRunGit(buildScanResponses({
     branches: ['origin/feature/v1.1'],
     state_md_per_branch: { 'feature/v1.1': { objective: '2 — Test', trd: '02-02' } },
-    per_branch_log: { 'feature/v1.1': { sha: 'abc123', timestamp: '2026-05-04T08:31:00Z', subject: 'feat: test' } },
+    per_branch_log: { 'feature/v1.1': { sha: 'abc123', timestamp: lastCommitTs, subject: 'feat: test' } },
   })));
   try {
     const result = scanPeer({ no_fetch: false });
@@ -806,7 +816,7 @@ test('S1: scanPeer with 1 valid branch returns 1 entry with all fields', () => {
     assert.strictEqual(br.trd, '02-02');
     assert.ok(br.last_commit, 'last_commit present');
     assert.strictEqual(br.last_commit.sha, 'abc123');
-    assert.strictEqual(br.last_commit.timestamp, '2026-05-04T08:31:00Z');
+    assert.strictEqual(br.last_commit.timestamp, lastCommitTs);
     assert.strictEqual(br.last_commit.subject, 'feat: test');
   } finally { _resetGitMock(); }
 });

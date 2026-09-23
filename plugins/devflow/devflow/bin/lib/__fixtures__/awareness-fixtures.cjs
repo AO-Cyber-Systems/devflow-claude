@@ -256,8 +256,16 @@ function buildGitForEachRefOutput({ branches = [] } = {}) {
 /**
  * Canned response for `git log -1 --format='%H%x00%cI%x00%s' <branch>`.
  * Returns NUL-separated SHA, ISO timestamp, subject.
+ *
+ * The default timestamp is computed two days before "now", never pinned to a
+ * literal date (issue #96). This value is fed to scanPeer, which filters
+ * branches against a Date.now()-relative staleness window — a literal default
+ * here is a fixture that silently ages out of every caller that does not
+ * override it, and takes the caller's test red on a calendar boundary rather
+ * than on a code change. Callers that care about staleness pass their own
+ * relative timestamp.
  */
-function buildGitLogOutput({ sha = 'abc123def4567890', timestamp = '2026-05-04T08:31:00Z', subject = 'feat: test commit' } = {}) {
+function buildGitLogOutput({ sha = 'abc123def4567890', timestamp = new Date(Date.now() - 2 * 86400000).toISOString(), subject = 'feat: test commit' } = {}) {
   return {
     ok: true, status: 0,
     stdout: `${sha}\x00${timestamp}\x00${subject}`,

@@ -25,11 +25,6 @@
       "expires": "2026-12-31"
     },
     {
-      "test": "S1: scanPeer with 1 valid branch returns 1 entry with all fields",
-      "file": "plugins/devflow/devflow/bin/lib/awareness.test.cjs",
-      "reason": "A calendar time bomb, and fully deterministic. The fixture hardcodes a last_commit timestamp of 2026-05-04T08:31:00Z; scanPeer filters branches older than DEFAULT_STALE_DAYS = 30, so the test passed until 2026-06-03 and has failed every day since. Fix by generating the timestamp relative to now, or by passing peer_stale_days: 0 — the test is about field mapping, not staleness. Tracked in issue #96."
-    },
-    {
       "test": "PTY-2: dispatch(\"echo hello\") returns stdout=\"hello\\n\", exit_code=0, status=\"done\"",
       "file": "plugins/devflow/devflow/bin/lib/watcher-shell.test.cjs",
       "reason": "Linux-only, deterministic. readline's bracketed-paste pair ESC[?2004h / ESC[?2004l is emitted around every line read by the bash that ships on ubuntu-latest (readline >= 8.1). wrappers/bash.cjs initLines('pty') sends stty -echo, which suppresses the tty driver's echo and nothing readline writes itself, so the sequences land between the BEGIN and DELIM sentinels and become part of captured stdout. macOS bash 3.2 has no such mode, which is why no developer here has seen it. Product bug, not a test bug — see issue #95."
