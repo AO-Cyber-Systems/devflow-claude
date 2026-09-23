@@ -118,7 +118,11 @@ function splitKeyValue(body, line) {
   }
   return {
     key: keyEnd < 0 ? null : body.slice(0, keyEnd).trim(),
-    value: body.slice(start, end).replace(/\s+$/, '')
+    value: body.slice(start, end).replace(/\s+$/, ''),
+    // The masked, comment-free code region of this line. Every refusal pattern is matched
+    // against THIS, so `title: "a & b"` is not mistaken for an anchor and a `# &x` comment
+    // is not mistaken for anything at all.
+    code: masked.slice(0, end)
   };
 }
 
@@ -131,7 +135,39 @@ function splitLine(content, indent, line) {
   const kv = splitKeyValue(body, line);
   // A block-list item `- id: x` opens a mapping whose column is the column of the character
   // AFTER `- `, not the column of `-`. Continuation keys align to that column.
-  return { dash, itemIndent: indent + off, body, key: kv.key, value: kv.value };
+  return { dash, itemIndent: indent + off, body, key: kv.key, value: kv.value, code: kv.code };
+}
+
+// ─── Refusals ─────────────────────────────────────────────────────────────────
+//
+// Matched against the masked, comment-free code region of a line, in source order, so the
+// FIRST offending line is the one reported. When the choice is between "support it" and
+// "reject it with a clear message", reject: a construct that is neither supported nor refused
+// is the one outcome that makes a spec quietly wrong instead of loudly broken.
+
+const MERGE_KEY_RE = /^<<\s*:/;
+const ANCHOR_RE = /(^|\s)&[A-Za-z0-9_-]+/;
+const ALIAS_RE = /(^|\s)\*[A-Za-z0-9_-]+/;
+
+function refuse(code, line) {
+  if (MERGE_KEY_RE.test(code.trim())) {
+    throw new YamlLiteError(
+      'the merge key `<<:` is not supported by yaml-lite; write the merged keys out in full',
+      line
+    );
+  }
+  if (ANCHOR_RE.test(code)) {
+    throw new YamlLiteError(
+      'an anchor (`&name`) is not supported by yaml-lite; write the value out in full',
+      line
+    );
+  }
+  if (ALIAS_RE.test(code)) {
+    throw new YamlLiteError(
+      'an alias (`*name`) is not supported by yaml-lite; write the value out in full',
+      line
+    );
+  }
 }
 
 function tokenise(text) {
@@ -144,7 +180,9 @@ function tokenise(text) {
     if (trimmed.charAt(0) === '#') continue;
     const indent = raw.length - raw.replace(/^ +/, '').length;
     const content = raw.slice(indent).replace(/\s+$/, '');
-    tokens.push({ line: i + 1, indent, content, ...splitLine(content, indent, i + 1) });
+    const parsed = splitLine(content, indent, i + 1);
+    refuse(parsed.code, i + 1);
+    tokens.push({ line: i + 1, indent, content, ...parsed });
   }
   return tokens;
 }
