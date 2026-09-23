@@ -276,6 +276,7 @@ function containmentFindings(callText, root, allowOutside) {
 //   # harness: expect <path>        the path must exist under the scratch root afterwards
 //   # harness: expect-cwd <path>    the persisted cwd after the call must equal <path>
 //   # harness: expect-exit <n>      the call's status must equal <n> (default: 0)
+//   # harness: derive VAR=value     inject VAR into THIS call's environment only
 //
 // `{root}` in any directive value expands to the scratch root.
 const HARNESS_DIRECTIVE_RE = /^#\s*harness:\s*(.+)$/;
@@ -285,7 +286,7 @@ function expandRoot(value, root) {
 }
 
 function parseAnnotations(annotations, root) {
-  const spec = { expects: [], expectCwd: null, expectExit: null };
+  const spec = { expects: [], expectCwd: null, expectExit: null, derives: {} };
   for (const raw of annotations || []) {
     const m = HARNESS_DIRECTIVE_RE.exec(String(raw == null ? '' : raw).trim());
     if (!m) continue;          // an ordinary prose comment is not a directive
@@ -296,6 +297,11 @@ function parseAnnotations(annotations, root) {
     if (verb === 'expect' && arg) { spec.expects.push(arg); continue; }
     if (verb === 'expect-cwd' && arg) { spec.expectCwd = arg; continue; }
     if (verb === 'expect-exit' && /^\d+$/.test(arg)) { spec.expectExit = Number(arg); continue; }
+    if (verb === 'derive') {
+      // Split on the FIRST `=` only: a value may itself contain `=`.
+      const eq = arg.indexOf('=');
+      if (eq > 0) { spec.derives[arg.slice(0, eq).trim()] = arg.slice(eq + 1); continue; }
+    }
   }
   return spec;
 }
@@ -419,7 +425,9 @@ function runSection(calls, opts = {}) {
     // FRESH env object per call, built from an allow-list. Reuse one object here and a
     // call that exports into it would silently make the unset-variable case pass — the
     // harness would bless exactly the prose bug it exists to catch.
-    const env = { PATH: searchPath, HOME: home, TMPDIR: tmpdir };
+    // ...plus THIS call's `derive`s, and nothing else. The object is rebuilt every
+    // iteration, so a derive cannot reach the next call: A4's negative half.
+    const env = Object.assign({ PATH: searchPath, HOME: home, TMPDIR: tmpdir }, spec.derives);
 
     // Containment is a PRE-check: an offending call is blocked, not executed and then
     // regretted. A harness that will one day run in CI against a file someone just
