@@ -311,6 +311,11 @@ function runSection(calls, opts = {}) {
     const script = [
       `exec 2> "${errFile}"`,
       `trap 'printf "%s" "$PWD" > "${cwdFile}"' EXIT`,
+      // `set -u` is what makes the environment half of the model OBSERVABLE: a variable
+      // a previous call assigned is not merely empty here, it is an error. PATH, HOME
+      // and TMPDIR are set, so nothing legitimate trips on it. If real agent prose
+      // trips it, that is a FINDING about the prose — which is the entire point.
+      'set -u',
       callText,
       '',
     ].join('\n');
@@ -366,6 +371,23 @@ function runSection(calls, opts = {}) {
           `call ${rec.index + 1} changed the persisted working directory: \`${callText}\` — ` +
           `cwd_before=${rec.cwd_before} cwd_after=${rec.cwd_after}. ` +
           'The Bash tool carries this into every later call; use `( cd DIR && … )` instead.',
+      });
+    }
+
+    // bash's own diagnosis, not the harness guessing: `set -u` turns a read of a
+    // variable a PREVIOUS call assigned into a hard error naming the variable.
+    const unbound = /(?:^|\s)([A-Za-z_][A-Za-z0-9_]*): unbound variable/m.exec(rec.stderr || '');
+    if (unbound) {
+      rec.findings.push({
+        type: 'unset-variable',
+        index: rec.index,
+        line: rec.line,
+        call: callText,
+        variable: unbound[1],
+        message:
+          `call ${rec.index + 1} read \`$${unbound[1]}\`, which no longer exists: ` +
+          'shell variables do NOT persist between Bash calls. ' +
+          `Re-derive it inside this call. Offending call: \`${callText}\``,
       });
     }
 
