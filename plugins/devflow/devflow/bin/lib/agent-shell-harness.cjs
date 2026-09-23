@@ -20,6 +20,10 @@
  * No new npm dependencies: `node:child_process` `execFileSync` is the executor.
  */
 
+const fs = require('node:fs');
+const path = require('node:path');
+const { execFileSync } = require('node:child_process');
+
 // ─── Section / fence scanning ─────────────────────────────────────────────────────────
 
 // A fence opens on 3+ backticks or tildes (up to 3 leading spaces, per CommonMark) and
@@ -223,8 +227,174 @@ function splitCalls(block, opts = {}) {
   return calls;
 }
 
+// ─── The runtime model ────────────────────────────────────────────────────────────────
+
+// Every call gets its own 10s budget. An interactive command must become a FINDING, not
+// a hang — a harness that can hang in CI is a harness that gets deleted.
+const DEFAULT_TIMEOUT_MS = 10000;
+
+// The scratch root is embedded literally into the per-call script (the trap and the
+// stderr redirect). Refuse anything that could break out of that quoting rather than
+// building a half-safe escaper.
+const UNSAFE_ROOT_RE = /['"$`\\\n]/;
+
+/**
+ * runSection(calls, {root, pathPrepend, timeout}) -> {ok, root, calls:[…], findings:[…]}
+ *
+ * Reproduces the Bash tool, and nothing else:
+ *   - ONE `execFileSync('bash', ['-c', …])` per call — never one shell for the block,
+ *     which would let variables persist and make the unset-variable case untestable;
+ *   - the working directory is threaded FORWARD from call to call, and a call that moved
+ *     it is a FINDING — reported, not corrected, or the bare-`cd` case is unfalsifiable;
+ *   - the environment is rebuilt FRESH for every call from an explicit allow-list
+ *     ({PATH, HOME, TMPDIR}), never `process.env` and never a shared object.
+ */
+function runSection(calls, opts = {}) {
+  if (!opts || !opts.root) {
+    throw new Error('runSection requires opts.root — every run is confined to a scratch root');
+  }
+  // realpath: bash's $PWD is the PHYSICAL path, so on macOS (/var -> /private/var) an
+  // un-resolved root would make every single call look like a cwd leak.
+  const root = fs.realpathSync(opts.root);
+  if (UNSAFE_ROOT_RE.test(root)) {
+    throw new Error(`scratch root contains characters the harness will not embed in a script: ${root}`);
+  }
+
+  const home = path.join(root, '.home');
+  const tmpdir = path.join(root, '.tmp');
+  fs.mkdirSync(home, { recursive: true });
+  fs.mkdirSync(tmpdir, { recursive: true });
+
+  const cwdFile = path.join(root, '.cwd');
+  const errFile = path.join(root, '.stderr');
+  const timeout = opts.timeout == null ? DEFAULT_TIMEOUT_MS : opts.timeout;
+
+  let cwd = root;
+  const results = [];
+
+  for (const raw of calls) {
+    const entry = typeof raw === 'string' ? { call: raw } : (raw || {});
+    const callText = String(entry.call == null ? '' : entry.call);
+    const expectedStatus = entry.expectedStatus == null ? 0 : entry.expectedStatus;
+
+    const rec = {
+      index: results.length,
+      line: entry.line == null ? null : entry.line,
+      call: callText,
+      annotations: entry.annotations || [],
+      cwd_before: cwd,
+      cwd_after: cwd,
+      cwd_captured: false,
+      status: null,
+      expected_status: expectedStatus,
+      stdout: '',
+      stderr: '',
+      findings: [],
+    };
+
+    // FRESH env object per call, built from an allow-list. Reuse one object here and a
+    // call that exports into it would silently make the unset-variable case pass — the
+    // harness would bless exactly the prose bug it exists to catch.
+    const env = {
+      PATH: [opts.pathPrepend, process.env.PATH].filter(Boolean).join(path.delimiter),
+      HOME: home,
+      TMPDIR: tmpdir,
+    };
+
+    try { fs.unlinkSync(cwdFile); } catch { /* first call, or already gone */ }
+    try { fs.unlinkSync(errFile); } catch { /* ditto */ }
+
+    // `trap … EXIT` rather than an appended `; pwd`: the trap still fires when the call
+    // itself calls `exit`, and $PWD goes to a SIDE FILE so the call's own stdout is not
+    // polluted. stderr is redirected to a second side file so it is captured on the
+    // success path too, not only off a thrown error.
+    const script = [
+      `exec 2> "${errFile}"`,
+      `trap 'printf "%s" "$PWD" > "${cwdFile}"' EXIT`,
+      callText,
+      '',
+    ].join('\n');
+
+    try {
+      rec.stdout = execFileSync('bash', ['-c', script], {
+        cwd,
+        env,
+        encoding: 'utf-8',
+        timeout,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      }) || '';
+      rec.status = 0;
+    } catch (err) {
+      rec.stdout = (err.stdout == null ? '' : err.stdout).toString();
+      rec.stderr = (err.stderr == null ? '' : err.stderr).toString();
+      if (err.signal === 'SIGTERM' || err.code === 'ETIMEDOUT') {
+        rec.status = 'timeout';
+        rec.findings.push({
+          type: 'timeout',
+          index: rec.index,
+          line: rec.line,
+          call: callText,
+          message: `call ${rec.index + 1} did not finish within ${timeout}ms: \`${callText}\``,
+        });
+      } else {
+        rec.status = err.status == null ? 1 : err.status;
+      }
+    }
+
+    // A syntax error is detected before `exec 2>` ever runs, so the pipe still wins then.
+    if (fs.existsSync(errFile)) {
+      const fromFile = fs.readFileSync(errFile, 'utf-8');
+      if (fromFile) rec.stderr = fromFile;
+    }
+
+    // Read the cwd side file even when the call FAILED: a failing call still moved (or
+    // did not move) the directory, and the bare-`cd` case is a call that SUCCEEDS.
+    if (fs.existsSync(cwdFile)) {
+      rec.cwd_after = fs.readFileSync(cwdFile, 'utf-8').trim() || rec.cwd_before;
+      rec.cwd_captured = true;
+    }
+
+    if (rec.cwd_after !== rec.cwd_before) {
+      rec.findings.push({
+        type: 'cwd-leak',
+        index: rec.index,
+        line: rec.line,
+        call: callText,
+        cwd_before: rec.cwd_before,
+        cwd_after: rec.cwd_after,
+        message:
+          `call ${rec.index + 1} changed the persisted working directory: \`${callText}\` — ` +
+          `cwd_before=${rec.cwd_before} cwd_after=${rec.cwd_after}. ` +
+          'The Bash tool carries this into every later call; use `( cd DIR && … )` instead.',
+      });
+    }
+
+    if (rec.status !== expectedStatus && rec.status !== 'timeout') {
+      rec.findings.push({
+        type: 'nonzero-status',
+        index: rec.index,
+        line: rec.line,
+        call: callText,
+        status: rec.status,
+        message:
+          `call ${rec.index + 1} exited ${rec.status} (expected ${expectedStatus}): ` +
+          `\`${callText}\`${rec.stderr ? ` — ${rec.stderr.trim()}` : ''}`,
+      });
+    }
+
+    // Thread cwd FORWARD even after flagging it. The harness reports the model; it does
+    // not correct it. Resetting to `root` here would make the bare-`cd` case unfalsifiable.
+    cwd = rec.cwd_after;
+    results.push(rec);
+  }
+
+  const findings = results.flatMap(r => r.findings);
+  return { ok: findings.length === 0, root, calls: results, findings };
+}
+
 module.exports = {
   extractBashBlocks,
   normalizeHeading,
   splitCalls,
+  runSection,
 };
