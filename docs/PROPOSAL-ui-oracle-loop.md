@@ -822,3 +822,55 @@ Three amendments follow, binding for wave 1 onward:
 Go/no-go for wave 2 is the W1★ dogfood: the nav feature must go through one look-lock and zero
 surprise fix rounds. If it does not, stop and rethink before wave 2.
 
+
+---
+
+## 22. Wave-1 retrospective — 2026-09-23
+
+Wave 1 shipped W1a, W1b (released as v2.9.0) and W1c (merged in both consumers). It also
+produced **one structural finding, seven times in one day**, which is worth stating as a rule
+because every instance was found the same way and none was found by reading.
+
+### 22.1 The rule
+
+> **A check whose failure mode is indistinguishable from its success mode is not a check.**
+
+Each of the seven below emitted the *same signal* for "everything is fine" and for "I could not
+tell". All seven reported success.
+
+| # | The check | "fine" and "could not tell" were both… |
+|---|---|---|
+| 1 | `expectUiSane` on a surface with four dead nav buttons | zero violations — and a real contrast failure *vanished*, because the guideline finds its subject by hit test |
+| 2 | aodex's fault-seam boundary gate (`go list \| grep -q`) | no matching lines — whether the dependency was absent or `go list` had failed outright |
+| 3 | `ui spec validate` | exit `0` — whether every invariant passed or one never ran |
+| 4 | the pattern catalogue's freshness test | bytes match — but against the generator's own front-matter input, never the doc bodies the rules actually live in (2 of ~78 rules carried) |
+| 5 | `db-reset.sh` applying a seed profile | the script exited — nothing asserted the resulting database state, and one of the two "working" profiles could not run at all |
+| 6 | `flutter analyze` on this machine | clean — on a toolchain five months behind the one CI pins, where the CI-breaking incompatibility does not exist |
+| 7 | a devflow-claude PR's green tick | all checks pass — while the 3,248-test suite is never executed by CI at all |
+
+Two of these were in gates written *that same day, specifically to prevent false greens*.
+
+### 22.2 What follows, binding from wave 2
+
+1. **Every check declares which of the two it is reporting.** A verdict is `pass`, `fail`, or
+   `could-not-determine` — never two of those collapsed into one value. §7's `MISSING`, §7.5's
+   `inert` precondition and the `0/1/2` exit contract are three instances of the same rule; a
+   check added later must say where it stands on it.
+2. **The indeterminate case fails closed.** "Could not tell" must cost something — a non-zero
+   exit, a `MISSING` row, a refusal — or it becomes the cheapest way to make a gate quiet.
+3. **A generated artifact is verified against its source, not against its generator.** Round-
+   tripping a generator's own input proves the generator is deterministic and nothing else.
+4. **A check is tested by making it fail.** All seven were caught by a differential control, by
+   counting, or by running the thing on a machine that differs from the one that wrote it —
+   none by review. The question to ask of any new gate is not "does it pass?" but *"what is the
+   single edit that should make this red, and does it?"*
+5. **Verification runs where the gate runs.** A green measured on a different toolchain,
+   different runner or different data than the gate uses is evidence about the measurer, not the
+   gate. State the environment alongside the number, or the number is not a result.
+
+### 22.3 The honest caveat
+
+W1a's reported figures — "4,840 passing, analyze at baseline" and similar, repeated through the
+wave — were measured on Flutter 3.41.9 while CI pins 3.47.4. The work appears sound; the
+evidence for it was weaker than stated at the time. That is instance 6 applied to this
+document's own reporting, and it is why 22.2(5) exists.
