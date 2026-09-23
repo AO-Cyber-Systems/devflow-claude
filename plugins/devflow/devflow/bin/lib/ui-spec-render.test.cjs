@@ -515,3 +515,60 @@ test('Case C3 — the list order is the spec states order, then theme, then widt
     'the order follows the spec, not an internal sort'
   );
 });
+
+// ─── D: determinism, and the three committed snapshots ───────────────────────────────────────
+//
+// D2 is the regression net for every later TRD that touches rendering. It is only a net if a
+// failure is DIAGNOSED rather than regenerated: if one of these goes red after an unrelated
+// edit, diff the snapshot before concluding the snapshot is stale. Regenerating a snapshot to
+// make a suite green turns a regression net into decoration.
+//
+// THE `engine_version` TRAP. `pluginVersion()` changes at every release, so a snapshot
+// containing the live value goes red on 34-11 for a reason that has nothing to do with
+// rendering — and a snapshot people regenerate every release is a snapshot nobody reads. The
+// field therefore STAYS in the committed manifest (its presence is part of the shape a reader
+// should see) with the literal placeholder `<engine_version>`; the comparison substitutes the
+// live value for the placeholder first, and M4 asserts the real value separately.
+
+const SNAPSHOT_DIR = path.join(FIXTURE_DIR, 'snapshots');
+const ENGINE_VERSION_PLACEHOLDER = '<engine_version>';
+
+function readSnapshot(name) {
+  const file = path.join(SNAPSHOT_DIR, name);
+  assert.ok(fs.existsSync(file), `missing committed snapshot: ${file}`);
+  return fs.readFileSync(file, 'utf-8');
+}
+
+test('Case D1 — two calls on the same spec are deep-equal and byte-identical', () => {
+  const first = renderSurfaceSpec(loadPositiveControl());
+  const second = renderSurfaceSpec(loadPositiveControl());
+
+  assert.deepStrictEqual(first.manifest, second.manifest);
+  assert.strictEqual(JSON.stringify(first.manifest), JSON.stringify(second.manifest), 'manifest key order drifted');
+  assert.strictEqual(first.navGraphMermaid, second.navGraphMermaid);
+  assert.strictEqual(first.controlTableMd, second.controlTableMd);
+  assert.deepStrictEqual(first.captureList, second.captureList);
+  assert.strictEqual(JSON.stringify(first.captureList), JSON.stringify(second.captureList));
+});
+
+test('Case D2 — the three committed snapshots match the current render byte-for-byte', () => {
+  const { manifest, navGraphMermaid, controlTableMd } = renderSurfaceSpec(loadPositiveControl());
+
+  // The whole string with strictEqual, so a failure prints a usable diff rather than "false".
+  assert.strictEqual(navGraphMermaid, readSnapshot('projects-rail.graph.mmd'));
+  assert.strictEqual(controlTableMd, readSnapshot('projects-rail.controls.md'));
+
+  const live = `${JSON.stringify(manifest, null, 2)}\n`;
+  const withPlaceholder = live.replace(
+    JSON.stringify(manifest.engine_version),
+    JSON.stringify(ENGINE_VERSION_PLACEHOLDER)
+  );
+  assert.strictEqual(withPlaceholder, readSnapshot('projects-rail.manifest.json'));
+
+  // And the placeholder is not a way to lose the field: it is IN the committed file, so a
+  // reader of the snapshot sees that the manifest says which engine produced it.
+  assert.ok(
+    readSnapshot('projects-rail.manifest.json').includes(`"engine_version": "${ENGINE_VERSION_PLACEHOLDER}"`),
+    'the committed manifest snapshot must keep the engine_version field, placeholder and all'
+  );
+});
