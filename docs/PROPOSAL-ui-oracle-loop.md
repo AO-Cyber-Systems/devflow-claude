@@ -146,11 +146,24 @@ controls:
         does: "opens the project in the drawer"
         effect: [navigation]
     must_not: ["fire twice per activation", "cover sibling hit rects"]   # applies to every behaviour
-    activation: [pointer, keyboard: [Enter, Space]]
+    activation: {pointer: true, keyboard: [Enter, Space]}
     disabled_when: null               # or {condition: "...", reason_shown: "..."}
     a11y: {role: button, announces: [expanded, collapsed]}
-    hit_rect: {disjoint_from: [rail.project.chevron]}
+    hit_rect: {disjoint_from: [rail.project.chevron]}   # reciprocal; the probe measures the rects
     destructive: false                # true requires `confirm:` naming the dialog control
+
+  - id: rail.project.chevron
+    kind: toggle
+    visible_in: [populated, long-content, narrow]
+    does: "toggles children visibility only"
+    effect: [toggle]
+    must_not: ["select the project", "change route"]
+    hit_rect:
+      max: "40x40"                    # an upper bound the probe asserts, not a layout instruction
+      within: rail.project.header     # sits inside the header's area but MUST own its hit target —
+                                      # the declarable form of the aodex#544 defect, where the
+                                      # chevron's semantics node spanned the whole 360px row
+      disjoint_from: [rail.project.header]
 
 states:
   - id: populated
@@ -176,8 +189,12 @@ states:
     seed: projects-3
     as: non-member
     content: {must_show: ["You don't have access"], must_not_show: ["{project.name}"]}
-  - id: narrow      {viewport: 390x844, seed: projects-3-conversations-12}
-  - id: dark        {theme: dark, seed: projects-3-conversations-12}
+  - id: narrow
+    viewport: "390x844"
+    seed: projects-3-conversations-12
+  - id: dark
+    theme: dark
+    seed: projects-3-conversations-12
 
 flows:
   - id: open-project-conversation
@@ -191,7 +208,7 @@ scope_rules:
   - {on: project-move,     invalidate: [project-pane, project-count-badge]}
 
 acceptance:
-  locked_sheet: sha256:...            # hash of the approved review sheet (§8.3)
+  locked_sheet: "sha256:9f2c1b7e4a6d0835c1e9b4f7a2d6c8e013b5a7f9d2c4e6081a3b5c7d9e1f3a5b7"
   locked_by: mark@aocyber.ai
   locked_at: 2026-09-18
 ```
@@ -222,7 +239,9 @@ enforce:
 Every surface declares at minimum `populated`, `empty`, `error`, `outage`, `long-content`,
 `narrow`, and `dark`. `loading` is declared when the surface owns an async fetch. Each state
 has a `seed` (§7.4) and a `content` block: `must_show` / `must_not_show` strings, or a `rule`.
-`outage` must differ from `empty` in `must_show`; the schema rejects a spec where they are equal.
+`outage.must_show` and `empty.must_show` must be **disjoint** — an outage and an emptiness may
+never be evidenced by the same sentence. The validator rejects any intersection, not merely
+equality.
 
 ### 4.5 Static invariants (run on the spec alone, no app needed)
 
@@ -232,11 +251,16 @@ has a `seed` (§7.4) and a `content` block: `must_show` / `must_not_show` string
 2. every route has ≥1 `entry` and a `back` (or is the declared root); every `entry.control`
    exists in `controls` or in another spec of the same repo (cross-surface entries are resolved);
 3. every control has one `does` or an exclusive, covering `behaviors[]`; effects from the vocabulary; `visible_in` ⊆ states;
-4. every state has a seed; `outage.must_show ∩ empty.must_show = ∅`;
+4. every state has a seed; `outage.must_show ∩ empty.must_show = ∅` — disjoint, not merely
+   unequal (the stronger reading; §4.4 states it the same way);
 5. every referenced pattern exists in the pinned `eden-ui-flutter` release; a control of a
    pattern kind inherits that pattern's `must_not` defaults (a surface may not silently drop them);
-6. no two controls declare overlapping hit rects unless one lists the other in `disjoint_from`
-   (which the probe then asserts);
+6. every `hit_rect.disjoint_from` entry resolves to a control in this spec, is reciprocal (both
+   controls name each other) and never names its own control; a `hit_rect.within` entry resolves
+   and does not also appear in that control's `disjoint_from` — a control cannot be both inside
+   another's area and disjoint from it. **Overlap itself is not statically checkable and is not
+   checked here**: the spec declares intent, the probe measures rects (§7.5 `disjoint`,
+   `hit-target`, `within`);
 7. every `flow` step references existing controls and routes and ends in a `back` or a declared
    terminal route;
 8. `guards` name the denied state each renders.
@@ -395,7 +419,8 @@ Checks are pure functions over `ProbeResult` + spec, each named by the rule it e
 |---|---|
 | `present` | a spec control visible in this state is absent from the semantics tree (aodex#529 class) |
 | `hit-target` | `elementFromPoint` at a control's centre is not that control's node |
-| `disjoint` | rects of `disjoint_from` pairs overlap |
+| `disjoint` | rects of a `disjoint_from` pair overlap |
+| `within` | a control declaring `hit_rect.within` has a rect not contained by that control's, or exceeding a declared `max` |
 | `target-size` | control rect < 24 px on either axis |
 | `overflow` | bridge reports a RenderFlex exception or a rect exits the viewport |
 | `contrast` | text node contrast below guideline |
