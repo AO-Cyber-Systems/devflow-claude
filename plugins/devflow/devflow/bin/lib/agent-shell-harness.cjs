@@ -124,7 +124,40 @@ function extractBashBlocks(md, section) {
   return { ok: true, blocks, section: heading.text, headingLine: heading.index + 1, match };
 }
 
+// ─── Call splitting ───────────────────────────────────────────────────────────────────
+
+/**
+ * splitCalls(block[, opts]) -> [{index, line, call, annotations}]
+ *
+ * Splits a bash block into the calls the Bash tool would actually make: ONE logical
+ * command per call. Line-based, deliberately — a bash parser is a project, not a task,
+ * and the model is "one line, one call".
+ *
+ * `block` is either the raw body string, or an `extractBashBlocks` block object
+ * ({body, startLine}); with the object form `line` is absolute in the markdown file,
+ * with the string form it is 1-based within the block.
+ */
+function splitCalls(block, opts = {}) {
+  const body = typeof block === 'string' ? block : String(block && block.body || '');
+  const base = opts.startLine != null
+    ? opts.startLine
+    : (typeof block === 'object' && block && block.startLine != null ? block.startLine : 0);
+
+  const lines = body.split('\n');
+  const calls = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    if (raw.trim() === '') continue;                  // blank lines are separators, not calls
+    if (/^\s*#/.test(raw)) continue;                  // full-line comment (S3 attaches these)
+    calls.push({ index: calls.length, line: base + i + 1, call: raw.trim(), annotations: [] });
+  }
+
+  return calls;
+}
+
 module.exports = {
   extractBashBlocks,
   normalizeHeading,
+  splitCalls,
 };
