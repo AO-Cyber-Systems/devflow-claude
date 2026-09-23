@@ -1,0 +1,20 @@
+#!/usr/bin/env node
+'use strict';
+/**
+ * `df-tools` SHIM (TRD 34-10) — not a stub.
+ *
+ * `agents/executor.md` names `~/.claude/devflow/bin/df-tools.cjs`, the MIRROR, and that
+ * is CORRECT prose: skills and agents invoke the mirror. The harness must not "fix" the
+ * prose to a checkout path. It substitutes the BINARY and keeps the ARGUMENTS — exactly
+ * the rule `verifier-ui-eval-invocation.test.cjs:38-42` states — by putting this shim on
+ * the prepended PATH and annotating the prose `# harness: subst`.
+ *
+ * Because the shim is reached by NAME rather than by absolute path, the harness's
+ * containment scan stays maximally strict: no `allowOutside` entry is needed for it.
+ */
+const path = require('path');
+const { spawnSync } = require('child_process');
+
+const real = path.resolve(__dirname, '..', '..', '..', '..', 'df-tools.cjs');
+const r = spawnSync(process.execPath, [real].concat(process.argv.slice(2)), { stdio: 'inherit' });
+process.exit(r.status === null ? 1 : r.status);

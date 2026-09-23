@@ -89,6 +89,75 @@ Plans execute autonomously. Checkpoints formalize interaction points where human
   <resume-signal>Type "approved" or describe issues</resume-signal>
 </task>
 ```
+
+### look-lock variant
+
+A **look-lock** is a `checkpoint:human-verify` over a *rendered UI surface* rather than over a
+feature. It is the Phase A exit gate of the UI oracle loop (proposal §8.3): a human looks at the
+review sheet once, and their approval is recorded in the Surface Spec itself so that everything
+downstream can tell whether it still applies.
+
+Not a fourth checkpoint type — the same `type="checkpoint:human-verify"` element, with
+`variant="look-lock"` on it. The three-type taxonomy is what the orchestrator dispatches on.
+
+**When to use it:** a Surface Spec validates, `df-tools.cjs ui sheet` has produced a review
+sheet for it, and the spec carries no current lock — `df-tools.cjs ui spec validate <spec>`
+reports `lock: "absent"` (never look-locked) or `lock: "cleared"` (locked, then `routes`,
+`controls` or `states` changed). `lock: "held"` means the approval still stands and no
+checkpoint is due.
+
+**What the human is shown** — all four, or the approval is not informed:
+
+1. The **absolute path to the sheet** (`--out` of `ui sheet`). It is static, self-contained
+   HTML and can be published as a Claude Artifact or opened from disk.
+2. Its **`sheet_hash`** — the sha256 `ui sheet` printed. This is the identity of the thing being
+   approved, and it is what gets recorded.
+3. The **`missing[]` capture list** — every declared state with no render. A MISSING cell is a
+   state nobody has looked at; approving a sheet whose states are mostly MISSING approves very
+   little, and the human has to be able to see that before they answer.
+4. The **`lock` status and its reason**, so a re-review says which of `routes` / `controls` /
+   `states` moved since the last approval.
+
+**What approval runs** — exactly this, with the hash from step 2 and the approver's address:
+
+`node ~/.claude/devflow/bin/df-tools.cjs ui lock <spec> --sheet-hash <sheet_hash> --by <email>`
+
+It splices `acceptance: {locked_sheet, locked_by, locked_at, locked_shape_hash,
+locked_section_hashes}` into the spec's own front matter and leaves the prose body
+byte-identical. `locked_shape_hash` covers `{routes, controls, states}` and nothing else, so a
+later prose or `design_read` edit leaves the lock `held`, while a control edit clears it. The
+command refuses (exit 1, writes nothing) if the spec does not validate, if `--sheet-hash` is not
+64 hex characters, or if `--by` is absent.
+
+**What a rejection does:** comments on the sheet are the revision channel. The executor fixes
+the spec or re-captures the affected states, re-runs `ui sheet`, and presents the new sheet with
+its new `sheet_hash`. **No lock is written** — `ui lock` is not run at all on a rejection, so the
+spec keeps reporting `absent` / `cleared` and nothing downstream can mistake the surface for
+approved.
+
+**Autonomous mode: a look-lock is NEVER blind-approved and is never delegated to the verifier
+agent.** The general rule below hands `checkpoint:human-verify` to the verifier on green machine
+evidence, because those checkpoints ask "does it work". A look-lock asks "is this the right
+design" — a question no machine evidence answers, and the whole value of the recorded lock is
+that a *person* looked. In autonomous mode a look-lock **falls through to the user** exactly as
+`checkpoint:human-action` does. An agent must never run `ui lock` with its own address, or with
+the user's, on the user's behalf.
+
+```xml
+<task type="checkpoint:human-verify" variant="look-lock" gate="blocking">
+  <what-built>Surface Spec `specs/ui/projects-rail.md` validates; review sheet rendered to
+    /tmp/projects-rail.sheet.html (sheet_hash 33af7614…, 3 of 8 captures MISSING).</what-built>
+  <how-to-verify>
+    Open the sheet and check, for each row: the render matches the reference beside it, the
+    navigation graph has a way back from every route, the control table says what you expect
+    each control to do, and the content contract matches what the screenshot shows.
+    The MISSING rows are states with no render — they are not approved by approving this sheet.
+  </how-to-verify>
+  <resume-signal>Type "approved" (the lock is then written with your address), or describe
+    what is wrong — a rejection writes no lock.</resume-signal>
+</task>
+```
+
 </type>
 
 <type name="decision">
@@ -300,6 +369,10 @@ Any server the verifier starts during checkpoint verification MUST bind port **8
 ### Decision checkpoints in autonomous mode
 
 `checkpoint:decision` is NOT auto-selected in autonomous mode. Decisions are parked via the decision queue (wired in TRD 10-04). Until the queue is wired, decision checkpoints fall through to the standard interactive flow.
+
+### look-lock checkpoints
+
+A `checkpoint:human-verify` carrying `variant="look-lock"` is the ONE human-verify the verifier agent may not stand in for. It asks "is this the right design", not "does it work", and machine evidence does not answer it. In autonomous mode it falls through to the user, exactly as `checkpoint:human-action` does. See the **look-lock variant** section above for what is shown, what approval runs and what a rejection does — documented once, there.
 
 ### human-action checkpoints
 

@@ -1,0 +1,92 @@
+#!/usr/bin/env node
+'use strict';
+/**
+ * `flutter` stub (TRD 34-10). Accepts ONLY the invocations `agents/executor.md` actually
+ * makes, emits the artifacts those invocations really produce, and exits 2 WITH THE ARGV
+ * IT SAW for anything else.
+ *
+ * A permissive stub turns every prose command into a no-op and every section green — it
+ * would prove nothing about the prose. The final `exit 2` is what makes a red section
+ * diagnosable in one line.
+ */
+const fs = require('fs');
+const path = require('path');
+
+const a = process.argv.slice(2);
+const flags = a.filter(x => x.startsWith('-'));
+const words = a.filter(x => !x.startsWith('-'));
+
+function touch(rel) {
+  const p = path.resolve(process.cwd(), rel);
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  fs.writeFileSync(p, 'stub artifact\n');
+}
+function reject() {
+  process.stderr.write('flutter stub: unexpected argv: ' + JSON.stringify(a) + '\n');
+  process.exit(2);
+}
+const onlyFlags = (...allowed) => flags.every(f => allowed.includes(f.split('=')[0]));
+
+switch (words[0]) {
+  case 'analyze': {
+    // Executor prose: `flutter analyze --no-pub --no-fatal-warnings`. ONE deterministic
+    // line, so the baseline-diff in the prose is stable across runs.
+    if (words.length !== 1 || !onlyFlags('--no-pub', '--no-fatal-warnings')) reject();
+    process.stdout.write('No issues found!\n');
+    process.exit(0);
+    break;
+  }
+  case 'test': {
+    // `flutter test <path>` / `flutter test integration_test/`. Real flutter exits
+    // non-zero when the target does not exist; the stub does the same, which is what
+    // lets the prose's RED half be asserted by exit code.
+    if (words.length > 2 || flags.length) reject();
+    const target = words[1];
+    if (target) {
+      if (!fs.existsSync(path.resolve(process.cwd(), target))) {
+        process.stderr.write('flutter stub: test target not found: ' + target + '\n');
+        process.exit(1);
+      }
+      // takeScreenshot() inside an integration_test run writes here; the prose moves it.
+      if (fs.statSync(path.resolve(process.cwd(), target)).isDirectory()) {
+        touch('build/integration_test_screenshots/shot.png');
+      }
+    }
+    process.exit(0);
+    break;
+  }
+  case 'build': {
+    if (words[1] === 'apk' && flags.includes('--debug') && words.length === 2) {
+      touch('build/app/outputs/flutter-apk/app-debug.apk');
+      process.exit(0);
+    }
+    if (words[1] === 'web' && flags.includes('--release') && words.length === 2) {
+      touch('build/web/main.dart.js');
+      process.exit(0);
+    }
+    reject();
+    break;
+  }
+  case 'drive': {
+    // `flutter drive --driver=test_driver/integration_test.dart --target=<p> -d chrome`
+    const driver = flags.find(f => f.startsWith('--driver='));
+    const target = flags.find(f => f.startsWith('--target='));
+    const device = a[a.indexOf('-d') + 1];
+    if (!driver || !target || a.indexOf('-d') === -1 || device !== 'chrome') reject();
+    for (const f of [driver, target]) {
+      const rel = f.split('=').slice(1).join('=');
+      if (!fs.existsSync(path.resolve(process.cwd(), rel))) {
+        process.stderr.write('flutter stub: drive target not found: ' + rel + '\n');
+        process.exit(1);
+      }
+    }
+    // `flutter drive` is the WEB verifier and `flutter test integration_test/` the mobile
+    // one; they write distinctly-named screenshots so the two evidence `mv`s in
+    // executor.md can each be asserted on their own artifact.
+    touch('build/integration_test_screenshots/web-shot.png');
+    process.exit(0);
+    break;
+  }
+  default:
+    reject();
+}

@@ -1,0 +1,36 @@
+#!/usr/bin/env node
+'use strict';
+/**
+ * `jq` stub (TRD 34-10). The CI runner and a fresh macOS box may not have jq, and a
+ * silent "jq: command not found" would make the bootstrap section permanently red for an
+ * environmental reason. This stub implements EXACTLY the filters `agents/executor.md`
+ * uses and rejects every other filter with exit 2 — an unlisted filter is a prose change
+ * the fixture has not been taught about, not something to guess at.
+ */
+const fs = require('fs');
+
+const a = process.argv.slice(2);
+function reject() {
+  process.stderr.write('jq stub: unsupported invocation: ' + JSON.stringify(a) + '\n');
+  process.exit(2);
+}
+if (a[0] !== '-r' || a.length < 2 || a.length > 3) reject();
+const filter = a[1];
+const src = a[2] ? fs.readFileSync(a[2], 'utf-8') : fs.readFileSync(0, 'utf-8');
+
+let doc;
+try { doc = JSON.parse(src); } catch (e) {
+  process.stderr.write('jq stub: input is not JSON: ' + e.message + '\n');
+  process.exit(5);
+}
+
+const FILTERS = {
+  '.action': d => d.action,
+  '.packageDir': d => d.packageDir,
+  '.setup_task': d => d.setup_task,
+  '.missing | join(", ")': d => (d.missing || []).join(', '),
+};
+if (!Object.prototype.hasOwnProperty.call(FILTERS, filter)) reject();
+const v = FILTERS[filter](doc);
+process.stdout.write((v === undefined || v === null ? 'null' : String(v)) + '\n');
+process.exit(0);

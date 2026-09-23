@@ -89,6 +89,12 @@ function makeTmpRoot() {
   // devflow/templates/tpl.md
   fs.mkdirSync(path.join(devflowSrc, 'templates'), { recursive: true });
   fs.writeFileSync(path.join(devflowSrc, 'templates', 'tpl.md'), '# template stub');
+  // devflow/schemas/surface-spec.schema.json (TRD 34-02 — must mirror)
+  fs.mkdirSync(path.join(devflowSrc, 'schemas'), { recursive: true });
+  fs.writeFileSync(
+    path.join(devflowSrc, 'schemas', 'surface-spec.schema.json'),
+    '{"schema_version":1}'
+  );
 
   // home dir (fake HOME)
   const home = path.join(root, 'home');
@@ -447,5 +453,62 @@ describe('Regression: exclusion patterns do not match references/*.md', () => {
     const testPath = 'references/deviation-rules.md';
     const excluded = MIRROR_EXCLUDE.some(r => r.test(testPath));
     assert.equal(excluded, false, 'references/deviation-rules.md must not be excluded');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Objective 34 mirror-completeness guard
+//
+// TRD 34-02 shipped `devflow/schemas/` (surface-spec.schema.json +
+// must_not_vocabulary.json). `loadSurfaceSpecSchema()` resolves them relative to
+// __dirname, so every checkout test passes — but SUBDIRS is an ALLOWLIST, and a
+// subdir missing from it is never mirrored. `df-tools ui spec validate` would then
+// ENOENT on every real skill invocation while the suite stayed green: a check that
+// passes in the checkout and cannot run in the runtime that matters.
+//
+// Case A pins the schemas dir. Case B is the drift guard — it fails for the NEXT
+// subdir someone adds, not just this one.
+// ---------------------------------------------------------------------------
+
+describe('Objective 34: every shipped runtime subdir reaches the mirror', () => {
+  test('A — devflow/schemas/ is mirrored', (t) => {
+    const { root, pluginRoot, home, targetDir } = makeTmpRoot();
+    t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+
+    const result = runHook(pluginRoot, home);
+    assert.equal(result.status, 0, `hook exited non-zero: ${result.stderr}`);
+
+    assert.ok(
+      fs.existsSync(path.join(targetDir, 'schemas')),
+      'target/schemas not created — SUBDIRS is an allowlist and omits it'
+    );
+    assert.ok(
+      fs.existsSync(path.join(targetDir, 'schemas', 'surface-spec.schema.json')),
+      'surface-spec.schema.json not mirrored — ui spec validate would ENOENT at runtime'
+    );
+  });
+
+  test('B — drift guard: no real devflow/ subdir is absent from the mirror', (t) => {
+    // Runs against the REAL checkout, not the tmp tree: this is the case that
+    // catches a subdir added after today.
+    const realSrc = path.join(__dirname, '..', 'devflow');
+    const onDisk = fs.readdirSync(realSrc, { withFileTypes: true })
+      .filter(e => e.isDirectory() && !e.name.startsWith('.'))
+      .map(e => e.name)
+      .sort();
+
+    const hookSrc = fs.readFileSync(HOOK_PATH, 'utf8');
+    const m = hookSrc.match(/const SUBDIRS = \[([^\]]*)\]/);
+    assert.ok(m, 'could not locate SUBDIRS in sync-runtime.js');
+    const declared = m[1].split(',')
+      .map(x => x.trim().replace(/^['"]|['"]$/g, ''))
+      .filter(Boolean)
+      .sort();
+
+    const missing = onDisk.filter(d => !declared.includes(d));
+    assert.deepStrictEqual(
+      missing, [],
+      `devflow/ subdir(s) on disk but not in SUBDIRS, so never mirrored: ${missing.join(', ')}`
+    );
   });
 });

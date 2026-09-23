@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "source": "eden-ui-flutter design/must_not_vocabulary.json (W1a 1a-09)",
+  "description": "The fixed vocabulary a Surface Spec's `must_not` items are drawn from (proposal §4.3). Each term is phrased so it can be asserted as a negation over a ProbeResult (§7.5 `must-not`). Free text is allowed in a spec only with `manual: true`, which keeps the item on the human-verify list instead. Sorted and unique; 34-03's CTRL007 and 34-05's control table both read this array.",
+  "terms": [
+    "change route",
+    "cover sibling hit rects",
+    "fire twice per activation",
+    "lose selection",
+    "navigate on close",
+    "select the project",
+    "steal focus"
+  ]
+}
