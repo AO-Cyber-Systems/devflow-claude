@@ -275,6 +275,7 @@ function containmentFindings(callText, root, allowOutside) {
 //
 //   # harness: expect <path>        the path must exist under the scratch root afterwards
 //   # harness: expect-cwd <path>    the persisted cwd after the call must equal <path>
+//   # harness: expect-exit <n>      the call's status must equal <n> (default: 0)
 //
 // `{root}` in any directive value expands to the scratch root.
 const HARNESS_DIRECTIVE_RE = /^#\s*harness:\s*(.+)$/;
@@ -284,7 +285,7 @@ function expandRoot(value, root) {
 }
 
 function parseAnnotations(annotations, root) {
-  const spec = { expects: [], expectCwd: null };
+  const spec = { expects: [], expectCwd: null, expectExit: null };
   for (const raw of annotations || []) {
     const m = HARNESS_DIRECTIVE_RE.exec(String(raw == null ? '' : raw).trim());
     if (!m) continue;          // an ordinary prose comment is not a directive
@@ -294,6 +295,7 @@ function parseAnnotations(annotations, root) {
     const arg = sp === -1 ? '' : expandRoot(body.slice(sp + 1).trim(), root);
     if (verb === 'expect' && arg) { spec.expects.push(arg); continue; }
     if (verb === 'expect-cwd' && arg) { spec.expectCwd = arg; continue; }
+    if (verb === 'expect-exit' && /^\d+$/.test(arg)) { spec.expectExit = Number(arg); continue; }
   }
   return spec;
 }
@@ -395,7 +397,9 @@ function runSection(calls, opts = {}) {
     const entry = typeof raw === 'string' ? { call: raw } : (raw || {});
     const callText = String(entry.call == null ? '' : entry.call);
     const spec = parseAnnotations(entry.annotations, root);
-    const expectedStatus = entry.expectedStatus == null ? 0 : entry.expectedStatus;
+    const expectedStatus = spec.expectExit != null
+      ? spec.expectExit
+      : (entry.expectedStatus == null ? 0 : entry.expectedStatus);
 
     const rec = {
       index: results.length,
