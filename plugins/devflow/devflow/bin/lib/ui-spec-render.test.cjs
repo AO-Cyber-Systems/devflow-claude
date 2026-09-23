@@ -223,6 +223,33 @@ test('Case G1 — one node per route, labelled with the route id and its title, 
   }
 });
 
+test('Case G5 — a label never carries raw markup: `"`, `<` and `>` all leave as entities', () => {
+  // `<` and `>` are as dangerous in a mermaid label as `"` is, and for a longer route. The
+  // renderer injects its OWN `<br/>` into these labels, so mermaid reads the label as markup;
+  // 34-06 then puts the graph through `esc()` into a `<pre class="mermaid">` whose textContent
+  // the browser decodes before mermaid ever sees it. A route titled `Projects <beta>` therefore
+  // arrives at mermaid as an open tag — the node renders wrong or not at all, and the one
+  // artifact whose job is to show the navigation is the artifact that stops showing it.
+  const spec = mutate(loadPositiveControl(), (s) => {
+    s.routes[1].title = 'Projects <beta> "preview" & co';
+  });
+
+  const { navGraphMermaid } = renderSurfaceSpec(spec, { validate: false });
+  const line = graphLines(navGraphMermaid).find((l) => l.startsWith('route_conversations_all['));
+  assert.ok(line, `no node line for conversations.all:\n${navGraphMermaid}`);
+
+  assert.strictEqual(
+    line,
+    'route_conversations_all["conversations.all<br/>Projects #lt;beta#gt; #quot;preview#quot; & co"]',
+    'every mermaid metacharacter in a label leaves as its `#name;` entity'
+  );
+
+  // And the whole graph carries no `<`/`>` outside the `<br/>` separators the renderer writes.
+  for (const l of graphLines(navGraphMermaid)) {
+    assert.doesNotMatch(l.split('<br/>').join(''), /[<>]/, `raw angle bracket survived into: ${l}`);
+  }
+});
+
 test('Case G2 — one SOLID edge per entry (deeplink from `external`), one DASHED edge per back', () => {
   const spec = loadPositiveControl();
   const { navGraphMermaid } = renderSurfaceSpec(spec);

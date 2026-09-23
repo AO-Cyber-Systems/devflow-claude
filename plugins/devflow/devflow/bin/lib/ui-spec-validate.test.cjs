@@ -144,6 +144,27 @@ test('Case V3 — never throws: null, {}, a string and a parse failure all retur
   assert.match(fromParseFailure.errors[0].msg, /line 2/);
 });
 
+test('Case V5 — no check function shadows the module-level `missing()` MISSING-row factory', () => {
+  // A SOURCE guard, and it says so: the defect it pins is a latent one with no behaviour to
+  // assert today. `checkStates` declared `const missing = MINIMUM_STATES.filter(...)`, which
+  // put its ENTIRE body in that const's temporal dead zone — so the first STATE-level MISSING
+  // row added above the declaration would throw a ReferenceError, `validateSurfaceSpec`'s
+  // blanket catch would turn it into SPEC000 "the validator could not read this spec", and an
+  // invariant bug would be reported to the author as a broken spec. Cheap to shadow by
+  // accident, expensive to diagnose, invisible to every behavioural test in this file.
+  const src = fs.readFileSync(path.join(__dirname, 'ui-spec-validate.cjs'), 'utf-8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split('\n')
+    .filter((l) => !l.trimStart().startsWith('//'))
+    .join('\n');
+
+  assert.match(src, /\nfunction missing\(/, 'the guard must actually have found the factory it is about');
+
+  const shadows = [...src.matchAll(/^\s+(?:const|let|var)\s+missing\b/gm)].map((m) => m[0].trim());
+  assert.deepStrictEqual(shadows, [],
+    `a local \`missing\` shadows the MISSING-row factory: ${shadows.join(' | ')}`);
+});
+
 test('Case V4 — errors are deterministically ordered by (code, path) across runs', () => {
   const spec = threeViolationSpec();
 
