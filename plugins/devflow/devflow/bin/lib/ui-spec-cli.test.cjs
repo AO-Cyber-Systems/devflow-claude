@@ -696,3 +696,188 @@ test('Case L9 — `ui lock` NEVER dies with a stack trace on a spec `ui spec val
     }
   }
 });
+
+// ═════════════════════════════════════════════════════════════════════════════
+// G: INCOMPLETE gets its own exit code — issue #90
+//
+// ── The defect ───────────────────────────────────────────────────────────────
+// `ui spec validate` on the positive control, with no `--patterns`, printed a PAT000 row whose
+// own message reads "§4.5 I5 is UNCHECKED for this spec, which is not the same as passing" —
+// and then exited 0. A real violation exits 1. So the two outcomes a gate must tell apart —
+// CHECKED AND CLEAN versus NEVER CHECKED — were the same number, and the shell idiom every gate
+// is written with, `validate "$spec" || exit 1`, read an unchecked invariant as verified.
+//
+// ── The contract these cases pin ─────────────────────────────────────────────
+//   0  every check ran, nothing violated
+//   1  a real violation (unchanged — this is the plan's W1b gate and it does not move)
+//   2  nothing violated, but one or more checks did not run
+//
+// `|| exit 1` now fails on 2, and a caller who genuinely accepts an incomplete check has to say
+// so — `[ $? -eq 2 ]` — rather than inheriting it by accident.
+//
+// Exit 2 from `render`, `sheet` and `lock` means the artifact WAS produced. Only a 1 refuses.
+
+const GATE_SENTINEL = 'GATE_FAILED';
+
+/**
+ * Run the obvious gate idiom — `cmd || fail` — in a REAL shell and report whether it failed.
+ *
+ * Not `result.status !== 0`: that is the assertion restated in the test's own words. The claim
+ * is about what `sh` does with the code, so `sh` is what runs it.
+ */
+function gateFails(argv) {
+  const cmd = `node ${JSON.stringify(DF_TOOLS)} ${argv} >/dev/null 2>&1 || echo ${GATE_SENTINEL}`;
+  const r = spawnSync('sh', ['-c', cmd], { cwd: LIB_DIR, encoding: 'utf-8' });
+  return (r.stdout || '').includes(GATE_SENTINEL);
+}
+
+test('Case G1 — an UNCHECKED invariant cannot pass a gate written the obvious way', () => {
+  const spec = '__fixtures__/ui-spec/projects-rail.md';
+
+  assert.strictEqual(
+    gateFails(`ui spec validate ${spec}`), true,
+    'a spec whose §4.5 I5 was never checked must NOT pass `ui spec validate "$spec" || exit 1`'
+  );
+
+  // The one-edit differential. Same spec, same gate, same shell — the ONLY change is that the
+  // pattern catalogue is now reachable, i.e. that I5 was actually evaluated. Without this half
+  // the case above passes for a tool that fails on everything.
+  assert.strictEqual(
+    gateFails(`ui spec validate ${spec} --patterns ${JSON.stringify(PATTERN_CATALOGUE)}`), false,
+    'the same spec, CHECKED against a catalogue, must still pass the same gate'
+  );
+
+  // And the third outcome stays where it was: a real violation fails the gate too.
+  assert.strictEqual(gateFails('ui spec validate __fixtures__/ui-spec/broken/route-without-back.md'), true);
+});
+
+test('Case G2 — the three exit codes are 0, 1 and 2, and they are distinguishable', () => {
+  const spec = '__fixtures__/ui-spec/projects-rail.md';
+
+  const checked = runArm(`ui spec validate ${spec} --patterns ${JSON.stringify(PATTERN_CATALOGUE)}`);
+  assert.strictEqual(checked.status, 0, `checked and clean is 0: ${checked.stdout}${checked.stderr}`);
+
+  const violation = runArm('ui spec validate __fixtures__/ui-spec/broken/route-without-back.md');
+  assert.strictEqual(violation.status, 1, 'a real violation is 1 — the plan`s W1b gate, unchanged');
+
+  const incomplete = runArm(`ui spec validate ${spec}`);
+  assert.strictEqual(incomplete.status, 2, `an unchecked invariant is 2: ${incomplete.stdout}`);
+
+  // 1 outranks 2: a broken spec whose I5 also did not run still reports the violation, because a
+  // caller that only sorts zero from non-zero has to see the worse of the two.
+  const both = runArm('ui spec validate __fixtures__/ui-spec/broken/route-without-back.md');
+  assert.strictEqual(both.status, 1);
+  assert.strictEqual(parseStdout(both).complete, false, 'and it still says it was incomplete');
+});
+
+test('Case G3 — the JSON cannot be misread by a consumer that reads only `ok`', () => {
+  const spec = '__fixtures__/ui-spec/projects-rail.md';
+
+  const incomplete = parseStdout(runArm(`ui spec validate ${spec}`));
+  assert.strictEqual(incomplete.ok, true, 'nothing violated — `ok` is honestly named and does not move');
+  assert.strictEqual(incomplete.complete, false, 'and `complete` sits beside it saying a check did not run');
+  assert.deepStrictEqual(incomplete.unchecked, ['PAT000'], 'naming which one, joinable to errors[]');
+
+  const checked = parseStdout(runArm(`ui spec validate ${spec} --patterns ${JSON.stringify(PATTERN_CATALOGUE)}`));
+  assert.strictEqual(checked.ok, true);
+  assert.strictEqual(checked.complete, true);
+  assert.deepStrictEqual(checked.unchecked, []);
+
+  // `complete` is adjacent to `ok` in the printed object, not buried after `errors` — a reader
+  // scanning the first lines of the payload sees both halves of the answer.
+  const keys = Object.keys(incomplete);
+  assert.strictEqual(keys[0], 'ok');
+  assert.strictEqual(keys[1], 'complete');
+  assert.strictEqual(keys[2], 'unchecked');
+});
+
+test('Case G4 — `render` exits 2 on an incomplete verdict and still prints the artifact', () => {
+  const spec = '__fixtures__/ui-spec/projects-rail.md';
+
+  const incomplete = runArm(`ui spec render ${spec} --graph`);
+  assert.strictEqual(incomplete.status, 2, `exit ${incomplete.status}: ${incomplete.stderr}`);
+  assert.ok(incomplete.stdout.includes('flowchart') || incomplete.stdout.includes('graph'),
+    `exit 2 is "incomplete", never "refused" — the artifact is still on stdout:\n${incomplete.stdout.slice(0, 200)}`);
+  assert.ok(incomplete.stderr.includes('PAT000'), 'and the advisory still names the check that did not run');
+
+  // The differential: the same render with the catalogue supplied is a 0, and the artifact bytes
+  // are IDENTICAL — the exit code changed, the output did not.
+  const checked = runArm(`ui spec render ${spec} --graph --patterns ${JSON.stringify(PATTERN_CATALOGUE)}`);
+  assert.strictEqual(checked.status, 0, `exit ${checked.status}: ${checked.stderr}`);
+  assert.strictEqual(checked.stdout, incomplete.stdout, 'exit 2 must not change one byte of the artifact');
+
+  // A real violation is still a 1, and still renders nothing.
+  const refused = runArm('ui spec render __fixtures__/ui-spec/broken/route-without-back.md --graph');
+  assert.strictEqual(refused.status, 1);
+});
+
+test('Case G5 — `ui sheet` exits 2 when a state was never rendered, and still writes the sheet', () => {
+  const renders = sheetTmpDir('df-sheet-g5-renders-');
+  const refs = sheetTmpDir('df-sheet-g5-refs-');
+  const outDir = sheetTmpDir('df-sheet-g5-out-');
+  const out = path.join(outDir, 'sheet.html');
+  const cat = JSON.stringify(PATTERN_CATALOGUE);
+
+  // No renders at all: every declared state is a cell nobody has looked at. checkpoints.md's
+  // look-lock variant says so in prose ("a MISSING cell is a state nobody has looked at"); the
+  // exit code has to say it too, or `ui sheet … || fail` signs off on an empty sheet.
+  const empty = runArm(
+    `ui sheet __fixtures__/ui-spec/projects-rail.md --renders ${JSON.stringify(renders)} `
+    + `--refs ${JSON.stringify(refs)} --out ${JSON.stringify(out)} --patterns ${cat}`
+  );
+  assert.strictEqual(empty.status, 2, `exit ${empty.status}: ${empty.stdout}${empty.stderr}`);
+  assert.ok(fs.existsSync(out), 'exit 2 is "incomplete", never "refused" — the sheet WAS written');
+  const emptyPayload = parseStdout(empty);
+  assert.strictEqual(emptyPayload.complete, false);
+  assert.strictEqual(emptyPayload.missing.length, 8);
+
+  // Now supply a render for every declared capture. One edit — the renders — and the same
+  // command is a 0.
+  const spec = parseSurfaceSpec(fs.readFileSync(POSITIVE_CONTROL, 'utf-8')).frontMatter;
+  for (const row of sheetLib.buildSheetModel(spec, { renders, refs }).rows) {
+    fs.writeFileSync(path.join(renders, `${row.capture_id}.png`), Buffer.from('not really a png'));
+  }
+  const full = runArm(
+    `ui sheet __fixtures__/ui-spec/projects-rail.md --renders ${JSON.stringify(renders)} `
+    + `--refs ${JSON.stringify(refs)} --out ${JSON.stringify(out)} --patterns ${cat}`
+  );
+  assert.strictEqual(full.status, 0, `every state rendered and every check run is a 0: ${full.stdout}${full.stderr}`);
+  const fullPayload = parseStdout(full);
+  assert.strictEqual(fullPayload.complete, true);
+  assert.deepStrictEqual(fullPayload.missing, []);
+
+  // …and the spec half of completeness counts too: drop the catalogue and the SAME fully
+  // rendered sheet is a 2 again, because §4.5 I5 was not evaluated for the spec behind it.
+  const noCatalogue = runArm(
+    `ui sheet __fixtures__/ui-spec/projects-rail.md --renders ${JSON.stringify(renders)} `
+    + `--refs ${JSON.stringify(refs)} --out ${JSON.stringify(out)}`
+  );
+  assert.strictEqual(noCatalogue.status, 2, `stdout: ${noCatalogue.stdout}`);
+  assert.deepStrictEqual(parseStdout(noCatalogue).unchecked, ['PAT000']);
+});
+
+test('Case G6 — `ui lock` over a spec with an unchecked invariant exits 2, and the lock IS written', () => {
+  const file = lockTmpSpec('g6.md', stripAcceptance);
+
+  const locked = runArm(`ui lock ${JSON.stringify(file)} --sheet-hash ${LOCK_SHEET_HASH} --by ${LOCK_BY}`);
+  assert.strictEqual(locked.status, 2,
+    `a signature recorded against a spec whose I5 never ran is incomplete: ${locked.stdout}${locked.stderr}`);
+  assert.strictEqual(parseStdout(locked).locked_by, LOCK_BY, 'exit 2 is not a refusal — the lock was written');
+  assert.match(fs.readFileSync(file, 'utf-8'), /locked_shape_hash/);
+
+  // The differential: the same lock over the same spec, with the catalogue supplied, is a 0.
+  const file2 = lockTmpSpec('g6b.md', stripAcceptance);
+  const checked = runArm(
+    `ui lock ${JSON.stringify(file2)} --sheet-hash ${LOCK_SHEET_HASH} --by ${LOCK_BY} `
+    + `--patterns ${JSON.stringify(PATTERN_CATALOGUE)}`
+  );
+  assert.strictEqual(checked.status, 0, `${checked.stdout}${checked.stderr}`);
+
+  // And a spec that does not validate is still a 1 that writes nothing.
+  const outDir = sheetTmpDir('df-lock-g6-');
+  const badCopy = path.join(outDir, 'broken.md');
+  fs.copyFileSync(path.join(BROKEN_DIR, 'route-without-back.md'), badCopy);
+  const refused = runArm(`ui lock ${JSON.stringify(badCopy)} --sheet-hash ${LOCK_SHEET_HASH} --by ${LOCK_BY}`);
+  assert.strictEqual(refused.status, 1);
+  assert.doesNotMatch(fs.readFileSync(badCopy, 'utf-8'), /locked_shape_hash/, 'nothing was written');
+});

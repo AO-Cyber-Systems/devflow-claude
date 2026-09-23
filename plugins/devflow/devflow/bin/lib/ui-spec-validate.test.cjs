@@ -944,3 +944,90 @@ test('Case I8b — the positive control`s guard resolves through `guard-denied` 
   assert.match(b.errors[0].msg, /guard-denied/);
   assert.match(b.errors[0].msg, /\bas\b/);
 });
+
+// ═════════════════════════════════════════════════════════════════════════════
+// M: `complete` and `unchecked` — the verdict says whether every check RAN (issue #90)
+//
+// `ok` answers "did anything VIOLATE an invariant". It does not answer "did every invariant get
+// evaluated", and for most of W1b the answer to the second question is no: the pattern
+// catalogue is unreachable, so §4.5 I5 reports PAT000/MISSING on every real spec. A consumer
+// reading `ok` alone therefore reads "fine" off a spec half of whose rules were never applied.
+//
+// So the verdict carries a SECOND boolean beside the first. `complete` is false exactly when
+// some row carries `status: 'MISSING'`, and `unchecked` names the codes of those rows — codes,
+// not §4.5 invariant numbers, because every code is already joined to its own row in `errors[]`
+// and a second code -> invariant table is one more thing that can drift out of step with the
+// first. Each row's own message names its invariant ("§4.5 I5 is UNCHECKED for this spec").
+
+test('Case M1 — an UNREACHABLE catalogue leaves the verdict ok BUT NOT complete', () => {
+  const spec = loadPositiveControl();
+
+  // `patterns: undefined` is exactly what the CLI passes when no `--patterns` was supplied.
+  const result = validateSurfaceSpec(spec, { vocabulary: loadMustNotVocabulary().terms });
+
+  assert.strictEqual(result.ok, true, 'nothing VIOLATED an invariant');
+  assert.strictEqual(result.complete, false, 'and yet one invariant was never evaluated');
+  assert.deepStrictEqual(result.unchecked, ['PAT000'],
+    `unchecked names the check that did not run: ${JSON.stringify(result.errors)}`);
+});
+
+test('Case M2 — the SAME spec, with the catalogue supplied, is ok AND complete', () => {
+  // The one-edit differential for M1: identical spec, identical call, the catalogue is the only
+  // thing that changes. If `complete` were hard-coded false, this case fails.
+  const result = validateSurfaceSpec(loadPositiveControl(), ctxWithCatalogue());
+
+  assert.strictEqual(result.ok, true, JSON.stringify(result.errors));
+  assert.strictEqual(result.complete, true, JSON.stringify(result.errors));
+  assert.deepStrictEqual(result.unchecked, []);
+});
+
+test('Case M3 — a REAL violation is not `unchecked`: the two axes never bleed into each other', () => {
+  const broken = parseSurfaceSpec(
+    fs.readFileSync(path.join(FIXTURE_DIR, 'broken', 'route-without-back.md'), 'utf-8')
+  ).frontMatter;
+
+  // No catalogue: this verdict carries a real violation AND a MISSING row at once.
+  const result = validateSurfaceSpec(broken, { vocabulary: loadMustNotVocabulary().terms });
+
+  assert.strictEqual(result.ok, false, 'ROUTE002 is a violation');
+  assert.strictEqual(result.complete, false, 'and I5 still did not run');
+  assert.deepStrictEqual(result.unchecked, ['PAT000'],
+    'a real violation must never be listed as a check that did not run');
+});
+
+test('Case M4 — `exitCodeFor` is the ONE mapping from a verdict to a process exit code', () => {
+  const { exitCodeFor, EXIT } = require('./ui-spec-validate.cjs');
+
+  assert.deepStrictEqual({ ...EXIT }, { OK: 0, VIOLATION: 1, INCOMPLETE: 2 });
+
+  const clean = validateSurfaceSpec(loadPositiveControl(), ctxWithCatalogue());
+  assert.strictEqual(exitCodeFor(clean), 0, 'checked and clean');
+
+  const incomplete = validateSurfaceSpec(loadPositiveControl(), {});
+  assert.strictEqual(exitCodeFor(incomplete), 2, 'clean, but a check did not run');
+
+  const violating = validateSurfaceSpec(
+    parseSurfaceSpec(fs.readFileSync(path.join(FIXTURE_DIR, 'broken', 'route-without-back.md'), 'utf-8')).frontMatter,
+    ctxWithCatalogue()
+  );
+  assert.strictEqual(exitCodeFor(violating), 1, 'a real violation outranks everything');
+
+  // A violation that is ALSO incomplete is a 1, not a 2: the worst news wins, because a caller
+  // that only distinguishes "zero" from "non-zero" must still see the violation.
+  const both = validateSurfaceSpec(
+    parseSurfaceSpec(fs.readFileSync(path.join(FIXTURE_DIR, 'broken', 'route-without-back.md'), 'utf-8')).frontMatter,
+    {}
+  );
+  assert.strictEqual(exitCodeFor(both), 1);
+});
+
+test('Case M5 — SPEC002 short-circuits to a verdict that is neither ok nor complete', () => {
+  // The engine stopped before evaluating anything. It must not claim the spec was checked.
+  const spec = mutate(loadPositiveControl(), (s) => { s.schema_version = 99; });
+  const result = validateSurfaceSpec(spec, ctxWithCatalogue());
+
+  assert.deepStrictEqual(codesOf(result), ['SPEC002']);
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.complete, false,
+    'an unsupported schema_version means NO invariant was evaluated — that is the definition of incomplete');
+});
