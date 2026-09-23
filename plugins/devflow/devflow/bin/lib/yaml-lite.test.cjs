@@ -319,3 +319,40 @@ test('Case Y11b — an implicit single-pair map inside a flow sequence is refuse
     { activation: ['pointer', { keyboard: ['Enter', 'Space'] }] }
   );
 });
+
+// ─── Regression guard (must stay green) ───────────────────────────────────────
+
+test('Case Y12 — the module is require-able with zero side effects and pulls in NO dependency', () => {
+  const mod = require('./yaml-lite.cjs');
+  assert.deepStrictEqual(Object.keys(mod).sort(), ['YamlLiteError', 'parseYamlLite']);
+  assert.strictEqual(typeof mod.parseYamlLite, 'function');
+  assert.strictEqual(typeof mod.YamlLiteError, 'function');
+
+  // The whole reason yaml-lite exists instead of `require('js-yaml')` is that this repo carries
+  // exactly one npm dependency. Assert that in code rather than trusting it.
+  const raw = fs.readFileSync(path.join(__dirname, 'yaml-lite.cjs'), 'utf-8');
+  // Scan CODE, not prose: the module's own header comment explains why it is not
+  // `require('js-yaml')`, and a guard that reads that sentence as a dependency is measuring
+  // the wrong thing. Block comments and whole-line `//` comments come out first.
+  const src = raw
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split('\n')
+    .filter((l) => !l.trimStart().startsWith('//'))
+    .join('\n');
+  const requireCalls = [...src.matchAll(/require\(\s*['"]([^'"]+)['"]\s*\)/g)].map((m) => m[1]);
+  const NODE_BUILTINS = new Set(['fs', 'path', 'os', 'assert', 'util', 'crypto', 'child_process']);
+  for (const req of requireCalls) {
+    assert.ok(
+      req.startsWith('node:') || NODE_BUILTINS.has(req),
+      `require('${req}') is neither a node builtin nor absent — yaml-lite must depend on nothing`
+    );
+  }
+  // As shipped there are none at all: yaml-lite needs no builtin and no local module either.
+  assert.deepStrictEqual(requireCalls, []);
+
+  // And the manifest itself: one dependency, node-pty, unchanged by this objective.
+  const manifest = JSON.parse(
+    fs.readFileSync(path.join(__dirname, '..', '..', '..', '..', '..', 'package.json'), 'utf-8')
+  );
+  assert.deepStrictEqual(Object.keys(manifest.dependencies), ['node-pty']);
+});
