@@ -1393,7 +1393,14 @@ describe('objective add command', () => {
       path.join(tmpDir, '.planning', 'ROADMAP.md'),
       roadmapContent
     );
-    const result = runGsdTools('objective add --help', tmpDir);
+    // `--help` is now answered by the dispatcher (issue #87) — it prints usage
+    // and exits 0 rather than erroring. Any OTHER flag-like description still
+    // gets the refusal this test was written for. Both must leave no trace.
+    const help = runGsdTools('objective add --help', tmpDir);
+    assert.strictEqual(help.success, true, '--help must print usage and exit 0');
+    assert.ok(/Usage: df-tools objective/.test(help.output), `usage not printed; got: ${help.output}`);
+
+    const result = runGsdTools('objective add --fles', tmpDir);
     assert.strictEqual(result.success, false, 'should fail for flag-like description');
     const combined = (result.error || '') + (result.output || '');
     assert.ok(
@@ -1404,8 +1411,8 @@ describe('objective add command', () => {
     const objectivesDir = path.join(tmpDir, '.planning', 'objectives');
     const entries = fs.readdirSync(objectivesDir);
     assert.ok(
-      !entries.some(e => e.includes('--help') || e.includes('-help')),
-      `should not create directory for --help; found: ${entries.join(', ')}`
+      !entries.some(e => e.includes('--help') || e.includes('-help') || e.includes('fles')),
+      `should not create directory for a flag-like description; found: ${entries.join(', ')}`
     );
     // ROADMAP.md must be unchanged
     const roadmapAfter = fs.readFileSync(path.join(tmpDir, '.planning', 'ROADMAP.md'), 'utf-8');
@@ -1493,6 +1500,28 @@ describe('commit command pathspec isolation', () => {
 
     const showResult = execSync('git show --name-only --format= HEAD', { cwd: tmpDir, encoding: 'utf-8' }).trim();
     assert.ok(showResult.includes('.planning/NEW.md'), `NEW.md not in commit; got: ${showResult}`);
+  });
+
+  test('no --files commits .planning/ ONLY — a staged file elsewhere is not swept in', () => {
+    // Issue #87 part 3. The fallback path staged `.planning/` but then ran a
+    // bare `git commit -m`, which commits EVERYTHING already in the index. The
+    // blast radius of a df-tools commit was therefore the whole dirty tree,
+    // not the planning docs the command is named for.
+    fs.mkdirSync(path.join(tmpDir, '.planning'), { recursive: true });
+    fs.writeFileSync(path.join(tmpDir, '.planning', 'DEFAULT.md'), '# Default\n');
+    fs.mkdirSync(path.join(tmpDir, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(tmpDir, 'src', 'unrelated.txt'), 'someone else\'s work\n');
+    execSync('git add src/unrelated.txt', { cwd: tmpDir, stdio: 'pipe' });
+
+    const result = runGsdTools('commit "test(87): default-scope"', tmpDir);
+    assert.ok(result.success, `Command failed: ${result.error}`);
+
+    const show = execSync('git show --name-only --format= HEAD', { cwd: tmpDir, encoding: 'utf-8' }).trim();
+    assert.ok(show.includes('.planning/DEFAULT.md'), `DEFAULT.md not in commit; got: ${show}`);
+    assert.ok(!show.includes('src/unrelated.txt'), `unrelated staged file was swept in; got: ${show}`);
+
+    const cached = execSync('git diff --cached --name-only', { cwd: tmpDir, encoding: 'utf-8' }).trim();
+    assert.ok(cached.includes('src/unrelated.txt'), `unrelated file should still be staged; cached: ${cached}`);
   });
 
   test('no --files falls back to staging .planning/ and commits normally', () => {
@@ -3461,6 +3490,38 @@ describe('--help never mutates (issue #87)', () => {
     const roadmap = fs.readFileSync(path.join(tmpDir, '.planning', 'ROADMAP.md'), 'utf-8');
     assert.ok(!roadmap.includes('--help'), `roadmap gained a "--help" objective:\n${roadmap}`);
   });
+
+  // The other subcommands that shared commit's "a flag becomes data" shape.
+  // Each row was verified to MUTATE on the pre-fix tool (6c0e9b5): config-set
+  // wrote a key named "--help", milestone complete archived a milestone called
+  // "--help", handoff create queued a record, micro start created
+  // .planning/quick/1-help/, changelog update wrote an entry for version
+  // "--help", project-decline recorded a decline.
+  for (const argv of [
+    ['config-set'],
+    ['milestone', 'complete'],
+    ['handoff', 'create'],
+    ['micro', 'start'],
+    ['changelog', 'update'],
+    ['project-decline'],
+  ]) {
+    test(`${argv.join(' ')} --help prints usage and changes nothing on disk`, () => {
+      fs.writeFileSync(path.join(tmpDir, '.planning', 'config.json'), '{"commit_docs":true}\n');
+      fs.writeFileSync(path.join(tmpDir, '.planning', 'ROADMAP.md'), '# Roadmap\n');
+      const snapshot = () => execSync(
+        'find . -path ./.git -prune -o -type f -print | sort | xargs shasum',
+        { cwd: tmpDir, encoding: 'utf-8' });
+      const before = snapshot();
+      const headBefore = headSha(tmpDir);
+
+      const result = runGsdToolsArgv([...argv, '--help'], tmpDir);
+
+      assert.strictEqual(result.status, 0, `${argv.join(' ')} --help must exit 0; stderr: ${result.stderr}`);
+      assert.match(result.stdout, /^Usage: df-tools /, `usage not printed; got: ${result.stdout}`);
+      assert.strictEqual(snapshot(), before, `${argv.join(' ')} --help changed files on disk`);
+      assert.strictEqual(headSha(tmpDir), headBefore, `${argv.join(' ')} --help moved HEAD`);
+    });
+  }
 
   test('a commit message beginning with -- is refused, not committed', () => {
     const before = headSha(tmpDir);

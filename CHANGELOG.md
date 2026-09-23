@@ -6,6 +6,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **`df-tools <command> --help` no longer mutates anything** (#87). `--help`/`-h` is
+  answered by the dispatcher *before* it selects a subcommand, so no subcommand can
+  receive a help flag as data. `df-tools commit --help` used to take `--help` as the
+  commit **message**, find no `--files`, and commit whatever was dirty — succeeding
+  silently and printing a hash. Six other subcommands shared the shape and were
+  verified to write on the pre-fix binary: `config-set` (wrote a key named `--help`),
+  `milestone complete` (archived a milestone `--help`), `handoff create`, `micro start`,
+  `changelog update`, `project-decline`. `objective add` was the only one that had its
+  own guard. Every top-level command now has a usage entry in `bin/lib/help.cjs`, and
+  `help.test.cjs` fails if a dispatcher arm is missing one.
+- **`df-tools commit` refuses a message starting with `--`** (#87) — far likelier a
+  mistyped flag than an intended subject line.
+- **`df-tools commit` with no `--files` is scoped to `.planning/`** (#87). It staged
+  `.planning/` and then ran a bare `git commit -m`, which commits the *whole* index —
+  so the blast radius was the entire dirty tree. `--files` is unchanged and remains the
+  recommended form; it was not made mandatory, because the no-`--files` form is the
+  documented "commit the planning docs" path used by callers outside this repo.
+
 ## [2.9.0] - 2026-09-22
 
 W1b of the UI Oracle Loop (`docs/PROPOSAL-ui-oracle-loop.md`): a UI surface can now be

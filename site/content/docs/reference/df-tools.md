@@ -15,6 +15,21 @@ node ~/.claude/devflow/bin/df-tools.cjs <command> [args] [--raw]
 
 Throughout this site the command is written `df-tools <command>` for brevity.
 
+### `--help` is always safe
+
+```bash
+df-tools --help             # every command; the ones that write are marked *
+df-tools commit --help      # usage for one command
+```
+
+`--help` and `-h` are answered by the dispatcher **before** it selects a
+subcommand, so no subcommand can receive a help flag as data. This used to be
+false in the worst possible place: `df-tools commit --help` took `--help` as the
+commit message, found no `--files`, and committed whatever was dirty
+([#87](https://github.com/AO-Cyber-Systems/devflow-claude/issues/87)).
+`config-set`, `milestone complete`, `handoff create`, `micro start`,
+`changelog update` and `project-decline` all wrote something too.
+
 ## Complete command surface
 
 {{< dftools >}}
@@ -40,13 +55,23 @@ df-tools state-snapshot
 ### Commits
 
 ```bash
-df-tools commit "feat(api): add rate limiting"
-df-tools commit "..." --files src/a.go src/b.go
+df-tools commit "feat(api): add rate limiting" --files src/a.go src/b.go
+df-tools commit "docs(12-03): complete TRD" --files .planning/STATE.md
 df-tools commit "..." --amend
 ```
 
 This is what `gate-commits` redirects raw `git commit` to. It preserves objective
 scope and task IDs and updates `STATE.md`.
+
+Two safety rules, both from [#87](https://github.com/AO-Cyber-Systems/devflow-claude/issues/87):
+
+- **A message starting with `--` is refused.** It is far likelier a mistyped flag
+  than an intended subject line.
+- **`--files` scopes the commit to those pathspecs**, so a parallel executor's
+  staged work is never swept in. Omit it and the commit is scoped to
+  `.planning/` — the planning docs the command is named for — and still never
+  the rest of the working tree. Pass `--files` anyway: it is the only form that
+  says what you meant.
 
 ### Validation and health
 
