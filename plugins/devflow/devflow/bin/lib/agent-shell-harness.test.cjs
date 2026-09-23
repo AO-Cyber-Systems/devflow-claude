@@ -651,3 +651,32 @@ test.describe('agent-shell-harness — the scratch monorepo and the stubs (F)', 
   });
 
 });
+
+test.describe('agent-shell-harness — the `# harness:` annotation vocabulary (A) and evidence landing (E)', () => {
+
+  // A1 — `expect` is how a call that cannot report its own success (an `mv … || true`,
+  // a build that writes somewhere) is still asserted. Both directions, or it proves
+  // nothing: a checker that never fails is the defect this program exists to close.
+  test('Case A1 — `# harness: expect <path>` asserts the artifact the call claims to produce', () => {
+    const made = harness.runSection(
+      harness.splitCalls('# harness: expect made.txt\ntouch made.txt'),
+      { root: makeRoot() });
+    assert.strictEqual(made.ok, true, 'the artifact exists, so the section passes');
+
+    const absent = harness.runSection(
+      harness.splitCalls('# harness: expect never-made.txt\ntrue'),
+      { root: makeRoot() });
+    assert.strictEqual(absent.ok, false, 'a call that exits 0 without producing its artifact FAILS');
+    const f = absent.findings.find(x => x.type === 'missing-artifact');
+    assert.ok(f, 'the finding names the class');
+    assert.match(f.message, /never-made\.txt/, 'and the path that was promised');
+
+    // Resolved against the scratch ROOT, not the call's cwd — the whole point of the
+    // evidence case is that the landing place does not move with the working directory.
+    const sub = harness.runSection(
+      harness.splitCalls('# harness: expect sub/deep.txt\n( cd sub && touch deep.txt )'),
+      { root: makeRoot() });
+    assert.strictEqual(sub.ok, true, 'a root-relative expect resolves against the root');
+  });
+
+});
