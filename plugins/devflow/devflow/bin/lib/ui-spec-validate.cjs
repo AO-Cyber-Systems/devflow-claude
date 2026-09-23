@@ -42,6 +42,7 @@
  *   FLOW001  a flow step names a control or route that does not exist (and that this
  *            single-spec engine was entitled to resolve — see `isNamespaceLocal`)
  *   FLOW002  a flow's last step is neither a `back` nor a route declared `root: true`
+ *   GUARD001 a route guard that names no denied state (see `resolveGuardDeniedState`)
  *
  * ── The behaviour-coverage model (BINDING — 34-05's control table and W2's `effect` check
  *    resolve the active behaviour by this same rule; if they diverge, the spec says one thing
@@ -305,20 +306,55 @@ function widthOf(state) {
   return m ? Number(m[1]) : null;
 }
 
-/** The states a route guard names — a guard entry that resolves to a declared state id. */
-function deniedStateIds(spec) {
-  const stateIds = new Set(
+/**
+ * THE GUARD -> DENIED-STATE LINKAGE RULE. One home, two readers: invariant I8 (GUARD001) and
+ * the behaviour-coverage model's `guard` dimension. 34-05's nav graph draws its guard edge
+ * from this same function — if it re-implements the rule, the spec says one thing and the
+ * graph draws another.
+ *
+ * §4.5 I8 reads "`guards` name the denied state each renders", but §4.2's own example does NOT
+ * name it directly: the route declares `guards: [member-of-workspace]` and the state is called
+ * `guard-denied`. So a guard `G` is resolved against `states[].id` in ORDER:
+ *
+ *   1. `G` itself          — the direct form the invariant's wording describes;
+ *   2. `${G}-denied`       — the per-guard form;
+ *   3. `guard-denied`      — the canonical single-denied-state form §4.2 uses. A surface with
+ *                            one denied state serves every guard on it.
+ *
+ * The resolved state must ALSO declare an `as:` identity. That is the field which makes it a
+ * DENIED state rather than another data state, and it is what labels the guard edge: `as`
+ * names who is being refused. A resolved state with no `as` is GUARD001, not a pass.
+ *
+ * @returns {{state: object, id: string}|null}
+ */
+function resolveGuardDeniedState(guard, statesById) {
+  if (typeof guard !== 'string') return null;
+  for (const candidate of [guard, `${guard}-denied`, 'guard-denied']) {
+    if (statesById.has(candidate)) return { state: statesById.get(candidate), id: candidate };
+  }
+  return null;
+}
+
+function statesByIdOf(spec) {
+  return new Map(
     (Array.isArray(spec.states) ? spec.states : [])
       .filter(isPlainObject)
-      .map((s) => s.id)
+      .filter((st) => typeof st.id === 'string')
+      .map((st) => [st.id, st])
   );
+}
+
+/** The state ids a route guard denies, by the linkage rule above. */
+function deniedStateIds(spec) {
+  const statesById = statesByIdOf(spec);
   const denied = new Set();
   for (const route of Array.isArray(spec.routes) ? spec.routes : []) {
     if (!isPlainObject(route) || !Array.isArray(route.guards)) continue;
     for (const g of route.guards) {
-      // A guard that does NOT resolve to a declared state is invariant I8's problem (34-04),
-      // not this model's: it is left alone rather than guessed into the guard dimension.
-      if (stateIds.has(g)) denied.add(g);
+      const hit = resolveGuardDeniedState(g, statesById);
+      // A guard that resolves to nothing is invariant I8's problem (GUARD001), not this
+      // model's: it is left alone rather than guessed into the guard dimension.
+      if (hit) denied.add(hit.id);
     }
   }
   return denied;
@@ -807,6 +843,41 @@ function checkFlows(spec, errors) {
   });
 }
 
+// ─── I8: guards ──────────────────────────────────────────────────────────────
+
+/**
+ * GUARD001 — a route guard that names no denied state, by `resolveGuardDeniedState` above.
+ *
+ * Skipped entirely when `states` is not a list: a verdict about which state a guard renders,
+ * reached with no state list, would have no basis (the same rule CTRL006 follows).
+ */
+function checkGuards(spec, errors) {
+  if (!Array.isArray(spec.routes) || !Array.isArray(spec.states)) return;
+
+  const statesById = statesByIdOf(spec);
+
+  spec.routes.forEach((route, i) => {
+    if (!isPlainObject(route) || !Array.isArray(route.guards)) return;
+    const rid = typeof route.id === 'string' ? route.id : `#${i}`;
+
+    route.guards.forEach((guard, j) => {
+      if (typeof guard !== 'string') return;
+      const at = `routes[${i}].guards[${j}]`;
+      const hit = resolveGuardDeniedState(guard, statesById);
+
+      if (!hit) {
+        errors.push(err('GUARD001', at,
+          `route ${rid} declares guard ${guard} but this spec declares no denied state for it — §4.5 I8 requires each guard to name the state it renders when the reader is refused. Declare a state with id ${guard}, ${guard}-denied, or guard-denied, carrying the \`as:\` identity being refused`));
+        return;
+      }
+      if (typeof hit.state.as !== 'string' || hit.state.as.length === 0) {
+        errors.push(err('GUARD001', at,
+          `route ${rid} guard ${guard} resolves to state ${hit.id}, which declares no \`as:\` identity — §4.5 I8's denied state has to say WHO is refused, and \`as\` is the field that says it (and the label 34-05's nav graph puts on the guard edge)`));
+      }
+    });
+  });
+}
+
 // ─── Assembly ─────────────────────────────────────────────────────────────────
 
 /**
@@ -920,6 +991,9 @@ function validateSurfaceSpec(spec, ctx = {}) {
 
     // I7 — flows.
     checkFlows(spec, errors);
+
+    // I8 — guards.
+    checkGuards(spec, errors);
   } catch (e) {
     // CRITICAL: an escaped exception becomes a verdict, never a stack trace. 34-04's exit-code
     // contract and case V3 both depend on it.
@@ -932,6 +1006,7 @@ function validateSurfaceSpec(spec, ctx = {}) {
 module.exports = {
   validateSurfaceSpec,
   enumerateBehaviorCombinations,
+  resolveGuardDeniedState,
   NARROW_MAX_WIDTH,
   MINIMUM_STATES
 };

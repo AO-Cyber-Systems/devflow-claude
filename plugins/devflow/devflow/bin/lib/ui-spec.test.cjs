@@ -199,17 +199,27 @@ test('Case F3 — the amended §4.2 constructs survive transcription (activation
     seed: 'projects-3-conversations-12'
   });
 
-  // Amended §4.2 / the I6 ruling: the reciprocal disjoint_from pair, plus `within` and `max`
-  // on the chevron. 34-04's I6 asserts resolvability, reciprocity and non-self-reference
-  // against exactly this.
+  // Amended §4.2 / the I6 ruling: the RECIPROCAL disjoint_from pair, plus `max` on the
+  // chevron. 34-04's I6 asserts resolvability, reciprocity and non-self-reference against
+  // exactly this.
+  //
+  // ONE LINE DROPPED from §4.2's literal chevron, by TRD 34-04, for the same reason and under
+  // the same authority as the digest below: the amendment writes the chevron with BOTH
+  // `within: rail.project.header` and `disjoint_from: [rail.project.header]`, while §4.5
+  // invariant 6 of the SAME amendment forbids a `within` target from also appearing in that
+  // control's `disjoint_from` ("a control cannot be both inside another's area and disjoint
+  // from it"). The two sections contradict each other and, with only two controls, no spec can
+  // exercise both a reciprocal pair and a resolvable `within` between them. The NORMATIVE rule
+  // wins; §4.2's literal survives verbatim as `broken/hit-rect-within-and-disjoint.md`, whose
+  // expected code is HIT002. See 34-04-SUMMARY.md, "## I6 decision".
   assert.deepStrictEqual(f.controls[0].hit_rect, {
     disjoint_from: ['rail.project.chevron']
   });
   assert.deepStrictEqual(f.controls[1].hit_rect, {
     max: '40x40',
-    within: 'rail.project.header',
     disjoint_from: ['rail.project.header']
   });
+  assert.strictEqual('within' in f.controls[1].hit_rect, false);
 
   // Amended §4.2: locked_sheet is a quoted full digest, not a bare `sha256:...` truncation.
   // ONE character shorter than the proposal's literal, by TRD 34-03: the amended §4.2 prints a
