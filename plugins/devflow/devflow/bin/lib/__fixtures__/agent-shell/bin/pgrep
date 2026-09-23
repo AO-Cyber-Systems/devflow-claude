@@ -1,0 +1,11 @@
+#!/usr/bin/env sh
+# `pgrep` stub (TRD 34-10). Nothing is running in a scratch root, so `pgrep chromedriver`
+# exits 1 — deterministically, on every machine. Without this stub the executor's
+# chromedriver guard would exit 0 on a developer box that happens to have chromedriver
+# running and 1 in CI, and `# harness: expect-exit 1` would be a coin flip.
+# Any other query is rejected with the argv it saw, like every other stub here.
+if [ "$#" -eq 1 ] && [ "$1" = "chromedriver" ]; then
+  exit 1
+fi
+echo "pgrep stub: unexpected argv: $*" >&2
+exit 2

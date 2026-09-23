@@ -1,0 +1,21 @@
+#!/usr/bin/env node
+'use strict';
+/**
+ * `adb` stub (TRD 34-10). Accepts ONLY `adb install -r <apk>` — the single invocation
+ * `agents/executor.md` makes — and only when the apk the prose names actually exists,
+ * which is what proves the preceding `flutter build apk` ran in the right directory.
+ */
+const fs = require('fs');
+const path = require('path');
+
+const a = process.argv.slice(2);
+function reject() {
+  process.stderr.write('adb stub: unexpected argv: ' + JSON.stringify(a) + '\n');
+  process.exit(2);
+}
+if (a[0] !== 'install' || a[1] !== '-r' || a.length !== 3) reject();
+if (!fs.existsSync(path.resolve(process.cwd(), a[2]))) {
+  process.stderr.write('adb stub: apk not found: ' + a[2] + '\n');
+  process.exit(1);
+}
+process.exit(0);

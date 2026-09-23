@@ -276,6 +276,28 @@ const DEFAULT_TIMEOUT_MS = 10000;
 // building a half-safe escaper.
 const UNSAFE_ROOT_RE = /['"$`\\\n]/;
 
+// The PATH every call runs with is HERMETIC by default: the caller's stub directory,
+// the directory of the running node (so `#!/usr/bin/env node` shims resolve), and the
+// POSIX system directories — and NOT `process.env.PATH`.
+//
+// This is not tidiness. A developer box here has real `flutter`, `maestro` and `jq` on
+// PATH and the CI runner has none of them; inheriting the caller's PATH would mean the
+// harness silently exercised a real 40-second toolchain locally and a stub in CI, and a
+// MISSING stub would fall through to the real binary instead of being reported. Same
+// failure class as `path-filtered-ci-hides-red`: a green that never ran what it claims.
+// `opts.inheritPath: true` opts back in, explicitly, for a caller that wants the host.
+const SYSTEM_PATH = ['/usr/bin', '/bin', '/usr/sbin', '/sbin'];
+
+function buildSearchPath(opts) {
+  if (opts.inheritPath) {
+    return [opts.pathPrepend, process.env.PATH].filter(Boolean).join(path.delimiter);
+  }
+  return [opts.pathPrepend, path.dirname(process.execPath)]
+    .concat(SYSTEM_PATH)
+    .filter(Boolean)
+    .join(path.delimiter);
+}
+
 /**
  * runSection(calls, {root, pathPrepend, timeout}) -> {ok, root, calls:[…], findings:[…]}
  *
@@ -303,11 +325,16 @@ function runSection(calls, opts = {}) {
   fs.mkdirSync(home, { recursive: true });
   fs.mkdirSync(tmpdir, { recursive: true });
 
+  const searchPath = buildSearchPath(opts);
   const cwdFile = path.join(root, '.cwd');
   const errFile = path.join(root, '.stderr');
   const timeout = opts.timeout == null ? DEFAULT_TIMEOUT_MS : opts.timeout;
 
-  let cwd = root;
+  // The initial working directory. Defaults to the scratch root; `opts.cwd` lets a
+  // caller start a section from a SUBDIRECTORY, which is how E2 proves that evidence
+  // paths absolute from `$REPO_ROOT` land in the same place from any starting cwd
+  // rather than only from the one the prose's author had in mind.
+  let cwd = opts.cwd ? fs.realpathSync(opts.cwd) : root;
   const results = [];
 
   for (const raw of calls) {
@@ -333,11 +360,7 @@ function runSection(calls, opts = {}) {
     // FRESH env object per call, built from an allow-list. Reuse one object here and a
     // call that exports into it would silently make the unset-variable case pass — the
     // harness would bless exactly the prose bug it exists to catch.
-    const env = {
-      PATH: [opts.pathPrepend, process.env.PATH].filter(Boolean).join(path.delimiter),
-      HOME: home,
-      TMPDIR: tmpdir,
-    };
+    const env = { PATH: searchPath, HOME: home, TMPDIR: tmpdir };
 
     // Containment is a PRE-check: an offending call is blocked, not executed and then
     // regretted. A harness that will one day run in CI against a file someone just
@@ -451,7 +474,22 @@ function runSection(calls, opts = {}) {
       });
     }
 
-    if (rec.status !== expectedStatus && rec.status !== 'timeout') {
+    // `command not found` is a MISSING, not a failure: the prose was never exercised, so
+    // reporting it as a plain non-zero exit would let an absent stub read as "the prose
+    // is wrong" — or, with an expect-exit annotation, as a pass.
+    const notFound = /(?:^|[\s:])([^\s:/]+): command not found/m.exec(rec.stderr || '');
+    if (rec.status === 127 && notFound) {
+      rec.findings.push({
+        type: 'missing-binary',
+        index: rec.index,
+        line: rec.line,
+        call: callText,
+        binary: notFound[1],
+        message:
+          `call ${rec.index + 1} could not run: \`${notFound[1]}\` is not on PATH. ` +
+          `The call was NOT exercised, so this is MISSING, never a pass: \`${callText}\``,
+      });
+    } else if (rec.status !== expectedStatus && rec.status !== 'timeout') {
       rec.findings.push({
         type: 'nonzero-status',
         index: rec.index,
@@ -471,7 +509,20 @@ function runSection(calls, opts = {}) {
   }
 
   const findings = results.flatMap(r => r.findings);
-  return { ok: findings.length === 0, root, calls: results, findings };
+  return { ok: findings.length === 0, root, calls: results, findings, missing: missingReason(results) };
+}
+
+// A section is MISSING — never `pass` — whenever a call did not actually execute: a stub
+// binary was absent, or the call was declared un-runnable. The reason is a single string
+// so the CI job can print it on one line; `findings[]` carries the per-call detail.
+function missingReason(results) {
+  const reasons = [];
+  for (const r of results) {
+    for (const f of r.findings) {
+      if (f.type === 'missing-binary') reasons.push(`call ${r.index + 1}: missing binary \`${f.binary}\``);
+    }
+  }
+  return reasons.length ? reasons.join('; ') : null;
 }
 
 // ─── The public entry point ───────────────────────────────────────────────────────────
@@ -538,7 +589,7 @@ function checkSection(mdPath, section, opts = {}) {
     return {
       ok: run.ok,
       section: extracted.section,
-      missing: null,
+      missing: run.missing,
       calls: run.calls,
       findings: run.findings,
       engine_version,
