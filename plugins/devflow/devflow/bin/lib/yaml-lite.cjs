@@ -226,7 +226,6 @@ function splitLine(content, indent, line) {
 const MERGE_KEY_RE = /^<<\s*:/;
 const NAME_CHAR_RE = /[A-Za-z0-9_-]/;
 const BLOCK_SCALAR_RE = /:\s*[|>][-+0-9]*\s*$/;
-const TAG_RE = /(^|\s)!!?[A-Za-z]/;
 const EXPLICIT_KEY_RE = /^\?(\s|$)/;
 
 /**
@@ -254,6 +253,36 @@ function anchorOrAlias(code, valueStart) {
     return c === '&' ? 'anchor' : 'alias';
   }
   return null;
+}
+
+/**
+ * True when this line's VALUE region really declares a tag (`!Thing`, `!!str`), else false.
+ *
+ * Same rule, and the same helper, as `anchorOrAlias` above — and for the same reason. The
+ * old `TAG_RE = /(^|\s)!!?[A-Za-z]/` fired after ANY whitespace anywhere in a value, so it
+ * refused `does: Shows the !important badge`, `rule: names ellipsize!` and
+ * `must_show: [Saved!, Done!]`: ordinary prose, on the field class the Surface Spec is
+ * mostly made of. Quoting was the only workaround and nothing said so — the message named
+ * YAML tags, which is not what the author had typed.
+ *
+ * A tag is structural only where a scalar BEGINS: `when: !!str 1`, `- !Thing x`, `[!Thing]`.
+ * Anywhere else in a value, `!` is a character. `atScalarHead` already encodes exactly that
+ * boundary, so this shares it rather than re-deriving it — one definition of "a scalar
+ * begins here" for quotes, anchors, aliases and tags alike.
+ */
+function tagAtHead(code, valueStart) {
+  let depth = 0;
+  for (let i = valueStart; i < code.length; i++) {
+    const c = code[i];
+    if (c === '[' || c === '{') { depth++; continue; }
+    if (c === ']' || c === '}') { depth--; continue; }
+    if (c !== '!') continue;
+    const after = code[i + 1] === '!' ? code[i + 2] : code[i + 1];
+    if (!/[A-Za-z]/.test(after || '')) continue;
+    if (!atScalarHead(code, i, depth, valueStart, false)) continue;
+    return true;
+  }
+  return false;
 }
 
 function refuse(code, line, valueStart) {
@@ -288,7 +317,7 @@ function refuse(code, line, valueStart) {
       line
     );
   }
-  if (TAG_RE.test(code)) {
+  if (tagAtHead(code, valueStart || 0)) {
     throw new YamlLiteError(
       'a tag (`!` / `!!`) is not supported by yaml-lite; scalars are typed by their spelling, not by a tag',
       line

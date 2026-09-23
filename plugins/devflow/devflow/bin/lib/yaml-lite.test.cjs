@@ -263,6 +263,33 @@ test('Case Y9 — block scalars (`|`, `>`) and tags (`!!`) are refused', () => {
   assert.deepStrictEqual(parseYamlLite('title: "watch out!! really"\n'), { title: 'watch out!! really' });
 });
 
+// Case Y9b — a `!` in UNQUOTED prose is a character, not a tag.
+//
+// `TAG_RE` carried the exact bug shape finding 5 fixed for `&`/`*`: it fired on
+// "after any whitespace", anywhere in a value. A tag is structural only where a scalar
+// BEGINS — `when: !!str 1`, `- !Thing`, `[!a]` — and everywhere else in a value it is a
+// character a human typed. The Surface Spec is prose-heavy (`does`, `rule`, `must_show`,
+// `reason_shown`), so this refused legitimate specs on the one field class the format
+// exists to carry, and the message pointed at YAML tags rather than at the exclamation
+// mark. Quoting was the only workaround, and nothing told the author that.
+test('Case Y9b — `!` inside unquoted prose is a character, not a tag', () => {
+  for (const [src, want] of [
+    ['does: Shows the !important badge\n', { does: 'Shows the !important badge' }],
+    ['rule: names ellipsize!\n', { rule: 'names ellipsize!' }],
+    ['does: Confirm!! then dismiss\n', { does: 'Confirm!! then dismiss' }],
+    ['must_show:\n  - Saved!\n', { must_show: ['Saved!'] }],
+    ['must_show: [Saved!, Done!]\n', { must_show: ['Saved!', 'Done!'] }],
+  ]) {
+    assert.deepStrictEqual(parseYamlLite(src), want, `should parse as prose: ${JSON.stringify(src)}`);
+  }
+
+  // The refusal must still fire where a tag really is structural — at a scalar head,
+  // in a block value, in a block-sequence item, and inside a flow collection.
+  refuses('when: !!str 1\n', { line: 1, match: /tag/i });
+  refuses('items:\n  - !Thing x\n', { line: 2, match: /tag/i });
+  refuses('items: [!Thing]\n', { line: 1, match: /tag/i });
+});
+
 test('Case Y10 — indentation faults: a TAB, and a dedent to a column that matches no open block', () => {
   // (a) TAB used for indentation. Written as an explicit \t so the case survives an editor
   // that helpfully converts tabs to spaces on save.
