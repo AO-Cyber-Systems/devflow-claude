@@ -34,6 +34,11 @@
  *   PAT000   the pattern catalogue is UNREACHABLE -> status MISSING, does NOT flip `ok`
  *   PAT001   a referenced pattern is not in the catalogue
  *   PAT002   a control of a pattern kind drops one of that pattern's `must_not` defaults
+ *   HIT000   the hit-rect invariant could not run -> status MISSING, does NOT flip `ok`
+ *   HIT001   a `hit_rect.disjoint_from` entry that does not resolve, names its own control,
+ *            or is not reciprocal
+ *   HIT002   a `hit_rect.within` entry that does not resolve, or that ALSO appears in this
+ *            control's `disjoint_from`
  *
  * ── The behaviour-coverage model (BINDING — 34-05's control table and W2's `effect` check
  *    resolve the active behaviour by this same rule; if they diverge, the spec says one thing
@@ -610,6 +615,94 @@ function checkPatterns(spec, catalogue, errors) {
   });
 }
 
+// ─── I6: hit rects — resolvability and consistency, NEVER overlap ────────────
+
+/**
+ * HIT000 the check could not run -> MISSING · HIT001 a `disjoint_from` entry that does not
+ * resolve, is not reciprocal, or names its own control · HIT002 a `within` entry that does not
+ * resolve, or that also appears in this control's `disjoint_from`.
+ *
+ * ── The I6 decision, implemented here (recorded in 34-04-SUMMARY.md, resolved 2026-09-22,
+ *    options (a) AND (b) together) ──────────────────────────────────────────────────────────
+ * A Surface Spec carries hand-authored INTENT; geometry is the probe's job. §4.2 gives
+ * `hit_rect` no coordinates, so there is no field from which a static overlap could be
+ * computed — and inventing one would mean asserting a layout the spec never states. So:
+ *
+ *   * `hit_rect.within: <control-id>` IS part of the schema (option a) — the declarable form
+ *     of the aodex#544 defect, where a 40x40 chevron's semantics node spanned the whole 360px
+ *     row. `hit_rect.max: "WxH"` is an upper bound the PROBE asserts, not a layout instruction.
+ *   * The static half is RESOLVABILITY + CONSISTENCY only (option b, which is cheap and
+ *     correct under (a) as well): every `disjoint_from` entry resolves to a control in this
+ *     spec, is reciprocal, and never names its own control; every `within` entry resolves and
+ *     does not ALSO appear in that control's `disjoint_from` — a control cannot be both inside
+ *     another's area and disjoint from it.
+ *   * OVERLAP ITSELF IS NOT CHECKED HERE. W2's probe measures the rects: §7.5 `disjoint`
+ *     ("rects of a `disjoint_from` pair overlap"), `hit-target`, and the new `within` row
+ *     ("a control declaring `hit_rect.within` has a rect not contained by that control's, or
+ *     exceeding a declared `max`"). This function is what that probe inherits.
+ *
+ * Two failure modes, two codes, two known-broken fixtures — `hit-rect-overlap.md` (HIT001) and
+ * `hit-rect-within-and-disjoint.md` (HIT002).
+ */
+function checkHitRects(spec, errors) {
+  if (!Array.isArray(spec.controls)) {
+    errors.push(missing('HIT000', 'controls',
+      'the hit-rect invariant could not run: this spec declares no readable `controls` list, so no `disjoint_from` or `within` reference could be resolved — §4.5 I6 is UNCHECKED, which is not the same as passing'));
+    return;
+  }
+
+  const controls = spec.controls.filter(isPlainObject);
+  const ids = new Set(controls.map((c) => c.id).filter((id) => typeof id === 'string'));
+
+  /** The `disjoint_from` list a control declares, as a Set of strings. */
+  const disjointOf = (control) => new Set(
+    isPlainObject(control.hit_rect) && Array.isArray(control.hit_rect.disjoint_from)
+      ? control.hit_rect.disjoint_from.filter((v) => typeof v === 'string')
+      : []
+  );
+  const byId = new Map(controls.filter((c) => typeof c.id === 'string').map((c) => [c.id, c]));
+
+  spec.controls.forEach((control, i) => {
+    if (!isPlainObject(control) || !isPlainObject(control.hit_rect)) return;
+    const at = `controls[${i}].hit_rect`;
+    const cid = typeof control.id === 'string' ? control.id : `#${i}`;
+    const mine = disjointOf(control);
+
+    // HIT001 — resolvability, self-reference, reciprocity.
+    [...mine].forEach((target, j) => {
+      const path = `${at}.disjoint_from[${j}]`;
+      if (target === cid) {
+        errors.push(err('HIT001', path,
+          `control ${cid} lists ITSELF in \`hit_rect.disjoint_from\` — a control cannot be disjoint from itself, and the probe would have no second rect to measure against`));
+        return;
+      }
+      if (!ids.has(target)) {
+        errors.push(err('HIT001', path,
+          `control ${cid} declares \`hit_rect.disjoint_from: [${target}]\`, which this spec declares no control for — §4.5 I6 requires every entry to resolve to a control in THIS spec (a hit-rect pair the probe can measure is two rects on one surface)`));
+        return;
+      }
+      if (!disjointOf(byId.get(target)).has(cid)) {
+        errors.push(err('HIT001', path,
+          `control ${cid} declares \`hit_rect.disjoint_from: [${target}]\` but ${target} does not name ${cid} back — §4.5 I6 requires the declaration to be RECIPROCAL, so a separation one control claims is a separation both are held to`));
+      }
+    });
+
+    // HIT002 — `within` resolves, and is not also declared disjoint.
+    const within = control.hit_rect.within;
+    if (typeof within !== 'string') return;
+    const path = `${at}.within`;
+    if (!ids.has(within)) {
+      errors.push(err('HIT002', path,
+        `control ${cid} declares \`hit_rect.within: ${within}\`, which this spec declares no control for — §4.5 I6 requires a \`within\` entry to resolve to a control in THIS spec`));
+      return;
+    }
+    if (mine.has(within)) {
+      errors.push(err('HIT002', path,
+        `control ${cid} declares \`hit_rect.within: ${within}\` AND lists ${within} in its own \`disjoint_from\` — a control cannot be both inside another's area and disjoint from it, and W2's probe would be asked to assert containment and separation of the same pair of rects (§7.5 \`within\` vs \`disjoint\`)`));
+    }
+  });
+}
+
 // ─── Assembly ─────────────────────────────────────────────────────────────────
 
 /**
@@ -717,6 +810,9 @@ function validateSurfaceSpec(spec, ctx = {}) {
 
     // I5 — patterns. `ctx.patterns` ABSENT means unreachable, not empty.
     checkPatterns(spec, ctx ? ctx.patterns : undefined, errors);
+
+    // I6 — hit rects: resolvability and consistency. Overlap is the probe's, not ours.
+    checkHitRects(spec, errors);
   } catch (e) {
     // CRITICAL: an escaped exception becomes a verdict, never a stack trace. 34-04's exit-code
     // contract and case V3 both depend on it.

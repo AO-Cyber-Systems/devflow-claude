@@ -54,8 +54,7 @@ controls:
     must_not: ["select the project", "change route"]
     hit_rect:
       max: "40x40"                     # an upper bound the probe asserts, not a layout instruction
-      within: rail.project.header      # inside the header area but MUST own its own hit target
-      disjoint_from: [rail.project.header]
+      disjoint_from: [rail.project.header]   # reciprocal with the header, above
 
 states:
   - id: populated
@@ -132,6 +131,21 @@ acceptance:
        normalisations TRD 34-02 anticipated are therefore not needed: the constructs that
        yaml-lite refuses (an implicit single-pair map inside a flow sequence — 34-01 case Y11b
        — and a bare key followed by a flow map on one line) are no longer in the source.
+     * ONE LINE DROPPED from the chevron's `hit_rect`, by TRD 34-04, for the same reason and
+       under the same authority as the digest above. The amended §4.2 writes the chevron as
+       `{max: "40x40", within: rail.project.header, disjoint_from: [rail.project.header]}` —
+       but the AMENDED §4.5 invariant 6, added in the same commit, reads "a `hit_rect.within`
+       entry resolves and does not also appear in that control's `disjoint_from` — a control
+       cannot be both inside another's area and disjoint from it". The example therefore
+       violates the rule stated four sections later: §4.2 and §4.5 of the amendment contradict
+       each other, and with only two controls no spec can exercise BOTH a reciprocal
+       `disjoint_from` pair and a resolvable `within` between them.
+       The NORMATIVE text wins over the illustrative one, so `within: rail.project.header` is
+       dropped here and the reciprocal pair is kept (which §4.2 itself annotates "reciprocal").
+       The §4.2 line survives verbatim as the known-broken fixture
+       `broken/hit-rect-within-and-disjoint.md`, whose whole point is that the proposal's own
+       example is the violation. Recorded in 34-04-SUMMARY.md under "I6 decision"; the proposal
+       needs a follow-up amendment to one side or the other.
      * ONE addition beyond §4.2's prose block, made on TRD 34-02's instruction: the second
        route `conversations.all`, marked `root: true`. §4.2 names it only as
        `back.target`; invariant I2 ("every route has a back or is the declared root") needs it
