@@ -635,3 +635,111 @@ test('Case I5c — an UNREACHABLE catalogue is PAT000/MISSING, never PAT001, and
   const noPatterns = mutate(spec, (s) => { delete s.patterns; });
   assert.deepStrictEqual(validateSurfaceSpec(noPatterns, { vocabulary: loadMustNotVocabulary().terms }).errors, []);
 });
+
+// ─── I6: hit rects — resolvability and consistency, never overlap (TRD 34-04) ─
+//
+// The I6 decision (34-04-SUMMARY.md "## I6 decision", options (a) AND (b) together, resolved
+// 2026-09-22): a Surface Spec carries hand-authored INTENT and geometry is the probe's job, so
+// static I6 is RESOLVABILITY AND CONSISTENCY ONLY —
+//   * every `hit_rect.disjoint_from` entry resolves to a control in this spec,
+//   * it is RECIPROCAL (both controls name each other),
+//   * it never names its own control,
+//   * every `hit_rect.within` entry resolves to a control in this spec,
+//   * a `within` target must NOT also appear in that control's `disjoint_from`.
+// OVERLAP ITSELF IS NOT STATICALLY CHECKED — W2's probe measures the rects (§7.5 `disjoint`,
+// `hit-target`, and the new `within` row). TWO failure modes, two fixtures, two codes.
+
+test('Case I6a — hit-rect-overlap.md (a non-reciprocal disjoint_from) is exactly HIT001', () => {
+  const result = validateSurfaceSpec(loadBroken('hit-rect-overlap.md').frontMatter, ctx());
+
+  assert.deepStrictEqual(codesOf(result), ['HIT001'], JSON.stringify(result.errors));
+  assert.strictEqual(result.errors.length, 1);
+  assert.match(result.errors[0].msg, /rail\.project\.chevron/);
+  assert.match(result.errors[0].msg, /rail\.project\.header/);
+  assert.match(result.errors[0].msg, /reciprocal/i);
+});
+
+test('Case I6a2 — the other two HIT001 modes: an unresolvable target, and a self-reference', () => {
+  const unresolvable = mutate(loadPositiveControl(), (s) => {
+    const header = s.controls.find((c) => c.id === 'rail.project.header');
+    header.hit_rect.disjoint_from = ['rail.project.nonesuch'];
+    const chevron = s.controls.find((c) => c.id === 'rail.project.chevron');
+    delete chevron.hit_rect.disjoint_from; // else the chevron is ALSO non-reciprocal: two errors
+  });
+  const a = validateSurfaceSpec(unresolvable, ctx());
+  assert.deepStrictEqual(codesOf(a), ['HIT001'], JSON.stringify(a.errors));
+  assert.strictEqual(a.errors.length, 1);
+  assert.match(a.errors[0].msg, /rail\.project\.nonesuch/);
+
+  const selfReference = mutate(loadPositiveControl(), (s) => {
+    const header = s.controls.find((c) => c.id === 'rail.project.header');
+    header.hit_rect.disjoint_from = ['rail.project.header'];
+    const chevron = s.controls.find((c) => c.id === 'rail.project.chevron');
+    delete chevron.hit_rect.disjoint_from;
+  });
+  const b = validateSurfaceSpec(selfReference, ctx());
+  assert.deepStrictEqual(codesOf(b), ['HIT001'], JSON.stringify(b.errors));
+  assert.strictEqual(b.errors.length, 1);
+  assert.match(b.errors[0].msg, /itself/i);
+});
+
+test('Case I6b — the positive control`s reciprocal pair produces NO HIT error at all', () => {
+  const spec = loadPositiveControl();
+
+  // The shape the case is about, asserted directly: a wrong reciprocity rule reddens V1 and
+  // the diagnosis then costs an hour.
+  const header = spec.controls.find((c) => c.id === 'rail.project.header');
+  const chevron = spec.controls.find((c) => c.id === 'rail.project.chevron');
+  assert.deepStrictEqual(header.hit_rect.disjoint_from, ['rail.project.chevron']);
+  assert.deepStrictEqual(chevron.hit_rect.disjoint_from, ['rail.project.header']);
+
+  const result = validateSurfaceSpec(spec, ctx());
+  assert.ok(!result.errors.some((e) => e.code.startsWith('HIT')), JSON.stringify(result.errors));
+
+  // A resolvable `within` that is NOT also in `disjoint_from` is equally fine — the declarable
+  // form of the aodex#544 defect (a 40x40 chevron whose semantics node spanned the whole row)
+  // must be WRITABLE, or the schema field that carries it is decoration.
+  const withWithin = mutate(spec, (s) => {
+    const h = s.controls.find((c) => c.id === 'rail.project.header');
+    const c = s.controls.find((x) => x.id === 'rail.project.chevron');
+    delete h.hit_rect;
+    c.hit_rect = { max: '40x40', within: 'rail.project.header' };
+  });
+  assert.deepStrictEqual(validateSurfaceSpec(withWithin, ctx()).errors, [], 'a lone resolvable `within` is valid');
+});
+
+test('Case I6c — hit-rect-within-and-disjoint.md (within AND disjoint_from, same control) is exactly HIT002', () => {
+  const result = validateSurfaceSpec(loadBroken('hit-rect-within-and-disjoint.md').frontMatter, ctx());
+
+  assert.deepStrictEqual(codesOf(result), ['HIT002'], JSON.stringify(result.errors));
+  assert.strictEqual(result.errors.length, 1);
+  assert.match(result.errors[0].msg, /rail\.project\.header/);
+  assert.match(result.errors[0].msg, /within/);
+
+  // An UNRESOLVABLE `within` is the same code, at the same node — one field, one verdict.
+  const unresolvable = mutate(loadPositiveControl(), (s) => {
+    const c = s.controls.find((x) => x.id === 'rail.project.chevron');
+    c.hit_rect.within = 'rail.project.nonesuch';
+  });
+  const b = validateSurfaceSpec(unresolvable, ctx());
+  assert.deepStrictEqual(codesOf(b), ['HIT002'], JSON.stringify(b.errors));
+  assert.match(b.errors[0].msg, /rail\.project\.nonesuch/);
+});
+
+test('Case I6d — HIT000/MISSING when the check could not run, and it does not flip ok', () => {
+  // `controls` absent: there is no control list to resolve hit-rect references against, so the
+  // honest answer is "not checked", never "no overlapping hit rects here".
+  const noControls = mutate(loadPositiveControl(), (s) => { delete s.controls; });
+
+  const result = validateSurfaceSpec(noControls, ctx());
+  const hit000 = result.errors.filter((e) => e.code === 'HIT000');
+  assert.strictEqual(hit000.length, 1, JSON.stringify(result.errors));
+  assert.strictEqual(hit000[0].status, 'MISSING');
+  assert.ok(!result.errors.some((e) => e.code === 'HIT001' || e.code === 'HIT002'));
+
+  // ok is false here only because `controls` is a REQUIRED key (SPEC001) — never because of
+  // the MISSING row. Pin that directly.
+  assert.ok(result.errors.some((e) => e.code === 'SPEC001'));
+  const missingOnly = validateSurfaceSpec({ ...noControls, controls: [] }, ctx());
+  assert.ok(!missingOnly.errors.some((e) => e.code.startsWith('HIT')), JSON.stringify(missingOnly.errors));
+});

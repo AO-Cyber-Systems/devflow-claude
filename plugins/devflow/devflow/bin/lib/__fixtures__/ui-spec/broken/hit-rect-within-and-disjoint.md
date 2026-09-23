@@ -54,6 +54,7 @@ controls:
     must_not: ["select the project", "change route"]
     hit_rect:
       max: "40x40"                     # an upper bound the probe asserts, not a layout instruction
+      within: rail.project.header      # inside the header area but MUST own its own hit target
       disjoint_from: [rail.project.header]   # reciprocal with the header, above
 
 states:
@@ -154,6 +155,26 @@ acceptance:
           moved onto its own full line above the key.
      Neither was normalised by editing yaml-lite — its refusal list is 34-01's, closed and
      deliberate, and both cases fail LOUDLY with a line number rather than mis-parsing.
+-->
+
+<!-- BROKEN: I6 — `hit_rect.within` and `hit_rect.disjoint_from` naming the SAME control —
+     expected code HIT002.
+
+     ONE edit of the positive control: `within: rail.project.header` is added to the chevron's
+     `hit_rect`, which already declares `disjoint_from: [rail.project.header]`. A control
+     cannot be both inside another control's area and disjoint from it; the spec would be
+     telling W2's probe to assert containment and separation of the same pair of rects.
+
+     Cites the I6 decision recorded in 34-04-SUMMARY.md ("## I6 decision", options (a) AND (b)
+     together, resolved 2026-09-22), whose fifth clause is exactly this consistency rule.
+
+     READ THIS BEFORE "FIXING" IT: the front matter of this fixture is the AMENDED proposal's
+     §4.2 example VERBATIM — the amendment added `within` to the chevron while leaving
+     `disjoint_from` in place, and §4.5 invariant 6 of the SAME amendment forbids the
+     combination. The two sections contradict each other. The normative rule wins, so the
+     positive control drops the `within` line and the proposal's literal example lives on here
+     as the known-broken case. The proposal needs a follow-up amendment to one side or the
+     other; until it lands, this file is the record of which side this engine implements.
 -->
 
 ## Intent

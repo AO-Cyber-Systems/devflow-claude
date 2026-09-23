@@ -54,7 +54,6 @@ controls:
     must_not: ["select the project", "change route"]
     hit_rect:
       max: "40x40"                     # an upper bound the probe asserts, not a layout instruction
-      disjoint_from: [rail.project.header]   # reciprocal with the header, above
 
 states:
   - id: populated
@@ -154,6 +153,28 @@ acceptance:
           moved onto its own full line above the key.
      Neither was normalised by editing yaml-lite — its refusal list is 34-01's, closed and
      deliberate, and both cases fail LOUDLY with a line number rather than mis-parsing.
+-->
+
+<!-- BROKEN: I6 — a `hit_rect.disjoint_from` that is not RECIPROCAL — expected code HIT001.
+
+     ONE edit of the positive control: the chevron's `disjoint_from: [rail.project.header]`
+     line is deleted, leaving the header still declaring
+     `hit_rect: {disjoint_from: [rail.project.chevron]}`. One control now claims a
+     hit-rect separation the other does not, so the pair the probe would measure has only one
+     end and the claim is unenforceable.
+
+     Cites the I6 decision recorded in 34-04-SUMMARY.md ("## I6 decision", options (a) AND (b)
+     together, resolved 2026-09-22): static I6 is RESOLVABILITY AND CONSISTENCY ONLY — every
+     `disjoint_from` entry resolves to a control in this spec, is reciprocal, and never names
+     its own control; every `within` entry resolves and does not also appear in that control's
+     `disjoint_from`. OVERLAP ITSELF IS NOT STATICALLY CHECKED: the spec declares intent, and
+     W2's probe measures the rects (§7.5 `disjoint`, `hit-target`, `within`). The file keeps
+     the name the TRD's `files_modified` declares; the defect it carries is the one the
+     decision made checkable, not an overlap computation.
+
+     The second I6 failure mode — `within` and `disjoint_from` naming the SAME control — is
+     `hit-rect-within-and-disjoint.md`, and fails with its own code (HIT002). Two failure
+     modes, two fixtures, two codes.
 -->
 
 ## Intent
