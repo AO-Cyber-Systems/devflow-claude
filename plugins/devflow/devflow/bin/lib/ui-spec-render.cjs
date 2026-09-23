@@ -128,6 +128,110 @@ function buildManifest(spec) {
   };
 }
 
+// ─── The navigation graph (§8.2) ──────────────────────────────────────────────
+//
+// "Can the reader get back from here" answered before a line of UI exists. Three edge kinds,
+// kept visibly apart:
+//   entry  solid    `A -- "label" --> B`     one per declared `entry` element
+//   back   DASHED   `A -. "label" .-> B`     one per `back`, labelled with the `via` LIST
+//   guard  solid    `A -- "guard: …" --> S`  one per guard, to the state 34-04's rule resolves
+//
+// THE NODE-ID RULE (one rule, applied to nodes AND edges): `<kind>_<id>` where every character
+// outside [A-Za-z0-9_] becomes `_`, and kind is `route`, `ctrl` or `state`; plus the single
+// synthetic node `external`. Mermaid ids cannot contain dots. The KIND PREFIX is not decoration:
+// without it a control `rail.project.header` and a route `rail-project-header` sanitise onto one
+// id and two unrelated edges merge into one — a graph that silently under-reports the thing it
+// exists to report. Every LABEL carries the real, unsanitised id.
+
+const MERMAID_SHAPES = {
+  route: (label) => `["${label}"]`,
+  ctrl: (label) => `(["${label}"])`,
+  state: (label) => `{{"${label}"}}`,
+  external: (label) => `[["${label}"]]`
+};
+
+function nodeId(kind, id) {
+  return `${kind}_${String(id).replace(/[^A-Za-z0-9_]/g, '_')}`;
+}
+
+/** Mermaid label text. A `"` would close the quoted label, so it becomes the HTML entity. */
+function label(text) {
+  return String(text).replace(/"/g, '#quot;');
+}
+
+/**
+ * Declarations first (deterministic order), then edges (routes in spec order; within a route,
+ * entries in order, then the back, then the guards in order). A registry keyed by node id keeps
+ * each node declared exactly once no matter how many edges touch it.
+ */
+function buildNavGraph(spec) {
+  const routes = (Array.isArray(spec.routes) ? spec.routes : []).filter(isPlainObject);
+  const statesById = new Map(statesOf(spec).map((s) => [s.id, s]));
+  const routeIds = new Set(routes.map((r) => r.id));
+
+  const nodes = new Map(); // id -> declaration line
+  const edges = [];
+
+  function declare(id, kind, text) {
+    if (!nodes.has(id)) nodes.set(id, `  ${id}${MERMAID_SHAPES[kind](label(text))}`);
+  }
+
+  // Pass 1a — the synthetic `external` node, declared only when a bare-string entry needs it.
+  const hasExternalEntry = routes.some(
+    (r) => Array.isArray(r.entry) && r.entry.some((e) => typeof e === 'string')
+  );
+  if (hasExternalEntry) declare('external', 'external', 'external');
+
+  // Pass 1b — one node per route, labelled with the real id and the route's visible title.
+  for (const route of routes) {
+    const title = typeof route.title === 'string' && route.title.length > 0 ? route.title : '(no title)';
+    declare(nodeId('route', route.id), 'route', `${route.id}<br/>${title}`);
+  }
+
+  // Pass 2 — the edges, declaring control and denied-state nodes as they are first reached.
+  for (const route of routes) {
+    const to = nodeId('route', route.id);
+
+    for (const entry of Array.isArray(route.entry) ? route.entry : []) {
+      if (typeof entry === 'string') {
+        edges.push(`  external -- "${label(entry)}" --> ${to}`);
+      } else if (isPlainObject(entry) && typeof entry.control === 'string') {
+        const from = nodeId('ctrl', entry.control);
+        declare(from, 'ctrl', entry.control);
+        edges.push(`  ${from} -- "${label(entry.control)}" --> ${to}`);
+      }
+    }
+
+    if (isPlainObject(route.back) && typeof route.back.target === 'string') {
+      const target = route.back.target;
+      const targetNode = nodeId('route', target);
+      // A back whose target is not a declared route is invariant territory, not the graph's —
+      // it is still DRAWN, labelled with the real id, rather than dropped. An edge nobody can
+      // see is how a reachability answer becomes wrong quietly.
+      if (!routeIds.has(target)) declare(targetNode, 'route', `${target}<br/>(undeclared route)`);
+      const via = Array.isArray(route.back.via) ? route.back.via.join(', ') : 'back';
+      edges.push(`  ${to} -. "${label(via)}" .-> ${targetNode}`);
+    }
+
+    for (const guard of Array.isArray(route.guards) ? route.guards : []) {
+      // ONE home for the linkage rule: ui-spec-validate.cjs's resolveGuardDeniedState, shared
+      // with invariant I8 (GUARD001) and the behaviour-coverage model's `guard` dimension.
+      const hit = resolveGuardDeniedState(guard, statesById);
+      // An unresolved guard is GUARD001 — render refuses such a spec, so this branch is only
+      // reachable under `validate: false`. No edge is GUESSED for it.
+      if (!hit) continue;
+      const deniedNode = nodeId('state', hit.id);
+      const as = typeof hit.state.as === 'string' ? hit.state.as : DEFAULT_IDENTITY;
+      declare(deniedNode, 'state', `${hit.id}<br/>as ${as}`);
+      edges.push(`  ${to} -- "guard: ${label(guard)} (as ${label(as)})" --> ${deniedNode}`);
+    }
+  }
+
+  // G4: no trailing whitespace on any line, exactly one trailing newline. Byte-stability
+  // against the committed snapshot is worthless if whitespace can drift under it.
+  return ['flowchart TD', ...nodes.values(), ...edges].join('\n') + '\n';
+}
+
 // ─── The entry point ──────────────────────────────────────────────────────────
 
 /**
@@ -138,7 +242,7 @@ function buildManifest(spec) {
  * @param {boolean} [opts.validate=true]  refuse an invalid spec (see the header)
  * @param {Array}  [opts.patterns]        the I5 pattern catalogue, or undefined (UNREACHABLE)
  * @param {Array}  [opts.vocabulary]      the §4.3 must_not vocabulary
- * @returns {{manifest: object, validation: (object|null)}}
+ * @returns {{manifest: object, navGraphMermaid: string, validation: (object|null)}}
  * @throws {RenderRefused} the spec carries a real violation
  */
 function renderSurfaceSpec(spec, opts = {}) {
@@ -152,6 +256,7 @@ function renderSurfaceSpec(spec, opts = {}) {
 
   return {
     manifest: buildManifest(spec),
+    navGraphMermaid: buildNavGraph(spec),
     validation
   };
 }
