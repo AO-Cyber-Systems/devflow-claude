@@ -140,3 +140,25 @@ test.describe('agent-shell-harness — extraction guards (E)', () => {
   });
 
 });
+
+test.describe('agent-shell-harness — call splitting (S)', () => {
+
+  // Case S1 — the baseline of the model: the Bash tool makes ONE call per logical
+  // command, in order. `line` is 1-based within the block so a finding can point a
+  // reviewer at the prose that produced it.
+  test('Case S1 — three single-line commands become three calls, in order, with 1-based lines', () => {
+    const block = [
+      'flutter pub get',
+      'flutter analyze',
+      'flutter test',
+    ].join('\n');
+
+    const calls = harness.splitCalls(block);
+
+    assert.strictEqual(calls.length, 3, 'three commands, three Bash-tool calls');
+    assert.deepStrictEqual(calls.map(c => c.call), ['flutter pub get', 'flutter analyze', 'flutter test']);
+    assert.deepStrictEqual(calls.map(c => c.line), [1, 2, 3], '1-based source lines, in order');
+    assert.deepStrictEqual(calls.map(c => c.index), [0, 1, 2]);
+  });
+
+});
