@@ -124,6 +124,19 @@ function extractBashBlocks(md, section) {
   return { ok: true, blocks, section: heading.text, headingLine: heading.index + 1, match };
 }
 
+// Heredoc openers on a line, in order: <<EOF, <<-EOF, <<'EOF', <<"EOF". `<<<` (a
+// here-STRING) is excluded. Known limit: an opener that appears inside quotes
+// (`echo "a <<EOF b"`) is still counted — line-based splitting, not a bash parser.
+const HEREDOC_RE = /<<(?!<)-?\s*(?:'([^']*)'|"([^"]*)"|\\?([A-Za-z_][A-Za-z0-9_]*))/g;
+
+function heredocDelimiters(line) {
+  const out = [];
+  HEREDOC_RE.lastIndex = 0;
+  let m;
+  while ((m = HEREDOC_RE.exec(line)) !== null) out.push(m[1] ?? m[2] ?? m[3]);
+  return out;
+}
+
 // Finds the offset of a TRAILING comment: the first `#` that is outside single/double
 // quotes and either starts the text or follows whitespace. Deliberately a small scanner,
 // not a bash parser — its documented limit is that a `#` inside a heredoc BODY would be
@@ -186,10 +199,12 @@ function splitCalls(block, opts = {}) {
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i];
 
-    // Inside a continuation: every line belongs to the call that opened it, blank or not.
+    // Inside a continuation or a heredoc: every line belongs to the call that opened it,
+    // blank or commented or not.
     if (pending) {
       pending.parts.push(raw);
-      if (!CONTINUES_RE.test(raw)) flush();
+      if (pending.heredocs.length && raw.trim() === pending.heredocs[0]) pending.heredocs.shift();
+      if (!pending.heredocs.length && !CONTINUES_RE.test(raw)) flush();
       continue;
     }
 
@@ -197,8 +212,9 @@ function splitCalls(block, opts = {}) {
     // A full-line comment is an ANNOTATION on the NEXT call, never a call of its own.
     if (/^\s*#/.test(raw)) { annotations.push(raw.trim()); continue; }
 
-    pending = { startIdx: i, parts: [raw] };
-    if (!CONTINUES_RE.test(raw)) flush();
+    const heredocs = heredocDelimiters(raw);
+    pending = { startIdx: i, parts: [raw], heredocs, heredoc: heredocs.length > 0 };
+    if (!heredocs.length && !CONTINUES_RE.test(raw)) flush();
   }
 
   // An unterminated continuation at end-of-block is still one call, not a dropped one.
