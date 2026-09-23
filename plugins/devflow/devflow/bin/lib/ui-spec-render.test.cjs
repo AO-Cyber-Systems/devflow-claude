@@ -244,9 +244,16 @@ test('Case G5 — a label never carries raw markup: `"`, `<` and `>` all leave a
     'every mermaid metacharacter in a label leaves as its `#name;` entity'
   );
 
-  // And the whole graph carries no `<`/`>` outside the `<br/>` separators the renderer writes.
-  for (const l of graphLines(navGraphMermaid)) {
-    assert.doesNotMatch(l.split('<br/>').join(''), /[<>]/, `raw angle bracket survived into: ${l}`);
+  // And no QUOTED LABEL anywhere in the graph — node or edge — carries an angle bracket that
+  // is not the renderer's own `<br/>`. The sweep reads only the label regions: mermaid's edge
+  // syntax (`-->`, `.->`) is full of legitimate `>` and matching on the whole line would make
+  // this assertion fail on correct output, which is its own kind of useless.
+  //
+  // Guard first: a sweep that finds no labels is a green loop over nothing.
+  const labels = [...navGraphMermaid.matchAll(/"([^"]*)"/g)].map((m) => m[1]);
+  assert.ok(labels.length >= 5, `the sweep found ${labels.length} labels; it cannot prove anything`);
+  for (const text of labels) {
+    assert.doesNotMatch(text.split('<br/>').join(''), /[<>]/, `raw angle bracket in label: ${text}`);
   }
 });
 

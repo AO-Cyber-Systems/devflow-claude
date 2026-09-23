@@ -161,9 +161,28 @@ function nodeId(kind, id) {
   return `${kind}_${String(id).replace(/[^A-Za-z0-9_]/g, '_')}`;
 }
 
-/** Mermaid label text. A `"` would close the quoted label, so it becomes the HTML entity. */
+/** The line break a node label may carry. The only markup this graph means. */
+const LABEL_BREAK = '<br/>';
+
+/**
+ * Mermaid label text. Every character that is markup to mermaid leaves as its `#name;` entity.
+ *
+ * `"` closes the quoted label. `<` and `>` are the longer route and were the missed one: this
+ * function writes `<br/>` into the SAME labels, so mermaid parses a label as markup — and 34-06
+ * then runs the graph through `esc()` into a `<pre class="mermaid">` whose textContent the
+ * browser decodes before mermaid ever reads it. A route titled `Projects <beta>` therefore
+ * reaches the renderer as an open tag, and the one artifact whose job is to show the navigation
+ * is the artifact that stops showing it. Entity-encoding is mermaid's own escape hatch and
+ * survives both hops unchanged.
+ */
 function label(text) {
-  return String(text).replace(/"/g, '#quot;');
+  // The `<br/>` a caller composed in is the ONE piece of markup this graph means, so it is
+  // split out before escaping and put back after. Escaping it too would print the tag; not
+  // splitting it out would mean escaping nothing, which is where this started.
+  return String(text)
+    .split(LABEL_BREAK)
+    .map((part) => part.replace(/"/g, '#quot;').replace(/</g, '#lt;').replace(/>/g, '#gt;'))
+    .join(LABEL_BREAK);
 }
 
 /**
@@ -192,7 +211,7 @@ function buildNavGraph(spec) {
   // Pass 1b — one node per route, labelled with the real id and the route's visible title.
   for (const route of routes) {
     const title = typeof route.title === 'string' && route.title.length > 0 ? route.title : '(no title)';
-    declare(nodeId('route', route.id), 'route', `${route.id}<br/>${title}`);
+    declare(nodeId('route', route.id), 'route', `${route.id}${LABEL_BREAK}${title}`);
   }
 
   // Pass 2 — the edges, declaring control and denied-state nodes as they are first reached.
@@ -215,7 +234,7 @@ function buildNavGraph(spec) {
       // A back whose target is not a declared route is invariant territory, not the graph's —
       // it is still DRAWN, labelled with the real id, rather than dropped. An edge nobody can
       // see is how a reachability answer becomes wrong quietly.
-      if (!routeIds.has(target)) declare(targetNode, 'route', `${target}<br/>(undeclared route)`);
+      if (!routeIds.has(target)) declare(targetNode, 'route', `${target}${LABEL_BREAK}(undeclared route)`);
       const via = Array.isArray(route.back.via) ? route.back.via.join(', ') : 'back';
       edges.push(`  ${to} -. "${label(via)}" .-> ${targetNode}`);
     }
@@ -229,7 +248,7 @@ function buildNavGraph(spec) {
       if (!hit) continue;
       const deniedNode = nodeId('state', hit.id);
       const as = typeof hit.state.as === 'string' ? hit.state.as : DEFAULT_IDENTITY;
-      declare(deniedNode, 'state', `${hit.id}<br/>as ${as}`);
+      declare(deniedNode, 'state', `${hit.id}${LABEL_BREAK}as ${as}`);
       edges.push(`  ${to} -- "guard: ${label(guard)} (as ${label(as)})" --> ${deniedNode}`);
     }
   }
