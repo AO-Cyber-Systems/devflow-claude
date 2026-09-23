@@ -103,3 +103,22 @@ test('Case Y3 — inline (flow) collections, including a flow map nested in a fl
     ]
   });
 });
+
+// ─── Scalars ──────────────────────────────────────────────────────────────────
+
+test('Case Y4 — quoted strings: `: ` and `#` inside quotes survive; escapes; quotes inside a flow list', () => {
+  const Y4 = [
+    'title: "{project.name}: overview # 1"',
+    "subtitle: 'it''s the rail'",
+    'escaped: "say \\"hi\\" twice"',
+    "must_show: [\"{project.name}\", 'plain text, quoted']",
+    ''
+  ].join('\n');
+
+  assert.deepStrictEqual(parseYamlLite(Y4), {
+    title: '{project.name}: overview # 1',
+    subtitle: "it's the rail",
+    escaped: 'say "hi" twice',
+    must_show: ['{project.name}', 'plain text, quoted']
+  });
+});
