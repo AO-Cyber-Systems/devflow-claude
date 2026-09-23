@@ -6,6 +6,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **`df-tools exec-context check|worktree`** (#86) — a dispatched executor's repository
+  and base are now stated by the orchestrator and proven by the agent, instead of being
+  inferred by the harness. `check --repo <path> [--base <ref>]` exits 1 with
+  `WRONG REPOSITORY` (naming both the expected repo and the one it is actually in) or
+  `BASE NOT VISIBLE` (naming the missing commit); a linked worktree of the target repo
+  passes, because identity is the git *common* directory, not the checkout.
+  `worktree --repo <path> --id <slug> [--base <ref>]` provisions isolation explicitly, in
+  the named repo, from a base that defaults to that repo's **current HEAD** — never the
+  default branch.
+
 ### Changed
 - **BREAKING (exit contract) — `df-tools ui spec validate|render`, `ui sheet` and `ui lock` now
   exit `2` when a check did not run.** `0` is checked and clean, `1` is a real violation, `2` is
@@ -27,6 +38,40 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `ok`. `ui spec render`'s bare (all-artifacts) payload and `ui sheet`'s and `ui lock`'s payloads
   carry the same two fields. The short-circuit verdicts (`SPEC000`, `SPEC002`) report
   `complete: false` too: they stop before any invariant runs. (#90)
+- **`devflow:executor` no longer declares `isolation: worktree`** (#86). The harness
+  resolved that isolation implicitly and got both halves wrong in a multi-repo programme:
+  the repo came from the *controller session's* cwd (an aodex objective dispatched from an
+  aodex worktree put the first executor in devflow-claude, silently — every path it was
+  given pointed into a repo it could not see), and the base was the *default branch*, so
+  wave 2 of a sequential objective could not see wave 1's commits. Every executor in the UI
+  Oracle Loop programme had to be run as a plain `general-purpose` subagent to work around
+  it. The executor now runs in the working directory the dispatch names and proves repo and
+  base in a `<repo_base_preflight>` first step; `execute-objective.md` fixes `REPO_ROOT` and
+  a per-wave `WAVE_BASE` before spawning and provisions parallel-wave worktrees itself.
+
+### Fixed
+- **`df-tools <command> --help` no longer mutates anything** (#87). `--help`/`-h` is
+  answered by the dispatcher *before* it selects a subcommand, so no subcommand can
+  receive a help flag as data. `df-tools commit --help` used to take `--help` as the
+  commit **message**, find no `--files`, and commit whatever was dirty — succeeding
+  silently and printing a hash. Six other subcommands shared the shape and were
+  verified to write on the pre-fix binary: `config-set` (wrote a key named `--help`),
+  `milestone complete` (archived a milestone `--help`), `handoff create`, `micro start`,
+  `changelog update`, `project-decline`. `objective add` was the only one that had its
+  own guard. Every top-level command now has a usage entry in `bin/lib/help.cjs`, and
+  `help.test.cjs` fails if a dispatcher arm is missing one. Commands that already print
+  richer help of their own (`awareness`, `org-awareness`, `dup-detect`,
+  `defaults-table init`, `flutter-ui bootstrap|eval|design-review`,
+  `verify flutter-ui-eval`, `gh resolve`) are delegated to rather than overridden, and
+  `help-delegation.test.cjs` holds each of them to the same contract: exit 0, print
+  something useful, change nothing.
+- **`df-tools commit` refuses a message starting with `--`** (#87) — far likelier a
+  mistyped flag than an intended subject line.
+- **`df-tools commit` with no `--files` is scoped to `.planning/`** (#87). It staged
+  `.planning/` and then ran a bare `git commit -m`, which commits the *whole* index —
+  so the blast radius was the entire dirty tree. `--files` is unchanged and remains the
+  recommended form; it was not made mandatory, because the no-`--files` form is the
+  documented "commit the planning docs" path used by callers outside this repo.
 
 ## [2.9.0] - 2026-09-22
 

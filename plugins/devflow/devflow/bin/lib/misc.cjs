@@ -449,17 +449,22 @@ function cmdCommit(cwd, message, files, raw, amend) {
     execGit(cwd, ['add', file]);
   }
 
-  // Commit — when specific files were named, limit the commit to those pathspecs so
-  // concurrently staged changes from other executors are not swept in.
-  // The git add loop above already ensures brand-new files are tracked first.
+  // Commit — always limited to the pathspecs that were just staged, so
+  // concurrently staged changes from other executors (or a file some unrelated
+  // tool left dirty) are not swept in. The git add loop above already ensures
+  // brand-new files are tracked first.
+  //
+  // Issue #87 part 3: with no --files the fallback used to stage `.planning/`
+  // and then run a bare `git commit -m`, which commits the WHOLE index. The
+  // command is named for planning docs, so the default now commits exactly
+  // `.planning/` and nothing else. Passing --files stays the recommended form.
+  //
   // Do NOT add pathspecs to the amend branch — --amend --no-edit -- <paths> changes amend semantics.
   let commitArgs;
   if (amend) {
     commitArgs = ['commit', '--amend', '--no-edit'];
-  } else if (files && files.length > 0) {
-    commitArgs = ['commit', '-m', message, '--', ...files];
   } else {
-    commitArgs = ['commit', '-m', message];
+    commitArgs = ['commit', '-m', message, '--', ...filesToStage];
   }
   const commitResult = execGit(cwd, commitArgs);
   if (commitResult.exitCode !== 0) {

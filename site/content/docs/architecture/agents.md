@@ -22,7 +22,6 @@ effort: xhigh
 tools: Read, Write, Edit, Bash, Grep, Glob, ...
 color: yellow
 maxTurns: 50
-isolation: worktree
 ---
 
 <role>...</role>
@@ -79,8 +78,14 @@ plan here costs one agent call; catching it after execution costs a build.
 ### Execution
 
 **`executor`** — the one that writes code. Executes planned tasks with atomic git
-commits, handles deviations from the plan, and manages checkpoints. Runs with
-`isolation: worktree` and a 50-turn ceiling.
+commits, handles deviations from the plan, and manages checkpoints. Runs with a
+50-turn ceiling, in the working directory the dispatch names. It deliberately does
+**not** declare `isolation: worktree`: the harness resolved that isolation from the
+controller session's repo and from the default branch, which rooted spawns in the
+wrong repository and starved sequential waves
+([#86](https://github.com/AO-Cyber-Systems/devflow-claude/issues/86)). Isolation is
+provisioned explicitly instead, and the executor proves its repo and base with
+`df-tools exec-context check` before it writes anything.
 
 ### Verification
 

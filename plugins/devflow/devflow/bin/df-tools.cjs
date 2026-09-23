@@ -8,6 +8,12 @@
  *
  * Usage: node df-tools.cjs <command> [args] [--raw]
  *
+ * Help:
+ *   df-tools --help                    List every command (writing ones marked *)
+ *   df-tools <command> --help          Usage for one command
+ *   `--help`/`-h` is answered by the dispatcher BEFORE the switch, so no
+ *   subcommand can ever receive it as data (issue #87).
+ *
  * Atomic Commands:
  *   state load                         Load project config + state
  *   state update <field> <value>       Update a STATE.md field
@@ -15,7 +21,9 @@
  *   state patch --field val ...        Batch update STATE.md fields
  *   resolve-model <agent-type>         Get model for agent based on profile
  *   find-objective <objective>                 Find objective directory by number
- *   commit <message> [--files f1 f2]   Commit planning docs
+ *   commit <message> [--files f1 f2]   Commit planning docs. A message starting
+ *                                      with `--` is refused; with no --files the
+ *                                      commit is scoped to `.planning/` alone.
  *   verify-summary <path>              Verify a SUMMARY.md file
  *   generate-slug <text>               Convert text to URL-safe slug
  *   current-timestamp [format]         Get timestamp (full|date|filename)
@@ -244,6 +252,8 @@ const { cmdMicro } = require('./lib/micro.cjs');
 const { cmdProjectDecline, cmdProjectAccept } = require('./lib/decline-tracker.cjs');
 const { cmdProjectState } = require('./lib/project-state.cjs');
 const { cmdGlobalConfig } = require('./lib/global-config.cjs');
+const { cmdExecContextRoute } = require('./lib/exec-context.cjs');
+const { hasHelpFlag, ownsHelp, HELP_FLAGS, printHelp } = require('./lib/help.cjs');
 const { cmdGenerateUAT } = require('./lib/uat-generator.cjs');
 
 // ─── CLI Router ───────────────────────────────────────────────────────────────
@@ -257,8 +267,17 @@ async function main() {
   const command = args[0];
   const cwd = process.cwd();
 
-  if (!command) {
-    error('Usage: df-tools <command> [args] [--raw]\nCommands: state, resolve-model, find-objective, commit, verify-summary, verify, detect, generate, frontmatter, template, generate-slug, current-timestamp, list-todos, verify-path-exists, config-ensure-section, awareness, benchmark, planning, init');
+  // ── `--help` is a question, never an instruction (issue #87) ───────────────
+  // Answered BEFORE the switch so no subcommand can ever see a help flag as
+  // data. `df-tools commit --help` used to take '--help' as the commit MESSAGE
+  // and commit whatever was dirty; a per-subcommand fix would have left the
+  // same hole open in the next subcommand added.
+  // A handful of commands print their own, richer help (which judge modes are
+  // binding, which scope a scaffold writes to). Those are delegated to — every
+  // one of them prints and returns before doing any work, which
+  // help-delegation.test.cjs enforces.
+  if (!command || (hasHelpFlag(args) && !ownsHelp(args))) {
+    printHelp(command && !HELP_FLAGS.has(command) ? command : null);
   }
 
   switch (command) {
@@ -336,6 +355,11 @@ async function main() {
     case 'commit': {
       const amend = args.includes('--amend');
       const message = args[1];
+      // A message starting with `--` is a mistyped flag far more often than an
+      // intended subject line (issue #87). Refuse rather than commit under it.
+      if (typeof message === 'string' && message.startsWith('--') && message !== '--') {
+        error(`Refusing to commit with '${message}' as the message — that looks like a flag, not a subject.\nRun \`df-tools commit --help\` for usage.`);
+      }
       // Parse --files flag (collect args after --files, stopping at other flags)
       const filesIndex = args.indexOf('--files');
       const files = filesIndex !== -1 ? args.slice(filesIndex + 1).filter(a => !a.startsWith('--')) : [];
@@ -1164,6 +1188,13 @@ async function main() {
       // df-tools micro commit [--files <path>...]
       // df-tools micro abort
       cmdMicro(cwd, args.slice(1), raw);
+      break;
+    }
+
+    case 'exec-context': {
+      // df-tools exec-context check --repo <path> [--base <ref>]
+      // df-tools exec-context worktree --repo <path> --id <slug> [--base <ref>] [--path <dir>]
+      cmdExecContextRoute(cwd, args.slice(1), raw);
       break;
     }
 
