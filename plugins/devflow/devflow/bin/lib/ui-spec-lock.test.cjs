@@ -478,10 +478,15 @@ test('Case P2 — every `df-tools.cjs` command the new prose names is a REAL arm
 
   // Extract `df-tools.cjs ui <subcommand>` occurrences. The `ui` family is the one this TRD
   // touches; a bare `df-tools.cjs <other>` in the same prose is out of scope for this net.
+  //
+  // `ui spec` is a TWO-LEVEL arm, so the chain is captured whole. Capturing only the first
+  // word would run `ui spec /nonexistent.md` and read back "Unknown ui spec subcommand" — the
+  // net would then fail for correct prose and, worse, could never tell a real missing
+  // second-level arm (`ui spec lock`, say) from that artefact.
   const found = [];
   for (const [label, text] of Object.entries(sources)) {
-    for (const m of text.matchAll(/df-tools\.cjs\s+ui\s+([a-z-]+)/g)) {
-      found.push({ label, sub: m[1] });
+    for (const m of text.matchAll(/df-tools\.cjs\s+ui\s+(spec\s+[a-z-]+|[a-z-]+)/g)) {
+      found.push({ label, sub: m[1].replace(/\s+/g, ' ') });
     }
   }
   assert.ok(found.length > 0, 'the extraction found no `df-tools.cjs ui …` command — P2 cannot pin what it cannot find');
@@ -491,10 +496,11 @@ test('Case P2 — every `df-tools.cjs` command the new prose names is a REAL arm
   // an unregistered one refuses with "Unknown ui subcommand" — which is exactly the wave-0
   // failure class, one level up.
   for (const { label, sub } of found) {
-    const r = spawnSync('node', [DF_TOOLS, 'ui', sub, '/nonexistent/spec-that-does-not-exist.md'], { encoding: 'utf-8' });
+    const argv = ['ui', ...sub.split(' '), '/nonexistent/spec-that-does-not-exist.md'];
+    const r = spawnSync('node', [DF_TOOLS, ...argv], { encoding: 'utf-8' });
     const stderr = r.stderr || '';
     assert.doesNotMatch(
-      stderr, /Unknown ui subcommand/,
+      stderr, /Unknown ui (spec )?subcommand/,
       `${label} names \`ui ${sub}\`, which df-tools does not register`
     );
     assert.match(stderr, /not found/, `\`ui ${sub}\` should refuse a nonexistent spec by name (${label}); got: ${stderr}`);
