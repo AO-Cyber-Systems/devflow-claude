@@ -406,6 +406,30 @@ test('Case T3 — must_not renders as explicit negations; control-level ONCE per
   );
 });
 
+test('Case T5 — a control id never appears inside a generated prose sentence; only on its own heading, secondary to the human name', () => {
+  // Gap 1a (verifier finding against the 34-06 checkpoint, Q1): `rail.project.chevron` printed
+  // as the SUBJECT of a sentence in a section titled "Controls, in plain language" — a control
+  // id must never appear inside prose. The id must still be visible somewhere, so it stays on
+  // the control's own heading; every OTHER line (bullets, *Always:*, preamble) must never carry
+  // the raw id.
+  const spec = loadPositiveControl();
+  const { controlTableMd } = renderSurfaceSpec(spec);
+  const lines = controlTableMd.split('\n');
+
+  for (const control of spec.controls) {
+    const headingLine = lines.find((l) => l.startsWith('### ') && l.includes(control.id));
+    assert.ok(headingLine, `no heading carries the id ${control.id} in:\n${controlTableMd}`);
+
+    for (const line of lines) {
+      if (line === headingLine) continue;
+      assert.ok(
+        !line.includes(control.id),
+        `control id "${control.id}" leaked into prose outside its heading: "${line}"`
+      );
+    }
+  }
+});
+
 test('Case T4 — the table names the surface, design_read and mode before the first control', () => {
   const { controlTableMd } = renderSurfaceSpec(loadPositiveControl());
   const lines = controlTableMd.split('\n');
