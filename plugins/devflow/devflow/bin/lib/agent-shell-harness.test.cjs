@@ -400,4 +400,81 @@ test.describe('agent-shell-harness — the runtime model (X)', () => {
       'and it landed inside the scratch root');
   });
 
+  // Case X6 — the result shape 34-10's CI job renders. EVERY call is reported, passing
+  // ones included: a harness that prints only failures cannot show a reviewer what it
+  // actually ran, and "nothing printed" then reads identically to "nothing ran".
+  test('Case X6 — checkSection reports every call in a stable shape, passing ones too', () => {
+    const root = makeRoot();
+    const md = [
+      '## Flutter',                                //  1
+      '',                                          //  2
+      '```bash',                                   //  3
+      '# harness: the first call passes',          //  4
+      'echo alpha',                                //  5
+      'cd sub',                                    //  6
+      'echo beta',                                 //  7
+      '```',                                       //  8
+      '',                                          //  9
+      '## Web',                                    // 10
+      '',                                          // 11
+      '```bash',                                   // 12
+      'echo not-collected',                        // 13
+      '```',                                       // 14
+      '',
+    ].join('\n');
+    const mdPath = path.join(root, 'prose.md');
+    fs.writeFileSync(mdPath, md);
+
+    const res = harness.checkSection(mdPath, '## Flutter', { root });
+
+    assert.strictEqual(res.section, 'Flutter');
+    assert.strictEqual(res.missing, null, 'a section that ran is not MISSING');
+    assert.strictEqual(res.ok, false, 'the `cd sub` call leaks the persisted cwd');
+    assert.ok(res.engine_version, 'the result is stamped with the engine that produced it');
+
+    assert.strictEqual(res.calls.length, 3, 'the Web section\'s block is not collected');
+    const FIELDS = ['index', 'line', 'call', 'annotations', 'cwd_before', 'cwd_after',
+                    'status', 'stdout', 'stderr', 'findings'];
+    for (const c of res.calls) {
+      for (const f of FIELDS) {
+        assert.ok(Object.prototype.hasOwnProperty.call(c, f), `every call record carries \`${f}\``);
+      }
+      assert.ok(Array.isArray(c.findings));
+    }
+
+    // The passing calls are present WITH an empty findings list — not omitted.
+    assert.deepStrictEqual(res.calls[0].findings, []);
+    assert.strictEqual(res.calls[0].status, 0);
+    assert.strictEqual(res.calls[0].stdout.trim(), 'alpha');
+    assert.deepStrictEqual(res.calls[0].annotations, ['# harness: the first call passes'],
+      'the annotation attached to the call that FOLLOWS the comment');
+    assert.strictEqual(res.calls[0].line, 5, 'lines are absolute in the markdown FILE');
+
+    assert.ok(res.calls[1].findings.some(f => f.type === 'cwd-leak'));
+    assert.strictEqual(res.calls[1].line, 6);
+
+    assert.deepStrictEqual(res.calls[2].findings, [], 'the third call passed and is still reported');
+    assert.strictEqual(res.calls[2].cwd_before, path.join(root, 'sub'),
+      'and it ran inside the leaked directory, exactly as the Bash tool would');
+  });
+
+  // Honest output: a section the harness could not execute is MISSING with the reason,
+  // never `pass` — asserted at the checkSection level, where 34-10's CI job reads it.
+  test('Case X6b — checkSection never reports pass for a section it could not execute', () => {
+    const root = makeRoot();
+    const mdPath = path.join(root, 'prose.md');
+    fs.writeFileSync(mdPath, ['## Flutter', '', 'Prose only.', ''].join('\n'));
+
+    const absent = harness.checkSection(mdPath, '## Nope', { root });
+    assert.strictEqual(absent.ok, false);
+    assert.ok(absent.missing, 'a section that is not there must carry a reason');
+    assert.match(absent.missing, /Nope/, 'and the reason must name it');
+    assert.deepStrictEqual(absent.calls, []);
+
+    const empty = harness.checkSection(mdPath, '## Flutter', { root });
+    assert.strictEqual(empty.ok, false);
+    assert.strictEqual(empty.missing, 'no bash blocks in section');
+    assert.deepStrictEqual(empty.calls, []);
+  });
+
 });
