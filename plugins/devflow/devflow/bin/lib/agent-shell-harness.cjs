@@ -124,6 +124,10 @@ function extractBashBlocks(md, section) {
   return { ok: true, blocks, section: heading.text, headingLine: heading.index + 1, match };
 }
 
+// A line ending in an ODD number of backslashes continues onto the next line — `foo \\`
+// (an escaped backslash) does not.
+const CONTINUES_RE = /(^|[^\\])(\\\\)*\\$/;
+
 // ─── Call splitting ───────────────────────────────────────────────────────────────────
 
 /**
@@ -145,13 +149,33 @@ function splitCalls(block, opts = {}) {
 
   const lines = body.split('\n');
   const calls = [];
+  let pending = null;   // an open backslash continuation: {startIdx, parts}
+
+  const flush = () => {
+    const call = pending.parts.map(p => p.replace(/\s+$/, '')).join('\n').trim();
+    calls.push({ index: calls.length, line: base + pending.startIdx + 1, call, annotations: [] });
+    pending = null;
+  };
 
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i];
+
+    // Inside a continuation: every line belongs to the call that opened it, blank or not.
+    if (pending) {
+      pending.parts.push(raw);
+      if (!CONTINUES_RE.test(raw)) flush();
+      continue;
+    }
+
     if (raw.trim() === '') continue;                  // blank lines are separators, not calls
     if (/^\s*#/.test(raw)) continue;                  // full-line comment (S3 attaches these)
-    calls.push({ index: calls.length, line: base + i + 1, call: raw.trim(), annotations: [] });
+
+    pending = { startIdx: i, parts: [raw] };
+    if (!CONTINUES_RE.test(raw)) flush();
   }
+
+  // An unterminated continuation at end-of-block is still one call, not a dropped one.
+  if (pending) flush();
 
   return calls;
 }
