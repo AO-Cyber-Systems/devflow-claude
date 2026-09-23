@@ -720,4 +720,31 @@ test.describe('agent-shell-harness — the `# harness:` annotation vocabulary (A
     assert.strictEqual(undeclared.ok, false, 'the default expectation is still 0');
   });
 
+  // A4 — `derive` is a VISIBLE, PER-CALL declaration, never a shared environment. Let it
+  // leak into the following call and 34-09's X3 (a $VAR assigned in one call, read in
+  // the next) becomes unreachable on real prose — the harness would bless the exact bug
+  // it was built to catch.
+  test('Case A4 — `# harness: derive VAR=value` injects into THAT call only', () => {
+    const one = harness.runSection(
+      harness.splitCalls('# harness: derive OBJECTIVE_DIR=34-demo\necho "$OBJECTIVE_DIR"'),
+      { root: makeRoot() });
+    assert.strictEqual(one.ok, true, 'the derived variable is available to its own call');
+    assert.strictEqual(one.calls[0].stdout.trim(), '34-demo');
+
+    const leaked = harness.runSection(
+      harness.splitCalls('# harness: derive OBJECTIVE_DIR=34-demo\necho "$OBJECTIVE_DIR"\necho "$OBJECTIVE_DIR"'),
+      { root: makeRoot() });
+    assert.strictEqual(leaked.ok, false, 'the SECOND call has no such variable and must fail');
+    const f = leaked.findings.find(x => x.type === 'unset-variable');
+    assert.ok(f, 'bash\'s own set -u diagnosis, not the harness simulating one');
+    assert.strictEqual(f.variable, 'OBJECTIVE_DIR');
+    assert.strictEqual(f.index, 1, 'and it is the second call, not the first');
+
+    // `{root}` expands, which is what makes $REPO_ROOT/$PACKAGE_DIR declarable at all.
+    const root = makeRoot();
+    const expanded = harness.runSection(
+      harness.splitCalls('# harness: derive REPO_ROOT={root}\necho "$REPO_ROOT"'), { root });
+    assert.strictEqual(expanded.calls[0].stdout.trim(), root);
+  });
+
 });
