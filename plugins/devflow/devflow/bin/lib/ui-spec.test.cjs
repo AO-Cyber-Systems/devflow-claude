@@ -402,3 +402,56 @@ test('Case L3 — both loaders are pure reads: a mutated result never reaches th
   delete s1.properties.routes;
   assert.deepStrictEqual(loadSurfaceSpecSchema(), s2);
 });
+
+// ─── W: the W1b interface list (objective 34-11, release audit) ───────────────
+//
+// W1c, W1★ and W2 are all planned against ONE front door exporting three named functions.
+// At the 2.9.0 release audit `ui-spec.cjs` exported only `parseSurfaceSpec` — the other two
+// lived, unre-exported, in sibling modules — so the promised list was a fiction. These cases
+// hold the list real. They assert IDENTITY with the sibling export, not merely `typeof`,
+// because a stub of the right shape would satisfy a typeof check and still be a fiction.
+
+test('Case W1 — ui-spec.cjs exports the three W1b interface-list functions', () => {
+  const m = require('./ui-spec.cjs');
+  for (const name of ['parseSurfaceSpec', 'validateSurfaceSpec', 'renderSurfaceSpec']) {
+    assert.strictEqual(typeof m[name], 'function', `${name} must be reachable from ui-spec.cjs`);
+  }
+});
+
+test('Case W2 — the re-exports ARE the sibling implementations, not wrappers or stubs', () => {
+  const m = require('./ui-spec.cjs');
+  assert.strictEqual(
+    m.validateSurfaceSpec,
+    require('./ui-spec-validate.cjs').validateSurfaceSpec,
+    're-export must be the same function object as ui-spec-validate.cjs exports'
+  );
+  assert.strictEqual(
+    m.renderSurfaceSpec,
+    require('./ui-spec-render.cjs').renderSurfaceSpec,
+    're-export must be the same function object as ui-spec-render.cjs exports'
+  );
+});
+
+test('Case W3 — the re-exports are enumerable, so Object.keys() shows the real interface', () => {
+  const keys = Object.keys(require('./ui-spec.cjs'));
+  for (const name of ['parseSurfaceSpec', 'validateSurfaceSpec', 'renderSurfaceSpec']) {
+    assert.ok(keys.includes(name), `Object.keys(ui-spec.cjs) must include ${name}`);
+  }
+});
+
+test('Case W4 — differential control: requiring ui-spec.cjs FIRST does not break the cycle', () => {
+  // The re-exports are lazy getters precisely because render -> validate -> ui-spec is a
+  // chain. If they were top-level requires, loading ui-spec.cjs first would hand the sibling
+  // a half-initialised module and `loadSurfaceSpecSchema` would be undefined inside it.
+  // A child process guarantees a cold require cache; in-process the cache would mask it.
+  const { execFileSync } = require('node:child_process');
+  const out = execFileSync(process.execPath, [
+    '-e',
+    'const m = require("./ui-spec.cjs");'
+      + 'const spec = m.parseSurfaceSpec(require("fs").readFileSync('
+      + '"./__fixtures__/ui-spec/projects-rail.md", "utf-8")).frontMatter;'
+      + 'const v = m.validateSurfaceSpec(spec, {});'
+      + 'process.stdout.write(String(v.ok));'
+  ], { cwd: __dirname, encoding: 'utf-8' });
+  assert.strictEqual(out, 'true', 'a cold require of ui-spec.cjs first must still validate');
+});

@@ -3,13 +3,26 @@
 /**
  * ui-spec — the Surface Spec front door (objective 34-02).
  *
- * Three exports, and nothing else:
+ * Its own three exports:
  *   parseSurfaceSpec(md)      split a spec's YAML front matter from its prose body, or throw
  *   loadSurfaceSpecSchema()   the versioned Surface Spec JSON Schema (proposal §4.2)
  *   loadMustNotVocabulary()   the fixed `must_not` vocabulary (proposal §4.3)
  *
- * This module VALIDATES nothing (that is 34-03) and RENDERS nothing (34-05). It parses, loads,
- * and pins shape.
+ * This module IMPLEMENTS no validation (that is 34-03) and no rendering (34-05). It parses,
+ * loads, and pins shape.
+ *
+ * ── The W1b interface list (objective 34-11) ─────────────────────────────────
+ * W1c, W1★ and W2 are all planned against ONE front door exporting three named functions:
+ *     { parseSurfaceSpec, validateSurfaceSpec, renderSurfaceSpec }
+ * `validateSurfaceSpec` and `renderSurfaceSpec` are IMPLEMENTED in `./ui-spec-validate.cjs`
+ * and `./ui-spec-render.cjs`; this module RE-EXPORTS them so that promised list is real at
+ * the tag rather than a fiction three objectives plan against.
+ *
+ * The re-exports are LAZY getters on purpose. `ui-spec-render.cjs` requires
+ * `ui-spec-validate.cjs`, which requires THIS module — so a top-level `require` here would
+ * close that cycle and hand the sibling a half-initialised `loadSurfaceSpecSchema`. A getter
+ * resolves on first property ACCESS instead, by which point every module is fully loaded.
+ * What comes back is the SAME function object as the sibling's export, never a wrapper.
  *
  * ── Why not `frontmatter.cjs`? ───────────────────────────────────────────────
  * `bin/lib/frontmatter.cjs` already splits front matter, and a dozen callers depend on its
@@ -146,3 +159,21 @@ module.exports = {
   SURFACE_SPEC_SCHEMA_PATH,
   MUST_NOT_VOCABULARY_PATH,
 };
+
+// The W1b interface list — see the module header. Defined as lazy getters so the require
+// graph stays acyclic: render -> validate -> ui-spec, and ui-spec must not require back.
+Object.defineProperty(module.exports, 'validateSurfaceSpec', {
+  enumerable: true,
+  configurable: true,
+  get() {
+    return require('./ui-spec-validate.cjs').validateSurfaceSpec;
+  },
+});
+
+Object.defineProperty(module.exports, 'renderSurfaceSpec', {
+  enumerable: true,
+  configurable: true,
+  get() {
+    return require('./ui-spec-render.cjs').renderSurfaceSpec;
+  },
+});
