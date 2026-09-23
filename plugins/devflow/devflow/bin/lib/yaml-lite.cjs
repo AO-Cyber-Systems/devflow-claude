@@ -148,6 +148,8 @@ function splitLine(content, indent, line) {
 const MERGE_KEY_RE = /^<<\s*:/;
 const ANCHOR_RE = /(^|\s)&[A-Za-z0-9_-]+/;
 const ALIAS_RE = /(^|\s)\*[A-Za-z0-9_-]+/;
+const BLOCK_SCALAR_RE = /:\s*[|>][-+0-9]*\s*$/;
+const TAG_RE = /(^|\s)!!?[A-Za-z]/;
 
 function refuse(code, line) {
   if (MERGE_KEY_RE.test(code.trim())) {
@@ -165,6 +167,18 @@ function refuse(code, line) {
   if (ALIAS_RE.test(code)) {
     throw new YamlLiteError(
       'an alias (`*name`) is not supported by yaml-lite; write the value out in full',
+      line
+    );
+  }
+  if (BLOCK_SCALAR_RE.test(code)) {
+    throw new YamlLiteError(
+      'a block scalar (`|` or `>`) is not supported by yaml-lite; use a quoted single-line string',
+      line
+    );
+  }
+  if (TAG_RE.test(code)) {
+    throw new YamlLiteError(
+      'a tag (`!` / `!!`) is not supported by yaml-lite; scalars are typed by their spelling, not by a tag',
       line
     );
   }
