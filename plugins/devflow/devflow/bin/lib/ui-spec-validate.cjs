@@ -39,6 +39,9 @@
  *            or is not reciprocal
  *   HIT002   a `hit_rect.within` entry that does not resolve, or that ALSO appears in this
  *            control's `disjoint_from`
+ *   FLOW001  a flow step names a control or route that does not exist (and that this
+ *            single-spec engine was entitled to resolve — see `isNamespaceLocal`)
+ *   FLOW002  a flow's last step is neither a `back` nor a route declared `root: true`
  *
  * ── The behaviour-coverage model (BINDING — 34-05's control table and W2's `effect` check
  *    resolve the active behaviour by this same rule; if they diverge, the spec says one thing
@@ -703,6 +706,107 @@ function checkHitRects(spec, errors) {
   });
 }
 
+// ─── I7: flows ───────────────────────────────────────────────────────────────
+
+/** The schema's id shape. A value outside it is not an id and therefore not a reference. */
+const ID_PATTERN = /^[a-z0-9][a-z0-9.\-]*$/;
+
+/** `rail.project.header` -> `rail`. The namespace a reference is resolved within. */
+function namespaceOf(id) {
+  return String(id).split('.')[0];
+}
+
+/**
+ * Is `ref` a reference this SINGLE-SPEC engine is entitled to resolve?
+ *
+ * ── The decision, written down because the positive control forces it ─────────────────────
+ * §4.2's own flow references `rail.conversation[0]` (a runtime INSTANCE of a list item) and
+ * `conversation.detail` (a route on ANOTHER surface). A closed-world "every step resolves"
+ * check reddens the proposal's own worked example, and a MISSING row per step would bury a
+ * real typo under two rows of noise on every well-formed spec. So a reference is IN SCOPE when
+ * it is NAMESPACE-LOCAL: it matches the schema id pattern (which excludes `rail.conversation[0]`
+ * outright — `[` is not in it) AND its first dot-segment is the first dot-segment of some
+ * declared id OF THE SAME KIND. `conversation` is neither `project` nor `conversations`, so
+ * `conversation.detail` is another surface's; `rail.project.headr` shares `rail` with
+ * `rail.project.header` and is therefore a typo this engine can and does name.
+ * Everything out of scope belongs to W2's repo-wide resolution, exactly as ROUTE003's MISSING
+ * branch does.
+ */
+function isNamespaceLocal(ref, declaredIds) {
+  if (typeof ref !== 'string' || !ID_PATTERN.test(ref)) return false;
+  const ns = namespaceOf(ref);
+  for (const id of declaredIds) {
+    if (namespaceOf(id) === ns) return true;
+  }
+  return false;
+}
+
+/**
+ * FLOW001 a step names a control or route that does not exist (and that this spec was
+ * entitled to resolve) · FLOW002 a flow's last step is neither a `back` nor a declared
+ * TERMINAL route.
+ *
+ * TERMINAL ROUTE, as implemented: a route of THIS spec declaring `root: true`. The TRD offers
+ * `root: true` or an explicit `terminal: true`; `terminal` is NOT in the schema and
+ * `additionalProperties: false` would make any spec using it fail SPEC001, so adding the word
+ * here without adding the field would be a rule with no way to satisfy it. `root: true` is the
+ * whole rule until a schema revision says otherwise (34-04-SUMMARY.md, "the terminal-route
+ * rule").
+ */
+function checkFlows(spec, errors) {
+  if (!Array.isArray(spec.flows)) return; // shape is SPEC001's; a verdict here would have no basis
+
+  const controlIds = (Array.isArray(spec.controls) ? spec.controls : [])
+    .filter(isPlainObject).map((c) => c.id).filter((id) => typeof id === 'string');
+  const routeIds = (Array.isArray(spec.routes) ? spec.routes : [])
+    .filter(isPlainObject).map((r) => r.id).filter((id) => typeof id === 'string');
+  const controlSet = new Set(controlIds);
+  const routeSet = new Set(routeIds);
+  const terminalRoutes = new Set(
+    (Array.isArray(spec.routes) ? spec.routes : [])
+      .filter((r) => isPlainObject(r) && r.root === true && typeof r.id === 'string')
+      .map((r) => r.id)
+  );
+
+  spec.flows.forEach((flow, i) => {
+    if (!isPlainObject(flow) || !Array.isArray(flow.steps) || flow.steps.length === 0) return;
+    const fid = typeof flow.id === 'string' ? flow.id : `#${i}`;
+
+    flow.steps.forEach((step, j) => {
+      if (!isPlainObject(step)) return;
+      const at = `flows[${i}].steps[${j}]`;
+
+      // `click` names a control. `back` names a back AFFORDANCE (app-back, browser-back), the
+      // same vocabulary `route.back.via` uses — never a control, so it is not resolved as one.
+      if (typeof step.click === 'string' && !controlSet.has(step.click)
+          && isNamespaceLocal(step.click, controlIds)) {
+        errors.push(err('FLOW001', `${at}.click`,
+          `flow ${fid} step ${j} clicks ${step.click}, which this spec declares no control for — §4.5 I7 requires every step to reference an existing control (the id shares this surface's ${namespaceOf(step.click)} namespace, so it is resolved here rather than deferred to another spec)`));
+      }
+
+      const expected = isPlainObject(step.expect) ? step.expect.route : undefined;
+      if (typeof expected === 'string' && !routeSet.has(expected)
+          && isNamespaceLocal(expected, routeIds)) {
+        errors.push(err('FLOW001', `${at}.expect.route`,
+          `flow ${fid} step ${j} expects route ${expected}, which this spec declares no route for — §4.5 I7 requires every step to reference an existing route (the id shares this surface's ${namespaceOf(expected)} namespace, so it is resolved here rather than deferred to another spec)`));
+      }
+    });
+
+    // FLOW002 — the last step.
+    const last = flow.steps[flow.steps.length - 1];
+    const lastIndex = flow.steps.length - 1;
+    if (!isPlainObject(last)) return;
+    const endsOnBack = typeof last.back === 'string' && last.back.length > 0;
+    const endsRoute = isPlainObject(last.expect) ? last.expect.route : undefined;
+    const endsOnTerminal = typeof endsRoute === 'string' && terminalRoutes.has(endsRoute);
+
+    if (!endsOnBack && !endsOnTerminal) {
+      errors.push(err('FLOW002', `flows[${i}].steps[${lastIndex}]`,
+        `flow ${fid} ends on ${endsRoute ? `route ${endsRoute}` : 'a step with no declared destination'}, which is neither a \`back\` step nor a route this spec declares \`root: true\` — §4.5 I7 requires a flow to end in a back or a declared terminal route, or it never says how the reader gets out`));
+    }
+  });
+}
+
 // ─── Assembly ─────────────────────────────────────────────────────────────────
 
 /**
@@ -813,6 +917,9 @@ function validateSurfaceSpec(spec, ctx = {}) {
 
     // I6 — hit rects: resolvability and consistency. Overlap is the probe's, not ours.
     checkHitRects(spec, errors);
+
+    // I7 — flows.
+    checkFlows(spec, errors);
   } catch (e) {
     // CRITICAL: an escaped exception becomes a verdict, never a stack trace. 34-04's exit-code
     // contract and case V3 both depend on it.
