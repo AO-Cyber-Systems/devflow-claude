@@ -312,9 +312,31 @@ function asSentence(does) {
   return /[.!?]$/.test(text) ? text : `${text}.`;
 }
 
+/**
+ * A human-readable name for a control id, so the prose never has to print the raw machine id
+ * as the SUBJECT of a sentence (34-06 gap 1a — a verifier caught `rail.project.chevron` printed
+ * literally in a section titled "Controls, in plain language").
+ *
+ * THE RULE, deterministic: split on `.`; when the id has THREE OR MORE segments, drop the
+ * LEADING (namespace) segment and join what remains with spaces; a 2-segment id keeps both.
+ *   `rail.project.header`  -> drop `rail`  -> "project header"
+ *   `rail.project.chevron` -> drop `rail`  -> "project chevron"
+ *   `foo.bar` (2 segments) -> keep both    -> "foo bar"
+ * The id itself still appears — on the control's own heading (`controlBlockMd`, below),
+ * wrapped in emphasis so 34-06's HTML converter renders it visually secondary to this name.
+ */
+function humanName(id) {
+  const segments = String(id).split('.');
+  const kept = segments.length >= 3 ? segments.slice(1) : segments;
+  return kept.join(' ');
+}
+
 function controlBlockMd(control) {
   const kind = typeof control.kind === 'string' ? control.kind : '(no kind)';
-  const lines = [`### ${control.id} (${kind})`, ''];
+  const name = humanName(control.id);
+  // The id survives on the heading ONLY, wrapped in emphasis (`*...*`) — visible, but secondary
+  // to the human name. It must never reach a bullet or `*Always:*` line below (Case T5).
+  const lines = [`### ${name} — *${control.id}* (${kind})`, ''];
 
   const visibleIn = (Array.isArray(control.visible_in) ? control.visible_in : []).join(', ');
   if (visibleIn) lines.push(`*Visible in:* ${visibleIn}`, '');
@@ -330,7 +352,10 @@ function controlBlockMd(control) {
       );
     }
   } else {
-    lines.push(`- Activating ${control.id} ${asSentence(control.does)}${effectSuffix(control.effect)}`);
+    // §8.3's shape: "Clicking the project header expands its children …" — `Clicking` when the
+    // control is pointer-activated, `Activating` otherwise (keyboard-only / non-pointer controls).
+    const verb = control.activation && control.activation.pointer === true ? 'Clicking' : 'Activating';
+    lines.push(`- ${verb} the ${name} ${asSentence(control.does)}${effectSuffix(control.effect)}`);
   }
 
   // ONCE per control, never once per behaviour.

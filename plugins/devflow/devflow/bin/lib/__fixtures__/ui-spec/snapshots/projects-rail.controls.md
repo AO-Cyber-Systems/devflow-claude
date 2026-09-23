@@ -3,7 +3,7 @@
 *Design read:* utility rail; expression low, motion minimal, density compact
 *Mode:* redesign
 
-### rail.project.header (disclosure-header)
+### project header — *rail.project.header* (disclosure-header)
 
 *Visible in:* populated, long-content, narrow
 
@@ -13,10 +13,10 @@
 
 *Always:* It never fires twice per activation; it never covers sibling hit rects.
 
-### rail.project.chevron (toggle)
+### project chevron — *rail.project.chevron* (toggle)
 
 *Visible in:* populated, long-content, narrow
 
-- Activating rail.project.chevron toggles children visibility only. (toggle)
+- Activating the project chevron toggles children visibility only. (toggle)
 
 *Always:* It never selects the project; it never changes route.

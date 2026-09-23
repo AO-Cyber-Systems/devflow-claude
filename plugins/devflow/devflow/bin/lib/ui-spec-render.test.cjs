@@ -305,10 +305,14 @@ test('Case G4 — no trailing whitespace on any line, exactly one trailing newli
 // WORDING, which they cannot do if the renderer emits a key/value dump. The committed snapshot
 // is where that objection gets registered.
 
-/** The lines of one `### <id> (<kind>)` block, up to the next `###` or the end. */
+/**
+ * The lines of one `### <human name> — *<id>* (<kind>)` block, up to the next `###` or the end.
+ * The heading no longer STARTS with the raw id (Case T5 — the id is secondary, in emphasis), so
+ * this locates it by the emphasised `*<id>*` span instead.
+ */
 function controlBlock(md, id) {
   const lines = md.split('\n');
-  const start = lines.findIndex((l) => l.startsWith(`### ${id} `));
+  const start = lines.findIndex((l) => l.startsWith('### ') && l.includes(`*${id}*`));
   assert.notStrictEqual(start, -1, `no block for control ${id} in:\n${md}`);
   const rest = lines.slice(start + 1);
   const end = rest.findIndex((l) => l.startsWith('### '));
@@ -323,9 +327,14 @@ test('Case T1 — a single-`does` control renders ONE sentence: the control, wha
   assert.strictEqual(bullets.length, 1, `a single-does control renders one sentence, got:\n${bullets.join('\n')}`);
   assert.strictEqual(
     bullets[0],
-    '- Activating rail.project.chevron toggles children visibility only. (toggle)'
+    // The human name ("project chevron"), never the raw id — Case T5's subject. `chevron` has
+    // no `activation.pointer: true`, so the verb is `Activating`.
+    '- Activating the project chevron toggles children visibility only. (toggle)'
   );
-  assert.ok(controlTableMd.includes('### rail.project.chevron (toggle)'), 'the heading names the control and its kind');
+  assert.ok(
+    controlTableMd.includes('### project chevron — *rail.project.chevron* (toggle)'),
+    'the heading names the control (human name first), its id (secondary) and its kind'
+  );
 });
 
 test('Case T2 — a `behaviors[]` control renders ONE LINE PER `when` clause, condition in words', () => {
