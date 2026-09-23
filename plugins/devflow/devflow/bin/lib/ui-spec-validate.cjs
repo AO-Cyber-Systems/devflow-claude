@@ -268,6 +268,190 @@ function checkRoutes(spec, errors) {
   });
 }
 
+// ─── I3: controls, and the §4.3 exclusivity/coverage model ───────────────────
+
+/** `WxH` -> W, or null when the state declares no viewport. */
+function widthOf(state) {
+  const m = state && typeof state.viewport === 'string' ? /^([0-9]+)x[0-9]+$/.exec(state.viewport) : null;
+  return m ? Number(m[1]) : null;
+}
+
+/** The states a route guard names — a guard entry that resolves to a declared state id. */
+function deniedStateIds(spec) {
+  const stateIds = new Set(
+    (Array.isArray(spec.states) ? spec.states : [])
+      .filter(isPlainObject)
+      .map((s) => s.id)
+  );
+  const denied = new Set();
+  for (const route of Array.isArray(spec.routes) ? spec.routes : []) {
+    if (!isPlainObject(route) || !Array.isArray(route.guards)) continue;
+    for (const g of route.guards) {
+      // A guard that does NOT resolve to a declared state is invariant I8's problem (34-04),
+      // not this model's: it is left alone rather than guessed into the guard dimension.
+      if (stateIds.has(g)) denied.add(g);
+    }
+  }
+  return denied;
+}
+
+/**
+ * The closed-world combination table for one control, and the behaviour indexes matching each
+ * row. Exported because 34-05's control table and W2's active-behaviour resolution must use
+ * THIS function rather than a second implementation of the same rule.
+ *
+ * @returns {Array<{combo: object, matched: number[]}>}
+ */
+function enumerateBehaviorCombinations(control, spec) {
+  const behaviors = Array.isArray(control.behaviors) ? control.behaviors : [];
+  const statesById = new Map(
+    (Array.isArray(spec.states) ? spec.states : [])
+      .filter(isPlainObject)
+      .map((s) => [s.id, s])
+  );
+  const denied = deniedStateIds(spec);
+
+  // control_state: the union of this control's own `when` values and its a11y.announces.
+  const controlStates = [];
+  for (const b of behaviors) {
+    const v = isPlainObject(b) && isPlainObject(b.when) ? b.when.control_state : undefined;
+    if (typeof v === 'string' && !controlStates.includes(v)) controlStates.push(v);
+  }
+  const announces = isPlainObject(control.a11y) && Array.isArray(control.a11y.announces)
+    ? control.a11y.announces
+    : [];
+  for (const v of announces) {
+    if (typeof v === 'string' && !controlStates.includes(v)) controlStates.push(v);
+  }
+  if (controlStates.length === 0) controlStates.push(DEFAULT_CONTROL_STATE);
+
+  const dataStates = Array.isArray(control.visible_in) ? control.visible_in : [];
+  const table = [];
+
+  for (const dataState of dataStates) {
+    const state = statesById.get(dataState);
+    const width = widthOf(state);
+    const combo = {
+      data_state: dataState,
+      control_state: null,
+      viewport: (width !== null && width < NARROW_MAX_WIDTH) || dataState === 'narrow' ? 'narrow' : 'desktop',
+      theme: (state && typeof state.theme === 'string' ? state.theme : null) || 'light',
+      guard: denied.has(dataState) ? 'denied' : 'allowed'
+    };
+
+    for (const controlState of controlStates) {
+      const row = { ...combo, control_state: controlState };
+      const matched = [];
+      behaviors.forEach((b, k) => {
+        const when = isPlainObject(b) && isPlainObject(b.when) ? b.when : {};
+        // An ABSENT `when` key is a WILDCARD. Get this backwards and the positive control
+        // fails coverage on every row.
+        const hit = DIMENSIONS.every((d) => when[d] === undefined || when[d] === row[d]);
+        if (hit) matched.push(k);
+      });
+      table.push({ combo: row, matched });
+    }
+  }
+
+  return table;
+}
+
+function renderCombo(combo) {
+  return DIMENSIONS.map((d) => `${d}=${combo[d]}`).join(', ');
+}
+
+/**
+ * CTRL001 both `does` and `behaviors` · CTRL002 neither · CTRL003 exclusivity ·
+ * CTRL004 coverage · CTRL005 effect vocabulary · CTRL006 visible_in resolves to a state.
+ */
+function checkControls(spec, effects, errors) {
+  if (!Array.isArray(spec.controls)) return;
+
+  const haveStates = Array.isArray(spec.states);
+  const stateIds = new Set(
+    (haveStates ? spec.states : []).filter(isPlainObject).map((s) => s.id)
+  );
+
+  spec.controls.forEach((control, i) => {
+    if (!isPlainObject(control)) return;
+    const at = `controls[${i}]`;
+    const cid = typeof control.id === 'string' ? control.id : `#${i}`;
+
+    const hasDoes = typeof control.does === 'string';
+    const hasBehaviors = Array.isArray(control.behaviors) && control.behaviors.length > 0;
+
+    if (hasDoes && hasBehaviors) {
+      errors.push(err('CTRL001', at,
+        `control ${cid} declares BOTH a top-level \`does\` and a \`behaviors[]\` list — §4.3 allows either one does+effect pair or a behaviors list, not two competing statements of what it does`));
+    } else if (!hasDoes && !hasBehaviors) {
+      errors.push(err('CTRL002', at,
+        `control ${cid} declares NEITHER a \`does\` + \`effect\` pair nor a \`behaviors[]\` list — §4.3 requires one of the two, so the spec does not say what this control does`));
+    }
+
+    // CTRL005 — the §7.5 effect classes, read off the schema's own enum.
+    const effectLists = [['effect', control.effect]];
+    if (Array.isArray(control.behaviors)) {
+      control.behaviors.forEach((b, j) => {
+        if (isPlainObject(b)) effectLists.push([`behaviors[${j}].effect`, b.effect]);
+      });
+    }
+    for (const [where, list] of effectLists) {
+      if (!Array.isArray(list)) continue;
+      list.forEach((value, k) => {
+        if (effects.includes(value)) return;
+        errors.push(err('CTRL005', `${at}.${where}[${k}]`,
+          `control ${cid} declares effect ${JSON.stringify(value)}, which is not one of the §7.5 effect classes: ${effects.join(', ')}`));
+      });
+    }
+
+    // CTRL006 — visible_in resolves. Skipped entirely when `states` is not a list: that is
+    // SPEC001's to report, and a verdict reached with no state list has no basis.
+    let visibleResolves = true;
+    if (haveStates && Array.isArray(control.visible_in)) {
+      control.visible_in.forEach((id, k) => {
+        if (stateIds.has(id)) return;
+        visibleResolves = false;
+        errors.push(err('CTRL006', `${at}.visible_in[${k}]`,
+          `control ${cid} is declared visible in ${JSON.stringify(id)}, which is not a state this spec declares — \`visible_in\` is a subset of states[].id`));
+      });
+    }
+
+    if (!hasBehaviors || !haveStates || !visibleResolves) return;
+
+    const table = enumerateBehaviorCombinations(control, spec);
+
+    // CTRL003 — exclusivity. One error per colliding behaviour PAIR, at the later behaviour.
+    const collisions = new Map();
+    for (const row of table) {
+      if (row.matched.length < 2) continue;
+      for (let a = 0; a < row.matched.length; a++) {
+        for (let b = a + 1; b < row.matched.length; b++) {
+          const key = `${row.matched[a]}:${row.matched[b]}`;
+          if (!collisions.has(key)) collisions.set(key, { a: row.matched[a], b: row.matched[b], first: row.combo, count: 0 });
+          collisions.get(key).count += 1;
+        }
+      }
+    }
+
+    if (collisions.size > 0) {
+      for (const c of collisions.values()) {
+        errors.push(err('CTRL003', `${at}.behaviors[${c.b}].when`,
+          `control ${cid}: behaviours ${c.a} and ${c.b} both match (${renderCombo(c.first)})${c.count > 1 ? ` and ${c.count - 1} further combination(s)` : ''} — §4.3 requires \`when\` clauses to be mutually exclusive, and CTRL004 coverage is NOT evaluated for this control while the active behaviour is unresolvable`));
+      }
+      // Rule (b): exclusivity short-circuits coverage WITHIN this control.
+      return;
+    }
+
+    // CTRL004 — coverage. One error per control, naming the uncovered combinations.
+    const uncovered = table.filter((row) => row.matched.length === 0);
+    if (uncovered.length > 0) {
+      const shown = uncovered.slice(0, 3).map((row) => `(${renderCombo(row.combo)})`).join('; ');
+      errors.push(err('CTRL004', `${at}.behaviors`,
+        `control ${cid}: no behaviour matches ${shown}${uncovered.length > 3 ? ` and ${uncovered.length - 3} more` : ''} — §4.3 requires the \`when\` clauses to together cover every \`visible_in\` state`));
+    }
+  });
+}
+
 // ─── Assembly ─────────────────────────────────────────────────────────────────
 
 /**
@@ -352,7 +536,14 @@ function validateSurfaceSpec(spec, ctx = {}) {
     // I2 — routes.
     checkRoutes(spec, errors);
 
-    // I3 lands next; I4-I8 in TRD 34-04.
+    // I3 — controls. The effect classes are read off the SCHEMA's own enum, so §7.5's list
+    // has exactly one home.
+    const effects = (schema.$defs && schema.$defs.effect && Array.isArray(schema.$defs.effect.enum))
+      ? schema.$defs.effect.enum
+      : ['navigation', 'toggle', 'select', 'dialog', 'submit', 'inert'];
+    checkControls(spec, effects, errors);
+
+    // I4-I8 are TRD 34-04.
   } catch (e) {
     // CRITICAL: an escaped exception becomes a verdict, never a stack trace. 34-04's exit-code
     // contract and case V3 both depend on it.
@@ -364,5 +555,6 @@ function validateSurfaceSpec(spec, ctx = {}) {
 
 module.exports = {
   validateSurfaceSpec,
+  enumerateBehaviorCombinations,
   NARROW_MAX_WIDTH
 };
