@@ -3,16 +3,20 @@
   "spec": "devflow-claude/docs/PROPOSAL-ui-oracle-loop.md",
   "plan": "devflow-claude/docs/IMPLEMENTATION-PLAN-ui-oracle-loop.md",
   "design_artifact": "https://claude.ai/code/artifact/5029f906-28d2-418f-8f38-b03923725985",
-  "updated": "2026-09-22T05:30:00Z",
-  "now": "WAVE 0 COMPLETE. All 8 PRs merged (devflow #80 #81 #84 → v2.8.0; eden-biz #776 #786 #787; aodex #610 #611); issues #705 #753 #585 closed; eden-ui-flutter #32 #33 filed; baselines recorded. Remaining user action: W0-9 plugin update. Next: plan wave 1 objectives.",
+  "updated": "2026-09-23T03:10:00Z",
+  "now": "W1b (devflow-claude obj 34) executed 11/11 TRDs \u2014 Surface Spec schema, parser, validator, renderer, review sheet + sheet_hash, look-lock, frontend-design step 0, and the executor shell harness. Two checkpoints outstanding: the human-verify eyeball of the review sheet, and the v2.9.0 tag. W1c is in review \u2014 eden-biz #793 (CLEAN) and aodex #625 (two CI failures found and fixed). W1a (eden-ui-flutter obj 23) still executing.",
   "waiting_on_user": [
     {
-      "id": "W0-9",
-      "what": "/plugin marketplace update aocyber, update devflow to 2.8.0, then `node ~/.claude/devflow/bin/df-tools.cjs validate health` — expect no E020/W021."
+      "id": "Look-lock eyeball",
+      "what": "The review sheet for projects-rail needs your eyes once \u2014 three questions: does the control table read as English, is a MISSING cell unmistakable, is the grid legible. A verifier passed Q2 and flagged Q1/Q3; those two fixes are in flight. Only a human can answer this gate."
     },
     {
-      "id": "W1 kickoff",
-      "what": "Say go and I start wave 1 planning via /devflow:build in eden-ui-flutter (1a), devflow-claude (1b) and the two consumers (1c), with the runtime-model brief section binding."
+      "id": "Merge approval",
+      "what": "eden-biz #793 and aodex #625 are ready pending /code-review. Per the runbook I ask before merging."
+    },
+    {
+      "id": "v2.9.0 tag",
+      "what": "devflow-claude v2.9.0 is a human action, after the W1b branch merges."
     }
   ],
   "status_legend": {
@@ -58,7 +62,7 @@
           "repo": "devflow-claude",
           "status": "done",
           "commits": "03fa7d5..782eadf",
-          "note": "1 fix round: two missing tests added (tier-3 yaml→absent; non-raw text)"
+          "note": "1 fix round: two missing tests added (tier-3 yaml\u2192absent; non-raw text)"
         },
         {
           "id": "W0-4",
@@ -95,22 +99,22 @@
         {
           "id": "W0-8",
           "title": "tag v2.1.0; pins to a tag (#585, #753)",
-          "repo": "eden-ui-flutter · eden-biz · aodex",
+          "repo": "eden-ui-flutter \u00b7 eden-biz \u00b7 aodex",
           "status": "done",
           "gate": "user approves push/tag",
-          "note": "tag v2.1.0; all PRs merged after merge-main + composed gates; pin bumps surfaced a library regression (eden-ui-flutter #33) — aodex opted out"
+          "note": "tag v2.1.0; all PRs merged after merge-main + composed gates; pin bumps surfaced a library regression (eden-ui-flutter #33) \u2014 aodex opted out"
         },
         {
           "id": "W0-9",
           "title": "upgrade installed plugin",
           "repo": "user",
-          "status": "blocked-user",
-          "note": "/plugin marketplace update aocyber → update devflow → validate health"
+          "status": "done",
+          "note": "2.8.0 installed both scopes; mirror synced; engine row running/mirror/installed/main all 2.8.0"
         },
         {
           "id": "W0-10",
           "title": "capture + commit metrics baseline",
-          "repo": "aodex · eden-biz",
+          "repo": "aodex \u00b7 eden-biz",
           "status": "done",
           "depends_on": [
             "W0-6",
@@ -127,11 +131,11 @@
       "repos": [
         "eden-ui-flutter"
       ],
-      "status": "pending",
+      "status": "active",
       "depends_on": [
         "W0"
       ],
-      "size": "1 obj · ~12 TRDs · 1.5 wk",
+      "size": "1 obj \u00b7 ~12 TRDs \u00b7 1.5 wk",
       "tasks": [
         {
           "id": "1a-01",
@@ -194,7 +198,8 @@
           "status": "pending"
         }
       ],
-      "outcome": "The shared widget library can describe, render and test its own pieces — every button, rail and list has a picture per state and a test that catches overlap, overflow and double-firing."
+      "outcome": "The shared widget library can describe, render and test its own pieces \u2014 every button, rail and list has a picture per state and a test that catches overlap, overflow and double-firing.",
+      "note": "eden-ui-flutter objective 23, branch df/w1a-catalog-probe \u2014 planning; issue #33 (SelectionArea default) folded into the shell-API TRD"
     },
     {
       "id": "W1b",
@@ -202,49 +207,58 @@
       "repos": [
         "devflow-claude"
       ],
-      "status": "pending",
+      "status": "done",
       "depends_on": [
         "W0"
       ],
-      "size": "1 obj · ~7 TRDs · 1 wk",
+      "size": "1 obj \u00b7 ~7 TRDs \u00b7 1 wk",
       "tasks": [
         {
           "id": "1b-01",
-          "title": "schema + yaml-lite parser",
-          "status": "pending"
+          "title": "schema + yaml-lite parser (34-01, 34-02)",
+          "status": "done"
         },
         {
           "id": "1b-02",
-          "title": "spec validate (I1–I8, behaviors)",
-          "status": "pending"
+          "title": "spec validate (I1\u2013I8, behaviors) (34-03, 34-04)",
+          "status": "done"
         },
         {
           "id": "1b-03",
-          "title": "spec render (manifest/graph/table)",
-          "status": "pending"
+          "title": "spec render (manifest/graph/table) (34-05)",
+          "status": "done"
         },
         {
           "id": "1b-04",
-          "title": "review sheet",
-          "status": "pending"
+          "title": "review sheet + sheet_hash (34-06)",
+          "status": "blocked-user",
+          "note": "built; human-verify eyeball outstanding \u2014 Q2 passed, Q1/Q3 gaps being closed"
         },
         {
           "id": "1b-05",
-          "title": "look-lock checkpoint",
-          "status": "pending"
+          "title": "look-lock checkpoint + clearing rule (34-07)",
+          "status": "done"
         },
         {
           "id": "1b-06",
-          "title": "frontend-design step 0",
-          "status": "pending"
+          "title": "frontend-design step 0 (34-08)",
+          "status": "done"
         },
         {
           "id": "1b-07",
-          "title": "release 2.9.0",
-          "status": "pending"
+          "title": "executor shell harness (34-09, 34-10)",
+          "status": "done",
+          "note": "NOT in the original plan. Found 40 findings in executor.md's three real Flutter sections \u2014 all three ok=false. Eight prose defects fixed."
+        },
+        {
+          "id": "1b-08",
+          "title": "release 2.9.0 (34-11)",
+          "status": "blocked-user",
+          "note": "gate proven ALLOW with two negative controls; tag not created \u2014 preconditions unmet (on a branch, unpushed, merge runbook and /code-review not run)"
         }
       ],
-      "outcome": "Claude can write a one-page 'how this screen works' sheet, render every state of it as pictures, and get your yes/no on that page before any code is written."
+      "outcome": "Claude can write a one-page 'how this screen works' sheet, render every state of it as pictures, and get your yes/no on that page before any code is written. DELIVERED: 11/11 TRDs, 134 commits, focused tests 193/193.",
+      "note": "devflow-claude objective 34, branch df/w1b-surface-spec \u2014 planning"
     },
     {
       "id": "W1c",
@@ -253,43 +267,45 @@
         "aodex",
         "eden-biz"
       ],
-      "status": "pending",
+      "status": "review",
       "depends_on": [
         "W0"
       ],
-      "size": "1 obj each · ~5 TRDs · 3–4 days each",
+      "size": "1 obj each \u00b7 ~5 TRDs \u00b7 3\u20134 days each",
       "tasks": [
         {
           "id": "1c-01",
           "title": "seed registry",
-          "status": "pending"
+          "status": "done"
         },
         {
           "id": "1c-02",
           "title": "identity set",
-          "status": "pending"
+          "status": "done"
         },
         {
           "id": "1c-03",
           "title": "fault injection stub",
-          "status": "pending"
+          "status": "done"
         },
         {
           "id": "1c-04",
           "title": "bridge line + build_probe_web.sh",
-          "status": "pending"
+          "status": "done",
+          "note": "probe-bridge lines left as documented no-ops pending W1a's v2.2.0"
         },
         {
           "id": "1c-05",
           "title": "outage state proof",
-          "status": "pending"
+          "status": "done"
         }
       ],
-      "outcome": "The test apps can be put into any state on demand — empty, full, long names, a dependency outage, a user without access — so those states can actually be checked."
+      "outcome": "The test apps can be put into any state on demand \u2014 empty, full, long names, a dependency outage, a user without access \u2014 so those states can actually be checked.",
+      "note": "eden-biz #793 CLEAN. aodex #625 arrived UNSTABLE \u2014 an errcheck on our new seed tool, and the SDK-03 drop-in gate correctly catching lib/main_e2e.dart. Both fixed (89ad3e3c); the second recorded as a justified exception with a digest, not widened out of the gate."
     },
     {
-      "id": "W1★",
-      "title": "Dogfood: projects-rail spec → look-lock → conform nav branch → merge + tag",
+      "id": "W1\u2605",
+      "title": "Dogfood: projects-rail spec \u2192 look-lock \u2192 conform nav branch \u2192 merge + tag",
       "repos": [
         "aodex",
         "eden-ui-flutter"
@@ -308,7 +324,7 @@
         },
         {
           "id": "A2",
-          "title": "sheet → look-lock",
+          "title": "sheet \u2192 look-lock",
           "status": "pending",
           "gate": "Mark approves the sheet"
         },
@@ -319,12 +335,12 @@
         },
         {
           "id": "B2",
-          "title": "hand-driven CONFORM → conform.json",
+          "title": "hand-driven CONFORM \u2192 conform.json",
           "status": "pending"
         },
         {
           "id": "B3",
-          "title": "fix every ✗ with a test",
+          "title": "fix every \u2717 with a test",
           "status": "pending"
         },
         {
@@ -338,15 +354,15 @@
     },
     {
       "id": "W2",
-      "title": "DevFlow: catalog, probe, checks, executor RENDER→CONFORM, verifier replay, judge calibration",
+      "title": "DevFlow: catalog, probe, checks, executor RENDER\u2192CONFORM, verifier replay, judge calibration",
       "repos": [
         "devflow-claude"
       ],
       "status": "pending",
       "depends_on": [
-        "W1★"
+        "W1\u2605"
       ],
-      "size": "2 obj · ~16 TRDs · 2–2.5 wk",
+      "size": "2 obj \u00b7 ~16 TRDs \u00b7 2\u20132.5 wk",
       "tasks": [
         {
           "id": "W2-tooling",
@@ -355,11 +371,11 @@
         },
         {
           "id": "W2-agents",
-          "title": "planner derivation · executor loop · verifier replay · seam override + tag gate · migration table applied",
+          "title": "planner derivation \u00b7 executor loop \u00b7 verifier replay \u00b7 seam override + tag gate \u00b7 migration table applied",
           "status": "pending"
         }
       ],
-      "outcome": "Claude checks its own UI work after every step — every button does what the sheet says, every page can be reached and left — and only asks you to look at what the machine couldn't judge."
+      "outcome": "Claude checks its own UI work after every step \u2014 every button does what the sheet says, every page can be reached and left \u2014 and only asks you to look at what the machine couldn't judge."
     },
     {
       "id": "W3",
@@ -373,7 +389,7 @@
         "W2",
         "W1c"
       ],
-      "size": "2 obj · ~14 TRDs · 2–3 wk",
+      "size": "2 obj \u00b7 ~14 TRDs \u00b7 2\u20133 wk",
       "tasks": [
         {
           "id": "W3-crawl",
@@ -382,11 +398,11 @@
         },
         {
           "id": "W3-port",
-          "title": "donor-routes.json (47) · pattern mapping · workflow designer through A–C",
+          "title": "donor-routes.json (47) \u00b7 pattern mapping \u00b7 workflow designer through A\u2013C",
           "status": "pending"
         }
       ],
-      "outcome": "A crawler walks the whole Eden Biz app and files a bug for every unreachable page, dead end or dead button; the first Trades feature is ported through the new process. From here the port is a number: 47 Trades screens, each not-started / described / built-and-checked — 100% is the SaaS release gate and the day React retires."
+      "outcome": "A crawler walks the whole Eden Biz app and files a bug for every unreachable page, dead end or dead button; the first Trades feature is ported through the new process. From here the port is a number: 47 Trades screens, each not-started / described / built-and-checked \u2014 100% is the SaaS release gate and the day React retires."
     },
     {
       "id": "W4",
@@ -399,7 +415,7 @@
       "depends_on": [
         "W3"
       ],
-      "size": "1 obj · ~4 TRDs · 3–4 days",
+      "size": "1 obj \u00b7 ~4 TRDs \u00b7 3\u20134 days",
       "tasks": [
         {
           "id": "W4-adapters",
@@ -407,14 +423,14 @@
           "status": "pending"
         }
       ],
-      "outcome": "The same checks run on phones. (No React adapter — Trades React is the donor only and retires when the port is complete.)"
+      "outcome": "The same checks run on phones. (No React adapter \u2014 Trades React is the donor only and retires when the port is complete.)"
     }
   ],
   "rulings": [
     {
       "when": "2026-09-18",
       "task": "pre-flight",
-      "ruling": "W0-3 rewrites Tier-3 resolver tests to expect `absent` + candidates (spec §12.2: objective-scoped only)",
+      "ruling": "W0-3 rewrites Tier-3 resolver tests to expect `absent` + candidates (spec \u00a712.2: objective-scoped only)",
       "cost_if_wrong": "a consumer relying on repo-manifest resolution must pass a path"
     },
     {
@@ -432,7 +448,7 @@
     {
       "when": "2026-09-18",
       "task": "W0-1",
-      "ruling": "the resolution-skip output is evidence → stamp engine_version; --help is not",
+      "ruling": "the resolution-skip output is evidence \u2192 stamp engine_version; --help is not",
       "cost_if_wrong": "two keys on a usage object"
     },
     {
@@ -456,7 +472,7 @@
     {
       "when": "2026-09-18",
       "task": "scope",
-      "ruling": "Trades React is donor-only, retired at 100% port coverage — dropped the React test column (W0-5) and the Playwright-React adapter (W4)",
+      "ruling": "Trades React is donor-only, retired at 100% port coverage \u2014 dropped the React test column (W0-5) and the Playwright-React adapter (W4)",
       "cost_if_wrong": "if React had to be maintained, its probe adapter would be a later ~3-TRD objective"
     },
     {
@@ -469,7 +485,7 @@
       "when": "2026-09-18",
       "task": "W0-4",
       "ruling": "evidence paths absolute from REPO_ROOT captured once; TRD test paths are package-relative (documented in executor + planner)",
-      "cost_if_wrong": "none — strictly more explicit"
+      "cost_if_wrong": "none \u2014 strictly more explicit"
     },
     {
       "when": "2026-09-18",
@@ -528,8 +544,20 @@
     {
       "when": "2026-09-22",
       "task": "merges",
-      "ruling": "every branch got main merged + composed gates rerun + CI on the merged head before merge; Stage A re-checked at merge time (main moved under #81, #776 ×2, #787, #611)",
+      "ruling": "every branch got main merged + composed gates rerun + CI on the merged head before merge; Stage A re-checked at merge time (main moved under #81, #776 \u00d72, #787, #611)",
       "cost_if_wrong": "none"
+    },
+    {
+      "when": "2026-09-22",
+      "task": "W1a",
+      "ruling": "fold eden-ui-flutter#33 (SelectionArea body default) into W1a's shell-API TRD rather than a separate objective \u2014 same file, and it is a production bug for any Navigator body",
+      "cost_if_wrong": "the shell TRD carries one extra regression test"
+    },
+    {
+      "when": "2026-09-23",
+      "task": "34-06 Q1 (control-table English)",
+      "ruling": "Fix the wording now rather than after W1\u2605. The prose is inside the hashed model, so changing it moves sheet_hash and would clear every look-lock \u2014 but zero look-locks exist anywhere yet, so today the fix is free and after the dogfood it costs a re-approval.",
+      "cost_if_wrong": "If the new wording is also wrong, a second hash move \u2014 still free until W1\u2605 locks."
     }
   ],
   "deferred_minors": [
@@ -622,12 +650,22 @@
       "repo": "aodex",
       "n": 611,
       "state": "merged"
+    },
+    {
+      "repo": "eden-biz",
+      "n": 793,
+      "state": "open"
+    },
+    {
+      "repo": "aodex",
+      "n": 625,
+      "state": "open"
     }
   ],
   "retro": {
     "wave": "W0",
     "fix_feat": "11 fix / 3 feat / 4 docs / 1 test on df/w0-honest-gate",
-    "lesson": "prose encoding runtime semantics needs an executable check; briefs carry a runtime model; /code-review mandatory pre-merge (spec §21)"
+    "lesson": "prose encoding runtime semantics needs an executable check; briefs carry a runtime model; /code-review mandatory pre-merge (spec \u00a721)"
   },
   "issues": [
     {
@@ -649,12 +687,31 @@
       "repo": "eden-ui-flutter",
       "n": 33,
       "title": "SelectionArea body default asserts over a Navigator (flutter#151536)"
+    },
+    {
+      "repo": "devflow-claude",
+      "n": 86,
+      "title": "executor worktree isolation branches from main, starving sequential waves"
+    },
+    {
+      "repo": "eden-biz",
+      "n": 792,
+      "title": "8 of 10 referenced seed profiles are unimplemented in db-reset.sh"
+    },
+    {
+      "repo": "aodex",
+      "n": 626,
+      "title": "main_e2e.dart duplicates main.dart's boot sequence with no drift guard"
     }
   ],
   "corrections": [
     {
       "when": "2026-09-21",
-      "what": "eden-ui-flutter nav-disclosure branch merged upstream 2026-09-11 (PR #26); aodex pinned a main merge commit since 09-10. Earlier 'unmerged tip' claim was stale. W1★ dogfood: no rebase; conform the merged nav."
+      "what": "eden-ui-flutter nav-disclosure branch merged upstream 2026-09-11 (PR #26); aodex pinned a main merge commit since 09-10. Earlier 'unmerged tip' claim was stale. W1\u2605 dogfood: no rebase; conform the merged nav."
+    },
+    {
+      "when": "2026-09-23",
+      "what": "My own I6 spec amendment contradicted itself twice, and W1b's executor had to rule against the illustrative text to build against the normative text: acceptance.locked_sheet carried 65 hex characters (a sha256 is 64), and \u00a74.2's chevron declared both `within` and `disjoint_from` against the same control, which \u00a74.5 invariant 6 \u2014 added in the same commit \u2014 forbids. Both fixed (0d783b0). The old chevron literal now lives on as the known-broken fixture for HIT002, so the contradiction became a regression test."
     }
   ]
 }
