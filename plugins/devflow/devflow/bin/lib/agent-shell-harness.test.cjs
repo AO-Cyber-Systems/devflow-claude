@@ -213,4 +213,42 @@ test.describe('agent-shell-harness — call splitting (S)', () => {
       'consumed annotations must not leak onto the following call');
   });
 
+  // Case S4 — blank lines separate, they do not execute; and a heredoc is ONE call, not
+  // one call per body line. Pinned even though the executor's current blocks have none,
+  // because the gate-commits hook's heredoc handling shows this repo writes them — and a
+  // heredoc split into five calls would produce five meaningless findings.
+  test('Case S4 — blank lines are separators, not calls; a heredoc is ONE call', () => {
+    const block = [
+      'echo first',                                    // 1
+      '',                                              // 2
+      "cat > note.txt <<'EOF'",                        // 3
+      'line one',                                      // 4
+      '# not a comment, it is heredoc content',        // 5
+      '',                                              // 6
+      'line three',                                    // 7
+      'EOF',                                           // 8
+      '',                                              // 9
+      'echo last',                                     // 10
+    ].join('\n');
+
+    const calls = harness.splitCalls(block);
+
+    assert.strictEqual(calls.length, 3, 'two plain commands and one heredoc');
+    assert.deepStrictEqual(calls.map(c => c.line), [1, 3, 10],
+      'blank lines shift the line numbers but are never calls');
+
+    assert.strictEqual(calls[0].call, 'echo first');
+    assert.strictEqual(calls[2].call, 'echo last');
+
+    const heredoc = calls[1].call;
+    assert.match(heredoc, /^cat > note\.txt <<'EOF'/);
+    assert.match(heredoc, /line one/);
+    assert.match(heredoc, /line three/);
+    assert.match(heredoc, /\nEOF$/, 'the heredoc call runs through its terminator');
+    assert.deepStrictEqual(calls[1].annotations, [],
+      'a `#` line inside a heredoc BODY is content, not an annotation');
+    assert.deepStrictEqual(calls[2].annotations, [],
+      'and it must not leak onto the call after the heredoc either');
+  });
+
 });
