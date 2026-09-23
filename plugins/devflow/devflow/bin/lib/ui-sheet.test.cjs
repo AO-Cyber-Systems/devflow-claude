@@ -317,3 +317,162 @@ test('Case M1 (the mirror guard) — the sheet template resolves from a ~/.claud
   assert.strictEqual(got.hash, sheet.sheetHash(sheet.buildSheetModel(spec, { renders: null, refs: null })));
   void makeRenders;
 });
+
+// ─── The grid (G1-G7) ────────────────────────────────────────────────────────
+//
+// G2, G4, G5, G6 and G7 assert on the GENERATED HTML, not on the model. A model-only
+// assertion passes on a template that silently skips a null render — and "skip when falsy"
+// is both the natural way to write the template and the natural way to be wrong.
+
+const { renderSurfaceSpec } = require('./ui-spec-render.cjs');
+
+/** A whole sheet from the positive control, with a chosen subset of renders present. */
+function renderFixtureSheet({ present = [], refEntries = [] } = {}) {
+  const spec = loadSpec();
+  const renders = makeRenders({ present });
+  const refs = makeRefs(refEntries);
+  const model = sheet.buildSheetModel(spec, { renders, refs });
+  return {
+    spec,
+    model,
+    renders,
+    refs,
+    html: sheet.renderSheetHtml(model, sheet.loadSheetTemplate(), { renders, refs })
+  };
+}
+
+test('Case G1 — one row per capture-list entry, in capture-list order, with the row keys', () => {
+  const spec = loadSpec();
+  const captures = renderSurfaceSpec(spec, { validate: false }).captureList;
+  const model = sheet.buildSheetModel(spec, { renders: null, refs: null });
+
+  assert.strictEqual(model.rows.length, captures.length, 'one row per capture, never fewer');
+  assert.deepStrictEqual(
+    model.rows.map((r) => r.capture_id),
+    captures.map((c) => c.capture_id),
+    'rows follow the capture list ORDER — the sheet does not re-sort 34-05 contract'
+  );
+
+  for (const row of model.rows) {
+    for (const key of ['capture_id', 'state_id', 'theme', 'width', 'render', 'ref', 'status']) {
+      assert.ok(key in row, `row ${row.capture_id} is missing the key \`${key}\``);
+    }
+    assert.ok(['present', 'MISSING'].includes(row.status), `bad status ${row.status}`);
+  }
+});
+
+test('Case G2 — a declared state with no render renders a MISSING cell and the row SURVIVES', () => {
+  const spec = loadSpec();
+  const all = captureIds(spec);
+  const denied = all.find((id) => id.includes('guard-denied'));
+  assert.ok(denied, 'the positive control declares a guard-denied state');
+
+  // Everything EXCEPT guard-denied has a render, so a template that drops null rows still
+  // produces a plausible-looking sheet — which is exactly the failure this case exists for.
+  const { html, model } = renderFixtureSheet({ present: all.filter((id) => id !== denied) });
+
+  const row = model.rows.find((r) => r.capture_id === denied);
+  assert.strictEqual(row.status, 'MISSING');
+  assert.strictEqual(row.render, null);
+  assert.match(row.reason, /no render at/);
+
+  // THE HTML, not the model.
+  assert.ok(html.includes('MISSING'), 'the generated HTML must contain the literal word MISSING');
+  assert.ok(html.includes('guard-denied'), 'the unrendered state id must still appear in the HTML');
+  assert.ok(html.includes(denied), `the unrendered capture_id ${denied} must still appear`);
+  assert.ok(html.includes(row.reason), 'the MISSING cell carries the path that was looked for');
+
+  // Every declared row is present in the output, not just the rendered ones.
+  for (const r of model.rows) {
+    assert.ok(html.includes(`id="row-${r.capture_id}"`), `row ${r.capture_id} was dropped from the HTML`);
+  }
+});
+
+test('Case G3 — a state with a render AND a ref shows both, the ref labelled by its subdirectory', () => {
+  const spec = loadSpec();
+  const all = captureIds(spec);
+  const populated = all.find((id) => id.includes('--populated--'));
+  const { html, model } = renderFixtureSheet({
+    present: [populated],
+    refEntries: ['locked/populated.png']
+  });
+
+  const row = model.rows.find((r) => r.capture_id === populated);
+  assert.strictEqual(row.status, 'present');
+  assert.strictEqual(row.ref, 'locked/populated.png');
+  assert.strictEqual(row.ref_kind, 'locked', 'the kind comes from the --refs subdirectory');
+  assert.strictEqual(row.ref_status, 'present');
+
+  const start = html.indexOf(`id="row-${populated}"`);
+  assert.notStrictEqual(start, -1);
+  const end = html.indexOf('</article>', start);
+  const block = html.slice(start, end);
+
+  assert.strictEqual(
+    (block.match(/<img /g) || []).length, 2,
+    'the render and its reference render side by side in the same row'
+  );
+  assert.ok(block.includes('Reference (locked)'), `the ref pane is labelled locked:\n${block}`);
+  assert.ok(block.includes('data:image/png;base64,'), 'images are INLINED, not linked');
+});
+
+test('Case G4 — the sheet lists design_read and mode, in its own header', () => {
+  const { html, spec } = renderFixtureSheet({});
+
+  // STRENGTHENED beyond the TRD's literal wording ("both strings appear in the HTML"), because
+  // a differential control proved that net cannot fail for its own bug: the control table
+  // carries its own `*Design read:*` line, so deleting the sheet header's substitution
+  // entirely left `html.includes(design_read)` green. The assertion is therefore scoped to the
+  // header — everything before the navigation-graph heading.
+  const header = html.slice(0, html.indexOf('<h2>Navigation graph'));
+  assert.ok(header.length > 0, 'the sheet has a header section above the navigation graph');
+  assert.ok(header.includes(spec.design_read), `design_read is missing from the sheet header: ${spec.design_read}`);
+  assert.ok(header.includes(spec.mode), `mode is missing from the sheet header: ${spec.mode}`);
+});
+
+test('Case G5 — the nav graph and the control table are TAKEN from renderSurfaceSpec, not re-derived', () => {
+  const { html, model, spec } = renderFixtureSheet({});
+  const derived = renderSurfaceSpec(spec, { validate: false });
+
+  assert.strictEqual(model.navGraphMermaid, derived.navGraphMermaid, 'the graph is not re-derived here');
+  assert.strictEqual(model.controlTableMd, derived.controlTableMd, 'the table is not re-derived here');
+
+  assert.ok(html.includes('flowchart TD'), 'the mermaid graph is in the sheet');
+  assert.ok(html.includes('class="mermaid"'), 'the graph is in a mermaid block, so an Artifact draws it');
+  assert.ok(html.includes('route_project_conversations'), 'a real node id from the graph is present');
+  assert.ok(html.includes('Controls — projects-rail'), 'the control table is in the sheet');
+  assert.ok(
+    html.includes('expands children; selects the project'),
+    'the control table text a human reads is in the sheet'
+  );
+});
+
+test('Case G6 — the per-state content contract appears in each row', () => {
+  const { html, model } = renderFixtureSheet({});
+
+  const empty = model.rows.find((r) => r.state_id === 'empty');
+  assert.deepStrictEqual(empty.content.must_show, ['Create a project']);
+  assert.ok(html.includes('Create a project'), 'must_show reaches the HTML');
+  assert.ok(html.includes('must not show'), 'must_not_show is labelled in the HTML');
+  assert.ok(html.includes('names ellipsize; rail width unchanged'), 'a `rule` contract reaches the HTML');
+
+  // Every row that declares a contract renders it inside its OWN row block.
+  for (const row of model.rows.filter((r) => r.content && typeof r.content === 'object')) {
+    const start = html.indexOf(`id="row-${row.capture_id}"`);
+    const block = html.slice(start, html.indexOf('</article>', start));
+    assert.ok(block.includes('class="contract"'), `row ${row.capture_id} has no contract block`);
+  }
+});
+
+test('Case G7 — the generated HTML is self-contained: no network, no external CSS, no script', () => {
+  const { html } = renderFixtureSheet({ present: captureIds(loadSpec()).slice(0, 2), refEntries: ['locked/populated.png'] });
+
+  assert.doesNotMatch(html, /https?:\/\//, 'no absolute URL may appear — the sheet must work offline');
+  assert.doesNotMatch(html, /<script/i, 'no script tag at all');
+  assert.doesNotMatch(html, /<link[^>]*href=/i, 'no external stylesheet');
+  assert.doesNotMatch(html, /url\(\s*['"]?(?!data:)/i, 'no CSS url() that is not a data: URI');
+  // The one remaining way to reach the network is an <img src> that is not a data: URI.
+  for (const m of html.match(/<img[^>]*>/g) || []) {
+    assert.match(m, /src="data:/, `an image is not inlined: ${m.slice(0, 120)}`);
+  }
+});
