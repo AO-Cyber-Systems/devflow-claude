@@ -364,4 +364,40 @@ test.describe('agent-shell-harness — the runtime model (X)', () => {
       'and the value really is the working directory, captured off stdout uncorrupted');
   });
 
+  // Case X5 — containment. The harness must be safe to point at arbitrary agent prose:
+  // one day it runs in CI against a file someone just edited. A call naming an absolute
+  // path outside the scratch root is BLOCKED — not merely reported after the fact.
+  test('Case X5 — a call writing outside the scratch root is blocked with a containment finding', () => {
+    const root = makeRoot();
+    const outside = '/tmp/harn-outside-marker';
+    fs.rmSync(outside, { force: true });
+
+    try {
+      const res = harness.runSection(harness.splitCalls(`touch ${outside}`), { root });
+
+      assert.strictEqual(res.ok, false, 'escaping the scratch root must FAIL the section');
+      const contained = res.calls[0].findings.find(f => f.type === 'containment');
+      assert.ok(contained, `a containment finding is required: ${JSON.stringify(res.calls[0].findings)}`);
+      assert.ok(contained.message.includes(outside), 'the finding must name the offending path');
+      assert.strictEqual(res.calls[0].status, 'blocked', 'the call must not have been executed');
+      assert.strictEqual(res.calls[0].cwd_after, root, 'a blocked call moves nothing');
+      assert.ok(!fs.existsSync(outside),
+        'containment PREVENTS the write — it does not just describe it afterwards');
+    } finally {
+      fs.rmSync(outside, { force: true });
+    }
+  });
+
+  // The other half of containment: HOME and TMPDIR are inside the root, so a call that
+  // writes to "$HOME" (as real tooling does — caches, config) stays contained and passes.
+  test('Case X5b — HOME and TMPDIR point inside the scratch root, so $HOME writes are contained', () => {
+    const root = makeRoot();
+
+    const res = harness.runSection(harness.splitCalls('touch "$HOME/cache-marker"'), { root });
+
+    assert.strictEqual(res.ok, true, `a $HOME write must be contained, not blocked: ${JSON.stringify(res.findings)}`);
+    assert.ok(fs.existsSync(path.join(root, '.home', 'cache-marker')),
+      'and it landed inside the scratch root');
+  });
+
 });
