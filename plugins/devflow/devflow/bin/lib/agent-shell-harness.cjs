@@ -231,22 +231,49 @@ function splitCalls(block, opts = {}) {
 
 // ─── Containment ──────────────────────────────────────────────────────────────────────
 
-// Absolute paths mentioned in a call's TEXT. Deliberately conservative: a `/…` token at
-// the start, or after whitespace or a shell delimiter. `//…` is skipped so `https://x`
-// is not read as a path.
-const ABS_PATH_RE = /(?:^|[\s='"(\[{<>|&;`])(\/(?!\/)[^\s'"`;|&()\[\]{}<>]*)/g;
+// Absolute paths mentioned in a call's TEXT.
+//
+// The scan is WORD-based, with quote tracking, not a regex on the character before the
+// slash. `"$REPO_ROOT"/.planning/evidence` is a variable expansion with a path suffix —
+// one word, not an absolute path — and reading the `/` after the closing quote as a path
+// start blocked every evidence command `agents/executor.md` writes. A harness that
+// blocks the prose it was built to check verifies nothing.
+//
+// A word ends at unquoted shell delimiter characters; quotes are stripped as they are
+// crossed, so `touch "/tmp/x"` still yields `/tmp/x`. Still not a bash parser: its
+// stated limits are unchanged (a path built at runtime, a relative escape, a symlink).
+const WORD_DELIM_RE = /[\s;|&()\[\]{}<>=`,]/;
+
+function absolutePathsIn(text) {
+  const out = [];
+  let i = 0;
+  while (i < text.length) {
+    while (i < text.length && WORD_DELIM_RE.test(text[i])) i++;
+    if (i >= text.length) break;
+    let word = '';
+    let quote = null;
+    while (i < text.length && (quote || !WORD_DELIM_RE.test(text[i]))) {
+      const ch = text[i];
+      if (quote) {
+        if (ch === quote) quote = null;
+        else word += ch;
+        i++;
+        continue;
+      }
+      if (ch === '"' || ch === "'") { quote = ch; i++; continue; }
+      if (ch === '\\') { i++; if (i < text.length) { word += text[i]; i++; } continue; }
+      word += ch;
+      i++;
+    }
+    // `//…` is skipped so `https://x` is never read as a path.
+    if (word.startsWith('/') && !word.startsWith('//')) out.push(word);
+  }
+  return out;
+}
 
 // Read-only system prefixes a contained call may legitimately name: interpreters, system
 // binaries, /dev/null. Everything else outside the scratch root is a containment finding.
 const SYSTEM_PREFIXES = ['/bin/', '/sbin/', '/usr/', '/opt/', '/etc/', '/dev/', '/Library/', '/System/', '/Applications/'];
-
-function absolutePathsIn(text) {
-  const out = [];
-  ABS_PATH_RE.lastIndex = 0;
-  let m;
-  while ((m = ABS_PATH_RE.exec(text)) !== null) out.push(m[1]);
-  return out;
-}
 
 // Containment is TWO mechanisms, and the SUMMARY states both plus their limits:
 //   (1) HOME and TMPDIR are set inside the scratch root, so tooling that writes to a
