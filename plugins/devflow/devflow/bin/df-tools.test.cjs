@@ -42,6 +42,20 @@ function runGsdToolsStreams(args, cwd = process.cwd()) {
   };
 }
 
+// Like runGsdToolsStreams, but takes argv as an array so an argument may contain
+// spaces (a commit message) without any quoting/splitting in the way.
+function runGsdToolsArgv(argv, cwd = process.cwd()) {
+  const r = spawnSync(process.execPath, [TOOLS_PATH, ...argv], {
+    cwd,
+    encoding: 'utf-8',
+  });
+  return {
+    status: r.status,
+    stdout: (r.stdout || '').trim(),
+    stderr: (r.stderr || '').trim(),
+  };
+}
+
 // Create temp directory structure
 function createTempProject() {
   const tmpDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'df-test-'));
@@ -3365,5 +3379,103 @@ describe('verify job-structure trd field', () => {
       parsed.errors.some(e => e.includes('job') || e.includes('trd')),
       `error should mention 'job' or 'trd'; got: ${JSON.stringify(parsed.errors)}`
     );
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Issue #87 — a question must never be answered with a mutation
+//
+// `df-tools commit --help` took '--help' as the commit MESSAGE, found no
+// --files, and committed whatever was dirty. The universal "tell me before you
+// do anything" gesture was the one input that guaranteed a write.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('--help never mutates (issue #87)', () => {
+  let tmpDir;
+
+  // Fixture generator: a git repo with one commit and a dirty, unrelated file.
+  // Hand-built so every test starts from the exact state the incident had —
+  // something uncommitted that a broad `git add` would sweep in.
+  function makeDirtyRepo() {
+    const dir = createTempProject();
+    execSync('git init', { cwd: dir, stdio: 'pipe' });
+    execSync('git config user.email "test@test.com"', { cwd: dir, stdio: 'pipe' });
+    execSync('git config user.name "Test User"', { cwd: dir, stdio: 'pipe' });
+    execSync('git config commit.gpgsign false', { cwd: dir, stdio: 'pipe' });
+    fs.writeFileSync(path.join(dir, '.planning', 'STATE.md'), '# State\n');
+    execSync('git add -A', { cwd: dir, stdio: 'pipe' });
+    execSync('git commit -m "chore: init"', { cwd: dir, stdio: 'pipe' });
+    // The blast radius: an unrelated file a different tool left modified.
+    fs.writeFileSync(path.join(dir, '.planning', '.progress-guard.json'), '{"dirty":true}\n');
+    return dir;
+  }
+
+  function headSha(dir) {
+    return execSync('git rev-parse HEAD', { cwd: dir, encoding: 'utf-8' }).trim();
+  }
+
+  beforeEach(() => { tmpDir = makeDirtyRepo(); });
+  afterEach(() => { cleanup(tmpDir); });
+
+  test('commit --help prints usage and creates NO commit', () => {
+    const before = headSha(tmpDir);
+    const result = runGsdToolsArgv(['commit', '--help'], tmpDir);
+
+    assert.strictEqual(result.status, 0, `--help must exit 0; stderr: ${result.stderr}`);
+    assert.match(result.stdout, /Usage:\s*df-tools commit/i, `usage not printed; got: ${result.stdout}`);
+    assert.strictEqual(headSha(tmpDir), before, 'commit --help created a commit');
+
+    // And nothing got staged on the way past either.
+    const staged = execSync('git diff --cached --name-only', { cwd: tmpDir, encoding: 'utf-8' }).trim();
+    assert.strictEqual(staged, '', `commit --help staged files: ${staged}`);
+  });
+
+  test('commit -h prints usage and creates NO commit', () => {
+    const before = headSha(tmpDir);
+    const result = runGsdToolsArgv(['commit', '-h'], tmpDir);
+    assert.strictEqual(result.status, 0, `-h must exit 0; stderr: ${result.stderr}`);
+    assert.match(result.stdout, /Usage:\s*df-tools commit/i);
+    assert.strictEqual(headSha(tmpDir), before, 'commit -h created a commit');
+  });
+
+  test('bare --help lists the subcommands and exits 0', () => {
+    const result = runGsdToolsArgv(['--help'], tmpDir);
+    assert.strictEqual(result.status, 0, `bare --help must exit 0; stderr: ${result.stderr}`);
+    assert.match(result.stdout, /commit/, 'help must list the commit subcommand');
+    assert.match(result.stdout, /state/, 'help must list the state subcommand');
+  });
+
+  test('help covers every subcommand, not just commit — state --help does not touch STATE.md', () => {
+    const statePath = path.join(tmpDir, '.planning', 'STATE.md');
+    const before = fs.readFileSync(statePath, 'utf-8');
+    const result = runGsdToolsArgv(['state', '--help'], tmpDir);
+    assert.strictEqual(result.status, 0, `state --help must exit 0; stderr: ${result.stderr}`);
+    assert.match(result.stdout, /Usage:\s*df-tools state/i, `state usage not printed; got: ${result.stdout}`);
+    assert.strictEqual(fs.readFileSync(statePath, 'utf-8'), before, 'state --help mutated STATE.md');
+  });
+
+  test('objective add --help does not append an objective named "--help"', () => {
+    fs.writeFileSync(path.join(tmpDir, '.planning', 'ROADMAP.md'), '# Roadmap\n\n## Objectives\n');
+    const result = runGsdToolsArgv(['objective', 'add', '--help'], tmpDir);
+    assert.strictEqual(result.status, 0, `objective add --help must exit 0; stderr: ${result.stderr}`);
+    const roadmap = fs.readFileSync(path.join(tmpDir, '.planning', 'ROADMAP.md'), 'utf-8');
+    assert.ok(!roadmap.includes('--help'), `roadmap gained a "--help" objective:\n${roadmap}`);
+  });
+
+  test('a commit message beginning with -- is refused, not committed', () => {
+    const before = headSha(tmpDir);
+    // Not --help: a plain mistyped flag. Far likelier a typo than a subject line.
+    const result = runGsdToolsArgv(['commit', '--fils'], tmpDir);
+    assert.strictEqual(result.status, 1, `a ---leading message must exit 1; stdout: ${result.stdout}`);
+    assert.match(result.stderr, /--fils/, 'the refusal must name the offending token');
+    assert.strictEqual(headSha(tmpDir), before, 'a ---leading message produced a commit');
+  });
+
+  test('a normal commit still works (differential control for the guards above)', () => {
+    const before = headSha(tmpDir);
+    const result = runGsdToolsArgv(
+      ['commit', 'docs: real message', '--files', '.planning/.progress-guard.json'], tmpDir);
+    assert.strictEqual(result.status, 0, `normal commit failed; stderr: ${result.stderr}`);
+    assert.notStrictEqual(headSha(tmpDir), before, 'normal commit did not move HEAD');
   });
 });
