@@ -31,6 +31,10 @@ const {
   DEFAULT_THEME,
   DEFAULT_WIDTH
 } = require('./ui-spec-render.cjs');
+// The guard -> denied-state linkage rule has ONE home (34-04). The graph must draw its edge
+// from THAT function, so the test resolves the expected denied state with it too — a second
+// implementation here would let the graph and the invariant drift apart unnoticed.
+const { resolveGuardDeniedState } = require('./ui-spec-validate.cjs');
 
 const FIXTURE_DIR = path.join(__dirname, '__fixtures__', 'ui-spec');
 const POSITIVE_CONTROL = path.join(FIXTURE_DIR, 'projects-rail.md');
@@ -166,4 +170,128 @@ test('Case M5 — a `ref` becomes references[0]; a state with no `ref` gets [] a
   // change to either constant fails a named case rather than drifting silently.
   assert.strictEqual(DEFAULT_THEME, 'light');
   assert.strictEqual(DEFAULT_WIDTH, 1280);
+});
+
+// ─── G: the navigation graph ─────────────────────────────────────────────────────────────────
+//
+// §8.2: the graph answers "can the reader get back from here" BEFORE any code exists. So the
+// three edge kinds have to stay distinguishable — an entry that renders like a back, or a
+// missing `deeplink` edge, makes the graph under-report reachability, which is the one thing it
+// exists to report.
+//
+// NODE-ID RULE (pinned here, applied to nodes AND edges): `<kind>_<id with every character
+// outside [A-Za-z0-9_] replaced by _>`, where kind is `route`, `ctrl` or `state`, plus the
+// single synthetic node `external`. Mermaid ids cannot contain dots; the KIND PREFIX is what
+// keeps a control `rail.project.header` and a hypothetical route `rail-project-header` from
+// sanitising onto one node and silently merging two edges. The LABEL always carries the real id.
+
+/** Every non-empty line of the graph, trimmed of the two-space indent. */
+function graphLines(mermaid) {
+  return mermaid.split('\n').filter((l) => l.trim().length > 0).map((l) => l.trim());
+}
+
+test('Case G1 — one node per route, labelled with the route id and its title, ids sanitised', () => {
+  const { navGraphMermaid } = renderSurfaceSpec(loadPositiveControl());
+  const lines = graphLines(navGraphMermaid);
+
+  assert.strictEqual(lines[0], 'flowchart TD', 'the graph declares its direction on line 1');
+
+  // Dots are not legal in a bare mermaid node id; the label keeps the real one.
+  assert.ok(
+    lines.includes('route_project_conversations["project.conversations<br/>{project.name}"]'),
+    `no sanitised node for project.conversations:\n${navGraphMermaid}`
+  );
+  assert.ok(
+    lines.includes('route_conversations_all["conversations.all<br/>Conversations"]'),
+    `no sanitised node for conversations.all:\n${navGraphMermaid}`
+  );
+
+  // One node per route — no more, no fewer.
+  const routeNodes = lines.filter((l) => /^route_[A-Za-z0-9_]+\["/.test(l));
+  assert.strictEqual(routeNodes.length, 2, `expected two route nodes, got:\n${routeNodes.join('\n')}`);
+
+  // No raw dot survives into an ID position anywhere in the graph.
+  for (const l of lines) {
+    const ids = l.match(/(?:^|\s|>)((?:route|ctrl|state)_[^\s[("]*)/g) || [];
+    for (const id of ids) {
+      assert.ok(!id.includes('.'), `unsanitised node id in: ${l}`);
+    }
+  }
+});
+
+test('Case G2 — one SOLID edge per entry (deeplink from `external`), one DASHED edge per back', () => {
+  const spec = loadPositiveControl();
+  const { navGraphMermaid } = renderSurfaceSpec(spec);
+  const lines = graphLines(navGraphMermaid);
+
+  // A control entry: the edge runs FROM the control, labelled with the control's real id.
+  assert.ok(
+    lines.includes('ctrl_rail_project_header -- "rail.project.header" --> route_project_conversations'),
+    `no solid entry edge from the control:\n${navGraphMermaid}`
+  );
+  // A bare-string entry has no control to leave from, so it leaves the synthetic `external`
+  // node. Dropping it would make the graph under-report reachability — §8.2's whole point.
+  assert.ok(lines.includes('external[["external"]]'), 'the synthetic external node is missing');
+  assert.ok(
+    lines.includes('external -- "deeplink" --> route_project_conversations'),
+    `no deeplink edge into project.conversations:\n${navGraphMermaid}`
+  );
+
+  // ONE dashed edge per `back` — labelled with the `via` LIST, not one edge per via.
+  const dashed = lines.filter((l) => l.includes('.->'));
+  const backs = spec.routes.filter((r) => r.back).length;
+  assert.strictEqual(backs, 1, 'the positive control declares one back');
+  assert.strictEqual(dashed.length, 1, `expected one dashed back edge, got:\n${dashed.join('\n')}`);
+  assert.strictEqual(
+    dashed[0],
+    'route_project_conversations -. "app-back, browser-back" .-> route_conversations_all'
+  );
+
+  // And the solid entry edges number exactly the declared entries (guard edges are G3's).
+  const entries = spec.routes.reduce((n, r) => n + r.entry.length, 0);
+  assert.strictEqual(entries, 3, 'the positive control declares three entries');
+  const solid = lines.filter((l) => l.includes(' --> ') && !l.includes('"guard: '));
+  assert.strictEqual(solid.length, entries, `expected ${entries} solid entry edges, got:\n${solid.join('\n')}`);
+});
+
+test('Case G3 — a guard draws an edge to its denied state by 34-04\'s linkage rule; no guard, no edge', () => {
+  const spec = loadPositiveControl();
+  const { navGraphMermaid } = renderSurfaceSpec(spec);
+  const lines = graphLines(navGraphMermaid);
+
+  // The linkage rule has ONE home — `resolveGuardDeniedState` in ui-spec-validate.cjs, which
+  // invariant I8 (GUARD001) and the behaviour-coverage model already share. The route declares
+  // `guards: [member-of-workspace]` and the state is called `guard-denied`: rung 3 of the rule.
+  const { id: deniedId } = resolveGuardDeniedState(
+    'member-of-workspace',
+    new Map(spec.states.map((s) => [s.id, s]))
+  );
+  assert.strictEqual(deniedId, 'guard-denied', 'the linkage rule resolved somewhere unexpected');
+
+  assert.ok(
+    lines.includes('state_guard_denied{{"guard-denied<br/>as non-member"}}'),
+    `no denied-state node:\n${navGraphMermaid}`
+  );
+  assert.ok(
+    lines.includes('route_project_conversations -- "guard: member-of-workspace (as non-member)" --> state_guard_denied'),
+    `no guard edge:\n${navGraphMermaid}`
+  );
+
+  // A route with no guard renders no guard edge at all.
+  const unguarded = renderSurfaceSpec(mutate(spec, (s) => { delete s.routes[0].guards; }));
+  assert.ok(
+    !unguarded.navGraphMermaid.includes('guard: '),
+    `a spec with no guards still drew a guard edge:\n${unguarded.navGraphMermaid}`
+  );
+});
+
+test('Case G4 — no trailing whitespace on any line, exactly one trailing newline', () => {
+  const { navGraphMermaid } = renderSurfaceSpec(loadPositiveControl());
+
+  assert.ok(navGraphMermaid.endsWith('\n'), 'the graph must end with a newline');
+  assert.ok(!navGraphMermaid.endsWith('\n\n'), 'the graph must end with exactly ONE newline');
+
+  navGraphMermaid.split('\n').forEach((line, i) => {
+    assert.strictEqual(line, line.replace(/[ \t]+$/, ''), `trailing whitespace on line ${i + 1}: ${JSON.stringify(line)}`);
+  });
 });
