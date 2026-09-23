@@ -81,7 +81,10 @@ test.after(() => {
 // ─── C1: the positive control exits 0 ────────────────────────────────────────
 
 test('Case C1 — the positive control exits 0 with ok:true, engine_version and schema_version', () => {
-  const result = runArm('ui spec validate __fixtures__/ui-spec/projects-rail.md');
+  // WITH the catalogue: every §4.5 invariant ran and none was violated, which is the only
+  // combination that is an exit 0 since issue #90. The same command without `--patterns` is a 2
+  // — CLEAN BUT INCOMPLETE — and case G2 owns that half.
+  const result = runArm(`ui spec validate __fixtures__/ui-spec/projects-rail.md --patterns ${JSON.stringify(PATTERN_CATALOGUE)}`);
 
   assert.strictEqual(result.status, 0, `expected exit 0, got ${result.status}. stderr: ${result.stderr}`);
 
@@ -92,14 +95,20 @@ test('Case C1 — the positive control exits 0 with ok:true, engine_version and 
   assert.strictEqual(payload.schema_version, 1);
   assert.strictEqual(payload.spec, POSITIVE_CONTROL);
 
-  // The pattern catalogue is UNREACHABLE for W1b (no pinned eden-ui-flutter release), so the
-  // arm passes `undefined` and I5 reports PAT000/MISSING. Passing `[]` "for now" would fire
-  // PAT001 on every real spec; reporting nothing would turn an unreachable catalogue into a
-  // silent pass. A MISSING row is neither, and it does NOT flip `ok`.
-  const pat000 = (payload.errors || []).filter((e) => e.code === 'PAT000');
-  assert.strictEqual(pat000.length, 1, `expected one PAT000 MISSING row: ${JSON.stringify(payload.errors)}`);
+  assert.deepStrictEqual(payload.errors, [], 'a fully checked, clean spec reports no rows at all');
+
+  // The pattern catalogue is UNREACHABLE for W1b (no pinned eden-ui-flutter release), so with
+  // no `--patterns` the arm passes `undefined` and I5 reports PAT000/MISSING. Passing `[]` "for
+  // now" would fire PAT001 on every real spec; reporting nothing would turn an unreachable
+  // catalogue into a silent pass. A MISSING row is neither, and it does NOT flip `ok` — it
+  // flips `complete`, and with it the exit code.
+  const unchecked = runArm('ui spec validate __fixtures__/ui-spec/projects-rail.md');
+  const uncheckedPayload = parseStdout(unchecked);
+  assert.strictEqual(uncheckedPayload.ok, true);
+  const pat000 = (uncheckedPayload.errors || []).filter((e) => e.code === 'PAT000');
+  assert.strictEqual(pat000.length, 1, `expected one PAT000 MISSING row: ${JSON.stringify(uncheckedPayload.errors)}`);
   assert.strictEqual(pat000[0].status, 'MISSING');
-  assert.ok(!codesOf(payload).includes('PAT001'), 'an unreachable catalogue must NOT read as an unknown pattern');
+  assert.ok(!codesOf(uncheckedPayload).includes('PAT001'), 'an unreachable catalogue must NOT read as an unknown pattern');
 });
 
 // ─── C2: a broken spec exits 1 with its code — the plan's literal gate ───────
@@ -192,9 +201,11 @@ test('Case C5 — --patterns supplies the catalogue; without it I5 is MISSING, n
   assert.deepStrictEqual(codesOf(parseStdout(withCatalogue)), ['PAT001']);
 
   const without = runArm('ui spec validate __fixtures__/ui-spec/broken/unknown-pattern.md');
-  assert.strictEqual(without.status, 0, 'an UNREACHABLE catalogue is MISSING, never a violation');
+  assert.strictEqual(without.status, 2,
+    'an UNREACHABLE catalogue is MISSING — never a violation (1), and since issue #90 never a pass (0)');
   const payload = parseStdout(without);
-  assert.strictEqual(payload.ok, true);
+  assert.strictEqual(payload.ok, true, 'nothing VIOLATED an invariant…');
+  assert.strictEqual(payload.complete, false, '…and yet I5 never ran, so this is not a pass');
   assert.deepStrictEqual(codesOf(payload), ['PAT000']);
 
   // A catalogue file that cannot be read is a one-line refusal, not a silent `undefined`:
@@ -217,7 +228,10 @@ test('Case C5 — --patterns supplies the catalogue; without it I5 is MISSING, n
 // structurally incapable of failing).
 
 test('Case R1 — `render --manifest` exits 0 and prints a manifest with a states array', () => {
-  const result = runArm('ui spec render __fixtures__/ui-spec/projects-rail.md --manifest');
+  // `--patterns` so this stays an exit-0 case: since issue #90 an unreachable catalogue makes
+  // the arm exit 2 (INCOMPLETE — the artifact is still printed). Case G4 owns that half; this
+  // one is about what the manifest CONTAINS.
+  const result = runArm(`ui spec render __fixtures__/ui-spec/projects-rail.md --manifest --patterns ${JSON.stringify(PATTERN_CATALOGUE)}`);
 
   assert.strictEqual(result.status, 0, `expected exit 0, got ${result.status}. stderr: ${result.stderr}`);
 
@@ -229,24 +243,31 @@ test('Case R1 — `render --manifest` exits 0 and prints a manifest with a state
 });
 
 test('Case R2 — `--graph` prints mermaid, `--table` prints markdown, no flag prints all four', () => {
-  const graph = runArm('ui spec render __fixtures__/ui-spec/projects-rail.md --graph');
+  // `--patterns` throughout, for R1's reason: these are assertions about the ARTIFACTS, and an
+  // unreachable catalogue would make every one of them an exit 2 for a reason unrelated to them.
+  const cat = `--patterns ${JSON.stringify(PATTERN_CATALOGUE)}`;
+
+  const graph = runArm(`ui spec render __fixtures__/ui-spec/projects-rail.md --graph ${cat}`);
   assert.strictEqual(graph.status, 0, `--graph exit ${graph.status}: ${graph.stderr}`);
   assert.match(graph.stdout, /^(graph|flowchart)\b/, `--graph did not print mermaid:\n${graph.stdout}`);
 
-  const table = runArm('ui spec render __fixtures__/ui-spec/projects-rail.md --table');
+  const table = runArm(`ui spec render __fixtures__/ui-spec/projects-rail.md --table ${cat}`);
   assert.strictEqual(table.status, 0, `--table exit ${table.status}: ${table.stderr}`);
   assert.match(table.stdout, /^#{1,3} /, `--table did not open with a heading:\n${table.stdout}`);
 
   // The DEFAULT (no flag) is all four artifacts under named keys, so a caller that wants
-  // everything does not have to run the arm three times and hope the three runs agree.
-  const all = runArm('ui spec render __fixtures__/ui-spec/projects-rail.md');
+  // everything does not have to run the arm three times and hope the three runs agree — plus
+  // the two completeness fields `validate` prints, so the payload says what was checked.
+  const all = runArm(`ui spec render __fixtures__/ui-spec/projects-rail.md ${cat}`);
   assert.strictEqual(all.status, 0, `bare render exit ${all.status}: ${all.stderr}`);
   const payload = parseStdout(all);
   assert.deepStrictEqual(
     Object.keys(payload).sort(),
-    ['captureList', 'controlTableMd', 'manifest', 'navGraphMermaid', 'spec'],
+    ['captureList', 'complete', 'controlTableMd', 'manifest', 'navGraphMermaid', 'spec', 'unchecked'],
     `unexpected default keys: ${Object.keys(payload).join(', ')}`
   );
+  assert.strictEqual(payload.complete, true);
+  assert.deepStrictEqual(payload.unchecked, []);
   assert.strictEqual(payload.navGraphMermaid, graph.stdout, 'the bare render and --graph must agree');
   assert.strictEqual(payload.controlTableMd, table.stdout, 'the bare render and --table must agree');
 });
@@ -288,8 +309,15 @@ test('Case R6 — a VALUELESS flag before the spec path does not swallow the pat
     const before = runArm(`ui spec render ${flag} ${spec}`);
     const after = runArm(`ui spec render ${spec} ${flag}`);
 
-    assert.strictEqual(before.status, 0,
-      `\`${flag} <file>\` must render: exit ${before.status}\n${before.stdout}${before.stderr}`);
+    // NOT `status === 0`: the exit code here is an unrelated fact (no `--patterns`, so the
+    // verdict is INCOMPLETE and every one of these is a 2 since issue #90). The failure this
+    // case exists for — the path was swallowed and the arm printed its usage error — is a 1
+    // with an EMPTY stdout, and that is what is asserted.
+    assert.notStrictEqual(before.status, 1,
+      `\`${flag} <file>\` must render, not refuse: exit ${before.status}\n${before.stdout}${before.stderr}`);
+    assert.ok(before.stdout.length > 0, `\`${flag} <file>\` printed no artifact at all`);
+    assert.strictEqual(before.status, after.status,
+      `\`${flag} <file>\` and \`<file> ${flag}\` must reach the same verdict`);
     assert.strictEqual(before.stdout, after.stdout,
       `\`${flag} <file>\` and \`<file> ${flag}\` must produce the same artifact`);
   }
@@ -316,7 +344,8 @@ test('Case R5 — a MISSING row is reported on stderr, never laundered into a si
   // of my checks did not run" is the silent-green class this objective exists to close.
   const result = runArm('ui spec render __fixtures__/ui-spec/projects-rail.md --graph');
 
-  assert.strictEqual(result.status, 0, 'a MISSING row is not a failure');
+  assert.strictEqual(result.status, 2,
+    'a MISSING row is not a failure (1) — and since issue #90 it is not a pass (0) either');
   assert.ok(result.stderr.includes('PAT000'), `the MISSING row must be reported:\n${result.stderr}`);
   assert.ok(result.stderr.includes('MISSING'), `the row must be named MISSING:\n${result.stderr}`);
   // …and it must NOT contaminate stdout, which the byte-stability probe diffs.
@@ -351,7 +380,7 @@ function sheetTmpDir(prefix) {
   return d;
 }
 
-test('Case A1 — `ui sheet` writes the file and prints {sheet_hash, out, states, missing}, exit 0', () => {
+test('Case A1 — `ui sheet` writes the file and prints {sheet_hash, out, states, missing}, exit 2', () => {
   const renders = sheetTmpDir('df-sheet-arm-renders-');
   const refs = sheetTmpDir('df-sheet-arm-refs-');
   const outDir = sheetTmpDir('df-sheet-arm-out-');
@@ -362,7 +391,9 @@ test('Case A1 — `ui sheet` writes the file and prints {sheet_hash, out, states
     + `--refs ${JSON.stringify(refs)} --out ${JSON.stringify(out)}`
   );
 
-  assert.strictEqual(result.status, 0, `exit ${result.status}. stderr: ${result.stderr}`);
+  // Exit 2, not 0: no renders were supplied, so every declared state is a cell nobody looked
+  // at. The sheet is still WRITTEN — 2 is "incomplete", never "refused" (issue #90, case G5).
+  assert.strictEqual(result.status, 2, `exit ${result.status}. stderr: ${result.stderr}`);
   assert.ok(fs.existsSync(out), 'the arm wrote the sheet');
 
   const payload = parseStdout(result);
@@ -434,7 +465,9 @@ test('Case A4 — the hash the arm prints is the one sheetHash(buildSheetModel(.
     `ui sheet __fixtures__/ui-spec/projects-rail.md --renders ${JSON.stringify(renders)} `
     + `--refs ${JSON.stringify(refs)} --out ${JSON.stringify(out)}`
   );
-  assert.strictEqual(result.status, 0, result.stderr);
+  // 2: seven of the eight captures are still missing (and no `--patterns`). The hash is what
+  // this case is about, and an incomplete sheet has one exactly like a complete one does.
+  assert.strictEqual(result.status, 2, result.stderr);
 
   const expected = sheetLib.sheetHash(sheetLib.buildSheetModel(spec, { renders, refs }));
   assert.strictEqual(parseStdout(result).sheet_hash, expected, 'the CLI must not have its own hashing path');
@@ -476,16 +509,25 @@ function stripAcceptance(text) {
   return [...lines.slice(0, start), ...lines.slice(end)].join('\n');
 }
 
-/** `ui lock` through the real binary. */
+/**
+ * `ui lock` through the real binary.
+ *
+ * `--patterns` is supplied on purpose. These cases are about the look-lock ASYMMETRY (a shape
+ * edit clears it, a prose edit does not), and since issue #90 an unreachable catalogue makes
+ * every arm exit 2 — "incomplete", not "failed". Handing them the fixture catalogue keeps these
+ * runs at a clean exit 0 so a 0/1 assertion here still means what it says; case G6 owns the
+ * question of what `ui lock` does when a check did not run.
+ */
 function runLock(file, extra = '') {
   return runArm(
-    `ui lock ${JSON.stringify(file)} --sheet-hash ${LOCK_SHEET_HASH} --by ${LOCK_BY} --at ${LOCK_AT} ${extra}`.trim()
+    `ui lock ${JSON.stringify(file)} --sheet-hash ${LOCK_SHEET_HASH} --by ${LOCK_BY} --at ${LOCK_AT} `
+    + `--patterns ${JSON.stringify(PATTERN_CATALOGUE)} ${extra}`.trim()
   );
 }
 
 /** The `lock` object `ui spec validate` reports for `file`. */
 function lockOf(file) {
-  const result = runArm(`ui spec validate ${JSON.stringify(file)}`);
+  const result = runArm(`ui spec validate ${JSON.stringify(file)} --patterns ${JSON.stringify(PATTERN_CATALOGUE)}`);
   const payload = parseStdout(result);
   assert.ok(payload.lock, `\`ui spec validate\` must report a top-level \`lock\` field: ${result.stdout}`);
   return { ...payload.lock, ok: payload.ok, status: result.status };
@@ -656,12 +698,17 @@ test('Case L7 — `ui lock` refuses an invalid spec, a bad --sheet-hash and an a
 
 test('Case L8 — `--at` defaults to today, and a locked spec still validates', () => {
   const file = lockTmpSpec('l8.md', stripAcceptance);
-  const result = runArm(`ui lock ${JSON.stringify(file)} --sheet-hash ${LOCK_SHEET_HASH} --by ${LOCK_BY}`);
+  // `--at` omitted (that is the case), `--patterns` supplied (so the run is a clean 0 rather
+  // than an INCOMPLETE 2 for a reason that has nothing to do with the default date).
+  const result = runArm(
+    `ui lock ${JSON.stringify(file)} --sheet-hash ${LOCK_SHEET_HASH} --by ${LOCK_BY} `
+    + `--patterns ${JSON.stringify(PATTERN_CATALOGUE)}`
+  );
   assert.strictEqual(result.status, 0, result.stderr);
   assert.strictEqual(parseStdout(result).locked_at, new Date().toISOString().slice(0, 10));
 
   // The lock must not break the thing it signs.
-  const validated = runArm(`ui spec validate ${JSON.stringify(file)}`);
+  const validated = runArm(`ui spec validate ${JSON.stringify(file)} --patterns ${JSON.stringify(PATTERN_CATALOGUE)}`);
   assert.strictEqual(validated.status, 0, validated.stdout);
   assert.strictEqual(parseStdout(validated).ok, true);
 });

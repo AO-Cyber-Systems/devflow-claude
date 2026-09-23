@@ -55,6 +55,7 @@ const SKILL_MD = path.join(PLUGINS_ROOT, 'eden-ui-flutter', 'skills', 'frontend-
 const STACK_MD = path.join(DEVFLOW_ROOT, 'references', 'design-stack-flutter.md');
 const CHECKPOINTS_MD = path.join(DEVFLOW_ROOT, 'references', 'checkpoints.md');
 const POSITIVE_CONTROL = path.join(__dirname, '__fixtures__', 'ui-spec', 'projects-rail.md');
+const PATTERN_CATALOGUE = path.join(__dirname, '__fixtures__', 'ui-spec', 'pattern-catalogue.json');
 
 const TMP_DIRS = [];
 test.after(() => {
@@ -295,9 +296,14 @@ test('Case E3 — the `lock` vocabulary in the prose is exactly the set the real
   // held — really locked, through the real `ui lock` arm.
   const heldFile = path.join(dir, 'held.md');
   fs.writeFileSync(heldFile, base, 'utf-8');
+  // `--patterns`: without a catalogue the §4.5 I5 check does not run, and since issue #90 an
+  // incomplete verdict exits 2 — the lock IS written, but a bare `status === 0` would read that
+  // as a failure. This case is about the four `lock` values, so it hands the arm the fixture
+  // catalogue and keeps a clean 0.
   const lockRun = spawnSync('node', [
     DF_TOOLS, 'ui', 'lock', heldFile,
     '--sheet-hash', 'a'.repeat(64), '--by', 'contract-test@example.test', '--at', '2026-09-22',
+    '--patterns', PATTERN_CATALOGUE,
   ], { encoding: 'utf-8' });
   assert.strictEqual(lockRun.status, 0, `ui lock must succeed on the positive control: ${lockRun.stdout}${lockRun.stderr}`);
 

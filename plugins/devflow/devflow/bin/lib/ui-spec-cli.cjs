@@ -19,8 +19,23 @@
  *     make this gate structurally incapable of failing. Same decision, same reasoning as
  *     `flutter-ui-eval.cjs`'s `outputRollup()`; `output()` itself is not touched, because a
  *     dozen callers depend on its exit-0 behaviour.
- *   * `ok` — not the presence of error records — drives the code. A MISSING row (PAT000,
- *     HIT000) is a check that could not run: not a pass, not a failure, and never an exit 1.
+ *   * `exitCodeFor(verdict)` — not the presence of error records — drives the code, and it is
+ *     the ONLY thing that does. An arm with its own `ok ? 0 : 1` is a second definition of what
+ *     the gate means.
+ *
+ * ── THREE outcomes, three codes (issue #90) ───────────────────────────────────
+ *   0  every check ran and nothing violated
+ *   1  a real violation — the plan's W1b gate, unchanged
+ *   2  nothing violated, but one or more checks DID NOT RUN
+ *
+ * A MISSING row (PAT000, HIT000) is a check that could not run: not a pass, not a failure, and
+ * never an exit 1. It used to be an exit 0, which is the same thing as a pass to the shell
+ * idiom every gate is written with — `validate "$spec" || exit 1` — and so an invariant that was
+ * never evaluated read as verified. `2` is that outcome's own number: `|| exit 1` fails on it,
+ * and a caller who genuinely accepts an incomplete check says so (`[ $? -eq 2 ]`) rather than
+ * inheriting it by accident.
+ *
+ * For `render`, `sheet` and `lock`, **exit 2 means the artifact WAS produced**. Only 1 refuses.
  *
  * ── The arm holds NO rules ────────────────────────────────────────────────────
  * It resolves argv, reads the file, calls `parseSurfaceSpec` then `validateSurfaceSpec`,
@@ -59,7 +74,7 @@ const fs = require('fs');
 const path = require('path');
 
 const { parseSurfaceSpec, loadMustNotVocabulary } = require('./ui-spec.cjs');
-const { validateSurfaceSpec } = require('./ui-spec-validate.cjs');
+const { validateSurfaceSpec, exitCodeFor, EXIT } = require('./ui-spec-validate.cjs');
 const { renderSurfaceSpec } = require('./ui-spec-render.cjs');
 const { buildSheetModel, sheetHash, renderSheetHtml, loadSheetTemplate } = require('./ui-sheet.cjs');
 const { lockStatus, writeLock } = require('./ui-spec-lock.cjs');
@@ -198,7 +213,12 @@ function cmdUiSpecValidate(cwd, args) {
   process.stdout.write(`${JSON.stringify({ ...result, lock: lockStatus(frontMatter), spec: file }, null, 2)}\n`);
 
   // CRITICAL: process.exitCode, never process.exit() and never helpers.output().
-  process.exitCode = result.ok ? 0 : 1;
+  // 0 / 1 / 2 — and the `lock` field above rides ALONGSIDE all three. `lock: 'MISSING'` is a
+  // check that could not run too, but it is a check on the APPROVAL, not on the spec, and
+  // 34-07 already settled that no lock value flips the exit code (an un-approved spec is the
+  // normal state of every spec during authoring). Folding it in here would make `absent` and
+  // `MISSING` disagree about a question neither of them is being asked.
+  process.exitCode = exitCodeFor(result);
 }
 
 /**
@@ -215,14 +235,14 @@ function cmdUiSpecRender(cwd, args) {
   // so a caller that pipes either arm reads one format, and the exit code is the gate.
   if (!result.ok) {
     process.stdout.write(`${JSON.stringify({ ...result, spec: file }, null, 2)}\n`);
-    process.exitCode = 1;
+    process.exitCode = EXIT.VIOLATION;
     return;
   }
 
   // A MISSING row is not a violation and does not refuse the render — but it is a check that
   // DID NOT RUN, and rendering four confident-looking artifacts without saying so is the
   // silent-green class this objective exists to close. stderr, so the artifact on stdout stays
-  // byte-stable.
+  // byte-stable — and exit 2 below, so the advisory is machine-readable and not only prose.
   const missing = (result.errors || []).filter((e) => e.status === 'MISSING');
   for (const row of missing) {
     process.stderr.write(`advisory: ${row.code} MISSING — ${row.msg}\n`);
@@ -243,6 +263,10 @@ function cmdUiSpecRender(cwd, args) {
   if (flag === undefined) {
     process.stdout.write(`${JSON.stringify({
       spec: file,
+      // The same two fields `validate` prints, so a reader of the ALL-artifacts payload is not
+      // told less about what was checked than a reader of the verdict.
+      complete: result.complete,
+      unchecked: result.unchecked,
       manifest: rendered.manifest,
       navGraphMermaid: rendered.navGraphMermaid,
       controlTableMd: rendered.controlTableMd,
@@ -258,7 +282,8 @@ function cmdUiSpecRender(cwd, args) {
     error(`Unknown render flag ${flag}. Available: ${RENDER_FLAGS.join(', ')}`);
   }
 
-  process.exitCode = 0;
+  // The artifact is already on stdout and is byte-identical either way; only the code moves.
+  process.exitCode = exitCodeFor(result);
 }
 
 /**
@@ -307,7 +332,7 @@ function cmdUiSheet(cwd, args) {
 
   if (!result.ok) {
     process.stdout.write(`${JSON.stringify({ ...result, spec: file }, null, 2)}\n`);
-    process.exitCode = 1;
+    process.exitCode = EXIT.VIOLATION;
     return;
   }
 
@@ -340,18 +365,35 @@ function cmdUiSheet(cwd, args) {
   fs.mkdirSync(path.dirname(out), { recursive: true });
   fs.writeFileSync(out, html, 'utf-8');
 
+  const missingCaptures = model.rows.filter((r) => r.status === 'MISSING').map((r) => r.capture_id);
+
   process.stdout.write(`${JSON.stringify({
     sheet_hash: sheetHash(model),
     out,
     states: model.rows.length,
-    missing: model.rows.filter((r) => r.status === 'MISSING').map((r) => r.capture_id),
+    missing: missingCaptures,
+    // A sheet has TWO ways of being incomplete and both of them mean "a human is about to sign
+    // off on something nobody looked at": an invariant that never ran (`unchecked`), and a
+    // declared state with no render (`missing`). checkpoints.md's look-lock variant already
+    // says so in prose — "a MISSING cell is a state nobody has looked at" — and this is the
+    // machine-readable half of that sentence.
+    complete: result.complete && missingCaptures.length === 0,
+    unchecked: result.unchecked,
     engine_version: model.engine_version,
     schema_version: model.schema_version,
     spec: file
   }, null, 2)}\n`);
 
-  // CRITICAL: process.exitCode, never process.exit() and never helpers.output().
-  process.exitCode = 0;
+  if (missingCaptures.length > 0) {
+    process.stderr.write(
+      `advisory: ${missingCaptures.length} of ${model.rows.length} declared state(s) have no render; `
+      + `the sheet WAS written to ${out}, and those cells are not approved by approving it.\n`
+    );
+  }
+
+  // CRITICAL: process.exitCode, never process.exit() and never helpers.output(). Exit 2 here
+  // means the sheet EXISTS and is incomplete — only the `!result.ok` branch above refuses.
+  process.exitCode = missingCaptures.length > 0 ? EXIT.INCOMPLETE : exitCodeFor(result);
 }
 
 /** A `--flag value` whose value is another flag is an ABSENT value, not a value of `"--by"`. */
@@ -390,7 +432,7 @@ function cmdUiLock(cwd, args) {
   if (!result.ok) {
     process.stdout.write(`${JSON.stringify({ ...result, lock: lockStatus(undefined), spec: file }, null, 2)}\n`);
     process.stderr.write(`Error: the spec does not validate; no lock was written to ${file}\n`);
-    process.exitCode = 1;
+    process.exitCode = EXIT.VIOLATION;
     return;
   }
 
@@ -418,7 +460,7 @@ function cmdUiLock(cwd, args) {
     if (written.verdict) {
       process.stdout.write(`${JSON.stringify({ ...written.verdict, lock: lockStatus(undefined), spec: file }, null, 2)}\n`);
       process.stderr.write(`Error: ${written.msg}\n`);
-      process.exitCode = 1;
+      process.exitCode = EXIT.VIOLATION;
       return;
     }
     error(written.msg);
@@ -432,11 +474,23 @@ function cmdUiLock(cwd, args) {
     locked_at: acceptance.locked_at,
     locked_shape_hash: acceptance.locked_shape_hash,
     locked_section_hashes: acceptance.locked_section_hashes,
+    complete: result.complete,
+    unchecked: result.unchecked,
     engine_version: result.engine_version,
     schema_version: result.schema_version
   }, null, 2)}\n`);
 
-  process.exitCode = 0;
+  if (!result.complete) {
+    process.stderr.write(
+      `advisory: the lock WAS written to ${file}, but ${result.unchecked.join(', ')} did not run — `
+      + 'this approval stands over a spec some of whose invariants were never evaluated.\n'
+    );
+  }
+
+  // Exit 2 does NOT mean the lock was refused — it was written, and the payload above proves
+  // it. It means a signature now stands over a spec that was not fully checked, which is a
+  // thing an automated caller has to be able to notice.
+  process.exitCode = exitCodeFor(result);
 }
 
 /**
