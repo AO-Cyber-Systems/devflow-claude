@@ -412,7 +412,7 @@ For full automation-first patterns, server lifecycle, CLI handling:
 
 **Auto-mode checkpoint behavior** (when `AUTO_CFG` is `"true"`):
 
-- **checkpoint:human-verify** → Auto-approve. Log `⚡ Auto-approved: [what-built]`. Continue to next task.
+- **checkpoint:human-verify** → Auto-approve. Log `⚡ Auto-approved: [what-built]`. Continue to next task. **EXCEPT `variant="look-lock"`** → STOP normally; a look-lock is a design judgment, never blind-approved and never delegated (see the look-lock variant in checkpoints.md).
 - **checkpoint:decision** → Auto-select first option (planners front-load the recommended choice). Log `⚡ Auto-selected: [option name]`. Continue to next task.
 - **checkpoint:human-action** → STOP normally. Auth gates cannot be automated — return structured checkpoint message using checkpoint_return_format.
 
@@ -422,6 +422,8 @@ When encountering `type="checkpoint:*"`: **STOP immediately.** Return structured
 
 **checkpoint:human-verify (90%)** — Visual/functional verification after automation.
 Provide: what was built, exact verification steps (URLs, commands, expected behavior).
+
+*UI surfaces:* a `variant="look-lock"` human-verify records the approval in the Surface Spec via `df-tools.cjs ui lock`. Do not restate the procedure here — see the **look-lock variant** section of @~/.claude/devflow/references/checkpoints.md for what the human is shown, what approval runs and what a rejection does.
 
 **Main-context enhancement (Pattern C only):** When executor runs in main context (not as subagent), use AskUserQuestion instead of freeform prompt for human-verify checkpoints:
 ```
