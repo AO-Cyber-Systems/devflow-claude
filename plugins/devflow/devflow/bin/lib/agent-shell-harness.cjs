@@ -265,6 +265,58 @@ function containmentFindings(callText, root, allowOutside) {
   return [...new Set(offenders)];
 }
 
+// ─── The `# harness:` annotation vocabulary ───────────────────────────────────────────
+//
+// Real agent prose is ILLUSTRATIVE: it carries placeholders, paths that only exist on a
+// developer's machine, and commands whose success is invisible to their own exit code.
+// The vocabulary makes that prose executable WITHOUT muting a single check — every
+// directive is a visible declaration in the file a reader is already reading, attached
+// (34-09's rule) to the call that FOLLOWS it.
+//
+//   # harness: expect <path>        the path must exist under the scratch root afterwards
+//
+// `{root}` in any directive value expands to the scratch root.
+const HARNESS_DIRECTIVE_RE = /^#\s*harness:\s*(.+)$/;
+
+function expandRoot(value, root) {
+  return String(value == null ? '' : value).split('{root}').join(root);
+}
+
+function parseAnnotations(annotations, root) {
+  const spec = { expects: [] };
+  for (const raw of annotations || []) {
+    const m = HARNESS_DIRECTIVE_RE.exec(String(raw == null ? '' : raw).trim());
+    if (!m) continue;          // an ordinary prose comment is not a directive
+    const body = m[1].trim();
+    const sp = body.search(/\s/);
+    const verb = sp === -1 ? body : body.slice(0, sp);
+    const arg = sp === -1 ? '' : expandRoot(body.slice(sp + 1).trim(), root);
+    if (verb === 'expect' && arg) { spec.expects.push(arg); continue; }
+  }
+  return spec;
+}
+
+// An `expect` path is resolved against the scratch ROOT, never the call's working
+// directory: the point of the evidence case is that the landing place does not move
+// when the cwd does.
+function assertExpectations(rec, spec, root) {
+  for (const rel of spec.expects) {
+    const abs = path.isAbsolute(rel) ? rel : path.join(root, rel);
+    if (!fs.existsSync(abs)) {
+      rec.findings.push({
+        type: 'missing-artifact',
+        index: rec.index,
+        line: rec.line,
+        call: rec.call,
+        path: rel,
+        message:
+          `call ${rec.index + 1} declared \`# harness: expect ${rel}\` but ${abs} does not ` +
+          `exist after it ran (status ${rec.status}): \`${rec.call}\``,
+      });
+    }
+  }
+}
+
 // ─── The runtime model ────────────────────────────────────────────────────────────────
 
 // Every call gets its own 10s budget. An interactive command must become a FINDING, not
@@ -340,6 +392,7 @@ function runSection(calls, opts = {}) {
   for (const raw of calls) {
     const entry = typeof raw === 'string' ? { call: raw } : (raw || {});
     const callText = String(entry.call == null ? '' : entry.call);
+    const spec = parseAnnotations(entry.annotations, root);
     const expectedStatus = entry.expectedStatus == null ? 0 : entry.expectedStatus;
 
     const rec = {
@@ -380,6 +433,7 @@ function runSection(calls, opts = {}) {
         });
       }
       rec.status = 'blocked';
+      assertExpectations(rec, spec, root);
       results.push(rec);
       continue;   // cwd is unchanged: a blocked call moves nothing
     }
@@ -501,6 +555,8 @@ function runSection(calls, opts = {}) {
           `\`${callText}\`${rec.stderr ? ` — ${rec.stderr.trim()}` : ''}`,
       });
     }
+
+    assertExpectations(rec, spec, root);
 
     // Thread cwd FORWARD even after flagging it. The harness reports the model; it does
     // not correct it. Resetting to `root` here would make the bare-`cd` case unfalsifiable.
