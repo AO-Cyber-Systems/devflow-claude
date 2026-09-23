@@ -336,6 +336,34 @@ const COMMANDS = {
 
 const HELP_FLAGS = new Set(['--help', '-h']);
 
+/**
+ * Commands that already print their OWN, richer help — domain text the generic
+ * table cannot carry (which judge modes are binding, which scopes a scaffold
+ * writes to). The dispatcher delegates to them instead of overriding.
+ *
+ * Delegating is only safe because each of these prints and returns BEFORE doing
+ * any work; `help-delegation.test.cjs` holds them to that, so adding a name here
+ * cannot quietly reopen issue #87.
+ *
+ * `true` = the whole command owns its help. A Set = only those subcommands do.
+ */
+const OWN_HELP = {
+  'awareness': true,
+  'org-awareness': true,
+  'dup-detect': true,
+  'defaults-table': new Set(['init']),
+  'flutter-ui': new Set(['bootstrap', 'design-review', 'eval']),
+  'verify': new Set(['flutter-ui-eval']),
+  'gh': new Set(['resolve']),
+};
+
+function ownsHelp(args) {
+  const owner = OWN_HELP[args[0]];
+  if (owner === undefined) return false;
+  if (owner === true) return true;
+  return owner.has(args[1]);
+}
+
 function hasHelpFlag(args) {
   return args.some(a => HELP_FLAGS.has(a));
 }
@@ -378,4 +406,4 @@ function printHelp(name) {
   process.exit(0);
 }
 
-module.exports = { COMMANDS, HELP_FLAGS, hasHelpFlag, topLevelUsage, commandUsage, printHelp };
+module.exports = { COMMANDS, HELP_FLAGS, OWN_HELP, ownsHelp, hasHelpFlag, topLevelUsage, commandUsage, printHelp };

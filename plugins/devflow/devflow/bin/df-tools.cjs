@@ -250,7 +250,7 @@ const { cmdProjectDecline, cmdProjectAccept } = require('./lib/decline-tracker.c
 const { cmdProjectState } = require('./lib/project-state.cjs');
 const { cmdGlobalConfig } = require('./lib/global-config.cjs');
 const { cmdExecContextRoute } = require('./lib/exec-context.cjs');
-const { hasHelpFlag, HELP_FLAGS, printHelp } = require('./lib/help.cjs');
+const { hasHelpFlag, ownsHelp, HELP_FLAGS, printHelp } = require('./lib/help.cjs');
 const { cmdGenerateUAT } = require('./lib/uat-generator.cjs');
 
 // ─── CLI Router ───────────────────────────────────────────────────────────────
@@ -269,7 +269,11 @@ async function main() {
   // data. `df-tools commit --help` used to take '--help' as the commit MESSAGE
   // and commit whatever was dirty; a per-subcommand fix would have left the
   // same hole open in the next subcommand added.
-  if (!command || hasHelpFlag(args)) {
+  // A handful of commands print their own, richer help (which judge modes are
+  // binding, which scope a scaffold writes to). Those are delegated to — every
+  // one of them prints and returns before doing any work, which
+  // help-delegation.test.cjs enforces.
+  if (!command || (hasHelpFlag(args) && !ownsHelp(args))) {
     printHelp(command && !HELP_FLAGS.has(command) ? command : null);
   }
 
