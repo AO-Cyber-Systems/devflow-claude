@@ -510,6 +510,53 @@ test('Case G9 — every text node in the converted control table is still escape
   assert.ok(html.includes('&lt;b&gt;bold&lt;/b&gt;'), 'other tag-looking text is escaped too, not interpreted as markup');
 });
 
+// ─── Gap 2 (Q3) — grid legibility at the size it is actually viewed at ───────
+//
+// The sheet is opened both from disk (a real browser, following the OS/system theme) and pasted
+// into a Claude Artifact, whose viewer carries an EXPLICIT `data-theme="dark"|"light"` choice
+// that can differ from the system preference. Responding to `prefers-color-scheme` alone means
+// the sheet gets the wrong palette — light text on a dark host, or the reverse — whenever a
+// viewer's explicit choice disagrees with their OS setting. That is a real "light and dark both
+// legible" failure, not a cosmetic one.
+
+test('Case G10 — the sheet responds to an explicit Artifact-viewer theme, not only the system preference', () => {
+  const template = sheet.loadSheetTemplate();
+
+  // The light palette is the un-guarded default (bare `:root`) — already true, pinned so a
+  // future edit cannot flip the default without this case noticing.
+  assert.match(template, /:root\s*\{[^}]*--ink:/s, 'the light palette must be the bare :root default');
+
+  // System preference ("no explicit choice") still applies the dark palette — but ONLY when the
+  // viewer has not explicitly chosen light, so an explicit choice always wins over guessing from
+  // the OS.
+  assert.match(
+    template,
+    /@media \(prefers-color-scheme: dark\)\s*\{\s*:root:not\(\[data-theme="light"\]\)/,
+    'the system-preference dark block must be guarded so an explicit data-theme="light" still wins'
+  );
+
+  // An EXPLICIT data-theme="dark" must win too, independent of the media query — the artifact
+  // viewer stamps this on the root element when a person has toggled the theme themselves.
+  assert.match(
+    template,
+    /:root\[data-theme="dark"\]\s*\{[^}]*--ink:/s,
+    'an explicit data-theme="dark" must redefine the palette outside the media query'
+  );
+});
+
+test('Case G11 — wide content scrolls inside its own container; the page body must never scroll horizontally', () => {
+  const template = sheet.loadSheetTemplate();
+
+  // Defensive backstop at the page level — the standard is "wide content may scroll inside its
+  // own container; the page body may not" (34-06 gap 2).
+  assert.match(template, /body\s*\{[^}]*overflow-x:\s*hidden/s, 'the body must refuse to scroll horizontally itself');
+
+  // Every container that can legitimately grow wide (the mermaid graph, the control table) opts
+  // INTO its own horizontal scroll instead, rather than pushing the page wider.
+  assert.match(template, /pre\s*\{[^}]*overflow-x:\s*auto/s, 'the mermaid/graph containers must scroll internally');
+  assert.match(template, /\.control-table\s*\{[^}]*overflow-x:\s*auto/s, 'the control table must scroll internally');
+});
+
 test('Case G7 — the generated HTML is self-contained: no network, no external CSS, no script', () => {
   const { html } = renderFixtureSheet({ present: captureIds(loadSpec()).slice(0, 2), refEntries: ['locked/populated.png'] });
 
