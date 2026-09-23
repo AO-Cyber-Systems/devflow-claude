@@ -231,10 +231,20 @@ function acceptanceLines(acceptance) {
  * CRITICAL: a surgical text edit. The front matter is never re-serialised — every line this
  * function does not own is carried across verbatim, including its comments, its blank lines and
  * its key order, and the prose body is copied byte for byte.
+ *
+ * THE BOM. `parseSurfaceSpec` strips a leading U+FEFF before it parses, so a BOM'd spec
+ * VALIDATES. This function reads the RAW bytes, so if it did not strip the same thing it would
+ * compare `"﻿---"` against `"---"`, find no fence, and throw — the two halves answering
+ * differently about the SAME file, which is how `ui lock` came to exit 0 on a spec it had just
+ * corrupted and, separately, to die on one it should have signed. The BOM is stripped for
+ * navigation and PUT BACK on the way out: this function edits the acceptance block, not the
+ * document's encoding.
  */
 function spliceAcceptanceBlock(raw, blockLines) {
-  const eol = raw.includes('\r\n') ? '\r\n' : '\n';
-  const lines = raw.split(eol);
+  const bom = raw.startsWith('﻿') ? '﻿' : '';
+  const text = bom ? raw.slice(1) : raw;
+  const eol = text.includes('\r\n') ? '\r\n' : '\n';
+  const lines = text.split(eol);
 
   if (lines[0] !== FENCE) {
     throw new Error('spliceAcceptanceBlock: the document does not open with a `---` fence');
@@ -253,7 +263,7 @@ function spliceAcceptanceBlock(raw, blockLines) {
     ? [...front.slice(0, range.start), ...blockLines, ...front.slice(range.end)]
     : [...front, ...blockLines];
 
-  return [lines[0], ...nextFront, ...lines.slice(close)].join(eol);
+  return bom + [lines[0], ...nextFront, ...lines.slice(close)].join(eol);
 }
 
 /** The `--sheet-hash` value, bare 64-hex, or null when it is not one. */
@@ -349,7 +359,26 @@ function writeLock(specPath, opts = {}) {
     }
   };
 
-  fs.writeFileSync(specPath, spliceAcceptanceBlock(raw, acceptanceLines(acceptance)), 'utf-8');
+  // The LAST refusal. `spliceAcceptanceBlock` navigates the RAW text while everything above it
+  // judged the NORMALISED text, so the two can still disagree about a document neither of them
+  // is wrong about — mixed line endings being the live example. Whatever the disagreement, the
+  // caller's contract is `{ok:false, code, msg}`: `cmdUiLock` turns that into one stderr line
+  // and exit 1, and an uncaught throw here would reach the author as a stack trace instead,
+  // saying nothing about their spec and everything about this tool. Note the ORDER: the splice
+  // is computed BEFORE the write, so a refusal leaves the file untouched.
+  let next;
+  try {
+    next = spliceAcceptanceBlock(raw, acceptanceLines(acceptance));
+  } catch (e) {
+    return refuse('LOCK006',
+      `the spec validates but its raw text cannot be edited in place, so no lock was written to ${specPath}: ${e.message}`);
+  }
+
+  try {
+    fs.writeFileSync(specPath, next, 'utf-8');
+  } catch (e) {
+    return refuse('LOCK007', `spec not writable at ${specPath}: ${e.code || e.message}`);
+  }
 
   return { ok: true, spec: specPath, acceptance };
 }

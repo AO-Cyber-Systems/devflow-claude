@@ -373,12 +373,23 @@ function cmdUiLock(cwd, args) {
     return;
   }
 
-  const written = writeLock(file, {
-    sheetHash: optionValue(args, '--sheet-hash'),
-    by: optionValue(args, '--by'),
-    at: optionValue(args, '--at'),
-    patterns: readPatternCatalogue(cwd, args)
-  });
+  // `writeLock` documents a `{ok:false, code, msg}` refusal for every condition it knows about,
+  // and this catch is the backstop for the ones it does not: an unexpected throw is still a
+  // refusal to the person at the terminal, never a stack trace. A stack trace tells an author
+  // nothing about their spec, and it bypasses the one guarantee this arm makes — that a lock is
+  // either written and reported, or refused with a reason.
+  let written;
+  try {
+    written = writeLock(file, {
+      sheetHash: optionValue(args, '--sheet-hash'),
+      by: optionValue(args, '--by'),
+      at: optionValue(args, '--at'),
+      patterns: readPatternCatalogue(cwd, args)
+    });
+  } catch (e) {
+    error(`no lock was written to ${file}: ${e && e.message ? e.message : e}`);
+    return;
+  }
 
   if (!written.ok) {
     // `writeLock` re-validates as its own guard (it is callable without this arm), so a verdict
