@@ -31,6 +31,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { execFileSync } = require('node:child_process');
 
 const harness = require('./agent-shell-harness.cjs');
 
@@ -475,6 +476,178 @@ test.describe('agent-shell-harness — the runtime model (X)', () => {
     assert.strictEqual(empty.ok, false);
     assert.strictEqual(empty.missing, 'no bash blocks in section');
     assert.deepStrictEqual(empty.calls, []);
+  });
+
+});
+
+// ══════════════════════════════════════════════════════════════════════════════════════
+// TRD 34-10 — the harness meets real prose.
+//
+// Test list (TRD 34-10 <test_list>, written before any test code), outside-in — the real
+// file LAST, because it is the integration case and everything before it is what makes
+// it diagnosable:
+//   Scratch repo and stubs (F)
+//     F1 — makeScratchRepo() builds a monorepo by hand: flutter/pubspec.yaml, lib/,
+//          integration_test/, test_driver/integration_test.dart, .planning/objectives/
+//          34-demo/, and a git repo with one commit
+//     F2 — the REAL `df-tools verify flutter-ui-bootstrap` resolves packageDir to
+//          <root>/flutter, ABSOLUTE (the W0-4 contract executor.md's prose relies on)
+//     F3 — the three stubs accept exactly the invocations executor.md makes, emit
+//          plausible artifacts, and exit NON-ZERO with their argv otherwise
+//     F4 — with the stub PATH NOT prepended, the harness reports MISSING naming the
+//          absent binary, and ok is not true
+//   Annotations (A1-A7), evidence landing (E1-E2), the real file (R1-R5), CI (C1-C2)
+//   follow in their own describes.
+// ══════════════════════════════════════════════════════════════════════════════════════
+
+const factory = require('./__fixtures__/agent-shell/scratch-repo/factory.cjs');
+
+// Hand-built, never copied from a real project and never generated: every path below is
+// written out in factory.cjs by name (CLAUDE.md habit 4).
+function makeScratchRepo() {
+  const root = factory.makeScratchRepo();
+  ROOTS.push(root);
+  return root;
+}
+
+test.describe('agent-shell-harness — the scratch monorepo and the stubs (F)', () => {
+
+  test('Case F1 — makeScratchRepo builds a monorepo with a git repo and one commit', () => {
+    const root = makeScratchRepo();
+
+    assert.ok(path.isAbsolute(root), 'the factory returns an absolute, realpath-ed root');
+    assert.strictEqual(root, fs.realpathSync(root), 'realpath-ed, or every call looks like a cwd leak');
+
+    for (const rel of [
+      'flutter/pubspec.yaml',
+      'flutter/lib/main.dart',
+      'flutter/integration_test/app_test.dart',
+      'flutter/test_driver/integration_test.dart',
+      'flutter/.maestro/flow.yaml',
+    ]) {
+      assert.ok(fs.existsSync(path.join(root, rel)), `${rel} must exist`);
+    }
+    assert.ok(fs.statSync(path.join(root, '.planning/objectives/34-demo')).isDirectory(),
+      'the objective dir the evidence mv lands under');
+
+    // `git rev-parse --show-toplevel` is executor.md's re-derivation path for $REPO_ROOT.
+    const top = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: root, encoding: 'utf-8' }).trim();
+    assert.strictEqual(fs.realpathSync(top), root, 'git rev-parse --show-toplevel must return the root');
+
+    const count = execFileSync('git', ['rev-list', '--count', 'HEAD'], { cwd: root, encoding: 'utf-8' }).trim();
+    assert.strictEqual(count, '1', 'exactly one commit — a hand-built repo, not a copied history');
+  });
+
+  test('Case F2 — the REAL bootstrap detector resolves packageDir to <root>/flutter, absolute', () => {
+    const root = makeScratchRepo();
+    const dfTools = path.join(__dirname, '..', 'df-tools.cjs');
+    const out = execFileSync('node', [dfTools, 'verify', 'flutter-ui-bootstrap', '.', '--raw'],
+      { cwd: root, encoding: 'utf-8' });
+    const j = JSON.parse(out);
+
+    assert.ok(path.isAbsolute(j.packageDir), 'W0-4 contract: packageDir is already absolute');
+    assert.strictEqual(fs.realpathSync(j.packageDir), path.join(root, 'flutter'));
+    assert.strictEqual(j.prefix, 'flutter', 'the monorepo layout executor.md documents');
+    assert.strictEqual(j.action, 'skip', 'the fixture carries all the infra, so the detector skips');
+  });
+
+  test('Case F3 — each stub accepts only what executor.md invokes, and rejects the rest with its argv', () => {
+    const root = makeScratchRepo();
+    const pkg = path.join(root, 'flutter');
+    const bin = factory.stubBinDir();
+    const env = { PATH: bin + path.delimiter + process.env.PATH, HOME: path.join(root, '.home') };
+    fs.mkdirSync(env.HOME, { recursive: true });
+    const run = (cmd, args, cwd) =>
+      execFileSync(path.join(bin, cmd), args, { cwd: cwd || pkg, env, encoding: 'utf-8' });
+
+    assert.match(run('flutter', ['analyze', '--no-pub', '--no-fatal-warnings']), /No issues found!/,
+      'analyze prints ONE deterministic line, so a baseline diff is stable');
+
+    run('flutter', ['test', 'integration_test/app_test.dart']);
+    run('flutter', ['test', 'integration_test/']);
+    assert.ok(fs.existsSync(path.join(pkg, 'build/integration_test_screenshots/shot.png')),
+      'flutter test integration_test/ emits the screenshots the evidence mv moves');
+
+    run('flutter', ['build', 'apk', '--debug']);
+    assert.ok(fs.existsSync(path.join(pkg, 'build/app/outputs/flutter-apk/app-debug.apk')));
+
+    run('flutter', ['build', 'web', '--release']);
+    assert.ok(fs.existsSync(path.join(pkg, 'build/web/main.dart.js')));
+
+    fs.rmSync(path.join(pkg, 'build/integration_test_screenshots'), { recursive: true, force: true });
+    run('flutter', ['drive', '--driver=test_driver/integration_test.dart',
+      '--target=integration_test/app_test.dart', '-d', 'chrome']);
+    assert.ok(fs.existsSync(path.join(pkg, 'build/integration_test_screenshots/shot.png')),
+      'flutter drive emits the web screenshots');
+
+    const junit = path.join(root, '.planning/objectives/34-demo/evidence/maestro.xml');
+    fs.mkdirSync(path.dirname(junit), { recursive: true });
+    run('maestro', ['test', '.maestro/', '--format', 'junit', '--output', junit]);
+    assert.ok(fs.existsSync(junit), 'maestro writes the junit xml at --output');
+    assert.ok(fs.readdirSync(path.join(env.HOME, '.maestro/tests')).length > 0,
+      'and leaves screenshots under ~/.maestro/tests/*/screenshots/, which the prose moves');
+
+    run('adb', ['install', '-r', 'build/app/outputs/flutter-apk/app-debug.apk']);
+
+    // A stub that exits 0 for anything turns every prose command into a no-op and every
+    // section green. Each stub must reject an unknown invocation WITH the argv it saw.
+    for (const [cmd, args] of [['flutter', ['bogus-subcommand']], ['maestro', ['record']], ['adb', ['shell']]]) {
+      let threw = null;
+      try { run(cmd, args); } catch (e) { threw = e; }
+      assert.ok(threw, `${cmd} must reject ${JSON.stringify(args)}`);
+      assert.strictEqual(threw.status, 2, `${cmd} rejects with exit 2`);
+      assert.match(String(threw.stderr), new RegExp(args[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
+        'and the message carries the argv it saw — that is what makes a red section diagnosable');
+    }
+  });
+
+  test('Case F3b — the jq, pgrep and df-tools shims are equally strict', () => {
+    const root = makeScratchRepo();
+    const bin = factory.stubBinDir();
+    const env = { PATH: bin + path.delimiter + process.env.PATH, HOME: path.join(root, '.home') };
+    const jsonPath = path.join(root, 'boot.json');
+    fs.writeFileSync(jsonPath, JSON.stringify({ action: 'skip', packageDir: '/x/flutter', missing: [], setup_task: null }));
+    const run = (cmd, args) => execFileSync(path.join(bin, cmd), args, { cwd: root, env, encoding: 'utf-8' });
+
+    assert.strictEqual(run('jq', ['-r', '.action', jsonPath]).trim(), 'skip');
+    assert.strictEqual(run('jq', ['-r', '.packageDir', jsonPath]).trim(), '/x/flutter');
+    assert.strictEqual(run('jq', ['-r', '.missing | join(", ")', jsonPath]).trim(), '');
+
+    let threw = null;
+    try { run('jq', ['-r', '.nope', jsonPath]); } catch (e) { threw = e; }
+    assert.ok(threw && threw.status === 2, 'an unlisted jq filter is rejected, not guessed at');
+
+    // Nothing is running in the scratch environment, so the chromedriver guard's
+    // checkpoint branch is the deterministic one.
+    threw = null;
+    try { run('pgrep', ['chromedriver']); } catch (e) { threw = e; }
+    assert.ok(threw && threw.status === 1, 'pgrep chromedriver exits 1 — no chromedriver in a scratch root');
+
+    // df-tools is a SHIM, not a stub: it execs this worktree's real df-tools.cjs.
+    // Substitute the BINARY, keep the ARGUMENTS (verifier-ui-eval-invocation.test.cjs:38-42).
+    const out = execFileSync(path.join(bin, 'df-tools'),
+      ['verify', 'flutter-ui-bootstrap', '.', '--raw'], { cwd: root, env, encoding: 'utf-8' });
+    assert.strictEqual(JSON.parse(out).action, 'skip');
+  });
+
+  test('Case F4 — a missing binary is MISSING, never a pass', () => {
+    const root = makeScratchRepo();
+    const res = harness.runSection(
+      harness.splitCalls('flutter analyze --no-pub'),
+      { root }   // deliberately NO pathPrepend: the stubs are not reachable
+    );
+    assert.strictEqual(res.ok, false, 'a section whose binary is absent must not read as a pass');
+    assert.ok(res.missing, 'and it must carry a MISSING reason');
+    assert.match(String(res.missing), /flutter/, 'naming the absent binary');
+    assert.ok(res.findings.some(f => f.type === 'missing-binary' && f.binary === 'flutter'),
+      'a missing binary is its own finding type, distinct from a genuine non-zero exit');
+
+    const withStubs = harness.runSection(
+      harness.splitCalls('flutter analyze --no-pub'),
+      { root, pathPrepend: factory.stubBinDir() }
+    );
+    assert.strictEqual(withStubs.ok, true, 'the positive control: with the stubs on PATH it passes');
+    assert.strictEqual(withStubs.missing, null);
   });
 
 });
