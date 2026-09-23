@@ -160,7 +160,7 @@ test('Case C3b — a spec whose front matter will not parse exits 1 with SPEC000
 test('Case C4 — unknown `ui` and `ui spec` subcommands exit 1 and list what is available', () => {
   const unknownUi = runArm('ui nonesuch');
   assert.strictEqual(unknownUi.status, 1);
-  assert.match(unknownUi.stderr, /Unknown ui subcommand\. Available: metrics, spec, sheet/);
+  assert.match(unknownUi.stderr, /Unknown ui subcommand\. Available: metrics, spec, sheet, lock/);
 
   const unknownSpec = runArm('ui spec nonesuch');
   assert.strictEqual(unknownSpec.status, 1);
@@ -407,4 +407,229 @@ test('Case A4 — the hash the arm prints is the one sheetHash(buildSheetModel(.
   const expected = sheetLib.sheetHash(sheetLib.buildSheetModel(spec, { renders, refs }));
   assert.strictEqual(parseStdout(result).sheet_hash, expected, 'the CLI must not have its own hashing path');
   assert.strictEqual(parseStdout(result).missing.length, 7, 'the one present render is not MISSING');
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// The look-lock, END TO END through the real binary (objective 34-07)
+//
+// ── Why these cases run the binary and MUTATE a real file ────────────────────
+// The Definition of Done for this row is an ASYMMETRY: a `routes`/`controls`/`states` edit
+// clears the lock, a prose edit does not. Asserting that the hash payload contains three keys
+// does not prove it — that is the same claim restated. So every case below writes a lock into
+// a temp copy of the positive control, EDITS that copy the way an author would, and re-reads
+// the status out of `ui spec validate`'s own JSON.
+//
+// ── Nothing here touches a committed fixture ─────────────────────────────────
+// `lockTmpSpec()` copies into a temp dir. The committed positive control's `acceptance:` block
+// is a transcription of proposal §4.2's illustration — nobody approved that sheet, and 34-06's
+// human-verify checkpoint is still outstanding. L5 reads it precisely BECAUSE it carries no
+// `locked_shape_hash`: an unsigned illustration must report MISSING, not `held`.
+
+const LOCK_SHEET_HASH = 'a'.repeat(64);
+const LOCK_BY = 'mark@aocyber.ai';
+const LOCK_AT = '2026-09-22';
+
+function lockTmpSpec(name, transform) {
+  const text = fs.readFileSync(POSITIVE_CONTROL, 'utf-8');
+  return tmpSpec(name, typeof transform === 'function' ? transform(text) : text);
+}
+
+/** The positive control with its `acceptance:` block removed — never look-locked (L4). */
+function stripAcceptance(text) {
+  const lines = text.split('\n');
+  const start = lines.findIndex((l) => /^acceptance:/.test(l));
+  assert.ok(start !== -1, 'the positive control must carry an acceptance block to strip');
+  let end = start + 1;
+  while (end < lines.length && /^\s+\S/.test(lines[end])) end += 1;
+  return [...lines.slice(0, start), ...lines.slice(end)].join('\n');
+}
+
+/** `ui lock` through the real binary. */
+function runLock(file, extra = '') {
+  return runArm(
+    `ui lock ${JSON.stringify(file)} --sheet-hash ${LOCK_SHEET_HASH} --by ${LOCK_BY} --at ${LOCK_AT} ${extra}`.trim()
+  );
+}
+
+/** The `lock` object `ui spec validate` reports for `file`. */
+function lockOf(file) {
+  const result = runArm(`ui spec validate ${JSON.stringify(file)}`);
+  const payload = parseStdout(result);
+  assert.ok(payload.lock, `\`ui spec validate\` must report a top-level \`lock\` field: ${result.stdout}`);
+  return { ...payload.lock, ok: payload.ok, status: result.status };
+}
+
+/** Edit one of §4.1's three keys, the way an author would, in the raw file. */
+function edit(file, from, to) {
+  const before = fs.readFileSync(file, 'utf-8');
+  assert.ok(before.includes(from), `the fixture must contain ${JSON.stringify(from)} to edit`);
+  fs.writeFileSync(file, before.replace(from, to), 'utf-8');
+}
+
+test('Case L1 — `ui lock` writes the block and `ui spec validate` then reports lock: held', () => {
+  const file = lockTmpSpec('l1.md', stripAcceptance);
+  assert.strictEqual(lockOf(file).lock, 'absent', 'precondition: no lock yet');
+
+  const locked = runLock(file);
+  assert.strictEqual(locked.status, 0, `stderr: ${locked.stderr}`);
+  const payload = parseStdout(locked);
+  assert.strictEqual(payload.locked_sheet, `sha256:${LOCK_SHEET_HASH}`);
+  assert.strictEqual(payload.locked_by, LOCK_BY);
+  assert.strictEqual(payload.locked_at, LOCK_AT);
+  assert.match(payload.locked_shape_hash, /^sha256:[0-9a-f]{64}$/);
+
+  const after = lockOf(file);
+  assert.strictEqual(after.lock, 'held');
+  assert.strictEqual(after.locked_by, LOCK_BY);
+  assert.strictEqual(after.locked_at, LOCK_AT);
+});
+
+test('Case L2 — editing a CONTROL clears the lock, and the reason names `controls`', () => {
+  const file = lockTmpSpec('l2.md', stripAcceptance);
+  assert.strictEqual(runLock(file).status, 0);
+  assert.strictEqual(lockOf(file).lock, 'held');
+
+  edit(file, 'kind: disclosure-header', 'kind: button');
+
+  const after = lockOf(file);
+  assert.strictEqual(after.lock, 'cleared', 'a control change MUST clear a human approval');
+  assert.match(after.reason, /controls/, 'the reason must name WHICH of the three changed');
+  assert.doesNotMatch(after.reason, /routes/, 'and must not name a section that did not change');
+  assert.doesNotMatch(after.reason, /states/);
+});
+
+test('Case L3 — editing ONLY the prose body leaves the lock HELD', () => {
+  const file = lockTmpSpec('l3.md', stripAcceptance);
+  assert.strictEqual(runLock(file).status, 0);
+  const before = lockOf(file);
+  assert.strictEqual(before.lock, 'held');
+
+  // A real prose edit: a new paragraph in the body, and a typo fix in an existing one.
+  const text = fs.readFileSync(file, 'utf-8');
+  assert.ok(text.includes('## Intent'), 'the positive control must have a prose body to edit');
+  fs.writeFileSync(
+    file,
+    `${text.replace('## Intent', '## Intent (revised)')}\n\nAn extra paragraph a reviewer asked for.\n`,
+    'utf-8'
+  );
+
+  const after = lockOf(file);
+  assert.strictEqual(after.lock, 'held', 'a prose edit must NOT clear a lock — §4.1 names three keys');
+  assert.strictEqual(after.locked_at, before.locked_at, 'and must not silently re-date the approval');
+});
+
+test('Case L3b — editing `design_read`, `references` or `flows` also leaves the lock HELD', () => {
+  // The three front-matter keys most likely to be reworded between reviews. If any of them
+  // cleared a lock, the team would re-approve weekly without reading, which is the failure
+  // mode this asymmetry exists to prevent.
+  for (const [label, from, to] of [
+    ['design_read', 'design_read: "utility rail; expression low, motion minimal, density compact"',
+      'design_read: "utility rail; expression low, motion minimal, density comfortable"'],
+    ['references', 'mockup: refs/projects-rail/mockup.png', 'mockup: refs/projects-rail/mockup-v2.png'],
+    ['flows', 'id: open-project-conversation', 'id: open-project-conversation-v2']
+  ]) {
+    const file = lockTmpSpec(`l3b-${label}.md`, stripAcceptance);
+    assert.strictEqual(runLock(file).status, 0);
+    assert.strictEqual(lockOf(file).lock, 'held', `${label}: precondition`);
+    edit(file, from, to);
+    assert.strictEqual(lockOf(file).lock, 'held', `editing \`${label}\` must NOT clear the lock`);
+  }
+});
+
+test('Case L3c — editing a ROUTE or a STATE clears it too, each naming its own section', () => {
+  // Without this, L2's "names controls" could be satisfied by a constant string.
+  const routeFile = lockTmpSpec('l3c-route.md', stripAcceptance);
+  assert.strictEqual(runLock(routeFile).status, 0);
+  edit(routeFile, 'path: /projects/:id/conversations', 'path: /projects/:id/threads');
+  const routeAfter = lockOf(routeFile);
+  assert.strictEqual(routeAfter.lock, 'cleared');
+  assert.match(routeAfter.reason, /routes/);
+  assert.doesNotMatch(routeAfter.reason, /controls/);
+
+  const stateFile = lockTmpSpec('l3c-state.md', stripAcceptance);
+  assert.strictEqual(runLock(stateFile).status, 0);
+  edit(stateFile, 'seed: projects-0', 'seed: projects-none');
+  const stateAfter = lockOf(stateFile);
+  assert.strictEqual(stateAfter.lock, 'cleared');
+  assert.match(stateAfter.reason, /states/);
+  assert.doesNotMatch(stateAfter.reason, /routes/);
+});
+
+test('Case L4 — a spec with no `acceptance` block reports `absent`, not `cleared`', () => {
+  // Never-locked and lock-broken are different situations for the human reading the output:
+  // one needs a first review, the other needs a re-review. Collapsing them produces a message
+  // that cannot be acted on.
+  const file = lockTmpSpec('l4.md', stripAcceptance);
+  const status = lockOf(file);
+  assert.strictEqual(status.lock, 'absent');
+  assert.match(status.reason, /never been look-locked/);
+  assert.strictEqual(status.locked_by, null);
+});
+
+test('Case L5 — an acceptance block with no `locked_shape_hash` reports MISSING, never held', () => {
+  // The committed positive control is exactly this case: its block is a transcription of
+  // §4.2's illustration, carrying a sheet digest and a name but no shape hash. An
+  // undeterminable lock is not a valid lock, and reporting it as `held` would launder an
+  // illustration into a human approval.
+  const status = lockOf(POSITIVE_CONTROL);
+  assert.strictEqual(status.lock, 'MISSING');
+  assert.match(status.reason, /locked_shape_hash/);
+  assert.strictEqual(status.locked_by, 'mark@aocyber.ai', 'the recorded name is still reported');
+});
+
+test('Case L6 — `lock: cleared` does NOT set ok: false', () => {
+  // A spec can be structurally perfect and un-approved. 34-08's refusal to compose reads the
+  // two fields separately; collapsing them would make `ui spec validate` unusable as a
+  // structural check during authoring, before any sheet exists.
+  const file = lockTmpSpec('l6.md', stripAcceptance);
+  assert.strictEqual(runLock(file).status, 0);
+  edit(file, 'kind: disclosure-header', 'kind: button');
+
+  const after = lockOf(file);
+  assert.strictEqual(after.lock, 'cleared');
+  assert.strictEqual(after.ok, true, 'a cleared lock is a STATUS, not a structural violation');
+  assert.strictEqual(after.status, 0, 'and it must not flip the exit code either');
+});
+
+test('Case L7 — `ui lock` refuses an invalid spec, a bad --sheet-hash and an absent --by', () => {
+  const broken = tmpSpec('l7-broken.md', fs.readFileSync(path.join(BROKEN_DIR, 'route-without-back.md'), 'utf-8'));
+  const brokenBefore = fs.readFileSync(broken, 'utf-8');
+  const invalid = runLock(broken);
+  assert.strictEqual(invalid.status, 1, `stdout: ${invalid.stdout}`);
+  assert.ok(codesOf(parseStdout(invalid)).includes('ROUTE002'), 'the verdict is printed, in validate\'s own shape');
+  assert.strictEqual(fs.readFileSync(broken, 'utf-8'), brokenBefore, 'a lock on a broken spec writes nothing');
+
+  const file = lockTmpSpec('l7.md', stripAcceptance);
+  const before = fs.readFileSync(file, 'utf-8');
+
+  const noHash = runArm(`ui lock ${JSON.stringify(file)} --by ${LOCK_BY}`);
+  assert.strictEqual(noHash.status, 1);
+  assert.match(noHash.stderr, /--sheet-hash/);
+
+  const badHash = runArm(`ui lock ${JSON.stringify(file)} --sheet-hash deadbeef --by ${LOCK_BY}`);
+  assert.strictEqual(badHash.status, 1);
+  assert.match(badHash.stderr, /64 hex/);
+
+  const noBy = runArm(`ui lock ${JSON.stringify(file)} --sheet-hash ${LOCK_SHEET_HASH}`);
+  assert.strictEqual(noBy.status, 1);
+  assert.match(noBy.stderr, /--by/);
+
+  const noSpec = runArm(`ui lock __fixtures__/ui-spec/nonesuch.md --sheet-hash ${LOCK_SHEET_HASH} --by ${LOCK_BY}`);
+  assert.strictEqual(noSpec.status, 1);
+  assert.match(noSpec.stderr, /not found/);
+
+  assert.strictEqual(fs.readFileSync(file, 'utf-8'), before, 'every refusal writes nothing');
+  assert.doesNotMatch(noHash.stderr, /node:internal/, 'refusals are one line, not a stack trace');
+});
+
+test('Case L8 — `--at` defaults to today, and a locked spec still validates', () => {
+  const file = lockTmpSpec('l8.md', stripAcceptance);
+  const result = runArm(`ui lock ${JSON.stringify(file)} --sheet-hash ${LOCK_SHEET_HASH} --by ${LOCK_BY}`);
+  assert.strictEqual(result.status, 0, result.stderr);
+  assert.strictEqual(parseStdout(result).locked_at, new Date().toISOString().slice(0, 10));
+
+  // The lock must not break the thing it signs.
+  const validated = runArm(`ui spec validate ${JSON.stringify(file)}`);
+  assert.strictEqual(validated.status, 0, validated.stdout);
+  assert.strictEqual(parseStdout(validated).ok, true);
 });
