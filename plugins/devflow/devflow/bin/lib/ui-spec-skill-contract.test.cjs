@@ -316,3 +316,162 @@ test('Case E3 — the `lock` vocabulary in the prose is exactly the set the real
     + 'or naming a fifth, produces advice a human cannot act on',
   );
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// S — build mode's Surface Spec step
+// ═══════════════════════════════════════════════════════════════════════════════════════
+
+/** Every top-level numbered step in build mode, as {num, title}, in file order. */
+function buildModeSteps() {
+  const { section } = buildModeSection();
+  return [...section.matchAll(/^(\d+)\. \*\*([^*]+)\*\*/gm)].map((m) => ({ num: Number(m[1]), title: m[2] }));
+}
+
+// S7's baseline, captured from the pre-TRD file at commit f3e0cb3^ by extracting
+// `^\d+\. \*\*(…)\*\*` from the `## Build Mode` section. Titles, not numbers: this TRD
+// renumbers, and a renumbering that silently drops the pre-flight step would be a real loss.
+const PRE_TRD_BUILD_STEPS = [
+  'Read project theme',
+  'State the design read',
+  'Detect greenfield vs redesign',
+  'Understand the request',
+  'Check eden-ui-flutter for matching widgets',
+  'Plan the composition',
+  'Generate Dart files',
+  'Verify',
+  'Run the pre-flight check',
+];
+
+test('Case S1 — the step names `flutter/ui_spec/` and the `ui spec validate` arm', () => {
+  const step = surfaceSpecStep();
+  assert.match(step, /flutter\/ui_spec\//, 'the step must name where a Surface Spec lives');
+  assert.ok(
+    extractUiArms(step).includes('spec validate'),
+    'the step must name `df-tools … ui spec validate` — the arm that decides whether the spec is reviewable',
+  );
+});
+
+test('Case S2 — THE REFUSAL: composition does not proceed when `ok` is false or `lock` is not `held`', () => {
+  // This is the plan's definition-of-done clause for this row. A step 0 that drafts a spec but
+  // composes anyway when the lock is cleared adds a document and changes no behaviour.
+  const step = surfaceSpecStep();
+
+  const refusalSentences = step
+    .split(/(?<=\.)\s+|\n\n/)
+    .filter((s) => /do not compose/i.test(s));
+  assert.ok(refusalSentences.length > 0, 'the step must contain a flat "Do not compose" imperative');
+
+  // One unambiguous sentence carrying BOTH conditions — `ok` false AND a lock that is not `held`.
+  const both = refusalSentences.find((s) => /\bok\b/.test(s) && /`held`/.test(s));
+  assert.ok(
+    both,
+    'one sentence must state BOTH refusal conditions together (`ok: false` and a lock other than '
+    + `\`held\`); found only: ${JSON.stringify(refusalSentences)}`,
+  );
+
+  // Imperative, not advisory. A gate that asks permission to gate is not a gate.
+  assert.doesNotMatch(step, /consider whether to (proceed|compose)/i, 'the refusal must not be softened into "consider whether"');
+  assert.doesNotMatch(step, /you (may|might) want to stop/i, 'the refusal must not be softened into a suggestion');
+
+  // `PAT000`/`HIT000` MISSING must be called out as NOT blocking, or someone adds a
+  // belt-and-braces `errors.length` check and blocks every surface in the repo (34-04).
+  assert.match(step, /PAT000/, 'the step must say that a MISSING pattern-catalogue row does not block composition');
+  assert.match(
+    step, /do not (set `?ok: false`?|block)/i,
+    'the step must state explicitly that a MISSING check is not a violation',
+  );
+});
+
+test('Case S3 — the step names the drafting inputs: pattern library, router table, mockup/donor, design read', () => {
+  const step = surfaceSpecStep();
+  assert.match(step, /pattern library/i, 'the pattern library supplies control defaults and `must_not` rules');
+  assert.match(step, /router table/i, 'the router table supplies routes that already exist');
+  assert.match(step, /mockup|donor/i, 'the mockup or donor is the visual input');
+  assert.match(step, /design[ _-]read/i, 'the design read is carried into the spec, not re-derived');
+  assert.match(
+    step, /verbatim/i,
+    'the step must say the design-read sentence is carried VERBATIM — asking for a second read is how the two drift',
+  );
+});
+
+test('Case S4 — the look-lock procedure is REFERENCED, not restated', () => {
+  const step = surfaceSpecStep();
+
+  // It points at the one place the procedure lives.
+  assert.match(step, /checkpoints\.md/, 'the step must point at checkpoints.md');
+  assert.match(step, /look-lock/, 'the step must name the look-lock variant by name');
+  const checkpoints = fs.readFileSync(CHECKPOINTS_MD, 'utf-8');
+  assert.match(checkpoints, /### look-lock variant/, 'checkpoints.md must carry the look-lock variant section (34-07)');
+
+  // It does NOT carry a second copy of the procedure. These three are the procedure's own
+  // load-bearing clauses; each lives in checkpoints.md and must live there only.
+  assert.doesNotMatch(step, /no lock is written/i, 'the rejection rule belongs to checkpoints.md');
+  assert.doesNotMatch(step, /never blind-approved/i, 'the autonomous-mode rule belongs to checkpoints.md');
+  assert.doesNotMatch(step, /missing\[\]/, 'the four things the human is shown belong to checkpoints.md');
+
+  // If the step cites the approval command at all, it must be the SAME string checkpoints.md
+  // names — two copies of a command string is the drift class objective 33 closed.
+  const cited = [...step.matchAll(/`[^`]*df-tools(?:\.cjs)?\s+ui\s+lock[^`]*`/g)].map((m) => m[0].slice(1, -1));
+  for (const c of cited) {
+    const flags = [...c.matchAll(/--[a-z-]+/g)].map((m) => m[0]).sort();
+    const inCheckpoints = [...checkpoints.matchAll(/df-tools(?:\.cjs)?\s+ui\s+lock[^\n`]*/g)]
+      .map((m) => [...m[0].matchAll(/--[a-z-]+/g)].map((f) => f[0]).sort().join(' '));
+    assert.ok(
+      inCheckpoints.includes(flags.join(' ')),
+      `the step cites \`${c}\`, whose flags (${flags.join(' ') || 'none'}) match no form of the approval `
+      + `command in checkpoints.md (${JSON.stringify(inCheckpoints)}) — the two copies have drifted`,
+    );
+  }
+});
+
+test('Case S5 — the Surface Spec step sits AFTER the design read and BEFORE composition planning', () => {
+  const steps = buildModeSteps();
+  const idx = (title) => steps.findIndex((s) => s.title === title);
+
+  const designRead = idx('State the design read');
+  const detection = idx('Detect greenfield vs redesign');
+  const specStep = idx('Locate or draft the Surface Spec');
+  const composition = idx('Plan the composition');
+
+  assert.ok(designRead !== -1 && detection !== -1 && composition !== -1, 'the pre-existing anchors must still be present');
+  assert.ok(specStep !== -1, 'the Surface Spec step must be a numbered build-mode step, not a floating paragraph');
+
+  // A spec drafted before the design read has no `design_read` value to carry; one drafted before
+  // greenfield/redesign detection has no `mode`.
+  assert.ok(specStep > designRead, 'the Surface Spec step must come AFTER the design read');
+  assert.ok(specStep > detection, 'the Surface Spec step must come AFTER greenfield/redesign detection');
+  assert.ok(specStep < composition, 'the Surface Spec step must come BEFORE composition planning — it is the gate on it');
+
+  // Numbering is contiguous and ascending after the renumber.
+  const nums = steps.map((s) => s.num);
+  assert.deepStrictEqual(
+    nums, nums.slice().sort((a, b) => a - b),
+    `build-mode step numbers must ascend after renumbering: ${nums.join(', ')}`,
+  );
+  assert.strictEqual(new Set(nums).size, nums.length, `build-mode step numbers must be unique: ${nums.join(', ')}`);
+});
+
+test('Case S6 — the port path names the pattern-mapping page (§8.1)', () => {
+  const step = surfaceSpecStep();
+  assert.match(step, /redesign/, 'the step must name the `mode: redesign` path');
+  assert.match(
+    step, /refs\/<surface>\/pattern-mapping\.md/,
+    'a port writes the pattern-mapping page (donor screen -> Eden pattern -> deltas) FIRST — §8.1',
+  );
+});
+
+test('Case S7 — every pre-TRD build-mode step survives the renumbering', () => {
+  const titles = buildModeSteps().map((s) => s.title);
+  for (const expected of PRE_TRD_BUILD_STEPS) {
+    assert.ok(
+      titles.includes(expected),
+      `the pre-TRD build-mode step "${expected}" is gone — a renumbering that silently drops a step `
+      + `(the pre-flight check, say) is a real loss. Now: ${JSON.stringify(titles)}`,
+    );
+  }
+  // And the mode headings themselves.
+  const md = fs.readFileSync(SKILL_MD, 'utf-8');
+  for (const heading of ['## Build Mode', '## Review Mode', '## Visual Mode']) {
+    assert.ok(md.includes(heading), `the "${heading}" heading must survive`);
+  }
+});
