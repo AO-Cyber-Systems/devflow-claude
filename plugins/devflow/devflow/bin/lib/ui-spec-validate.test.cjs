@@ -743,3 +743,70 @@ test('Case I6d — HIT000/MISSING when the check could not run, and it does not 
   const missingOnly = validateSurfaceSpec({ ...noControls, controls: [] }, ctx());
   assert.ok(!missingOnly.errors.some((e) => e.code.startsWith('HIT')), JSON.stringify(missingOnly.errors));
 });
+
+// ─── I7: flows (TRD 34-04) ───────────────────────────────────────────────────
+//
+// §4.5 I7: every flow step references existing controls and routes, and the flow ends in a
+// `back` or a declared terminal route.
+//
+// The reference model — and it had to be decided, because the POSITIVE CONTROL's own flow
+// references two things this spec does not declare (`rail.conversation[0]`, a runtime INSTANCE,
+// and `conversation.detail`, a route on another surface). A closed-world check reddens V1 on
+// §4.2's own example. So a reference is IN SCOPE for this single-spec engine when it is
+// NAMESPACE-LOCAL: it matches the schema id pattern AND its first dot-segment is the first
+// dot-segment of some id of the same kind that this spec declares. FLOW001 fires on an
+// in-scope reference that does not resolve — which is exactly the typo case. Everything else
+// belongs to W2's repo-wide resolution.
+
+test('Case I7a — a flow step naming a control or route that does not exist is exactly FLOW001', () => {
+  const badControl = mutate(loadPositiveControl(), (s) => {
+    s.flows[0].steps[0].click = 'rail.project.headr'; // a typo of a control this spec declares
+  });
+  const a = validateSurfaceSpec(badControl, ctx());
+  assert.deepStrictEqual(codesOf(a), ['FLOW001'], JSON.stringify(a.errors));
+  assert.strictEqual(a.errors.length, 1);
+  assert.strictEqual(a.errors[0].path, 'flows[0].steps[0].click');
+  assert.match(a.errors[0].msg, /open-project-conversation/);
+  assert.match(a.errors[0].msg, /rail\.project\.headr/);
+
+  const badRoute = mutate(loadPositiveControl(), (s) => {
+    s.flows[0].steps[0].expect.route = 'project.conversation'; // singular: a typo of a route here
+  });
+  const b = validateSurfaceSpec(badRoute, ctx());
+  assert.deepStrictEqual(codesOf(b), ['FLOW001'], JSON.stringify(b.errors));
+  assert.strictEqual(b.errors[0].path, 'flows[0].steps[0].expect.route');
+});
+
+test('Case I7b — flow-ends-mid-route.md is exactly FLOW002; a root route ends a flow too', () => {
+  const result = validateSurfaceSpec(loadBroken('flow-ends-mid-route.md').frontMatter, ctx());
+
+  assert.deepStrictEqual(codesOf(result), ['FLOW002'], JSON.stringify(result.errors));
+  assert.strictEqual(result.errors.length, 1);
+  assert.strictEqual(result.errors[0].path, 'flows[0].steps[1]');
+  assert.match(result.errors[0].msg, /open-project-conversation/);
+
+  // The TERMINAL-ROUTE half of the rule: `root: true` ends a flow just as a `back` does. The
+  // positive control's `conversations.all` is that route.
+  const endsAtRoot = mutate(loadBroken('flow-ends-mid-route.md').frontMatter, (s) => {
+    s.flows[0].steps[1].expect.route = 'conversations.all';
+  });
+  assert.ok(!validateSurfaceSpec(endsAtRoot, ctx()).errors.some((e) => e.code === 'FLOW002'),
+    'a flow ending on a `root: true` route is terminal');
+});
+
+test('Case I7c — the positive control`s flow produces no FLOW error, instance refs included', () => {
+  const spec = loadPositiveControl();
+
+  // The two out-of-scope references §4.2's own example carries. Assert their SHAPE, because a
+  // closed-world FLOW001 reddens V1 on the proposal's own worked example.
+  assert.strictEqual(spec.flows[0].steps[1].click, 'rail.conversation[0]'); // a runtime INSTANCE
+  assert.strictEqual(spec.flows[0].steps[1].expect.route, 'conversation.detail'); // another surface
+
+  const result = validateSurfaceSpec(spec, ctx());
+  assert.ok(!result.errors.some((e) => e.code.startsWith('FLOW')), JSON.stringify(result.errors));
+
+  // And `back: app-back` is a back AFFORDANCE, not a control id — resolving it as one is the
+  // second easiest way to break the positive control.
+  assert.strictEqual(spec.flows[0].steps[2].back, 'app-back');
+  assert.ok(!spec.controls.some((c) => c.id === 'app-back'));
+});
