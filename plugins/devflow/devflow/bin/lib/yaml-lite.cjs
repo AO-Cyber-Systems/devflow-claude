@@ -24,31 +24,91 @@ class YamlLiteError extends Error {
   }
 }
 
+// ─── Quote masking ────────────────────────────────────────────────────────────
+//
+// Everything that scans for a structural character — the `: ` key separator, a `,` between
+// flow elements, a matching `]`/`}`, a ` #` comment — scans the MASKED copy of the line, in
+// which the contents of quoted strings are blanked to spaces. Slices are then taken from the
+// ORIGINAL, so `title: "{project.name}: overview # 1"` keeps its colon and its hash.
+// Same length in, same length out, so indices carry over unchanged.
+
+function maskQuoted(s, line) {
+  let out = '';
+  let i = 0;
+  while (i < s.length) {
+    const c = s[i];
+    if (c !== '"' && c !== "'") { out += c; i++; continue; }
+    const quote = c;
+    out += quote;
+    i++;
+    for (;;) {
+      if (i >= s.length) {
+        throw new YamlLiteError(`unterminated ${quote === '"' ? 'double' : 'single'}-quoted string`, line);
+      }
+      if (quote === '"' && s[i] === '\\') { out += '  '; i += 2; continue; }
+      if (s[i] === quote) {
+        if (quote === "'" && s[i + 1] === "'") { out += '  '; i += 2; continue; }
+        break;
+      }
+      out += ' ';
+      i++;
+    }
+    out += quote;
+    i++;
+  }
+  return out;
+}
+
+// Reads one quoted scalar starting at s[0]; returns its decoded value and the index just past
+// the closing quote. Double quotes honour \" \\ \n \t \r; single quotes honour '' -> '.
+function readQuoted(s, line) {
+  const quote = s[0];
+  let out = '';
+  let i = 1;
+  while (i < s.length) {
+    const c = s[i];
+    if (quote === '"' && c === '\\') {
+      const n = s[i + 1];
+      out += n === 'n' ? '\n' : n === 't' ? '\t' : n === 'r' ? '\r' : n === undefined ? '' : n;
+      i += 2;
+      continue;
+    }
+    if (c === quote) {
+      if (quote === "'" && s[i + 1] === "'") { out += "'"; i += 2; continue; }
+      return { value: out, end: i + 1 };
+    }
+    out += c;
+    i++;
+  }
+  throw new YamlLiteError(`unterminated ${quote === '"' ? 'double' : 'single'}-quoted string`, line);
+}
+
 // ─── Phase 1: tokenise ────────────────────────────────────────────────────────
 //
 // One record per significant line: { line, indent, content, dash, itemIndent, body, key, value }.
 // Blank lines and full-line comments are dropped, but `line` keeps the ORIGINAL 1-based number
 // so every error points at the real file.
 
-function splitKeyValue(body) {
+function splitKeyValue(body, line) {
   // `': '` (colon-space) or a line-terminal `:` is the key separator. A colon glued to the next
   // character is CONTENT — `/projects/:id/conversations` and `sha256:9f2b…` are single strings.
+  const masked = maskQuoted(body, line);
   if (body.charAt(0) === '{' || body.charAt(0) === '[') return { key: null, value: body };
   let keyEnd = -1;
-  for (let i = 0; i < body.length; i++) {
-    if (body[i] === ':' && (i + 1 >= body.length || body[i + 1] === ' ')) { keyEnd = i; break; }
+  for (let i = 0; i < masked.length; i++) {
+    if (masked[i] === ':' && (i + 1 >= masked.length || masked[i + 1] === ' ')) { keyEnd = i; break; }
   }
   if (keyEnd < 0) return { key: null, value: body };
   return { key: body.slice(0, keyEnd).trim(), value: body.slice(keyEnd + 1).trim() };
 }
 
-function splitLine(content, indent) {
+function splitLine(content, indent, line) {
   let dash = false;
   let off = 0;
   const m = /^-( +|$)/.exec(content);
   if (m) { dash = true; off = m[0].length; }
   const body = content.slice(off);
-  const kv = splitKeyValue(body);
+  const kv = splitKeyValue(body, line);
   // A block-list item `- id: x` opens a mapping whose column is the column of the character
   // AFTER `- `, not the column of `-`. Continuation keys align to that column.
   return { dash, itemIndent: indent + off, body, key: kv.key, value: kv.value };
@@ -64,7 +124,7 @@ function tokenise(text) {
     if (trimmed.charAt(0) === '#') continue;
     const indent = raw.length - raw.replace(/^ +/, '').length;
     const content = raw.slice(indent).replace(/\s+$/, '');
-    tokens.push({ line: i + 1, indent, content, ...splitLine(content, indent) });
+    tokens.push({ line: i + 1, indent, content, ...splitLine(content, indent, i + 1) });
   }
   return tokens;
 }
@@ -74,23 +134,23 @@ function tokenise(text) {
 // Flow syntax is context-free; it gets its own small recursive scanner rather than being
 // squeezed through the line tokeniser.
 
-function matchingClose(t, line) {
+function matchingClose(masked, line) {
   let depth = 0;
-  for (let i = 0; i < t.length; i++) {
-    const c = t[i];
+  for (let i = 0; i < masked.length; i++) {
+    const c = masked[i];
     if (c === '[' || c === '{') depth++;
     else if (c === ']' || c === '}') { depth--; if (depth === 0) return i; }
   }
   throw new YamlLiteError('unterminated flow collection', line);
 }
 
-function splitTopLevel(inner) {
+function splitTopLevel(inner, masked) {
   if (inner.trim() === '') return [];
   const parts = [];
   let depth = 0;
   let start = 0;
-  for (let i = 0; i < inner.length; i++) {
-    const c = inner[i];
+  for (let i = 0; i < masked.length; i++) {
+    const c = masked[i];
     if (c === '[' || c === '{') depth++;
     else if (c === ']' || c === '}') depth--;
     else if (c === ',' && depth === 0) { parts.push(inner.slice(start, i)); start = i + 1; }
@@ -100,13 +160,14 @@ function splitTopLevel(inner) {
 }
 
 function splitFlowPair(el, line) {
+  const masked = maskQuoted(el, line);
   let depth = 0;
-  for (let i = 0; i < el.length; i++) {
-    const c = el[i];
+  for (let i = 0; i < masked.length; i++) {
+    const c = masked[i];
     if (c === '[' || c === '{') depth++;
     else if (c === ']' || c === '}') depth--;
-    else if (c === ':' && depth === 0 && (i + 1 >= el.length || el[i + 1] === ' ')) {
-      return { key: el.slice(0, i).trim(), value: el.slice(i + 1).trim() };
+    else if (c === ':' && depth === 0 && (i + 1 >= masked.length || masked[i + 1] === ' ')) {
+      return { key: parseScalar(el.slice(0, i), line), value: el.slice(i + 1).trim() };
     }
   }
   throw new YamlLiteError('expected `key: value` inside a flow mapping', line);
@@ -115,16 +176,18 @@ function splitFlowPair(el, line) {
 function parseFlowValue(text, line) {
   const t = text.trim();
   const head = t.charAt(0);
-  if (head !== '[' && head !== '{') return parseScalar(t);
+  if (head !== '[' && head !== '{') return parseScalar(t, line);
 
-  const close = matchingClose(t, line);
+  const masked = maskQuoted(t, line);
+  const close = matchingClose(masked, line);
   if (close !== t.length - 1) throw new YamlLiteError('unexpected content after a flow collection', line);
   const inner = t.slice(1, close);
+  const innerMasked = masked.slice(1, close);
 
-  if (head === '[') return splitTopLevel(inner).map((el) => parseFlowValue(el, line));
+  if (head === '[') return splitTopLevel(inner, innerMasked).map((el) => parseFlowValue(el, line));
 
   const obj = {};
-  for (const el of splitTopLevel(inner)) {
+  for (const el of splitTopLevel(inner, innerMasked)) {
     const pair = splitFlowPair(el.trim(), line);
     obj[pair.key] = pair.value === '' ? null : parseFlowValue(pair.value, line);
   }
@@ -133,9 +196,16 @@ function parseFlowValue(text, line) {
 
 // ─── Phase 3: scalars ─────────────────────────────────────────────────────────
 
-function parseScalar(str) {
+function parseScalar(str, line) {
   const s = str.trim();
   if (s === '') return null;
+  const quote = s.charAt(0);
+  if (quote === '"' || quote === "'") {
+    const read = readQuoted(s, line);
+    if (read.end !== s.length) throw new YamlLiteError('unexpected content after a quoted scalar', line);
+    // The unquoted contents, VERBATIM — no further typing, so `"1"` stays the string '1'.
+    return read.value;
+  }
   if (/^-?\d+$/.test(s)) return Number(s);
   if (/^-?\d+\.\d+$/.test(s)) return Number(s);
   if (s === 'true') return true;
@@ -149,7 +219,7 @@ function parseScalar(str) {
 function parseValue(str, line) {
   const head = str.charAt(0);
   if (head === '[' || head === '{') return parseFlowValue(str, line);
-  return parseScalar(str);
+  return parseScalar(str, line);
 }
 
 // ─── Phase 4: build the tree from the token stream ────────────────────────────
