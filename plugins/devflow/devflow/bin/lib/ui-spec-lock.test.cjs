@@ -402,6 +402,74 @@ test('Case A5 — re-locking OVERWRITES the acceptance block and does not duplic
   assert.strictEqual(fm.acceptance.locked_at, '2026-09-23');
 });
 
+test('Case A6 — a `--by` carrying YAML punctuation round-trips; the signed spec still parses', () => {
+  const text = withoutAcceptance(positiveControlText());
+
+  // Every signer below is a legal thing to type after `--by`, and every one of them is
+  // YAML-SIGNIFICANT when the value is emitted BARE. This is the worst failure shape this
+  // command has: `ui lock` exits 0 and prints a success record, and the very next
+  // `ui spec validate` of the file it just signed reports SPEC000 + `lock: MISSING` — which
+  // reads as a parser bug or an authoring mistake, never as a lock bug.
+  const signers = [
+    "O'Brien",            // an apostrophe — read as an opening single quote
+    'mark # 2',           // ` #` — truncates the value at the hash
+    'Say "hi"',           // a double quote — closes whatever quoting is emitted
+    'ops: release',       // a `: ` — a SECOND key appears on the line
+    '{not a map}',        // a flow head — parsed as a mapping, not as a name
+    '*alias-looking',     // refused outright as an alias
+    '&anchor-looking',    // refused outright as an anchor
+    'back\\slash',        // a backslash — an escape inside a double-quoted scalar
+    '   padded   '        // trimmed by writeLock, so the round-trip target is the TRIMMED form
+  ];
+
+  for (const raw of signers) {
+    const by = raw.trim();
+    const label = JSON.stringify(raw);
+    const file = specFile('rail.md', text);
+
+    const res = lock.writeLock(file, { sheetHash: SHEET_HASH, by: raw, at: AT });
+    assert.strictEqual(res.ok, true, `${label}: writeLock refused: ${res.msg}`);
+
+    let fm;
+    try {
+      fm = frontMatterOf(file);
+    } catch (e) {
+      assert.fail(`${label}: the spec ui lock just signed no longer parses — ${e.message}`);
+    }
+
+    assert.strictEqual(fm.acceptance.locked_by, by, `${label}: locked_by must round-trip verbatim`);
+    assert.strictEqual(fm.acceptance.locked_at, AT, `${label}: locked_at must round-trip`);
+    assert.strictEqual(fm.acceptance.locked_sheet, `sha256:${SHEET_HASH}`, `${label}: locked_sheet must round-trip`);
+
+    const verdict = validateSurfaceSpec(fm, {});
+    assert.strictEqual(verdict.ok, true,
+      `${label}: the signed spec must still validate: ${JSON.stringify(verdict.errors)}`);
+
+    // It must also READ BACK as held. A block that parses but loses `locked_shape_hash` would
+    // report MISSING — green on "it still parses", worthless as a lock.
+    assert.strictEqual(lock.lockStatus(fm).lock, 'held', `${label}: the fresh lock must read back as held`);
+  }
+});
+
+test('Case A7 — a `--by` that cannot be written on one line is a REFUSAL, not a corrupted spec', () => {
+  // The `acceptance:` block is spliced in LINE by line. A newline — or any control character —
+  // in the signer would split the block and leave the tail of the name parsed as a key. The
+  // contract is `{ok:false, code, msg}` and an untouched file, never a best-effort write.
+  const text = withoutAcceptance(positiveControlText());
+
+  for (const by of ['two\nlines', 'tab\there', `nul${String.fromCharCode(0)}byte`]) {
+    const label = JSON.stringify(by);
+    const file = specFile('rail.md', text);
+    const before = fs.readFileSync(file, 'utf-8');
+
+    const res = lock.writeLock(file, { sheetHash: SHEET_HASH, by, at: AT });
+
+    assert.strictEqual(res.ok, false, `${label}: must refuse`);
+    assert.match(res.msg, /--by/, `${label}: the refusal names the flag it is about`);
+    assert.strictEqual(fs.readFileSync(file, 'utf-8'), before, `${label}: nothing written`);
+  }
+});
+
 // ═════════════════════════════════════════════════════════════════════════════
 // P — the prose, ASSERTED rather than reviewed
 //
