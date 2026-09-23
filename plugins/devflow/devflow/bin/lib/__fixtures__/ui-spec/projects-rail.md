@@ -100,7 +100,7 @@ scope_rules:
   - {on: project-move, invalidate: [project-pane, project-count-badge]}
 
 acceptance:
-  locked_sheet: "sha256:9f2c1b7e4a6d0835c1e9b4f7a2d6c8e013b5a7f9d2c4e6081a3b5c7d9e1f3a5b7"
+  locked_sheet: "sha256:9f2c1b7e4a6d0835c1e9b4f7a2d6c8e013b5a7f9d2c4e6081a3b5c7d9e1f3a5b"
   locked_by: mark@aocyber.ai
   locked_at: 2026-09-18
 ---
@@ -111,6 +111,12 @@ acceptance:
      * The amended §4.2 already writes `activation` as a MAP
        (`{pointer: true, keyboard: [Enter, Space]}`), the `narrow` and `dark` states in BLOCK
        syntax, and `acceptance.locked_sheet` as a quoted full 64-hex digest. The three
+     * ONE character dropped from that digest, by TRD 34-03 (its <error_recovery>: "if the
+       positive control fails, diagnose whether the invariant or the transcription is wrong").
+       The amended proposal's illustrative digest is SIXTY-FIVE hex characters and therefore
+       cannot be any sha256; the schema's `^sha256:[0-9a-f]{64}$` is right and the literal is
+       not. The trailing `7` is dropped so the positive control carries a well-formed digest.
+       Noted in 34-02-SUMMARY.md and 34-03-SUMMARY.md; the proposal itself still reads 65.
        normalisations TRD 34-02 anticipated are therefore not needed: the constructs that
        yaml-lite refuses (an implicit single-pair map inside a flow sequence — 34-01 case Y11b
        — and a bare key followed by a flow map on one line) are no longer in the source.

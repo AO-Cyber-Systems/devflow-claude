@@ -212,10 +212,15 @@ test('Case F3 — the amended §4.2 constructs survive transcription (activation
   });
 
   // Amended §4.2: locked_sheet is a quoted full digest, not a bare `sha256:...` truncation.
+  // ONE character shorter than the proposal's literal, by TRD 34-03: the amended §4.2 prints a
+  // SIXTY-FIVE hex-character digest, which cannot be any sha256, and the schema this objective
+  // shipped declares `^sha256:[0-9a-f]{64}$`. The schema is right, the illustrative literal is
+  // not, so the fixture drops the trailing `7`. See the fixture header and 34-03-SUMMARY.md.
   assert.strictEqual(
     f.acceptance.locked_sheet,
-    'sha256:9f2c1b7e4a6d0835c1e9b4f7a2d6c8e013b5a7f9d2c4e6081a3b5c7d9e1f3a5b7'
+    'sha256:9f2c1b7e4a6d0835c1e9b4f7a2d6c8e013b5a7f9d2c4e6081a3b5c7d9e1f3a5b'
   );
+  assert.strictEqual(f.acceptance.locked_sheet.length, 'sha256:'.length + 64);
 });
 
 test('Case F4 — the scalars yaml-lite is most likely to get wrong, on the REAL fixture', () => {
