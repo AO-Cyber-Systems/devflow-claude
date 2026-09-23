@@ -246,3 +246,19 @@ test('Case Y8 — anchors, aliases and the merge key are refused', () => {
     { line: 3, match: /merge key/i }
   );
 });
+
+test('Case Y9 — block scalars (`|`, `>`) and tags (`!!`) are refused', () => {
+  refuses(['surface: rail', 'prose: |', '  a literal block', ''].join('\n'),
+    { line: 2, match: /block scalar/i });
+
+  refuses(['surface: rail', 'prose: >', '  a folded block', ''].join('\n'),
+    { line: 2, match: /block scalar/i });
+
+  refuses(['surface: rail', 'prose: |-', '  a stripped literal block', ''].join('\n'),
+    { line: 2, match: /block scalar/i });
+
+  refuses(['surface: rail', 'when: !!str 1', ''].join('\n'), { line: 2, match: /tag/i });
+
+  // A `!` inside quotes is content, not a tag — the refusal must not fire here.
+  assert.deepStrictEqual(parseYamlLite('title: "watch out!! really"\n'), { title: 'watch out!! really' });
+});
