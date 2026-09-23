@@ -160,7 +160,7 @@ test('Case C3b — a spec whose front matter will not parse exits 1 with SPEC000
 test('Case C4 — unknown `ui` and `ui spec` subcommands exit 1 and list what is available', () => {
   const unknownUi = runArm('ui nonesuch');
   assert.strictEqual(unknownUi.status, 1);
-  assert.match(unknownUi.stderr, /Unknown ui subcommand\. Available: metrics, spec/);
+  assert.match(unknownUi.stderr, /Unknown ui subcommand\. Available: metrics, spec, sheet/);
 
   const unknownSpec = runArm('ui spec nonesuch');
   assert.strictEqual(unknownSpec.status, 1);
@@ -289,4 +289,122 @@ test('Case R5 — a MISSING row is reported on stderr, never laundered into a si
   assert.ok(result.stderr.includes('MISSING'), `the row must be named MISSING:\n${result.stderr}`);
   // …and it must NOT contaminate stdout, which the byte-stability probe diffs.
   assert.ok(!result.stdout.includes('PAT000'), 'the advisory belongs on stderr, not in the artifact');
+});
+
+// ─── A1-A4: the `ui sheet` arm (34-06) ───────────────────────────────────────
+//
+// `df-tools ui sheet <spec> --renders <dir> --refs <dir> --out <file>` — a THIRD `ui`
+// subcommand beside `metrics` and `spec`, not a fourth `ui spec` one: §8.3 names it
+// `df-tools ui sheet <surface>`.
+//
+// A4 is the one that matters structurally: the hash the arm prints must be the hash
+// `sheetHash(buildSheetModel(...))` computes. A CLI with its own hashing path is a second
+// definition of what a look-lock covers, and the two will eventually disagree about whether
+// a human's approval still stands.
+
+const sheetLib = require('./ui-sheet.cjs');
+const { parseSurfaceSpec } = require('./ui-spec.cjs');
+
+const SHEET_TMP_DIRS = [];
+
+test.after(() => {
+  for (const d of SHEET_TMP_DIRS) {
+    try { fs.rmSync(d, { recursive: true, force: true }); } catch { /* best effort */ }
+  }
+});
+
+function sheetTmpDir(prefix) {
+  const d = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), prefix));
+  SHEET_TMP_DIRS.push(d);
+  return d;
+}
+
+test('Case A1 — `ui sheet` writes the file and prints {sheet_hash, out, states, missing}, exit 0', () => {
+  const renders = sheetTmpDir('df-sheet-arm-renders-');
+  const refs = sheetTmpDir('df-sheet-arm-refs-');
+  const outDir = sheetTmpDir('df-sheet-arm-out-');
+  const out = path.join(outDir, 'sheet.html');
+
+  const result = runArm(
+    `ui sheet __fixtures__/ui-spec/projects-rail.md --renders ${JSON.stringify(renders)} `
+    + `--refs ${JSON.stringify(refs)} --out ${JSON.stringify(out)}`
+  );
+
+  assert.strictEqual(result.status, 0, `exit ${result.status}. stderr: ${result.stderr}`);
+  assert.ok(fs.existsSync(out), 'the arm wrote the sheet');
+
+  const payload = parseStdout(result);
+  assert.match(payload.sheet_hash, /^[0-9a-f]{64}$/);
+  assert.strictEqual(payload.out, out);
+  assert.strictEqual(payload.states, 8, 'one row per declared capture');
+  assert.ok(Array.isArray(payload.missing), 'missing[] is a list of capture_ids');
+  assert.strictEqual(payload.missing.length, 8, 'no renders supplied, so every row is MISSING');
+  assert.strictEqual(typeof payload.engine_version, 'string');
+  assert.ok(payload.schema_version !== undefined, 'the sheet says which schema it was built against');
+
+  const html = fs.readFileSync(out, 'utf-8');
+  assert.ok(html.includes('MISSING'), 'the written sheet shows MISSING cells');
+  assert.ok(html.includes('guard-denied'), 'and still carries every declared state');
+});
+
+test('Case A2 — a missing --out, a nonexistent --renders dir and a nonexistent spec each exit 1', () => {
+  const renders = sheetTmpDir('df-sheet-arm-renders2-');
+
+  const noOut = runArm(`ui sheet __fixtures__/ui-spec/projects-rail.md --renders ${JSON.stringify(renders)}`);
+  assert.strictEqual(noOut.status, 1, `stdout: ${noOut.stdout}`);
+  assert.match(noOut.stderr, /--out/, 'the refusal names the flag that is missing');
+  assert.strictEqual(noOut.stderr.trim().split('\n').length, 1, `stderr is not one line: ${noOut.stderr}`);
+  assert.doesNotMatch(noOut.stderr, /node:internal/, 'no stack trace');
+
+  const outDir = sheetTmpDir('df-sheet-arm-out2-');
+  const ghost = path.join(outDir, 'no-such-renders-dir');
+  const badRenders = runArm(
+    `ui sheet __fixtures__/ui-spec/projects-rail.md --renders ${JSON.stringify(ghost)} `
+    + `--out ${JSON.stringify(path.join(outDir, 's.html'))}`
+  );
+  assert.strictEqual(badRenders.status, 1);
+  assert.ok(badRenders.stderr.includes(ghost), `the refusal names the directory: ${badRenders.stderr}`);
+  assert.ok(!fs.existsSync(path.join(outDir, 's.html')), 'nothing was written');
+
+  const noSpec = runArm(`ui sheet __fixtures__/ui-spec/nope.md --out ${JSON.stringify(path.join(outDir, 't.html'))}`);
+  assert.strictEqual(noSpec.status, 1);
+  assert.match(noSpec.stderr, /not found/);
+  assert.ok(!fs.existsSync(path.join(outDir, 't.html')), 'nothing was written');
+});
+
+test('Case A3 — an INVALID spec exits 1 and writes no sheet at all', () => {
+  const outDir = sheetTmpDir('df-sheet-arm-out3-');
+  const out = path.join(outDir, 'sheet.html');
+
+  const result = runArm(
+    `ui sheet __fixtures__/ui-spec/broken/route-without-back.md --out ${JSON.stringify(out)}`
+  );
+
+  assert.strictEqual(result.status, 1, `stdout: ${result.stdout}`);
+  assert.ok(!fs.existsSync(out), 'a sheet derived from a spec nobody checked must not exist');
+
+  const payload = parseStdout(result);
+  assert.strictEqual(payload.ok, false);
+  assert.ok(codesOf(payload).includes('ROUTE002'), JSON.stringify(payload.errors));
+});
+
+test('Case A4 — the hash the arm prints is the one sheetHash(buildSheetModel(...)) computes', () => {
+  const renders = sheetTmpDir('df-sheet-arm-renders4-');
+  const refs = sheetTmpDir('df-sheet-arm-refs4-');
+  // One real render present, so the compared hash is not the trivial all-MISSING one.
+  const spec = parseSurfaceSpec(fs.readFileSync(POSITIVE_CONTROL, 'utf-8')).frontMatter;
+  const inProcess = sheetLib.buildSheetModel(spec, { renders, refs });
+  fs.writeFileSync(path.join(renders, `${inProcess.rows[0].capture_id}.png`), Buffer.from('not really a png'));
+
+  const outDir = sheetTmpDir('df-sheet-arm-out4-');
+  const out = path.join(outDir, 'sheet.html');
+  const result = runArm(
+    `ui sheet __fixtures__/ui-spec/projects-rail.md --renders ${JSON.stringify(renders)} `
+    + `--refs ${JSON.stringify(refs)} --out ${JSON.stringify(out)}`
+  );
+  assert.strictEqual(result.status, 0, result.stderr);
+
+  const expected = sheetLib.sheetHash(sheetLib.buildSheetModel(spec, { renders, refs }));
+  assert.strictEqual(parseStdout(result).sheet_hash, expected, 'the CLI must not have its own hashing path');
+  assert.strictEqual(parseStdout(result).missing.length, 7, 'the one present render is not MISSING');
 });
