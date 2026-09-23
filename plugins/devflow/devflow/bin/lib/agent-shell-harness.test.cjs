@@ -816,4 +816,45 @@ test.describe('agent-shell-harness — the `# harness:` annotation vocabulary (A
     assert.strictEqual(prose.ok, true, 'only `# harness:` lines are directives');
   });
 
+  // X5c — the containment scanner's own bug, found by E1/E2 on real prose: `"$REPO_ROOT"/x`
+  // is a VARIABLE expansion followed by a suffix, not an absolute path. Reading the `/`
+  // after the closing quote as a path start blocks every evidence command executor.md
+  // writes — a harness that blocks the prose it was built to check verifies nothing.
+  test('Case X5c — `"$VAR"/suffix` is not an absolute path, and a real one still is', () => {
+    const root = makeRoot();
+    const ok = harness.runSection(
+      harness.splitCalls('# harness: derive REPO_ROOT={root}\n'
+        + '# harness: expect sub/ev/x.txt\n'
+        + 'mkdir -p "$REPO_ROOT"/sub/ev/ && touch "$REPO_ROOT"/sub/ev/x.txt'),
+      { root });
+    assert.deepStrictEqual(ok.findings.map(f => f.type), [],
+      'a quoted variable expansion with a path suffix is not a containment escape');
+
+    // The positive control: a genuine absolute path outside the root is STILL blocked.
+    const blocked = harness.runSection(
+      harness.splitCalls('touch /tmp/harn-x5c-marker'), { root: makeRoot() });
+    assert.ok(blocked.findings.some(f => f.type === 'containment'),
+      'the containment check must not have been loosened into uselessness');
+    assert.strictEqual(fs.existsSync('/tmp/harn-x5c-marker'), false);
+
+    // …and one inside a quoted string, which the old scanner also caught.
+    const quoted = harness.runSection(
+      harness.splitCalls('touch "/tmp/harn-x5c-quoted"'), { root: makeRoot() });
+    assert.ok(quoted.findings.some(f => f.type === 'containment'));
+  });
+
+  // E1/E2 — the claim `agents/executor.md` makes in prose ("Both sides absolute — no cd,
+  // so this command doesn't depend on cwd at all") executed from TWO starting working
+  // directories. Running it from the repo root only would prove the author's intent;
+  // running it from a package subdirectory as well is what proves the claim.
+  test('Case E1/E2 — evidence lands in the same place from the root and from a subdirectory', () => {
+    const out = factory.runEvidenceCaseFromBothCwds(harness);
+
+    assert.strictEqual(out.root.ok, true, `from the repo root: ${JSON.stringify(out.root.findings)}`);
+    assert.strictEqual(out.subdir.ok, true, `from <root>/flutter: ${JSON.stringify(out.subdir.findings)}`);
+    assert.strictEqual(out.root.landed, '.planning/objectives/34-demo/evidence/shot.png');
+    assert.strictEqual(out.root.landed, out.subdir.landed,
+      'the SAME landing path from either starting cwd — that is the whole claim');
+  });
+
 });
