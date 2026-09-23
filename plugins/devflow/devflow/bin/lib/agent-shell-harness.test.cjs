@@ -326,4 +326,42 @@ test.describe('agent-shell-harness — the runtime model (X)', () => {
       'and the work still happened inside sub/');
   });
 
+  // Case X3 — the environment half of the model. Wave 0 spent three review rounds on
+  // prose about variable persistence. This is the executable version: call 1 assigns,
+  // call 2 reads, and because each call gets `set -u` and a FRESH env the failure is
+  // REAL — bash itself says "unbound variable" — rather than simulated by the harness.
+  test('Case X3 — a $VAR set in one call is UNSET in the next, with an unbound-variable finding', () => {
+    const root = makeRoot();
+
+    const res = harness.runSection(
+      harness.splitCalls('REPO_ROOT=$(pwd)\necho "$REPO_ROOT"'), { root });
+
+    assert.strictEqual(res.ok, false, 'environment must NOT persist between calls');
+    assert.strictEqual(res.calls.length, 2);
+    assert.strictEqual(res.calls[0].status, 0, 'the assignment call itself succeeds');
+    assert.notStrictEqual(res.calls[1].status, 0, 'reading it in the NEXT call must fail');
+
+    const unset = res.calls[1].findings.find(f => f.type === 'unset-variable');
+    assert.ok(unset, `call 2 must carry an unset-variable finding: ${JSON.stringify(res.calls[1].findings)}`);
+    assert.strictEqual(unset.variable, 'REPO_ROOT', 'the finding must NAME the variable');
+    assert.ok(unset.message.includes('REPO_ROOT'));
+    assert.match(res.calls[1].stderr, /REPO_ROOT: unbound variable/,
+      'the diagnosis comes from bash, not from the harness guessing');
+  });
+
+  // Case X4 — the positive half. The same work, RE-DERIVED inside one call, passes.
+  // Without it X3 would also pass on a harness that fails everything.
+  test('Case X4 — the same work re-derived inside ONE call passes', () => {
+    const root = makeRoot();
+
+    const res = harness.runSection(
+      harness.splitCalls('REPO_ROOT=$(pwd); echo "$REPO_ROOT"'), { root });
+
+    assert.strictEqual(res.ok, true, `re-deriving in-call must pass: ${JSON.stringify(res.findings)}`);
+    assert.strictEqual(res.calls.length, 1, 'one line is one call, `;` and all');
+    assert.strictEqual(res.calls[0].status, 0);
+    assert.strictEqual(res.calls[0].stdout.trim(), root,
+      'and the value really is the working directory, captured off stdout uncorrupted');
+  });
+
 });
