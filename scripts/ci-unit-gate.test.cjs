@@ -17,7 +17,8 @@ const assert = require('node:assert');
 const path = require('path');
 
 const gate = require('./ci-unit-gate.cjs');
-const { tokenize, derivePatterns, parseJunit, loadAllowlist, evaluate, key } = gate;
+const { tokenize, derivePatterns, globToRegExp, resolveTestFiles,
+        parseJunit, loadAllowlist, evaluate, key } = gate;
 
 const REPO_ROOT = path.resolve(__dirname, '..');
 
@@ -56,11 +57,13 @@ function buildJunit(cases, { suiteName = 'suite' } = {}) {
 }
 
 /** A run object shaped like parseJunit's output, for evaluate() tests. */
-function buildRun({ total = 5000, fileCount = 200, failing = [] } = {}) {
+function buildRun({ total = 5000, fileCount = 200, failing = [], nameCounts } = {}) {
   const files = new Set();
   for (let i = 0; i < fileCount; i++) files.add(`plugins/devflow/f${i}.test.cjs`);
   for (const f of failing) files.add(f.file);
-  return { total, failures: failing.length, skipped: 0, files, failing };
+  const counts = new Map(nameCounts || []);
+  for (const f of failing) if (!counts.has(f.test)) counts.set(f.test, 1);
+  return { total, failures: failing.length, skipped: 0, files, nameCounts: counts, failing };
 }
 
 function buildEntry(over = {}) {
@@ -280,10 +283,19 @@ test('EV-3 a run below the test floor fails even with no failures', () => {
   assert.match(r.errors.join('\n'), /Only 12 tests ran/);
 });
 
-test('EV-4 a run below the FILE floor fails — one file matching is not the suite', () => {
-  const r = evaluate(buildRun({ total: 5000, fileCount: 1 }), [], { minTests: 3000, minTestFiles: 100 });
+test('EV-4 patterns resolving to too FEW files fails, whatever the reporter says', () => {
+  // The floor is computed from the patterns by the gate itself, because node 22's
+  // junit reporter reports no file attribution at all.
+  const r = evaluate(buildRun({ total: 5000 }), [], { minTests: 3000, minTestFiles: 100, matchedFiles: 1 });
   assert.ok(!r.ok);
-  assert.match(r.errors.join('\n'), /distinct test files/);
+  assert.match(r.errors.join('\n'), /resolve to only 1 file/);
+});
+
+test('EV-4b a reporter that omits file attribution entirely does NOT fail the gate', () => {
+  // node 22 emits no testcase file=. The glob floor is what carries the weight.
+  const run = buildRun({ total: 5000, fileCount: 0 });
+  const r = evaluate(run, [], { minTests: 3000, minTestFiles: 100, matchedFiles: 120 });
+  assert.ok(r.ok, r.errors.join('\n'));
 });
 
 test('EV-5 an undeclared failure fails the gate (regression)', () => {
@@ -309,18 +321,32 @@ test('EV-7 RATCHET: a declared failure that PASSED fails the gate until the entr
   assert.match(r.errors.join('\n'), /may only shrink/);
 });
 
-test('EV-8 matching is by file AND name — the same name in another file is a regression', () => {
+test('EV-8 the recorded file is checked when the runner reports one', () => {
+  // Keys are names, but the documentary `file` must not rot into a lie.
   const failing = [{ file: 'plugins/devflow/OTHER.test.cjs', test: 'boom', message: '' }];
   const entries = [buildEntry({ file: 'plugins/devflow/a.test.cjs', test: 'boom' })];
   const r = evaluate(buildRun({ failing }), entries);
   assert.ok(!r.ok);
-  // Both halves fire: an unexpected failure AND a now-stale entry.
-  assert.match(r.errors.join('\n'), /NOT in \.github/);
-  assert.match(r.errors.join('\n'), /PASSED this run/);
+  assert.match(r.errors.join('\n'), /records file "plugins\/devflow\/a\.test\.cjs"/);
 });
 
-test('EV-9 key() is file::test', () => {
-  assert.strictEqual(key('a.test.cjs', 'T1'), 'a.test.cjs::T1');
+test('EV-8b when the runner reports NO file, the entry is still honoured', () => {
+  const failing = [{ file: '<unknown>', test: 'boom', message: '' }];
+  const entries = [buildEntry({ file: 'plugins/devflow/a.test.cjs', test: 'boom' })];
+  const r = evaluate(buildRun({ failing }), entries, { matchedFiles: 120 });
+  assert.ok(r.ok, r.errors.join('\n'));
+});
+
+test('EV-8c an AMBIGUOUS allowlisted name fails the gate rather than licensing two tests', () => {
+  const failing = [{ file: 'plugins/devflow/a.test.cjs', test: 'boom', message: '' }];
+  const entries = [buildEntry({ file: 'plugins/devflow/a.test.cjs', test: 'boom' })];
+  const r = evaluate(buildRun({ failing, nameCounts: [['boom', 2]] }), entries);
+  assert.ok(!r.ok);
+  assert.match(r.errors.join('\n'), /match MORE THAN ONE test/);
+});
+
+test('EV-9 key() is the test name — identical on every node version', () => {
+  assert.strictEqual(key('T1'), 'T1');
 });
 
 test('EV-10 several undeclared failures are all reported, not just the first', () => {
@@ -393,7 +419,47 @@ test('PJR-3 differential: parseJunit agrees with node\'s own per-suite tests= co
   assert.ok(nodeTotal > 0, 'the oracle itself must be non-zero');
   assert.strictEqual(r.total, nodeTotal,
     `parseJunit counted ${r.total}, node's own testsuite tests= sum is ${nodeTotal}`);
-  assert.deepStrictEqual([...r.files].sort(), files.slice().sort());
+  // File attribution is version-dependent: node 25 emits testcase file=, node 22
+  // does not. Assert it only where the runner actually provides it — this is
+  // exactly why allowlist keys are names, not file::name.
+  if (r.files.size > 0) {
+    assert.deepStrictEqual([...r.files].sort(), files.slice().sort());
+  }
+});
+
+// ─── Group GL — pattern globbing (the reporter-independent floor) ────────────
+
+test('GL-1 "**/" matches zero or more directory segments', () => {
+  const re = globToRegExp('plugins/devflow/**/*.test.cjs');
+  assert.ok(re.test('plugins/devflow/a.test.cjs'), 'zero segments');
+  assert.ok(re.test('plugins/devflow/bin/lib/a.test.cjs'), 'several segments');
+  assert.ok(!re.test('plugins/other/a.test.cjs'));
+  assert.ok(!re.test('plugins/devflow/a.cjs'));
+});
+
+test('GL-2 "*" does not cross a path separator', () => {
+  const re = globToRegExp('scripts/*.test.cjs');
+  assert.ok(re.test('scripts/x.test.cjs'));
+  assert.ok(!re.test('scripts/deep/x.test.cjs'));
+});
+
+test('GL-3 regex metacharacters in a pattern are literal', () => {
+  const re = globToRegExp('a+b/c.test.cjs');
+  assert.ok(re.test('a+b/c.test.cjs'));
+  assert.ok(!re.test('aab/cXtest.cjs'));
+});
+
+test('GL-4 resolveTestFiles finds this repo\'s suite and includes this very file', () => {
+  const pkg = require(path.join(REPO_ROOT, 'package.json'));
+  const found = resolveTestFiles(derivePatterns(pkg.scripts.test));
+  assert.ok(found.length >= 100, `expected >=100 test files, found ${found.length}`);
+  assert.ok(found.includes('scripts/ci-unit-gate.test.cjs'),
+    'the gate\'s own tests must be inside npm test');
+  assert.ok(!found.some((f) => f.startsWith('node_modules/')), 'node_modules must not be walked');
+});
+
+test('GL-5 a pattern that matches nothing resolves to an empty list, not a throw', () => {
+  assert.deepStrictEqual(resolveTestFiles(['nope/**/*.test.cjs']), []);
 });
 
 // ─── Group QR — bounded quarantine (nondeterministic entries) ────────────────

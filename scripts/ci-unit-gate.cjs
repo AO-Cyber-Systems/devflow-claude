@@ -58,6 +58,66 @@ const ALLOWLIST_PATH = path.join(REPO_ROOT, '.github', 'known-test-failures.json
 const BANNED_REASON_WORDS = /\b(flak\w*|intermittent\w*|sometimes\s+fails|unstable)\b/i;
 const MIN_REASON_CHARS = 40;
 
+// Directories never worth walking when resolving test-file patterns.
+const GLOB_SKIP_DIRS = new Set(['node_modules', '.git', '.github', 'site', 'dist', 'build']);
+
+// ─── pattern globbing (reporter-independent) ─────────────────────────────────
+
+/**
+ * Turn a simple glob into an anchored regex. Supports the two constructs this
+ * repo's `scripts.test` actually uses: `**` (any number of path segments) and
+ * `*` (any run of characters within one segment).
+ *
+ * Deliberately NOT fs.globSync: the floors below must mean the same thing on
+ * every node version CI might ever use, and globSync's availability and
+ * semantics have moved between releases.
+ */
+function globToRegExp(pattern) {
+  let re = '';
+  for (let i = 0; i < pattern.length; i++) {
+    const ch = pattern[i];
+    if (ch === '*') {
+      if (pattern[i + 1] === '*') {
+        // `**/` swallows zero or more directory segments; a bare `**` any chars.
+        if (pattern[i + 2] === '/') { re += '(?:[^/]+/)*'; i += 2; }
+        else { re += '.*'; i += 1; }
+      } else {
+        re += '[^/]*';
+      }
+      continue;
+    }
+    re += ch.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
+  }
+  return new RegExp(`^${re}$`);
+}
+
+/**
+ * Every repo-relative file matching any of `patterns`. This is what makes the
+ * "did the selection match anything" floor independent of what the test
+ * reporter chooses to tell us — node 22's junit reporter, for one, omits the
+ * `file` attribute entirely.
+ */
+function resolveTestFiles(patterns, root = REPO_ROOT) {
+  const regexes = patterns.map(globToRegExp);
+  const out = new Set();
+  const walk = (dir) => {
+    let entries;
+    try { entries = fs.readdirSync(path.join(root, dir), { withFileTypes: true }); }
+    catch { return; }
+    for (const e of entries) {
+      const rel = dir ? `${dir}/${e.name}` : e.name;
+      if (e.isDirectory()) {
+        if (GLOB_SKIP_DIRS.has(e.name)) continue;
+        walk(rel);
+      } else if (regexes.some((r) => r.test(rel))) {
+        out.add(rel);
+      }
+    }
+  };
+  walk('');
+  return [...out].sort();
+}
+
 // ─── package.json → test patterns ────────────────────────────────────────────
 
 /**
@@ -167,12 +227,21 @@ function findTagEnd(xml, start) {
 /**
  * Parse node's `--test-reporter=junit` output.
  *
- * Returns { total, failures, skipped, files:Set, failing:[{file,test,message}] }.
+ * Returns { total, failures, skipped, files:Set, nameCounts:Map, failing:[…] }.
  * `total` counts leaf <testcase> elements; suites are not counted, so a failing
  * test is never double-reported through its parent describe().
+ *
+ * `files` is best-effort and may be EMPTY: node 22's junit reporter does not
+ * emit a `file` attribute at all, while node 25's does. Nothing load-bearing
+ * may depend on it — see `resolveTestFiles` for the floor that does not.
+ * `nameCounts` exists because allowlist entries are keyed by test NAME (the
+ * only key that is identical on every node version), so the gate has to be able
+ * to prove a name it is about to license is unambiguous.
  */
 function parseJunit(xml) {
-  const result = { total: 0, failures: 0, skipped: 0, files: new Set(), failing: [] };
+  const result = {
+    total: 0, failures: 0, skipped: 0, files: new Set(), nameCounts: new Map(), failing: [],
+  };
   const OPEN = '<testcase';
   const CLOSE = '</testcase>';
   let cursor = 0;
@@ -197,6 +266,7 @@ function parseJunit(xml) {
       ? path.relative(REPO_ROOT, path.resolve(fileAbs))
       : '<unknown>';
     result.total += 1;
+    result.nameCounts.set(name, (result.nameCounts.get(name) || 0) + 1);
     if (file !== '<unknown>') result.files.add(file);
     if (/<skipped\b/.test(body)) { result.skipped += 1; continue; }
     const fail = body.match(/<(failure|error)\b([^>]*)/);
@@ -214,7 +284,23 @@ function parseJunit(xml) {
 
 // ─── allowlist ───────────────────────────────────────────────────────────────
 
-function key(file, test) { return `${file}::${test}`; }
+/**
+ * The allowlist key is the test NAME, and only the name.
+ *
+ * The obvious key is `file::name`, and the first cut of this gate used it —
+ * until CI proved it unusable: node 22's junit reporter emits no `file`
+ * attribute, node 25's does. A key that resolves differently on a developer's
+ * machine and on the runner is a trap, not a key: the list would appear to
+ * shrink locally and silently fail to match in CI. The name is identical on
+ * every version.
+ *
+ * The cost of a name key is ambiguity, and that is paid for explicitly:
+ * `evaluate` fails the gate when a licensed name matches more than one test in
+ * the run, so a name can never quietly license a second test. `file` stays on
+ * each entry for the reader, and is cross-checked whenever the runner is
+ * generous enough to report it.
+ */
+function key(test) { return test; }
 
 function loadAllowlist(raw) {
   let parsed;
@@ -270,7 +356,7 @@ function loadAllowlist(raw) {
       );
     }
 
-    const k = key(e.file, e.test);
+    const k = key(e.test);
     if (seen.has(k)) problems.push(`${where}: duplicate entry for ${k}`);
     seen.add(k);
   }
@@ -289,41 +375,72 @@ function loadAllowlist(raw) {
 function evaluate(run, entries, opts = {}) {
   const minTests = opts.minTests ?? MIN_TESTS;
   const minFiles = opts.minTestFiles ?? MIN_TEST_FILES;
+  // Files the PATTERNS resolve to, counted by the gate itself. Independent of
+  // whatever the reporter feels like telling us about file attribution.
+  const matchedFiles = opts.matchedFiles ?? null;
   const errors = [];
 
   // Guard 1 — the run must have actually run.
+  if (matchedFiles !== null && matchedFiles < minFiles) {
+    errors.push(
+      `The test-file patterns in package.json scripts.test resolve to only ` +
+      `${matchedFiles} file(s); the floor is ${minFiles}. \`node --test\` exits 0 ` +
+      `when its patterns match nothing, so a shrunken selection is a green tick ` +
+      `over a suite that was never run.`
+    );
+  }
   if (run.total === 0) {
     errors.push(
       'The test runner reported ZERO tests. `node --test` exits 0 when its file ' +
       'patterns match nothing, so this would otherwise be a green tick over an ' +
       'empty run. Check the patterns in package.json scripts.test.'
     );
-  } else {
-    if (run.total < minTests) {
-      errors.push(
-        `Only ${run.total} tests ran; the floor is ${minTests}. Either the file ` +
-        `patterns stopped matching part of the suite, or a whole file failed to ` +
-        `load. This is not a pass.`
-      );
-    }
-    if (run.files.size < minFiles) {
-      errors.push(
-        `Only ${run.files.size} distinct test files were observed; the floor is ` +
-        `${minFiles}. See above — a shrinking file count means the selection broke.`
-      );
-    }
+  } else if (run.total < minTests) {
+    errors.push(
+      `Only ${run.total} tests ran; the floor is ${minTests}. Either the file ` +
+      `patterns stopped matching part of the suite, or a whole file failed to ` +
+      `load. This is not a pass.`
+    );
   }
 
-  const allowed = new Map(entries.map((e) => [key(e.file, e.test), e]));
-  const failedKeys = new Set(run.failing.map((f) => key(f.file, f.test)));
+  const allowed = new Map(entries.map((e) => [key(e.test), e]));
+  const failedKeys = new Set(run.failing.map((f) => key(f.test)));
 
   // Guard 2 — regressions: a failure nobody wrote down.
-  const unexpected = run.failing.filter((f) => !allowed.has(key(f.file, f.test)));
+  const unexpected = run.failing.filter((f) => !allowed.has(key(f.test)));
   if (unexpected.length) {
     errors.push(
       `${unexpected.length} test(s) failed that are NOT in .github/known-test-failures.json:\n` +
       unexpected.map((f) => `    ✖ ${f.file}\n        ${f.test}\n        ${f.message}`).join('\n')
     );
+  }
+
+  // Guard 2b — the price of keying on the name alone. A licensed name that
+  // matches two tests would silently extend the licence to a test nobody
+  // reviewed; refuse rather than guess which one was meant.
+  if (run.nameCounts) {
+    const ambiguous = [...allowed.keys()].filter((k) => (run.nameCounts.get(k) || 0) > 1);
+    if (ambiguous.length) {
+      errors.push(
+        `${ambiguous.length} allowlisted test name(s) match MORE THAN ONE test in this run.\n` +
+        `    Entries are keyed by name, so this would license tests nobody reviewed.\n` +
+        `    Rename the tests to be unique, then update the entry.\n` +
+        ambiguous.map((k) => `    ⚠ ${k} (${run.nameCounts.get(k)} matches)`).join('\n')
+      );
+    }
+  }
+
+  // Guard 2c — the documentary `file` on each entry is checked whenever the
+  // runner reports file attribution (node 25 does, node 22 does not), so it
+  // cannot quietly rot into a lie about where the test lives.
+  for (const f of run.failing) {
+    const e = allowed.get(key(f.test));
+    if (e && f.file && f.file !== '<unknown>' && e.file !== f.file) {
+      errors.push(
+        `Allowlist entry for "${f.test}" records file "${e.file}", but the runner ` +
+        `reports it in "${f.file}". Correct the entry.`
+      );
+    }
   }
 
   // Guard 3 — the ratchet: an entry that passed must be deleted, not left to rot.
@@ -350,7 +467,7 @@ function evaluate(run, entries, opts = {}) {
     errors.push(
       `${expired.length} quarantine entr(ies) in .github/known-test-failures.json have EXPIRED.\n` +
       `    Fix the underlying defect, or re-justify and extend with a dated note — do not just bump the date.\n` +
-      expired.map((e) => `    ⏰ ${key(e.file, e.test)} (expired ${e.expires}, tracking ${e.tracking})`).join('\n')
+      expired.map((e) => `    ⏰ ${key(e.test)} (expired ${e.expires}, tracking ${e.tracking})`).join('\n')
     );
   }
 
@@ -370,7 +487,13 @@ function main() {
     'results.xml'
   );
 
+  // Resolve the patterns here, before running anything. This is the guard that
+  // does not depend on the reporter: if the selection has collapsed, say so with
+  // the number, rather than letting an empty run exit 0.
+  const matched = resolveTestFiles(patterns);
+
   console.log(`[ci-unit-gate] patterns from package.json scripts.test: ${patterns.join(' ')}`);
+  console.log(`[ci-unit-gate] patterns resolve to ${matched.length} test file(s) (floor ${MIN_TEST_FILES})`);
   console.log(`[ci-unit-gate] known-failure entries: ${entries.length}`);
   console.log('[ci-unit-gate] running the suite…\n');
 
@@ -391,8 +514,17 @@ function main() {
     '--test-reporter=junit', `--test-reporter-destination=${junitPath}`,
     ...patterns,
   ];
+  // A wall-clock ceiling on the WHOLE run, on top of the per-test one above.
+  // --test-timeout is not enough: handoff-e2e.test.cjs has been observed to leak
+  // a devflow-watch daemon whose surviving handles stop node exiting the file, so
+  // the per-test timeout fires and the runner still never returns (issue #93).
+  // Without this, that wedge burns the job's entire budget and reports as an
+  // unattributable GitHub-level timeout with no test output at all.
+  const SUITE_TIMEOUT_MS = 22 * 60 * 1000;
   const child = spawnSync(process.execPath, args, {
     cwd: REPO_ROOT,
+    timeout: SUITE_TIMEOUT_MS,
+    killSignal: 'SIGKILL',
     stdio: ['ignore', 'inherit', 'inherit'],
     // NODE_TEST_* is set inside a process that is itself running a test file.
     // Inherited, it makes the child emit node's internal child-process protocol
@@ -405,6 +537,17 @@ function main() {
     },
   });
 
+  if (child.signal === 'SIGKILL' || (child.error && child.error.code === 'ETIMEDOUT')) {
+    console.error(
+      `\n[ci-unit-gate] FAIL — the suite did not finish within ` +
+      `${SUITE_TIMEOUT_MS / 60000} minutes and was killed.\n` +
+      `  This is not a slow suite; it is the known wedge in issue #93 — ` +
+      `handoff-e2e.test.cjs leaks a devflow-watch daemon whose open handles stop ` +
+      `node exiting that file, and the per-test --test-timeout cannot reach it.\n` +
+      `  The spec output above ends at the last file that completed; that is where to look.`
+    );
+    process.exit(1);
+  }
   if (child.error) {
     console.error(`[ci-unit-gate] FAIL — could not run the suite: ${child.error.message}`);
     process.exit(1);
@@ -427,16 +570,19 @@ function main() {
   }
 
   const run = parseJunit(xml);
-  const { ok, errors } = evaluate(run, entries);
+  const { ok, errors } = evaluate(run, entries, { matchedFiles: matched.length });
 
   console.log('\n[ci-unit-gate] ───────────────────────────────────────────────');
   console.log(`[ci-unit-gate] tests: ${run.total}  failures: ${run.failures}  ` +
-              `skipped: ${run.skipped}  files: ${run.files.size}`);
+              `skipped: ${run.skipped}`);
+  console.log(`[ci-unit-gate] files: ${matched.length} selected by the patterns; ` +
+              `${run.files.size} attributed by the reporter` +
+              (run.files.size === 0 ? ' (this node version omits testcase file=)' : ''));
   console.log(`[ci-unit-gate] runner exit: ${child.status}${child.signal ? ` (signal ${child.signal})` : ''}`);
 
   if (run.failing.length) {
     console.log('[ci-unit-gate] failing tests observed:');
-    for (const f of run.failing) console.log(`    ✖ ${f.file}::${f.test}`);
+    for (const f of run.failing) console.log(`    \u2716 ${f.test}\n        (${f.file}) ${f.message}`);
   }
 
   if (!ok) {
@@ -449,7 +595,8 @@ function main() {
   process.exit(0);
 }
 
-module.exports = { tokenize, derivePatterns, parseJunit, loadAllowlist, evaluate, key,
+module.exports = { tokenize, derivePatterns, globToRegExp, resolveTestFiles,
+                   parseJunit, loadAllowlist, evaluate, key,
                    MIN_TESTS, MIN_TEST_FILES, MIN_REASON_CHARS };
 
 if (require.main === module) {

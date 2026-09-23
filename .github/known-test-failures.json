@@ -1,6 +1,6 @@
 {
   "$consumed-by": "scripts/ci-unit-gate.cjs",
-  "$what-an-entry-is": "A licence for ONE test, keyed by <repo-relative file>::<test name>, to fail without failing CI.",
+  "$what-an-entry-is": "A licence for ONE test, keyed by its TEST NAME, to fail without failing CI.",
   "$rules": [
     "A failure that is NOT on this list fails the gate. That is the whole point of the gate.",
     "The list may only SHRINK. If a listed test PASSES, the gate fails until the entry is deleted — so a fix and its deletion land in the same PR.",
@@ -8,12 +8,13 @@
     "A test that is genuinely nondeterministic cannot satisfy the shrink-only ratchet, so it may set \"nondeterministic\": true to opt out of it. That is a bigger licence and costs more: such an entry MUST carry \"tracking\" (the issue where the defect is being fixed) and \"expires\" (an ISO date after which the gate fails). A quarantine with no meter is a parking space."
   ],
   "$fields": {
-    "file": "repo-relative path of the test file",
-    "test": "the test name exactly as the runner reports it",
+    "test": "the test name exactly as the runner reports it — this is the key",
+    "file": "repo-relative path, for the reader; cross-checked whenever the runner reports file attribution",
     "reason": "the mechanism — at least 40 characters, and not the word 'flaky'",
     "nondeterministic": "optional; true opts the entry out of the shrink-only ratchet",
     "tracking": "required when nondeterministic — the issue tracking the fix",
     "expires": "required when nondeterministic — ISO date after which this entry fails the gate"
   },
-  "entries": []
+  "entries": [],
+  "$why-the-key-is-the-name": "Not file::name, which was the first design. node 22's junit reporter emits no testcase file attribute and node 25's does, so a file-based key resolves differently on a developer's machine and on the runner — the list would appear to shrink locally and silently fail to match in CI. The name is identical on every version. The cost is ambiguity, and it is paid explicitly: the gate FAILS when a listed name matches more than one test in the run."
 }
