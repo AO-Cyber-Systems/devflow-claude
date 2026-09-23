@@ -213,3 +213,36 @@ test('Case Y7 — comments: full-line and trailing are stripped; inside quotes a
     must_show: ['#1 priority']
   });
 });
+
+// ─── Refusals — the load-bearing half ─────────────────────────────────────────
+//
+// A refusal case that throws the wrong error type is green and worthless. Every case below
+// asserts `err.name === 'YamlLiteError'` AND a NUMERIC `err.line`, never `assert.throws(fn)`
+// alone — a TypeError from deep inside the builder would satisfy the latter and prove nothing.
+
+function refuses(yaml, { line, match }) {
+  let thrown = null;
+  try {
+    parseYamlLite(yaml);
+  } catch (err) {
+    thrown = err;
+  }
+  assert.ok(thrown, `expected parseYamlLite to throw, got a value instead`);
+  assert.strictEqual(thrown.name, 'YamlLiteError', `expected a YamlLiteError, got ${thrown.name}: ${thrown.message}`);
+  assert.ok(thrown instanceof YamlLiteError, 'expected an instance of the exported YamlLiteError');
+  assert.strictEqual(typeof thrown.line, 'number', '.line must be a NUMBER, not only text in the message');
+  assert.strictEqual(thrown.line, line);
+  assert.match(thrown.message, match);
+  return thrown;
+}
+
+test('Case Y8 — anchors, aliases and the merge key are refused', () => {
+  refuses('base: &b {x: 1}\n', { line: 1, match: /anchor/i });
+
+  refuses(['surface: rail', 'copy: *b', ''].join('\n'), { line: 2, match: /alias|anchor/i });
+
+  refuses(
+    ['defaults: {x: 1}', 'states:', '  <<: *defaults', '  extra: 2', ''].join('\n'),
+    { line: 3, match: /merge key/i }
+  );
+});
