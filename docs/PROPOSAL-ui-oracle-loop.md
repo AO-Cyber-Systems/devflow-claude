@@ -160,10 +160,14 @@ controls:
     must_not: ["select the project", "change route"]
     hit_rect:
       max: "40x40"                    # an upper bound the probe asserts, not a layout instruction
-      within: rail.project.header     # sits inside the header's area but MUST own its hit target —
-                                      # the declarable form of the aodex#544 defect, where the
-                                      # chevron's semantics node spanned the whole 360px row
-      disjoint_from: [rail.project.header]
+      disjoint_from: [rail.project.header]   # reciprocal with the header above. This pair IS the
+                                      # declarable form of the aodex#544 defect, where the
+                                      # chevron's semantics node spanned the whole 360px row and
+                                      # swallowed every click meant for the header.
+                                      # Note what is NOT written here: `within: rail.project.header`.
+                                      # The chevron sits inside the header's visual row, but I6
+                                      # forbids naming the same control in `within` and
+                                      # `disjoint_from` — see §4.5 I6.
 
 states:
   - id: populated
@@ -208,7 +212,7 @@ scope_rules:
   - {on: project-move,     invalidate: [project-pane, project-count-badge]}
 
 acceptance:
-  locked_sheet: "sha256:9f2c1b7e4a6d0835c1e9b4f7a2d6c8e013b5a7f9d2c4e6081a3b5c7d9e1f3a5b7"
+  locked_sheet: "sha256:9f2c1b7e4a6d0835c1e9b4f7a2d6c8e013b5a7f9d2c4e6081a3b5c7d9e1f3a5b"
   locked_by: mark@aocyber.ai
   locked_at: 2026-09-18
 ```
@@ -258,7 +262,12 @@ equality.
 6. every `hit_rect.disjoint_from` entry resolves to a control in this spec, is reciprocal (both
    controls name each other) and never names its own control; a `hit_rect.within` entry resolves
    and does not also appear in that control's `disjoint_from` — a control cannot be both inside
-   another's area and disjoint from it. **Overlap itself is not statically checkable and is not
+   another's area and disjoint from it. The two keys answer different questions and are never
+   two views of one relationship: `within` names the **container** a control must not escape
+   (a card, a row, a toolbar — usually not itself an activation target), while `disjoint_from`
+   names the **sibling activation targets** whose rects it must not touch. A control nested in
+   a row alongside a peer declares `within: <the row>` and `disjoint_from: [<the peer>]`, never
+   `within` and `disjoint_from` against the same id. **Overlap itself is not statically checkable and is not
    checked here**: the spec declares intent, the probe measures rects (§7.5 `disjoint`,
    `hit-target`, `within`);
 7. every `flow` step references existing controls and routes and ends in a `back` or a declared
