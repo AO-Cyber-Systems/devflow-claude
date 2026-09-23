@@ -118,3 +118,119 @@ test('Case P4 — BOM, CRLF, and a markdown `---` rule inside the prose body', (
     '\nIntro paragraph.\n\n---\n\nA markdown horizontal rule is NOT a front-matter terminator.\n'
   );
 });
+
+// ─── F: the positive control ──────────────────────────────────────────────────
+//
+// `__fixtures__/ui-spec/projects-rail.md` is a hand transcription of proposal §4.2 (AMENDED
+// text — see the fixture's own header for the three normalisations the amendment made
+// unnecessary and the one transcription choice that remains). It is this objective's positive
+// control: 34-03, 34-04, 34-05, 34-06 and 34-07 all assert against it. If it is wrong, five
+// TRDs go green against a wrong artifact — so its shape is pinned here, field by field.
+
+const fs = require('node:fs');
+const path = require('node:path');
+
+const FIXTURE_PATH = path.join(__dirname, '__fixtures__', 'ui-spec', 'projects-rail.md');
+
+function loadFixture() {
+  return parseSurfaceSpec(fs.readFileSync(FIXTURE_PATH, 'utf-8'), { source: FIXTURE_PATH });
+}
+
+test('Case F1 — the projects-rail fixture parses without throwing', () => {
+  const spec = loadFixture();
+  assert.strictEqual(typeof spec.frontMatter, 'object');
+  assert.notStrictEqual(spec.frontMatter, null);
+  // The body carries the transcription note plus Intent and Walkthrough (§4.2 closing note).
+  assert.match(spec.body, /## Intent/);
+  assert.match(spec.body, /## Walkthrough/);
+});
+
+test('Case F2 — its shape: 2 routes, 2 controls, 3 header behaviours, 8 states, 3 flow steps', () => {
+  const f = loadFixture().frontMatter;
+
+  assert.strictEqual(f.surface, 'projects-rail');
+  assert.strictEqual(f.routes.length, 2);
+  assert.strictEqual(f.controls.length, 2);
+  assert.strictEqual(f.controls[0].id, 'rail.project.header');
+  assert.strictEqual(f.controls[1].id, 'rail.project.chevron');
+  assert.strictEqual(f.controls[0].behaviors.length, 3);
+
+  // 34-05's capture list and 34-06's sheet rows are ordered by THIS array.
+  assert.deepStrictEqual(
+    f.states.map((s) => s.id),
+    ['populated', 'long-content', 'empty', 'error', 'outage', 'guard-denied', 'narrow', 'dark']
+  );
+
+  assert.strictEqual(f.flows[0].steps.length, 3);
+  assert.strictEqual(f.acceptance.locked_by, 'mark@aocyber.ai');
+
+  // I2 ("every route has a back or is the declared root") needs a root to point at.
+  assert.strictEqual(f.routes[0].id, 'project.conversations');
+  assert.strictEqual(f.routes[0].back.target, 'conversations.all');
+  assert.strictEqual(f.routes[1].id, 'conversations.all');
+  assert.strictEqual(f.routes[1].root, true);
+});
+
+test('Case F3 — the amended §4.2 constructs survive transcription (activation map, block states, hit_rect pair)', () => {
+  const f = loadFixture().frontMatter;
+
+  // Amended §4.2: `activation` is a MAP, not the list form yaml-lite refuses (34-01 Y11b).
+  assert.deepStrictEqual(f.controls[0].activation, {
+    pointer: true,
+    keyboard: ['Enter', 'Space']
+  });
+
+  // Amended §4.2: `narrow` and `dark` use BLOCK syntax, so their keys are real keys — not a
+  // string that happens to look like a map.
+  const narrow = f.states.find((s) => s.id === 'narrow');
+  assert.deepStrictEqual(narrow, {
+    id: 'narrow',
+    viewport: '390x844',
+    seed: 'projects-3-conversations-12'
+  });
+  const dark = f.states.find((s) => s.id === 'dark');
+  assert.deepStrictEqual(dark, {
+    id: 'dark',
+    theme: 'dark',
+    seed: 'projects-3-conversations-12'
+  });
+
+  // Amended §4.2 / the I6 ruling: the reciprocal disjoint_from pair, plus `within` and `max`
+  // on the chevron. 34-04's I6 asserts resolvability, reciprocity and non-self-reference
+  // against exactly this.
+  assert.deepStrictEqual(f.controls[0].hit_rect, {
+    disjoint_from: ['rail.project.chevron']
+  });
+  assert.deepStrictEqual(f.controls[1].hit_rect, {
+    max: '40x40',
+    within: 'rail.project.header',
+    disjoint_from: ['rail.project.header']
+  });
+
+  // Amended §4.2: locked_sheet is a quoted full digest, not a bare `sha256:...` truncation.
+  assert.strictEqual(
+    f.acceptance.locked_sheet,
+    'sha256:9f2c1b7e4a6d0835c1e9b4f7a2d6c8e013b5a7f9d2c4e6081a3b5c7d9e1f3a5b7'
+  );
+});
+
+test('Case F4 — the scalars yaml-lite is most likely to get wrong, on the REAL fixture', () => {
+  const f = loadFixture().frontMatter;
+
+  // A colon inside a bare scalar is CONTENT, not a key separator.
+  assert.strictEqual(f.routes[0].path, '/projects/:id/conversations');
+  // Quoted braces stay a string; the braces are a placeholder, not a flow map.
+  assert.strictEqual(f.routes[0].title, '{project.name}');
+
+  const empty = f.states.find((s) => s.id === 'empty');
+  assert.deepStrictEqual(empty.content.must_not_show, ['unavailable', 'error']);
+
+  // `null` is the YAML null, not the string 'null' — §4.2 spells the alternative as a map.
+  assert.strictEqual(f.controls[0].disabled_when, null);
+
+  // §4.4 / I4: outage.must_show and empty.must_show must be DISJOINT. Pinned on the fixture so
+  // the positive control cannot drift into violating the invariant 34-03 enforces.
+  const outage = f.states.find((s) => s.id === 'outage');
+  const overlap = outage.content.must_show.filter((t) => empty.content.must_show.includes(t));
+  assert.deepStrictEqual(overlap, []);
+});
