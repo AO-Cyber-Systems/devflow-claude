@@ -89,6 +89,16 @@ function readQuoted(s, line) {
 // Blank lines and full-line comments are dropped, but `line` keeps the ORIGINAL 1-based number
 // so every error points at the real file.
 
+// A key is taken verbatim unless it is quoted, in which case it is the quoted contents:
+// `"a b": 1` is the key 'a b', not '"a b"'. Block and flow mappings share this so the two
+// spellings of the same key can never disagree.
+function parseKey(rawKey, line) {
+  const raw = rawKey.trim();
+  const quote = raw.charAt(0);
+  if (quote === '"' || quote === "'") return parseScalar(raw, line);
+  return raw;
+}
+
 function isSpace(c) {
   return c === ' ' || c === '\t';
 }
@@ -117,7 +127,7 @@ function splitKeyValue(body, line) {
     if (masked[i] === '#' && isSpace(masked[i - 1])) { end = i; break; }
   }
   return {
-    key: keyEnd < 0 ? null : body.slice(0, keyEnd).trim(),
+    key: keyEnd < 0 ? null : parseKey(body.slice(0, keyEnd), line),
     value: body.slice(start, end).replace(/\s+$/, ''),
     // The masked, comment-free code region of this line. Every refusal pattern is matched
     // against THIS, so `title: "a & b"` is not mistaken for an anchor and a `# &x` comment
@@ -132,6 +142,13 @@ function splitLine(content, indent, line) {
   const m = /^-( +|$)/.exec(content);
   if (m) { dash = true; off = m[0].length; }
   const body = content.slice(off);
+  if (dash && /^-( |$)/.test(body)) {
+    throw new YamlLiteError(
+      'a nested inline block sequence (`- - x`) is not supported by yaml-lite; '
+        + 'indent the inner list on its own lines, or write it as a flow list (`- [x, y]`)',
+      line
+    );
+  }
   const kv = splitKeyValue(body, line);
   // A block-list item `- id: x` opens a mapping whose column is the column of the character
   // AFTER `- `, not the column of `-`. Continuation keys align to that column.
@@ -150,8 +167,15 @@ const ANCHOR_RE = /(^|\s)&[A-Za-z0-9_-]+/;
 const ALIAS_RE = /(^|\s)\*[A-Za-z0-9_-]+/;
 const BLOCK_SCALAR_RE = /:\s*[|>][-+0-9]*\s*$/;
 const TAG_RE = /(^|\s)!!?[A-Za-z]/;
+const EXPLICIT_KEY_RE = /^\?(\s|$)/;
 
 function refuse(code, line) {
+  if (EXPLICIT_KEY_RE.test(code.trim())) {
+    throw new YamlLiteError(
+      'an explicit key (`? key` / `: value`) is not supported by yaml-lite; use `key: value`',
+      line
+    );
+  }
   if (MERGE_KEY_RE.test(code.trim())) {
     throw new YamlLiteError(
       'the merge key `<<:` is not supported by yaml-lite; write the merged keys out in full',
@@ -192,6 +216,13 @@ function tokenise(text) {
     const trimmed = raw.trim();
     if (trimmed === '') continue;
     if (trimmed.charAt(0) === '#') continue;
+    if (trimmed === '---' || trimmed === '...') {
+      throw new YamlLiteError(
+        'a document marker (`---` / `...`) is not supported by yaml-lite; it parses one '
+          + 'document, and front-matter fences are stripped before it is called',
+        i + 1
+      );
+    }
     if (/^ *\t/.test(raw)) {
       throw new YamlLiteError(
         'tab indentation is not supported by yaml-lite; indent with two spaces per level',
@@ -245,7 +276,7 @@ function splitFlowPair(el, line) {
     if (c === '[' || c === '{') depth++;
     else if (c === ']' || c === '}') depth--;
     else if (c === ':' && depth === 0 && (i + 1 >= masked.length || masked[i + 1] === ' ')) {
-      return { key: parseScalar(el.slice(0, i), line), value: el.slice(i + 1).trim() };
+      return { key: parseKey(el.slice(0, i), line), value: el.slice(i + 1).trim() };
     }
   }
   throw new YamlLiteError('expected `key: value` inside a flow mapping', line);
@@ -426,6 +457,14 @@ function buildSeq(tokens, start, indent) {
 function parseYamlLite(text) {
   const tokens = tokenise(text);
   if (tokens.length === 0) return null;
+  const first = tokens[0];
+  if (!first.dash && first.key === null) {
+    throw new YamlLiteError(
+      'the top level of a yaml-lite document must be a block mapping (`key: value`) or a '
+        + 'block sequence (`- item`)',
+      first.line
+    );
+  }
   const built = buildBlock(tokens, 0, tokens[0].indent);
   if (built.next < tokens.length) {
     throw new YamlLiteError('indentation does not match any open block', tokens[built.next].line);
