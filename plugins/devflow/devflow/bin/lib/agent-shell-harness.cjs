@@ -277,6 +277,7 @@ function containmentFindings(callText, root, allowOutside) {
 //   # harness: expect-cwd <path>    the persisted cwd after the call must equal <path>
 //   # harness: expect-exit <n>      the call's status must equal <n> (default: 0)
 //   # harness: derive VAR=value     inject VAR into THIS call's environment only
+//   # harness: subst <tok>=<value>  literal replace in the call text before execution
 //
 // `{root}` in any directive value expands to the scratch root.
 const HARNESS_DIRECTIVE_RE = /^#\s*harness:\s*(.+)$/;
@@ -286,7 +287,7 @@ function expandRoot(value, root) {
 }
 
 function parseAnnotations(annotations, root) {
-  const spec = { expects: [], expectCwd: null, expectExit: null, derives: {} };
+  const spec = { expects: [], expectCwd: null, expectExit: null, derives: {}, substs: [] };
   for (const raw of annotations || []) {
     const m = HARNESS_DIRECTIVE_RE.exec(String(raw == null ? '' : raw).trim());
     if (!m) continue;          // an ordinary prose comment is not a directive
@@ -297,6 +298,10 @@ function parseAnnotations(annotations, root) {
     if (verb === 'expect' && arg) { spec.expects.push(arg); continue; }
     if (verb === 'expect-cwd' && arg) { spec.expectCwd = arg; continue; }
     if (verb === 'expect-exit' && /^\d+$/.test(arg)) { spec.expectExit = Number(arg); continue; }
+    if (verb === 'subst') {
+      const eq = arg.indexOf('=');
+      if (eq > 0) { spec.substs.push([arg.slice(0, eq), arg.slice(eq + 1)]); continue; }
+    }
     if (verb === 'derive') {
       // Split on the FIRST `=` only: a value may itself contain `=`.
       const eq = arg.indexOf('=');
@@ -403,6 +408,10 @@ function runSection(calls, opts = {}) {
     const entry = typeof raw === 'string' ? { call: raw } : (raw || {});
     const callText = String(entry.call == null ? '' : entry.call);
     const spec = parseAnnotations(entry.annotations, root);
+    // The PROSE text is what a finding cites — that is the text a reader has to fix.
+    // `executed` is what bash was actually handed, after the declared substitutions.
+    let executed = callText;
+    for (const [token, value] of spec.substs) executed = executed.split(token).join(value);
     const expectedStatus = spec.expectExit != null
       ? spec.expectExit
       : (entry.expectedStatus == null ? 0 : entry.expectedStatus);
@@ -411,6 +420,7 @@ function runSection(calls, opts = {}) {
       index: results.length,
       line: entry.line == null ? null : entry.line,
       call: callText,
+      executed,
       annotations: entry.annotations || [],
       cwd_before: cwd,
       cwd_after: cwd,
@@ -432,7 +442,7 @@ function runSection(calls, opts = {}) {
     // Containment is a PRE-check: an offending call is blocked, not executed and then
     // regretted. A harness that will one day run in CI against a file someone just
     // edited must not be the thing that writes outside its own scratch root.
-    const offenders = containmentFindings(callText, root, opts.allowOutside);
+    const offenders = containmentFindings(executed, root, opts.allowOutside);
     if (offenders.length) {
       for (const p of offenders) {
         rec.findings.push({
@@ -467,7 +477,7 @@ function runSection(calls, opts = {}) {
       // and TMPDIR are set, so nothing legitimate trips on it. If real agent prose
       // trips it, that is a FINDING about the prose — which is the entire point.
       'set -u',
-      callText,
+      executed,
       '',
     ].join('\n');
 
