@@ -380,3 +380,24 @@ an async fetch.
 - The fixture declares no `schema_version`, so `parseSurfaceSpec` reports the default `1`.
 - `frontmatter.cjs` was NOT modified and is NOT reused. `ui-spec.cjs`'s header names it and
   says why this parser is strict where that one is lenient.
+
+## Amendment by TRD 34-03 — the `locked_sheet` digest was 65 hex characters
+
+Recorded here as well as in `34-03-SUMMARY.md`, per 34-03's `<anti_patterns>` ("if it is the
+transcription, fix it in 34-02's fixture with a note in BOTH SUMMARYs").
+
+34-03's invariant I1 reddened the positive control on its first run, with one error:
+
+```
+SPEC001 @ acceptance.locked_sheet ::
+  "sha256:9f2c1b7e4a6d0835c1e9b4f7a2d6c8e013b5a7f9d2c4e6081a3b5c7d9e1f3a5b7"
+  does not match the pattern the schema declares here: ^sha256:[0-9a-f]{64}$
+```
+
+The transcription is faithful — but the AMENDED proposal §4.2's illustrative digest is
+**sixty-five** hex characters (`printf '%s' <digest> | wc -c` → 65) and therefore cannot be any
+sha256. The schema this TRD shipped (`^sha256:[0-9a-f]{64}$`) is right and the source literal is
+not. 34-03 dropped the trailing `7` from `__fixtures__/ui-spec/projects-rail.md` and updated
+case **F3** in `ui-spec.test.cjs` to match; F3 now also asserts
+`locked_sheet.length === 'sha256:'.length + 64`, so a future transcription cannot reintroduce a
+wrong-length digest. The schema JSON is unchanged, and the proposal itself still reads 65.
