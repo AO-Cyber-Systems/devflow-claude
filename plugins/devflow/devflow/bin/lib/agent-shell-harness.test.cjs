@@ -747,4 +747,27 @@ test.describe('agent-shell-harness — the `# harness:` annotation vocabulary (A
     assert.strictEqual(expanded.calls[0].stdout.trim(), root);
   });
 
+  // A5 — prose is ILLUSTRATIVE. `<path/to/test.dart>` is the right thing to write for a
+  // reader and unrunnable for a shell. `subst` replaces the literal token at run time so
+  // the prose keeps its placeholder AND gets executed — and so the mirror path
+  // `~/.claude/devflow/bin/df-tools.cjs`, which is correct prose, is never "fixed" into
+  // a checkout path. Substitute the BINARY, keep the ARGUMENTS.
+  test('Case A5 — `# harness: subst <token>=<value>` replaces a literal token before execution', () => {
+    const root = makeRoot();
+    const res = harness.runSection(
+      harness.splitCalls('# harness: subst <path/to/test.dart>=sub/t.dart\n'
+        + '# harness: expect sub/t.dart\ntouch <path/to/test.dart>'),
+      { root });
+    assert.strictEqual(res.ok, true, 'the substituted call ran and produced the artifact');
+    assert.strictEqual(res.calls[0].call, 'touch <path/to/test.dart>',
+      'the reported call is the PROSE, so a finding cites the text a reader must fix');
+    assert.strictEqual(res.calls[0].executed, 'touch sub/t.dart',
+      'and `executed` shows what bash actually got');
+
+    // A value may contain `=`: split on the FIRST one only.
+    const eq = harness.runSection(
+      harness.splitCalls('# harness: subst TOKEN=--driver=x.dart\necho TOKEN'), { root: makeRoot() });
+    assert.strictEqual(eq.calls[0].executed, 'echo --driver=x.dart');
+  });
+
 });
