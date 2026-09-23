@@ -89,17 +89,37 @@ function readQuoted(s, line) {
 // Blank lines and full-line comments are dropped, but `line` keeps the ORIGINAL 1-based number
 // so every error points at the real file.
 
+function isSpace(c) {
+  return c === ' ' || c === '\t';
+}
+
 function splitKeyValue(body, line) {
   // `': '` (colon-space) or a line-terminal `:` is the key separator. A colon glued to the next
   // character is CONTENT — `/projects/:id/conversations` and `sha256:9f2b…` are single strings.
+  //
+  // Comments are stripped HERE, off the masked copy, not off the raw line: a stripper that runs
+  // over the raw text eats `must_show: ["#1 priority"]`. A `#` is a comment only when it is
+  // preceded by whitespace AND is not the first character of the value — `color: #fff` is the
+  // string '#fff', and `accent: #fff # why` is '#fff' with the SECOND hash starting the comment.
   const masked = maskQuoted(body, line);
-  if (body.charAt(0) === '{' || body.charAt(0) === '[') return { key: null, value: body };
+  const flowHead = body.charAt(0) === '{' || body.charAt(0) === '[';
   let keyEnd = -1;
-  for (let i = 0; i < masked.length; i++) {
-    if (masked[i] === ':' && (i + 1 >= masked.length || masked[i + 1] === ' ')) { keyEnd = i; break; }
+  if (!flowHead) {
+    for (let i = 0; i < masked.length; i++) {
+      if (masked[i] === '#' && i > 0 && isSpace(masked[i - 1])) break;
+      if (masked[i] === ':' && (i + 1 >= masked.length || masked[i + 1] === ' ')) { keyEnd = i; break; }
+    }
   }
-  if (keyEnd < 0) return { key: null, value: body };
-  return { key: body.slice(0, keyEnd).trim(), value: body.slice(keyEnd + 1).trim() };
+  let start = keyEnd + 1;
+  while (start < masked.length && masked[start] === ' ') start++;
+  let end = masked.length;
+  for (let i = start + 1; i < masked.length; i++) {
+    if (masked[i] === '#' && isSpace(masked[i - 1])) { end = i; break; }
+  }
+  return {
+    key: keyEnd < 0 ? null : body.slice(0, keyEnd).trim(),
+    value: body.slice(start, end).replace(/\s+$/, '')
+  };
 }
 
 function splitLine(content, indent, line) {
