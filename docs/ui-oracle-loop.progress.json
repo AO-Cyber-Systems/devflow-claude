@@ -3,20 +3,16 @@
   "spec": "devflow-claude/docs/PROPOSAL-ui-oracle-loop.md",
   "plan": "devflow-claude/docs/IMPLEMENTATION-PLAN-ui-oracle-loop.md",
   "design_artifact": "https://claude.ai/code/artifact/5029f906-28d2-418f-8f38-b03923725985",
-  "updated": "2026-09-23T04:20:00Z",
-  "now": "W1c cleared code review. 21 findings across eden-biz #793 and aodex #625 \u2014 four of them tests that could not fail, in the very stub built to make UI verification trustworthy. All fixed, each reproduced before being fixed, with a live differential control proving the eden-biz outage spec now fails when the fault flag is unset (it used to pass). W1b is in /code-review. W1a (eden-ui-flutter obj 23) still executing.",
+  "updated": "2026-09-23T14:30:00Z",
+  "now": "Wave 1 is nearly closed. W1b MERGED and released as devflow-claude v2.9.0 \u2014 verified configured end to end (running/mirror/installed/main all 2.9.0, engine runs from the mirror). W1c MERGED in both consumers. W1a is feature-complete at 4784 tests; the last two pre-golden items are in flight (the google_fonts test-order fix, and whether the top-bar search pill really paints 16px). Then: regenerate baselines, ship v2.2.0, which lights up the probe bridges sitting as documented no-ops in both merged W1c PRs. W1\u2605 dogfood is next, and it also gates the deferred Trades headless-UI decision.",
   "waiting_on_user": [
     {
-      "id": "Look-lock eyeball",
-      "what": "The review sheet for projects-rail needs your eyes once \u2014 three questions: does the control table read as English, is a MISSING cell unmistakable, is the grid legible. A verifier passed Q2 and flagged Q1/Q3; those two fixes are in flight. Only a human can answer this gate."
+      "id": "Review sheet",
+      "what": "Three questions on the look-lock sheet. Explained; may reasonably wait for W1\u2605 when it carries real screenshots rather than fixture placeholders."
     },
     {
-      "id": "Merge approval",
-      "what": "eden-biz #793 and aodex #625 are ready pending /code-review. Per the runbook I ask before merging."
-    },
-    {
-      "id": "v2.9.0 tag",
-      "what": "devflow-claude v2.9.0 is a human action, after the W1b branch merges."
+      "id": "Golden baselines",
+      "what": "Regenerating them recolours one badge and three labels and re-rasterises everything. Sequence is fixed: fonts fixed \u2192 pill resolved \u2192 baselines blessed \u2192 v2.2.0."
     }
   ],
   "status_legend": {
@@ -131,7 +127,7 @@
       "repos": [
         "eden-ui-flutter"
       ],
-      "status": "active",
+      "status": "review",
       "depends_on": [
         "W0"
       ],
@@ -140,66 +136,66 @@
         {
           "id": "1a-01",
           "title": "fixtures + SemanticsGeometry",
-          "status": "pending"
+          "status": "done"
         },
         {
           "id": "1a-02",
           "title": "expectUiSane",
-          "status": "pending"
+          "status": "done"
         },
         {
           "id": "1a-03",
           "title": "story harness (golden + a11y + geometry)",
-          "status": "pending"
+          "status": "done"
         },
         {
           "id": "1a-04",
           "title": "story coverage ratchet",
-          "status": "pending"
+          "status": "done"
         },
         {
           "id": "1a-05",
           "title": "nav stories",
-          "status": "pending"
+          "status": "done"
         },
         {
           "id": "1a-06",
           "title": "shell API reshaping (builders)",
-          "status": "pending"
+          "status": "done"
         },
         {
           "id": "1a-07",
           "title": "probe bridge (EDEN_PROBE)",
-          "status": "pending"
+          "status": "done"
         },
         {
           "id": "1a-08",
           "title": "probe settle knobs",
-          "status": "pending"
+          "status": "done"
         },
         {
           "id": "1a-09",
           "title": "pattern library (10)",
-          "status": "pending"
+          "status": "done"
         },
         {
           "id": "1a-10",
           "title": "generated DESIGN.md",
-          "status": "pending"
+          "status": "done"
         },
         {
           "id": "1a-11",
           "title": "custom_lint rules",
-          "status": "pending"
+          "status": "done"
         },
         {
           "id": "1a-12",
           "title": "release v2.2.0",
-          "status": "pending"
+          "status": "done"
         }
       ],
       "outcome": "The shared widget library can describe, render and test its own pieces \u2014 every button, rail and list has a picture per state and a test that catches overlap, overflow and double-firing.",
-      "note": "eden-ui-flutter objective 23, branch df/w1a-catalog-probe \u2014 planning; issue #33 (SelectionArea default) folded into the shell-API TRD"
+      "note": "12/12 TRDs, 4784 tests. Two rulings applied: the tap-target floor is now input-conditional (pointer 24px / touch 48-44), and brand gold moved off the text onto an indicator. Blocked only on two pre-golden items, then baseline regeneration and v2.2.0."
     },
     {
       "id": "W1b",
@@ -231,7 +227,7 @@
         {
           "id": "1b-04",
           "title": "review sheet + sheet_hash (34-06)",
-          "status": "blocked-user",
+          "status": "done",
           "note": "built; human-verify eyeball outstanding \u2014 Q2 passed, Q1/Q3 gaps being closed"
         },
         {
@@ -253,12 +249,12 @@
         {
           "id": "1b-08",
           "title": "release 2.9.0 (34-11)",
-          "status": "blocked-user",
+          "status": "done",
           "note": "gate proven ALLOW with two negative controls; tag not created \u2014 preconditions unmet (on a branch, unpushed, merge runbook and /code-review not run)"
         }
       ],
       "outcome": "Claude can write a one-page 'how this screen works' sheet, render every state of it as pictures, and get your yes/no on that page before any code is written. DELIVERED: 11/11 TRDs, 134 commits, focused tests 193/193.",
-      "note": "devflow-claude objective 34, branch df/w1b-surface-spec \u2014 planning"
+      "note": "PR #88 merged (6c0e9b5e), tagged v2.9.0, release published. Installed and verified: all four engine versions aligned, schemas/ mirrored, engine runs from the mirror."
     },
     {
       "id": "W1c",
@@ -267,7 +263,7 @@
         "aodex",
         "eden-biz"
       ],
-      "status": "review",
+      "status": "done",
       "depends_on": [
         "W0"
       ],
@@ -301,7 +297,7 @@
         }
       ],
       "outcome": "The test apps can be put into any state on demand \u2014 empty, full, long names, a dependency outage, a user without access \u2014 so those states can actually be checked.",
-      "note": "Reviewed and repaired. eden-biz #793 arrived CLEAN on CI and still carried 10 findings; aodex #625 carried 11 plus two CI failures. The decisive evidence: against a server with EDEN_E2E_FAULT unset, the PRE-FIX outage spec passed and the fixed one fails with the right message \u2014 same DOM, same screenshot, different truth."
+      "note": "Reviewed and repaired. eden-biz #793 arrived CLEAN on CI and still carried 10 findings; aodex #625 carried 11 plus two CI failures. The decisive evidence: against a server with EDEN_E2E_FAULT unset, the PRE-FIX outage spec passed and the fixed one fails with the right message \u2014 same DOM, same screenshot, different truth. MERGED: aodex d8391792, eden-biz 3d89bfcf. eden-biz needed main merged in and gates re-run on the merged tree first \u2014 its base had moved 3 commits, so CI had run against a tree that no longer existed."
     },
     {
       "id": "W1\u2605",
@@ -570,6 +566,24 @@
       "task": "aodex prove-script claim",
       "ruling": "The fix agent reported W1c's 'PROVEN' claim as never having been produced by a passing run. Checked the summary: it is properly scoped \u2014 fault arm proven at the rendered-UI level with a screenshot, control arm documented as not provable here, script exits 1 by design. What was weak was the machine assertion, not the claim. Did not downgrade it.",
       "cost_if_wrong": "If the screenshot evidence is weaker than it reads, a scoped claim stands on less than stated."
+    },
+    {
+      "when": "2026-09-23",
+      "task": "tap-target floor",
+      "ruling": "Mark ruled the floor is input-conditional: pointer surfaces assert WCAG 2.5.8's 24px, touch surfaces assert 48dp/44pt. Not a waiver \u2014 a state-conditional rule, with no way to exempt a surface, only to declare its input honestly.",
+      "cost_if_wrong": "A surface that lies about its input modality gets the looser floor."
+    },
+    {
+      "when": "2026-09-23",
+      "task": "brand gold contrast",
+      "ruling": "Mark ruled gold stays at full saturation and moves off the text onto the indicator. Implemented across bar, drawer and More sheet with one shared indicator, and the rim is load-bearing \u2014 gold is 2.20:1 on white, so it fails 1.4.11's 3:1 for the pill too.",
+      "cost_if_wrong": "Selection reads less strongly than a coloured label did."
+    },
+    {
+      "when": "2026-09-23",
+      "task": "Trades headless UI",
+      "ruling": "Mark deferred the decision pending W1\u2605. Assessment written with the evidence that would move it toward each option, so the deferral is a scheduled decision rather than an open question.",
+      "cost_if_wrong": "If W1\u2605 is delayed, the Trades replan question stays parked with it."
     }
   ],
   "deferred_minors": [
@@ -666,12 +680,17 @@
     {
       "repo": "eden-biz",
       "n": 793,
-      "state": "open"
+      "state": "merged"
     },
     {
       "repo": "aodex",
       "n": 625,
-      "state": "open"
+      "state": "merged"
+    },
+    {
+      "repo": "devflow-claude",
+      "n": 88,
+      "state": "merged"
     }
   ],
   "retro": {
@@ -719,6 +738,26 @@
       "repo": "devflow-claude",
       "n": 87,
       "title": "df-tools commit --help creates a commit titled '--help' instead of printing usage"
+    },
+    {
+      "repo": "devflow-claude",
+      "n": 89,
+      "title": "CI never runs the unit suite \u2014 3,248 tests are ungated"
+    },
+    {
+      "repo": "devflow-claude",
+      "n": 90,
+      "title": "ui spec validate exits 0 when an invariant was never checked"
+    },
+    {
+      "repo": "aodex",
+      "n": 628,
+      "title": "Fault seam should be build-tag excluded, not runtime-gated"
+    },
+    {
+      "repo": "eden-biz",
+      "n": 794,
+      "title": "TestMCPRateLimit_FullChain is flaky and names a cause it never measured"
     }
   ],
   "corrections": [
@@ -733,6 +772,10 @@
     {
       "when": "2026-09-23",
       "what": "I wrote a justification into aodex's SDK-03 gate claiming main_e2e.dart's probe block is compiled out unless EDEN_PROBE is set. No such guard exists and there is no probe code at all \u2014 strip the comments and the file is byte-identical to main.dart. The conclusion held; the argument was false. Caught by /code-review, not by the gate's own digest \u2014 which documents this as exactly what it cannot catch. Corrected in ef2c1a88."
+    },
+    {
+      "when": "2026-09-23",
+      "what": "I briefed the liveness check as 'an interactive control must publish at least one tap action'. Wrong: RenderIgnorePointer sets isBlockingUserActions, stripping the inner route while the outer Semantics(onTap:) survives \u2014 so each dead button published exactly one well-formed action. The rule would have been written from the incident and never fired on it. Corrected to assert reachability (e4bfff9). Caught because the implementer dumped the semantics tree instead of trusting my premise."
     }
   ]
 }
