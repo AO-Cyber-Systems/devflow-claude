@@ -25,8 +25,12 @@
  *   CTRL004  a combination is matched by no behaviour (coverage)
  *   CTRL005  an `effect` value outside the §7.5 effect classes
  *   CTRL006  `visible_in` names a state id absent from `states`
- * I4-I8 (states/seeds, outage != empty, patterns, hit_rect, flows, guards) are TRD 34-04 and
- * append to this table. The codes above are fixed; 34-04 must not collide with them.
+ *
+ * Appended by 34-04 (I4-I8):
+ *   STATE001 a state with no `seed`
+ *   STATE002 outage.content.must_show INTERSECTS empty.content.must_show (disjoint, not
+ *            merely unequal — the amended §4.4 / §4.5 I4)
+ *   STATE003 §4.4's minimum state set is incomplete (ONE error listing every missing state)
  *
  * ── The behaviour-coverage model (BINDING — 34-05's control table and W2's `effect` check
  *    resolve the active behaviour by this same rule; if they diverge, the spec says one thing
@@ -452,6 +456,68 @@ function checkControls(spec, effects, errors) {
   });
 }
 
+// ─── I4: states, seeds, and the outage/empty distinction ─────────────────────
+
+/**
+ * §4.4's minimum state set. `loading` is DELIBERATELY absent: §4.4 declares it only when the
+ * surface owns an async fetch, so requiring it would redden every surface that does not.
+ * 34-05's capture list reads this constant rather than re-listing the states.
+ */
+const MINIMUM_STATES = ['populated', 'empty', 'error', 'outage', 'long-content', 'narrow', 'dark'];
+
+/**
+ * STATE001 a state with no `seed` · STATE002 `outage.must_show` INTERSECTS `empty.must_show` ·
+ * STATE003 §4.4's minimum set is incomplete (ONE error listing every missing state).
+ *
+ * STATE002 is an INTERSECTION test, not an equality test. The amended §4.4 and §4.5 I4 both
+ * read `outage.must_show ∩ empty.must_show = ∅` — disjoint, not merely unequal — and equality
+ * is one instance of a non-empty intersection, so the stronger rule satisfies both documents.
+ * Cases I4b (equal) and I4c (overlapping, not equal) pin the two halves.
+ */
+function checkStates(spec, errors) {
+  if (!Array.isArray(spec.states)) return; // no basis for a verdict; SPEC001 owns the shape
+
+  const declared = new Set();
+
+  spec.states.forEach((state, i) => {
+    if (!isPlainObject(state)) return;
+    const sid = typeof state.id === 'string' ? state.id : `#${i}`;
+    if (typeof state.id === 'string') declared.add(state.id);
+
+    if (typeof state.seed !== 'string' || state.seed.length === 0) {
+      errors.push(err('STATE001', `states[${i}].seed`,
+        `state ${sid} declares no \`seed\` — §4.4 requires one per state, and without it the e2e entrypoint has nothing to seed this state from, so it can never be captured`));
+    }
+  });
+
+  // STATE003 — ONE error listing every missing state. One error PER state would make a short
+  // spec fail with five codes and redden the fixture-hygiene loop for every minimal fixture.
+  const missing = MINIMUM_STATES.filter((id) => !declared.has(id));
+  if (missing.length > 0) {
+    errors.push(err('STATE003', 'states',
+      `§4.4's minimum state set is incomplete — this surface declares no ${missing.join(', ')}. Every surface declares populated, empty, error, outage, long-content, narrow and dark; \`loading\` only when the surface owns an async fetch`));
+  }
+
+  // STATE002 — the outage/empty distinction.
+  const byId = new Map(spec.states.filter(isPlainObject).map((st) => [st.id, st]));
+  const outage = byId.get('outage');
+  const empty = byId.get('empty');
+  const showsOf = (st) => (isPlainObject(st) && isPlainObject(st.content) && Array.isArray(st.content.must_show)
+    ? st.content.must_show.filter((v) => typeof v === 'string')
+    : null);
+  const outageShows = showsOf(outage);
+  const emptyShows = showsOf(empty);
+
+  if (outageShows && emptyShows) {
+    const shared = outageShows.filter((v) => emptyShows.includes(v));
+    if (shared.length > 0) {
+      const at = spec.states.indexOf(outage);
+      errors.push(err('STATE002', `states[${at}].content.must_show`,
+        `\`outage\` and \`empty\` both declare must_show ${shared.map((v) => JSON.stringify(v)).join(', ')} — §4.4 requires the two sets to be DISJOINT, not merely unequal: an outage and an emptiness may never be evidenced by the same sentence`));
+    }
+  }
+}
+
 // ─── Assembly ─────────────────────────────────────────────────────────────────
 
 /**
@@ -543,7 +609,8 @@ function validateSurfaceSpec(spec, ctx = {}) {
       : ['navigation', 'toggle', 'select', 'dialog', 'submit', 'inert'];
     checkControls(spec, effects, errors);
 
-    // I4-I8 are TRD 34-04.
+    // I4 — states, seeds, and the outage/empty distinction.
+    checkStates(spec, errors);
   } catch (e) {
     // CRITICAL: an escaped exception becomes a verdict, never a stack trace. 34-04's exit-code
     // contract and case V3 both depend on it.
@@ -556,5 +623,6 @@ function validateSurfaceSpec(spec, ctx = {}) {
 module.exports = {
   validateSurfaceSpec,
   enumerateBehaviorCombinations,
-  NARROW_MAX_WIDTH
+  NARROW_MAX_WIDTH,
+  MINIMUM_STATES
 };
