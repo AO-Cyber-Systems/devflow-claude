@@ -792,4 +792,28 @@ test.describe('agent-shell-harness — the `# harness:` annotation vocabulary (A
     assert.strictEqual(inert.calls[0].cwd_after, inert.calls[0].cwd_before);
   });
 
+  // A7 — a typo'd annotation must not silently disable a check. `# harness: expct` that
+  // is quietly ignored is worse than no annotation at all: the prose LOOKS asserted.
+  test('Case A7 — an unknown `# harness:` directive is a finding, not a silent no-op', () => {
+    const typo = harness.runSection(
+      harness.splitCalls('# harness: expct made.txt\ntouch made.txt'), { root: makeRoot() });
+    assert.strictEqual(typo.ok, false, 'a directive the harness does not understand FAILS the section');
+    const f = typo.findings.find(x => x.type === 'unknown-annotation');
+    assert.ok(f, 'and it is its own finding type');
+    assert.match(f.message, /expct/, 'quoting the directive as written');
+
+    // A malformed argument to a KNOWN directive is the same class of mistake.
+    for (const bad of ['expect', 'expect-exit later', 'derive REPO_ROOT', 'subst =x', 'skip']) {
+      const res = harness.runSection(
+        harness.splitCalls('# harness: ' + bad + '\ntrue'), { root: makeRoot() });
+      assert.strictEqual(res.ok, false, `\`# harness: ${bad}\` must not pass silently`);
+      assert.ok(res.findings.some(x => x.type === 'unknown-annotation'));
+    }
+
+    // An ordinary prose comment is NOT a directive and must stay inert.
+    const prose = harness.runSection(
+      harness.splitCalls('# At task START (capture baseline to a file)\ntrue'), { root: makeRoot() });
+    assert.strictEqual(prose.ok, true, 'only `# harness:` lines are directives');
+  });
+
 });
