@@ -44,13 +44,17 @@ If .planning/ missing: Error — project not initialized.
 If the TRD has `type: ui` AND `stack: flutter`, run the bootstrap detector at executor start (BEFORE executing any tasks):
 
 ```bash
-BOOTSTRAP=$(node ~/.claude/devflow/bin/df-tools.cjs verify flutter-ui-bootstrap . --raw)
-ACTION=$(echo "$BOOTSTRAP" | jq -r '.action')
-REPO_ROOT=$(pwd)
-PACKAGE_DIR=$(echo "$BOOTSTRAP" | jq -r '.packageDir // "'"$REPO_ROOT"'"')
+# One plain command per Bash call. There is nothing to assign: a shell variable does NOT
+# survive into the next call, so read `.action` and `.packageDir` straight out of this
+# tool result and note them down as literal absolute paths.
+# harness: subst node ~/.claude/devflow/bin/df-tools.cjs=df-tools
+node ~/.claude/devflow/bin/df-tools.cjs verify flutter-ui-bootstrap . --raw
+
+# The repo root is the session's working directory.
+pwd
 ```
 
-`REPO_ROOT` is captured here, at the repo root, and both values are worth noting down as literal absolute paths (see below — they will not survive into the next Bash call); every evidence path below is absolute from `$REPO_ROOT`, never `$OLDPWD` (in this harness the working directory persists across Bash tool calls while shell state does not, so `$OLDPWD` is never a reliable repo root). `PACKAGE_DIR` is read straight from `.packageDir` with no further resolution — `df-tools verify flutter-ui-bootstrap`'s `packageDir` is already absolute per the W0-4 contract, so re-deriving it (e.g. `cd "$REPO_ROOT/$PACKAGE_DIR" && pwd`) would be redundant.
+The repo root is read here, at the repo root, and both values are worth noting down as literal absolute paths (they will not survive into the next Bash call — that is why nothing above assigns them to a variable); every evidence path below is absolute from `$REPO_ROOT`, never `$OLDPWD` (in this harness the working directory persists across Bash tool calls while shell state does not, so `$OLDPWD` is never a reliable repo root). `PACKAGE_DIR` is read straight from `.packageDir` with no further resolution — `df-tools verify flutter-ui-bootstrap`'s `packageDir` is already absolute per the W0-4 contract, so re-deriving it (e.g. `cd "$REPO_ROOT/$PACKAGE_DIR" && pwd`) would be redundant.
 
 Every flutter/maestro/adb command in this agent runs from `$PACKAGE_DIR` **in a subshell** — `( cd "$PACKAGE_DIR" && <cmd> )` — never a bare `cd "$PACKAGE_DIR" && <cmd>`. The working directory of the session stays the repo root: the harness persists cwd across Bash tool calls, and `.planning/` paths (marker, evidence, `df-tools` state) resolve from cwd, so a leaked `cd` breaks every later call. Evidence `mv`/`--output` targets are absolute from `$REPO_ROOT`; the `.planning/` marker and evidence paths stay at the repo root.
 
@@ -69,18 +73,19 @@ Never assume a variable set in an earlier call is still defined.
 
 **Extracting the setup task (action:warn):**
 
-```bash
-SETUP_TASK=$(echo "$BOOTSTRAP" | jq -r '.setup_task')
-# Insert SETUP_TASK as the first task in the task list (before all TRD-defined tasks).
-# The setup task is a fully-formed <task> XML block from TRD 10-04a's bootstrap detector.
-```
+Take `.setup_task` from the detector output above — it is a fully-formed `<task>` XML block
+from TRD 10-04a's bootstrap detector — and insert it as the FIRST task in the task list,
+before all TRD-defined tasks. There is deliberately no shell step here: piping the field
+through `jq` into a shell variable would only lose it at the end of that Bash call.
 
 **Hard fail (action:fail):**
 
 ```bash
-MISSING=$(echo "$BOOTSTRAP" | jq -r '.missing | join(", ")')
-echo "EXECUTOR HARD FAIL: Flutter UI bootstrap infra missing after marker set. Missing: $MISSING"
+# The missing items are the `.missing` array in the detector output above — quote them
+# into the message you return. `$MISSING` from an earlier call no longer exists here.
+echo "EXECUTOR HARD FAIL: Flutter UI bootstrap infra missing after marker set."
 echo "Restore the missing infra OR delete .planning/.flutter-ui-bootstrap-done to re-run bootstrap."
+# harness: expect-exit 1
 exit 1
 ```
 
@@ -170,19 +175,32 @@ The baseline lives in a file, not a shell variable — task START and task END a
 
 ```bash
 # At task START (capture baseline to a file under the evidence dir)
+# harness: derive REPO_ROOT={root}
+# harness: derive OBJECTIVE_DIR=34-demo
 mkdir -p "$REPO_ROOT"/.planning/objectives/$OBJECTIVE_DIR/evidence/
+# harness: derive REPO_ROOT={root}
+# harness: derive OBJECTIVE_DIR=34-demo
+# harness: derive PACKAGE_DIR={root}/flutter
+# harness: expect .planning/objectives/34-demo/evidence/analyze-baseline.txt
 ( cd "$PACKAGE_DIR" && flutter analyze --no-pub --no-fatal-warnings 2>&1 | sort ) > "$REPO_ROOT"/.planning/objectives/$OBJECTIVE_DIR/evidence/analyze-baseline.txt
 
-# At task END (compare against the file)
-CURRENT_ANALYZE=$(cd "$PACKAGE_DIR" && flutter analyze --no-pub --no-fatal-warnings 2>&1 | sort)
-NEW_WARNINGS=$(diff "$REPO_ROOT"/.planning/objectives/$OBJECTIVE_DIR/evidence/analyze-baseline.txt <(echo "$CURRENT_ANALYZE") | grep '^>')
+# At task END: the CURRENT output goes to a SECOND FILE, not a shell variable. Task START
+# and task END are separate Bash calls, so `$CURRENT_ANALYZE` would not exist by now.
+# harness: derive REPO_ROOT={root}
+# harness: derive OBJECTIVE_DIR=34-demo
+# harness: derive PACKAGE_DIR={root}/flutter
+# harness: expect .planning/objectives/34-demo/evidence/analyze-current.txt
+( cd "$PACKAGE_DIR" && flutter analyze --no-pub --no-fatal-warnings 2>&1 | sort ) > "$REPO_ROOT"/.planning/objectives/$OBJECTIVE_DIR/evidence/analyze-current.txt
 
-if [ -n "$NEW_WARNINGS" ]; then
-  echo "FAIL: task introduced new flutter analyze warnings:"
-  echo "$NEW_WARNINGS"
-  # Apply deviation Rules 1-3 to fix; if 3 attempts exhausted, document as Deferred Issue.
-fi
+# One call compares the two FILES. `grep` exits 1 when there is nothing new, which is the
+# PASSING case, so the `||` branch reports it; read the result from the tool output.
+# harness: derive REPO_ROOT={root}
+# harness: derive OBJECTIVE_DIR=34-demo
+diff "$REPO_ROOT"/.planning/objectives/$OBJECTIVE_DIR/evidence/analyze-baseline.txt "$REPO_ROOT"/.planning/objectives/$OBJECTIVE_DIR/evidence/analyze-current.txt | grep '^>' || echo "OK: no new flutter analyze warnings"
 ```
+
+Any line the comparison prints is a warning this task introduced: apply deviation Rules 1-3
+to fix it, and if 3 attempts are exhausted, document it as a Deferred Issue.
 
 ### Per-task: flutter test on the task's widget test
 
@@ -190,9 +208,14 @@ If the task's `<files>` includes a path ending in `_test.dart` AND the task is `
 
 ```bash
 # RED phase — MUST exit non-zero (test fails on missing implementation)
+# harness: derive PACKAGE_DIR={root}/flutter
+# harness: subst <path/to/test.dart>=integration_test/red_phase_test.dart
+# harness: expect-exit 1
 ( cd "$PACKAGE_DIR" && flutter test <path/to/test.dart> )
 
 # GREEN phase (after implementation) — MUST exit zero
+# harness: derive PACKAGE_DIR={root}/flutter
+# harness: subst <path/to/test.dart>=integration_test/app_test.dart
 ( cd "$PACKAGE_DIR" && flutter test <path/to/test.dart> )
 ```
 
@@ -209,6 +232,8 @@ After ALL tasks complete (before final commit + SUMMARY), if TRD has `type: ui` 
 **Pre-create evidence dir:**
 
 ```bash
+# harness: derive REPO_ROOT={root}
+# harness: derive OBJECTIVE_DIR=34-demo
 mkdir -p "$REPO_ROOT"/.planning/objectives/$OBJECTIVE_DIR/evidence/
 ```
 
@@ -220,24 +245,39 @@ Read `platform:` from TRD frontmatter (default `[mobile, web]` per TRD 10-03's p
 
 ```bash
 # Requires booted emulator. If not booted, emit checkpoint asking user to boot one.
+# harness: derive PACKAGE_DIR={root}/flutter
 ( cd "$PACKAGE_DIR" && flutter test integration_test/ )
 
 # Move screenshots (from takeScreenshot() calls inside integration_test files):
 # Both sides absolute — no cd, so this command doesn't depend on cwd at all.
+# harness: derive PACKAGE_DIR={root}/flutter
+# harness: derive REPO_ROOT={root}
+# harness: derive OBJECTIVE_DIR=34-demo
+# harness: expect .planning/objectives/34-demo/evidence/shot.png
 mv "$PACKAGE_DIR"/build/integration_test_screenshots/* "$REPO_ROOT"/.planning/objectives/$OBJECTIVE_DIR/evidence/ 2>/dev/null || true
 
 # Build + install app for Maestro:
+# harness: derive PACKAGE_DIR={root}/flutter
+# harness: expect flutter/build/app/outputs/flutter-apk/app-debug.apk
 ( cd "$PACKAGE_DIR" && flutter build apk --debug )
+# harness: derive PACKAGE_DIR={root}/flutter
 ( cd "$PACKAGE_DIR" && adb install -r build/app/outputs/flutter-apk/app-debug.apk )
 
 # Run Maestro flows (MOBILE ONLY — Maestro is mobile-only by design):
 # See references/flutter-state-patterns.md "Web verification mechanism" — upstream blocker
 # mobile-dev-inc/maestro#2591 (open since July 2025, unresolved mid-2026). NO MAESTRO ON WEB.
+# harness: derive PACKAGE_DIR={root}/flutter
+# harness: derive REPO_ROOT={root}
+# harness: derive OBJECTIVE_DIR=34-demo
+# harness: expect .planning/objectives/34-demo/evidence/maestro.xml
 ( cd "$PACKAGE_DIR" && maestro test .maestro/ \
   --format junit \
   --output "$REPO_ROOT"/.planning/objectives/$OBJECTIVE_DIR/evidence/maestro.xml )
 
 # Maestro screenshots — source is already absolute (~), destination is absolute from $REPO_ROOT:
+# harness: derive REPO_ROOT={root}
+# harness: derive OBJECTIVE_DIR=34-demo
+# harness: expect .planning/objectives/34-demo/evidence/flow-1.png
 mv ~/.maestro/tests/*/screenshots/* "$REPO_ROOT"/.planning/objectives/$OBJECTIVE_DIR/evidence/ 2>/dev/null || true
 ```
 
@@ -247,12 +287,17 @@ mv ~/.maestro/tests/*/screenshots/* "$REPO_ROOT"/.planning/objectives/$OBJECTIVE
 
 ```bash
 # Requires chromedriver running (port 4444). If not running, emit checkpoint.
+# The exit 1 below is CORRECT: it is the checkpoint branch, not a failure of this prose.
+# harness: expect-exit 1
 pgrep chromedriver >/dev/null || { echo "CHECKPOINT: Start chromedriver --port=4444 in another terminal"; exit 1; }
 
 # Per references/flutter-state-patterns.md "Web verification mechanism":
 # WEB uses flutter drive invoking the SAME tests.integration path that mobile uses via flutter test.
 # The test_driver/integration_test.dart driver is scaffolded by TRD 10-04a's bootstrap setup task.
 # DO NOT use `flutter test integration_test/ -d chrome` — deprecated for web (Pitfall #1).
+# harness: derive PACKAGE_DIR={root}/flutter
+# harness: subst <tests.integration path from TRD>=integration_test/app_test.dart
+# harness: expect flutter/build/integration_test_screenshots/web-shot.png
 ( cd "$PACKAGE_DIR" && flutter drive \
   --driver=test_driver/integration_test.dart \
   --target=<tests.integration path from TRD> \
@@ -260,6 +305,10 @@ pgrep chromedriver >/dev/null || { echo "CHECKPOINT: Start chromedriver --port=4
 
 # Move web integration_test screenshots:
 # Both sides absolute — no cd, so this command doesn't depend on cwd at all.
+# harness: derive PACKAGE_DIR={root}/flutter
+# harness: derive REPO_ROOT={root}
+# harness: derive OBJECTIVE_DIR=34-demo
+# harness: expect .planning/objectives/34-demo/evidence/web-shot.png
 mv "$PACKAGE_DIR"/build/integration_test_screenshots/* "$REPO_ROOT"/.planning/objectives/$OBJECTIVE_DIR/evidence/ 2>/dev/null || true
 
 # NO MAESTRO ON WEB — Maestro is mobile-only BY DESIGN.
