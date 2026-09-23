@@ -371,7 +371,22 @@
           "pattern": "^sha256:[0-9a-f]{64}$"
         },
         "locked_by": { "type": "string" },
-        "locked_at": { "type": "string" }
+        "locked_at": { "type": "string" },
+        "locked_shape_hash": {
+          "description": "TRD 34-07. The sha256 of the canonical JSON of `{routes, controls, states}` ONLY — the three keys §4.1's re-lock rule names. Deliberately NOT over the whole front matter: if a `design_read` rewording cleared the lock, the team would learn to re-approve without reading, which is worse than no lock. `df-tools ui lock` writes it; `ui spec validate` compares it to report `lock: held | cleared`. An `acceptance` block WITHOUT it reports `lock: MISSING` — never `held`.",
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "locked_section_hashes": {
+          "description": "TRD 34-07. One hash per §4.1 key, as at the lock. Stored rather than recomputed because telling routes-changed from states-changed after the fact is impossible without the values at lock time — and `lock: cleared` with no named section sends a human back to diff the file by hand. Optional: a hand-written lock without them still resolves held/cleared, and the reason says the section cannot be named.",
+          "type": "object",
+          "properties": {
+            "routes": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+            "controls": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+            "states": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+          },
+          "additionalProperties": false
+        }
       },
       "additionalProperties": false
     }
