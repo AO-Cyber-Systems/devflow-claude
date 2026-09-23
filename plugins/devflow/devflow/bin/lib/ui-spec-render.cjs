@@ -357,6 +357,46 @@ function buildControlTable(spec) {
   return lines.join('\n') + '\n';
 }
 
+// ─── The capture list ─────────────────────────────────────────────────────────
+//
+// state × theme × width, one triple per declared state today: a state declaring `theme: dark`
+// contributes a dark entry, a state declaring a `viewport` contributes ITS width, and every
+// other state takes DEFAULT_THEME / DEFAULT_WIDTH. 34-06's sheet GRID COLUMNS are exactly these
+// two dimensions, and W2's `ui probe` iterates this list in order.
+//
+// The ORDER is the spec's `states[]` order, then theme, then width — a contract, not an
+// implementation detail, because the sheet's rows and the probe's capture order both inherit it.
+// (The secondary keys are stable rather than decorative: a state that later fans out to more
+// than one theme or width lands somewhere defined.)
+//
+// NEVER DROP A STATE. One with no `ref`, no `fault` and no `as` is still a capture; 34-06
+// renders it as a MISSING cell. Filtering it out is how a gate stops seeing what it was built
+// to see.
+
+/** Filename-safe: anything outside [A-Za-z0-9._-] becomes `_`. 34-06 looks files up by this. */
+function filenameSafe(part) {
+  return String(part).replace(/[^A-Za-z0-9._-]/g, '_');
+}
+
+function captureIdOf(surface, stateId, theme, width) {
+  return [surface, stateId, theme, width].map(filenameSafe).join('--');
+}
+
+function buildCaptureList(spec) {
+  const surface = spec.surface;
+  return statesOf(spec).map((state) => {
+    const theme = typeof state.theme === 'string' ? state.theme : DEFAULT_THEME;
+    const declaredWidth = widthOf(state);
+    const width = declaredWidth === null ? DEFAULT_WIDTH : declaredWidth;
+    return {
+      state_id: state.id,
+      theme,
+      width,
+      capture_id: captureIdOf(surface, state.id, theme, width)
+    };
+  });
+}
+
 // ─── The entry point ──────────────────────────────────────────────────────────
 
 /**
@@ -368,7 +408,8 @@ function buildControlTable(spec) {
  * @param {Array}  [opts.patterns]        the I5 pattern catalogue, or undefined (UNREACHABLE)
  * @param {Array}  [opts.vocabulary]      the §4.3 must_not vocabulary
  * @returns {{manifest: object, navGraphMermaid: string, controlTableMd: string,
- *            validation: (object|null)}}
+ *            captureList: Array<{state_id: string, theme: string, width: number,
+ *            capture_id: string}>, validation: (object|null)}}
  * @throws {RenderRefused} the spec carries a real violation
  */
 function renderSurfaceSpec(spec, opts = {}) {
@@ -384,6 +425,7 @@ function renderSurfaceSpec(spec, opts = {}) {
     manifest: buildManifest(spec),
     navGraphMermaid: buildNavGraph(spec),
     controlTableMd: buildControlTable(spec),
+    captureList: buildCaptureList(spec),
     validation
   };
 }
@@ -394,7 +436,9 @@ module.exports = {
   DEFAULT_IDENTITY,
   DEFAULT_THEME,
   DEFAULT_WIDTH,
-  // Internals exported for the adjacent tests and for 34-06, which resolves the same defaults.
+  // Internals exported for the adjacent tests and for 34-06, which resolves the same defaults
+  // and looks renders up by capture_id.
+  captureIdOf,
   widthOf,
   resolveGuardDeniedState
 };
