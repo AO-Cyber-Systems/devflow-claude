@@ -232,6 +232,131 @@ function buildNavGraph(spec) {
   return ['flowchart TD', ...nodes.values(), ...edges].join('\n') + '\n';
 }
 
+// ─── The plain-language control table (§8.3) ──────────────────────────────────
+//
+// Prose for a HUMAN. §8.3's target sentence is
+//   "Clicking the project header toggles its children and selects the project. It never
+//    navigates on close."
+// so the templates below exist to produce English, not a key/value dump. The committed
+// snapshot is read once by a person, who can then object to the wording — which is the only
+// review this artifact can actually receive.
+//
+// Two must_not SCOPES, kept apart:
+//   behaviour-level  -> inline, on that behaviour's own line
+//   control-level    -> ONCE per control, on its own `*Always:*` line (§4.2 annotates it as
+//                       applying to every behaviour, so a per-behaviour copy would both repeat
+//                       itself and put the per-`when` line count off by one)
+// `manual: true` (§4.3) marks either scope `[human-verify]`: free text stays on the human list
+// instead of pretending to be machine-checkable.
+
+/**
+ * Third-person singular of a `must_not` term's leading verb: "change route" -> "changes route".
+ * The vocabulary (`schemas/must_not_vocabulary.json`) is phrased as bare verb phrases, and only
+ * the FIRST word is conjugated — "cover sibling hit rects" -> "covers sibling hit rects".
+ */
+function conjugate(term) {
+  const text = String(term).trim();
+  if (text.length === 0) return text;
+  const space = text.indexOf(' ');
+  const verb = space === -1 ? text : text.slice(0, space);
+  const rest = space === -1 ? '' : text.slice(space);
+  let inflected;
+  if (/(s|x|z|ch|sh)$/i.test(verb)) inflected = `${verb}es`;
+  else if (/[^aeiou]y$/i.test(verb)) inflected = `${verb.slice(0, -1)}ies`;
+  else inflected = `${verb}s`;
+  return inflected + rest;
+}
+
+/** `["change route", "lose selection"]` -> `It never changes route; it never loses selection.` */
+function negations(mustNot, manual) {
+  const list = (Array.isArray(mustNot) ? mustNot : []).filter((t) => typeof t === 'string' && t.trim());
+  if (list.length === 0) return '';
+  const sentence = list
+    .map((t, i) => `${i === 0 ? 'It never' : 'it never'} ${conjugate(t)}`)
+    .join('; ');
+  return `${manual === true ? '[human-verify] ' : ''}${sentence}.`;
+}
+
+/**
+ * A `when` map in words. An ABSENT key is a WILDCARD (`ui-spec-validate.cjs`'s coverage model,
+ * rule 1) — it says nothing about that dimension, so it contributes no phrase.
+ * `control_state` LEADS ("When collapsed, on desktop: …"); with no control_state the first
+ * remaining phrase is capitalised ("On narrow: …"); an entirely empty `when` is "In every state".
+ */
+function conditionPhrase(when) {
+  const w = isPlainObject(when) ? when : {};
+  const phrases = [];
+  if (typeof w.viewport === 'string') phrases.push(`on ${w.viewport}`);
+  if (typeof w.theme === 'string') phrases.push(`in ${w.theme} theme`);
+  if (typeof w.data_state === 'string') phrases.push(`in the ${w.data_state} state`);
+  if (typeof w.guard === 'string') {
+    phrases.push(w.guard === 'denied' ? 'when access is denied' : 'when access is allowed');
+  }
+
+  if (typeof w.control_state === 'string') {
+    return [`When ${w.control_state}`, ...phrases].join(', ');
+  }
+  if (phrases.length === 0) return 'In every state';
+  return phrases[0].charAt(0).toUpperCase() + phrases[0].slice(1) + phrases.slice(1).map((p) => `, ${p}`).join('');
+}
+
+function effectSuffix(effect) {
+  const list = (Array.isArray(effect) ? effect : []).filter((e) => typeof e === 'string');
+  return list.length === 0 ? '' : ` (${list.join(', ')})`;
+}
+
+/** `"expands children; selects the project"` -> the same, ending in exactly one full stop. */
+function asSentence(does) {
+  const text = String(does === undefined || does === null ? '' : does).trim();
+  if (text.length === 0) return '';
+  return /[.!?]$/.test(text) ? text : `${text}.`;
+}
+
+function controlBlockMd(control) {
+  const kind = typeof control.kind === 'string' ? control.kind : '(no kind)';
+  const lines = [`### ${control.id} (${kind})`, ''];
+
+  const visibleIn = (Array.isArray(control.visible_in) ? control.visible_in : []).join(', ');
+  if (visibleIn) lines.push(`*Visible in:* ${visibleIn}`, '');
+
+  const behaviors = Array.isArray(control.behaviors) ? control.behaviors.filter(isPlainObject) : [];
+  if (behaviors.length > 0) {
+    // ONE LINE PER `when` CLAUSE. Merging two behaviours into one sentence is the render the
+    // plan's named case (T2) exists to forbid: it reads fine and hides a rule.
+    for (const b of behaviors) {
+      const never = negations(b.must_not, b.manual);
+      lines.push(
+        `- ${conditionPhrase(b.when)}: ${asSentence(b.does)}${never ? ` ${never}` : ''}${effectSuffix(b.effect)}`
+      );
+    }
+  } else {
+    lines.push(`- Activating ${control.id} ${asSentence(control.does)}${effectSuffix(control.effect)}`);
+  }
+
+  // ONCE per control, never once per behaviour.
+  const always = negations(control.must_not, control.manual);
+  if (always) lines.push('', `*Always:* ${always}`);
+
+  lines.push('');
+  return lines;
+}
+
+function buildControlTable(spec) {
+  const lines = [`## Controls — ${spec.surface}`, ''];
+
+  if (typeof spec.design_read === 'string') lines.push(`*Design read:* ${spec.design_read}`);
+  if (typeof spec.mode === 'string') lines.push(`*Mode:* ${spec.mode}`);
+  lines.push('');
+
+  for (const control of (Array.isArray(spec.controls) ? spec.controls : []).filter(isPlainObject)) {
+    lines.push(...controlBlockMd(control));
+  }
+
+  // Same whitespace contract as the graph: no trailing blanks, exactly one closing newline.
+  while (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
+  return lines.join('\n') + '\n';
+}
+
 // ─── The entry point ──────────────────────────────────────────────────────────
 
 /**
@@ -242,7 +367,8 @@ function buildNavGraph(spec) {
  * @param {boolean} [opts.validate=true]  refuse an invalid spec (see the header)
  * @param {Array}  [opts.patterns]        the I5 pattern catalogue, or undefined (UNREACHABLE)
  * @param {Array}  [opts.vocabulary]      the §4.3 must_not vocabulary
- * @returns {{manifest: object, navGraphMermaid: string, validation: (object|null)}}
+ * @returns {{manifest: object, navGraphMermaid: string, controlTableMd: string,
+ *            validation: (object|null)}}
  * @throws {RenderRefused} the spec carries a real violation
  */
 function renderSurfaceSpec(spec, opts = {}) {
@@ -257,6 +383,7 @@ function renderSurfaceSpec(spec, opts = {}) {
   return {
     manifest: buildManifest(spec),
     navGraphMermaid: buildNavGraph(spec),
+    controlTableMd: buildControlTable(spec),
     validation
   };
 }

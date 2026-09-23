@@ -364,12 +364,22 @@ test('Case T3 — must_not renders as explicit negations; control-level ONCE per
     '*Always:* It never fires twice per activation; it never covers sibling hit rects.'
   );
 
-  // Behaviour-level negations belong to their own behaviour's line (pinned in T2), and the
-  // whole table carries five negations — two behaviour-level, three control-level.
+  // Behaviour-level negations belong to their own behaviour's line (pinned in T2). Across the
+  // whole table EVERY must_not term appears exactly once — counted off the SPEC rather than
+  // hardcoded, so the assertion cannot drift with the fixture or with this author's arithmetic.
+  const declaredMustNots = spec.controls.reduce(
+    (n, c) => n
+      + (Array.isArray(c.must_not) ? c.must_not.length : 0)
+      + (Array.isArray(c.behaviors) ? c.behaviors : []).reduce(
+        (m, b) => m + (Array.isArray(b.must_not) ? b.must_not.length : 0), 0
+      ),
+    0
+  );
+  assert.strictEqual(declaredMustNots, 6, 'the positive control declares six must_not terms');
   assert.strictEqual(
     (controlTableMd.match(/it never /gi) || []).length,
-    5,
-    `expected five negations across the table:\n${controlTableMd}`
+    declaredMustNots,
+    `every declared must_not must render exactly once:\n${controlTableMd}`
   );
 
   // §4.3: free text is allowed only with `manual: true`, which keeps the item on the
