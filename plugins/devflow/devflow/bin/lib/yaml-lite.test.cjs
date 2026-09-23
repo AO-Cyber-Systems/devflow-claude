@@ -280,3 +280,42 @@ test('Case Y10 — indentation faults: a TAB, and a dedent to a column that matc
     { line: 3, match: /indent/i }
   );
 });
+
+test('Case Y11a — a duplicate key at the same level is refused, not silently last-wins', () => {
+  // JS object semantics would keep the last `does:` without comment, which would make 34-03's
+  // "a state declares exactly one `does`" invariant unreachable — the second one would simply
+  // never be seen. So it throws.
+  refuses(['does: opens the rail', 'does: closes the rail', ''].join('\n'),
+    { line: 2, match: /duplicate key/i });
+
+  refuses(
+    ['states:', '  - id: empty', '    does: nothing', '    does: something', ''].join('\n'),
+    { line: 4, match: /duplicate key/i }
+  );
+
+  refuses('expect: {route: a, route: b}\n', { line: 1, match: /duplicate key/i });
+
+  // The same key at DIFFERENT levels is fine — this must not over-fire.
+  assert.deepStrictEqual(
+    parseYamlLite(['id: outer', 'inner:', '  id: nested', ''].join('\n')),
+    { id: 'outer', inner: { id: 'nested' } }
+  );
+});
+
+test('Case Y11b — an implicit single-pair map inside a flow sequence is refused, naming the supported form', () => {
+  const err = refuses('activation: [pointer, keyboard: [Enter, Space]]\n',
+    { line: 1, match: /implicit single-pair map/i });
+
+  // 34-02 normalises §4.2's `activation:` line because of this refusal and quotes the message,
+  // so the supported form has to appear in the message VERBATIM.
+  assert.ok(
+    err.message.includes('[pointer, {keyboard: [Enter, Space]}]'),
+    `message must name the supported form verbatim; got: ${err.message}`
+  );
+
+  // The explicit form it names is the one that parses.
+  assert.deepStrictEqual(
+    parseYamlLite('activation: [pointer, {keyboard: [Enter, Space]}]\n'),
+    { activation: ['pointer', { keyboard: ['Enter', 'Space'] }] }
+  );
+});
