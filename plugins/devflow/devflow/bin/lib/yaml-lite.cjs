@@ -251,6 +251,29 @@ function splitFlowPair(el, line) {
   throw new YamlLiteError('expected `key: value` inside a flow mapping', line);
 }
 
+// A flow SEQUENCE element carrying an unbracketed `key: value` is YAML's implicit single-pair
+// map. Real YAML accepts it; yaml-lite does not, because the two readings of
+// `[pointer, keyboard: [Enter, Space]]` — three elements or two — are both plausible to a human
+// skimming the spec. The message names the explicit form so the fix is mechanical.
+function refuseImplicitPair(el, line) {
+  const t = el.trim();
+  if (t === '') return;
+  const masked = maskQuoted(t, line);
+  let depth = 0;
+  for (let i = 0; i < masked.length; i++) {
+    const c = masked[i];
+    if (c === '[' || c === '{') depth++;
+    else if (c === ']' || c === '}') depth--;
+    else if (c === ':' && depth === 0 && (i + 1 >= masked.length || masked[i + 1] === ' ')) {
+      throw new YamlLiteError(
+        'an implicit single-pair map inside a flow sequence is not supported by yaml-lite; '
+          + 'write it as an explicit flow map, e.g. [pointer, {keyboard: [Enter, Space]}]',
+        line
+      );
+    }
+  }
+}
+
 function parseFlowValue(text, line) {
   const t = text.trim();
   const head = t.charAt(0);
@@ -262,11 +285,21 @@ function parseFlowValue(text, line) {
   const inner = t.slice(1, close);
   const innerMasked = masked.slice(1, close);
 
-  if (head === '[') return splitTopLevel(inner, innerMasked).map((el) => parseFlowValue(el, line));
+  if (head === '[') {
+    return splitTopLevel(inner, innerMasked).map((el) => {
+      refuseImplicitPair(el, line);
+      return parseFlowValue(el, line);
+    });
+  }
 
   const obj = {};
+  const seen = new Set();
   for (const el of splitTopLevel(inner, innerMasked)) {
     const pair = splitFlowPair(el.trim(), line);
+    if (seen.has(pair.key)) {
+      throw new YamlLiteError(`duplicate key \`${pair.key}\` in the same flow mapping`, line);
+    }
+    seen.add(pair.key);
     obj[pair.key] = pair.value === '' ? null : parseFlowValue(pair.value, line);
   }
   return obj;
@@ -309,6 +342,9 @@ function buildBlock(tokens, start, indent) {
 
 function buildMap(tokens, start, indent) {
   const obj = {};
+  // Duplicate keys throw. Taking the last one is JS object semantics, not a decision — and it
+  // would make an invariant like "a state declares exactly one `does`" unreachable downstream.
+  const seen = new Set();
   let i = start;
   while (i < tokens.length) {
     const tok = tokens[i];
@@ -318,6 +354,10 @@ function buildMap(tokens, start, indent) {
       throw new YamlLiteError('indentation does not match any open block', tok.line);
     }
     if (tok.indent !== indent || tok.dash || tok.key === null) break;
+    if (seen.has(tok.key)) {
+      throw new YamlLiteError(`duplicate key \`${tok.key}\` in the same mapping`, tok.line);
+    }
+    seen.add(tok.key);
     i++;
     let value;
     if (tok.value === '') {
