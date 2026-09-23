@@ -59,6 +59,31 @@
     font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     white-space: pre-wrap; word-break: break-word;
   }
+  /*
+    The control table (§8.3): real HTML (case G8), not markdown syntax escaped into a <pre>.
+    `overflow-x: auto` + `word-break` stay as a backstop — the standard the 34-06 gap-2 fix set
+    is "wide content may scroll inside its OWN container; the page body may not".
+  */
+  .control-table {
+    background: var(--panel); border: 1px solid var(--rule); border-radius: 6px;
+    padding: .9rem 1.1rem 1rem; overflow-x: auto; word-break: break-word;
+  }
+  .control-table h2 {
+    font-size: .82rem; margin: 0 0 .6rem; padding: 0; border: none; text-transform: none;
+    letter-spacing: normal; color: var(--ink); font-weight: 700;
+  }
+  .control-table h3 { margin: 1.1rem 0 .15rem; }
+  .control-table h3:first-of-type { margin-top: 0; }
+  /* The control id: visible (a reviewer matches spec to implementation by it) but SECONDARY to
+     the human name that leads the heading — muted, monospace, smaller. Case T5 / gap 1a. */
+  .control-table h3 em {
+    font-style: normal; font-weight: 400; font-size: .8em; color: var(--ink-soft);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; margin-left: .45em;
+  }
+  .control-table p { margin: .15rem 0; font-size: .92rem; }
+  .control-table p em { font-style: normal; font-weight: 600; color: var(--ink-soft); }
+  .control-table ul { margin: .3rem 0 .6rem; padding-left: 1.3rem; }
+  .control-table li { margin: .15rem 0; font-size: .92rem; }
   .state-row {
     border: 1px solid var(--rule); border-radius: 8px; padding: 1rem 1.1rem 1.1rem;
     margin: 0 0 1rem;
@@ -132,7 +157,7 @@
 <pre class="mermaid">{{NAV_GRAPH}}</pre>
 
 <h2>Controls, in plain language</h2>
-<pre class="control-table">{{CONTROL_TABLE}}</pre>
+<div class="control-table">{{CONTROL_TABLE}}</div>
 
 <h2>States — render, reference, content contract</h2>
 {{ROWS}}
