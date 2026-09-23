@@ -31,6 +31,8 @@
  *   STATE002 outage.content.must_show INTERSECTS empty.content.must_show (disjoint, not
  *            merely unequal — the amended §4.4 / §4.5 I4)
  *   STATE003 §4.4's minimum state set is incomplete (ONE error listing every missing state)
+ *   STATE004 the mandatory `narrow` state declares no `viewport` below NARROW_MAX_WIDTH
+ *   STATE005 the mandatory `dark` state does not declare `theme: dark`
  *   PAT000   the pattern catalogue is UNREACHABLE -> status MISSING, does NOT flip `ok`
  *   PAT001   a referenced pattern is not in the catalogue
  *   PAT002   a control of a pattern kind drops one of that pattern's `must_not` defaults
@@ -114,8 +116,13 @@ const { pluginVersion } = require('./helpers.cjs');
 
 /**
  * The single breakpoint constant. A state is `narrow` when its declared viewport width is below
- * this, or when its id is literally `narrow`. 34-05's capture list and 34-06's sheet columns
- * read the same rule — change it here and nowhere else.
+ * this, or when its id is literally `narrow`.
+ *
+ * "34-05's capture list and 34-06's sheet columns read the same rule" is what this comment used
+ * to CLAIM; they did not, and the claim is why nobody looked. The rule now lives in ONE function
+ * — `resolveCaptureDimensions` below — which both this file's coverage model and 34-05's
+ * `buildCaptureList` call, and case C1c (ui-spec-render.test.cjs) fails if they diverge again.
+ * Change the number here and nowhere else.
  */
 const NARROW_MAX_WIDTH = 600;
 
@@ -319,6 +326,40 @@ function widthOf(state) {
 }
 
 /**
+ * THE STATE -> (theme, width) RULE. One home, two readers: this file's behaviour-coverage model
+ * and 34-05's CAPTURE LIST — which is to say, what the coverage model reasons about and what a
+ * probe actually renders.
+ *
+ * They used to derive it separately, and they disagreed. The coverage model carried an id-based
+ * fallback for `narrow`; the capture list read `viewport:`/`theme:` and nothing else. §4.4 makes
+ * `narrow` and `dark` MANDATORY and STATE001 requires only a `seed`, so a first-pass spec
+ * declares both by id alone — and the capture list then produced `…--dark--light--1280` and
+ * `…--narrow--light--1280`. The surface reported dark and narrow covered having rendered
+ * neither: a false green in the one mechanism built to prove state coverage, invisible
+ * downstream because the capture exists and its name says `--narrow--`.
+ *
+ * STATE004/STATE005 now REQUIRE both states to declare their dimension, so a valid spec never
+ * needs the id fallback. It is kept anyway, and shared, because `renderSurfaceSpec` can be
+ * called with `{validate: false}` and because the two sides agreeing is the property that was
+ * missing — not the particular numbers. Case C1c fails if they ever drift apart again.
+ */
+const DEFAULT_CAPTURE_THEME = 'light';
+const DEFAULT_CAPTURE_WIDTH = 1280;
+const NARROW_CAPTURE_WIDTH = 390;
+
+function resolveCaptureDimensions(state) {
+  const id = state && typeof state.id === 'string' ? state.id : null;
+  const declaredWidth = widthOf(state);
+  const declaredTheme = state && typeof state.theme === 'string' ? state.theme : null;
+  return {
+    theme: declaredTheme || (id === 'dark' ? 'dark' : DEFAULT_CAPTURE_THEME),
+    width: declaredWidth !== null
+      ? declaredWidth
+      : (id === 'narrow' ? NARROW_CAPTURE_WIDTH : DEFAULT_CAPTURE_WIDTH)
+  };
+}
+
+/**
  * THE GUARD -> DENIED-STATE LINKAGE RULE. One home, two readers: invariant I8 (GUARD001) and
  * the behaviour-coverage model's `guard` dimension. 34-05's nav graph draws its guard edge
  * from this same function — if it re-implements the rule, the spec says one thing and the
@@ -406,13 +447,16 @@ function enumerateBehaviorCombinations(control, spec) {
   const table = [];
 
   for (const dataState of dataStates) {
-    const state = statesById.get(dataState);
-    const width = widthOf(state);
+    // `resolveCaptureDimensions` — the SAME function 34-05's capture list calls. A `visible_in`
+    // entry naming a state that was never declared still resolves, by id, exactly as a declared
+    // one would; STATE003/CTRL006 own the fact that it is undeclared.
+    const state = statesById.get(dataState) || { id: dataState };
+    const { theme, width } = resolveCaptureDimensions(state);
     const combo = {
       data_state: dataState,
       control_state: null,
-      viewport: (width !== null && width < NARROW_MAX_WIDTH) || dataState === 'narrow' ? 'narrow' : 'desktop',
-      theme: (state && typeof state.theme === 'string' ? state.theme : null) || 'light',
+      viewport: width < NARROW_MAX_WIDTH ? 'narrow' : 'desktop',
+      theme,
       guard: denied.has(dataState) ? 'denied' : 'allowed'
     };
 
@@ -540,7 +584,14 @@ const MINIMUM_STATES = ['populated', 'empty', 'error', 'outage', 'long-content',
 
 /**
  * STATE001 a state with no `seed` · STATE002 `outage.must_show` INTERSECTS `empty.must_show` ·
- * STATE003 §4.4's minimum set is incomplete (ONE error listing every missing state).
+ * STATE003 §4.4's minimum set is incomplete (ONE error listing every missing state) ·
+ * STATE004 `narrow` declares no sub-600 `viewport` · STATE005 `dark` declares no `theme: dark`.
+ *
+ * STATE004/STATE005 exist because a state ID is a LABEL, not evidence. §4.4 makes both states
+ * mandatory and STATE001 requires only a `seed`, so `- id: narrow\n  seed: x` was a complete,
+ * valid state — and its capture was then taken at the desktop width and reported as narrow
+ * coverage. They are DECLARATION checks, not presence checks: an ABSENT `narrow` or `dark` is
+ * STATE003's business and never also reported here, or one missing state would draw two codes.
  *
  * STATE002 is an INTERSECTION test, not an equality test. The amended §4.4 and §4.5 I4 both
  * read `outage.must_show ∩ empty.must_show = ∅` — disjoint, not merely unequal — and equality
@@ -561,14 +612,42 @@ function checkStates(spec, errors) {
       errors.push(err('STATE001', `states[${i}].seed`,
         `state ${sid} declares no \`seed\` — §4.4 requires one per state, and without it the e2e entrypoint has nothing to seed this state from, so it can never be captured`));
     }
+
+    // STATE004 / STATE005 — the two MANDATORY states must DECLARE the dimension they are named
+    // for. A state id is a label; it is not evidence about what a probe rendered. Without this,
+    // `- id: narrow\n  seed: x` validated and was then captured at 1280px in the light theme,
+    // and the surface reported narrow and dark covered having rendered neither — a false green
+    // inside the mechanism that exists to prove state coverage. The fix is to make the claim
+    // explicit, so the capture list has something real to read.
+    if (state.id === 'narrow') {
+      const width = widthOf(state);
+      if (width === null || width >= NARROW_MAX_WIDTH) {
+        errors.push(err('STATE004', `states[${i}].viewport`,
+          `state \`narrow\` must declare a \`viewport\` narrower than ${NARROW_MAX_WIDTH}px (e.g. \`viewport: "390x844"\`)${width === null ? '' : ` — \`${state.viewport}\` is ${width}px wide`}: §4.4 makes this state mandatory and its capture is taken at the width it declares, so a \`narrow\` that declares none is rendered at the desktop width and reported as narrow coverage`));
+      }
+    }
+    if (state.id === 'dark') {
+      const theme = typeof state.theme === 'string' ? state.theme : null;
+      if (theme !== 'dark') {
+        errors.push(err('STATE005', `states[${i}].theme`,
+          `state \`dark\` must declare \`theme: dark\`${theme === null ? '' : ` — it declares \`${theme}\``}: §4.4 makes this state mandatory and its capture is taken in the theme it declares, so a \`dark\` that declares none is rendered light and reported as dark coverage`));
+      }
+    }
   });
 
   // STATE003 — ONE error listing every missing state. One error PER state would make a short
   // spec fail with five codes and redden the fixture-hygiene loop for every minimal fixture.
-  const missing = MINIMUM_STATES.filter((id) => !declared.has(id));
-  if (missing.length > 0) {
+  //
+  // `missingStates`, not `missing`: the module-level `missing()` is the MISSING-row factory, and
+  // a `const missing` here puts the whole function body in its temporal dead zone. It is inert
+  // only for as long as `checkStates` calls nothing but `err()` — the first STATE-level MISSING
+  // row added above this line throws a ReferenceError, which `validateSurfaceSpec`'s blanket
+  // catch converts into SPEC000 "the validator could not read this spec". A bug in the validator
+  // would surface as an unreadable spec, and the author would go looking at their YAML.
+  const missingStates = MINIMUM_STATES.filter((id) => !declared.has(id));
+  if (missingStates.length > 0) {
     errors.push(err('STATE003', 'states',
-      `§4.4's minimum state set is incomplete — this surface declares no ${missing.join(', ')}. Every surface declares populated, empty, error, outage, long-content, narrow and dark; \`loading\` only when the surface owns an async fetch`));
+      `§4.4's minimum state set is incomplete — this surface declares no ${missingStates.join(', ')}. Every surface declares populated, empty, error, outage, long-content, narrow and dark; \`loading\` only when the surface owns an async fetch`));
   }
 
   // STATE002 — the outage/empty distinction.
@@ -1019,6 +1098,7 @@ module.exports = {
   validateSurfaceSpec,
   enumerateBehaviorCombinations,
   resolveGuardDeniedState,
+  resolveCaptureDimensions,
   NARROW_MAX_WIDTH,
   MINIMUM_STATES
 };

@@ -40,7 +40,10 @@
  *                                   uses for a state that declares no `theme`.
  *   DEFAULT_WIDTH    = 1280       — the desktop capture width. A state that declares a
  *                                   `viewport` contributes ITS width instead.
- * `NARROW_MAX_WIDTH` is NOT re-declared here: it has one home, in `ui-spec-validate.cjs`.
+ * Neither `NARROW_MAX_WIDTH` nor the state -> (theme, width) rule is re-declared here: both
+ * have one home, in `ui-spec-validate.cjs` (`resolveCaptureDimensions`), because this file
+ * decides what is RENDERED and that file decides what is REASONED ABOUT — and when those two
+ * derived the rule separately they disagreed about the two states §4.4 makes mandatory.
  *
  * Consumed by: ui-spec-cli.cjs (`ui spec render`), 34-06 (the sheet), W2 (`ui probe`).
  * Depends on: ./ui-spec-validate.cjs, ./helpers.cjs (`pluginVersion()`). No npm dependencies —
@@ -48,7 +51,11 @@
  * building, and a dependency for string building is a dependency for nothing.
  */
 
-const { validateSurfaceSpec, resolveGuardDeniedState } = require('./ui-spec-validate.cjs');
+const {
+  validateSurfaceSpec,
+  resolveGuardDeniedState,
+  resolveCaptureDimensions
+} = require('./ui-spec-validate.cjs');
 const { pluginVersion } = require('./helpers.cjs');
 
 const DEFAULT_IDENTITY = 'primary';
@@ -384,10 +391,12 @@ function buildControlTable(spec) {
 
 // ─── The capture list ─────────────────────────────────────────────────────────
 //
-// state × theme × width, one triple per declared state today: a state declaring `theme: dark`
-// contributes a dark entry, a state declaring a `viewport` contributes ITS width, and every
-// other state takes DEFAULT_THEME / DEFAULT_WIDTH. 34-06's sheet GRID COLUMNS are exactly these
-// two dimensions, and W2's `ui probe` iterates this list in order.
+// state × theme × width, one triple per declared state today. The (theme, width) of a state is
+// NOT decided here: it comes from `resolveCaptureDimensions` in `ui-spec-validate.cjs`, the
+// same function that feeds the behaviour-coverage model's `theme` and `viewport` dimensions.
+// A declared `theme:`/`viewport:` wins; failing that a state ID of `dark` or `narrow` supplies
+// the dimension it is named for; failing both, the desktop light default. 34-06's sheet GRID
+// COLUMNS are exactly these two dimensions, and W2's `ui probe` iterates this list in order.
 //
 // The ORDER is the spec's `states[]` order, then theme, then width — a contract, not an
 // implementation detail, because the sheet's rows and the probe's capture order both inherit it.
@@ -410,9 +419,13 @@ function captureIdOf(surface, stateId, theme, width) {
 function buildCaptureList(spec) {
   const surface = spec.surface;
   return statesOf(spec).map((state) => {
-    const theme = typeof state.theme === 'string' ? state.theme : DEFAULT_THEME;
-    const declaredWidth = widthOf(state);
-    const width = declaredWidth === null ? DEFAULT_WIDTH : declaredWidth;
+    // `resolveCaptureDimensions` — 34-03's function, not a second copy of its rule. That file's
+    // behaviour-coverage model reasons about (theme, viewport) and THIS list decides what is
+    // actually rendered; when the two derived it separately they disagreed, and the disagreement
+    // was silent: the mandatory `narrow` and `dark` states, which §4.4 lets an author declare by
+    // id alone, came back at the desktop width in the light theme while the coverage model said
+    // narrow and dark were covered. Case C1c fails if they ever drift apart again.
+    const { theme, width } = resolveCaptureDimensions(state);
     return {
       state_id: state.id,
       theme,
