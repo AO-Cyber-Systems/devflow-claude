@@ -20,7 +20,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const { parseSurfaceSpec, loadMustNotVocabulary } = require('./ui-spec.cjs');
-const { validateSurfaceSpec } = require('./ui-spec-validate.cjs');
+const {
+  validateSurfaceSpec,
+  enumerateBehaviorCombinations,
+  NARROW_MAX_WIDTH
+} = require('./ui-spec-validate.cjs');
 
 const FIXTURE_DIR = path.join(__dirname, '__fixtures__', 'ui-spec');
 const POSITIVE_CONTROL = path.join(FIXTURE_DIR, 'projects-rail.md');
@@ -311,4 +315,151 @@ test('Case I2f — a local unresolvable control reports UNRESOLVED, not MISSING'
   assert.deepStrictEqual(codesOf(result), ['ROUTE003'], JSON.stringify(result.errors));
   assert.match(result.errors[0].msg, /UNRESOLVED/);
   assert.doesNotMatch(result.errors[0].msg, /MISSING/);
+});
+
+// ─── I3: controls, and the §4.3 exclusivity/coverage model ───────────────────
+//
+// The coverage model is the one interpretive decision in this objective. It is written out in
+// ui-spec-validate.cjs's header because 34-05's control table and W2's `effect` check both
+// resolve the active behaviour by the same rule — if they diverge, the spec says one thing and
+// the probe asserts another. Case I3g pins the passing table; the two broken fixtures pin the
+// two ways it fails.
+
+test('Case I3a — control-two-does.md (both `does` and `behaviors`) is exactly CTRL001', () => {
+  const result = validateSurfaceSpec(loadBroken('control-two-does.md').frontMatter, ctx());
+
+  assert.deepStrictEqual(codesOf(result), ['CTRL001'], JSON.stringify(result.errors));
+  assert.strictEqual(result.errors.length, 1);
+  assert.strictEqual(result.errors[0].path, 'controls[0]');
+  assert.match(result.errors[0].msg, /rail\.project\.header/);
+});
+
+test('Case I3b — a control with NEITHER `does` nor `behaviors` is exactly CTRL002', () => {
+  const spec = mutate(loadPositiveControl(), (s) => {
+    delete s.controls[1].does;
+    delete s.controls[1].effect;
+  });
+
+  const result = validateSurfaceSpec(spec, ctx());
+  assert.deepStrictEqual(codesOf(result), ['CTRL002'], JSON.stringify(result.errors));
+  assert.strictEqual(result.errors[0].path, 'controls[1]');
+});
+
+test('Case I3c — behaviors-overlapping-when.md is exactly CTRL003, naming both indexes', () => {
+  const result = validateSurfaceSpec(loadBroken('behaviors-overlapping-when.md').frontMatter, ctx());
+
+  assert.deepStrictEqual(codesOf(result), ['CTRL003'], JSON.stringify(result.errors));
+
+  const e = result.errors[0];
+  assert.strictEqual(e.path, 'controls[0].behaviors[2].when');
+  assert.match(e.msg, /behaviours 0 and 2/); // BOTH overlapping behaviour indexes
+  assert.match(e.msg, /control_state=collapsed/); // ... and the combination they collide at
+  assert.match(e.msg, /data_state=populated/);
+
+  // The overlap leaves (narrow, expanded) uncovered too. CTRL003 short-circuits CTRL004 within
+  // one control — the active behaviour is unresolvable, so a coverage verdict has no basis —
+  // and the message must SAY so rather than leaving the reader to assume coverage passed.
+  assert.match(e.msg, /CTRL004/);
+});
+
+test('Case I3d — behaviors-missing-narrow.md is exactly CTRL004, naming the uncovered rows', () => {
+  const result = validateSurfaceSpec(loadBroken('behaviors-missing-narrow.md').frontMatter, ctx());
+
+  assert.deepStrictEqual(codesOf(result), ['CTRL004'], JSON.stringify(result.errors));
+
+  const e = result.errors[0];
+  assert.strictEqual(e.path, 'controls[0].behaviors');
+  assert.match(e.msg, /data_state=narrow/);
+  assert.match(e.msg, /control_state=collapsed/);
+  assert.match(e.msg, /control_state=expanded/);
+});
+
+test('Case I3e — an effect outside the §7.5 effect classes is exactly CTRL005', () => {
+  const spec = mutate(loadPositiveControl(), (s) => {
+    s.controls[0].behaviors[0].effect = ['toggle', 'teleport'];
+  });
+
+  const result = validateSurfaceSpec(spec, ctx());
+  assert.deepStrictEqual(codesOf(result), ['CTRL005'], JSON.stringify(result.errors));
+  assert.strictEqual(result.errors[0].path, 'controls[0].behaviors[0].effect[1]');
+  assert.match(result.errors[0].msg, /teleport/);
+
+  // The control-level `effect` is the same rule at the other shape of control.
+  const onControl = mutate(loadPositiveControl(), (s) => {
+    s.controls[1].effect = ['levitate'];
+  });
+  const r2 = validateSurfaceSpec(onControl, ctx());
+  assert.deepStrictEqual(codesOf(r2), ['CTRL005'], JSON.stringify(r2.errors));
+  assert.strictEqual(r2.errors[0].path, 'controls[1].effect[0]');
+});
+
+test('Case I3f — visible_in naming a state that is not in `states` is exactly CTRL006', () => {
+  const spec = mutate(loadPositiveControl(), (s) => {
+    s.controls[1].visible_in = ['populated', 'long-content', 'no-such-state'];
+  });
+
+  const result = validateSurfaceSpec(spec, ctx());
+  assert.deepStrictEqual(codesOf(result), ['CTRL006'], JSON.stringify(result.errors));
+  assert.strictEqual(result.errors[0].path, 'controls[1].visible_in[2]');
+  assert.match(result.errors[0].msg, /no-such-state/);
+});
+
+test('Case I3g — the positive control header: 6 combinations, each matched by exactly one behaviour', () => {
+  const spec = loadPositiveControl();
+  const header = spec.controls[0];
+  assert.strictEqual(header.id, 'rail.project.header');
+
+  const table = enumerateBehaviorCombinations(header, spec);
+
+  // visible_in (3) x control_state domain (2, from a11y.announces and the behaviours' own
+  // `when`) = 6. If the control_state domain came out empty the table would be 3 rows of
+  // `default` and the model would be self-consistent but WRONG — this is the assertion that
+  // catches it.
+  assert.strictEqual(table.length, 6, JSON.stringify(table, null, 1));
+  assert.deepStrictEqual(
+    [...new Set(table.map((r) => r.combo.control_state))].sort(),
+    ['collapsed', 'expanded']
+  );
+
+  // The §4.2 worked table, row for row (data_state, control_state, viewport -> the ONE
+  // behaviour index that matches).
+  const rendered = table.map((r) => [r.combo.data_state, r.combo.control_state, r.combo.viewport, r.matched].join(' '));
+  assert.deepStrictEqual(rendered, [
+    'populated collapsed desktop 0',
+    'populated expanded desktop 1',
+    'long-content collapsed desktop 0',
+    'long-content expanded desktop 1',
+    'narrow collapsed narrow 2',
+    'narrow expanded narrow 2'
+  ]);
+
+  // Every non-data dimension is resolved from the state, not guessed: `narrow` is narrow
+  // because its 390x844 viewport is below NARROW_MAX_WIDTH, and nothing here is `denied`
+  // because no route guard names a declared state.
+  assert.strictEqual(NARROW_MAX_WIDTH, 600);
+  assert.deepStrictEqual([...new Set(table.map((r) => r.combo.theme))], ['light']);
+  assert.deepStrictEqual([...new Set(table.map((r) => r.combo.guard))], ['allowed']);
+});
+
+// ─── Fixture hygiene — the case that guards all the others ───────────────────
+
+test('Case I3h — every broken fixture fails with exactly ONE code, the one its marker names', () => {
+  const files = fs.readdirSync(BROKEN_DIR).filter((f) => f.endsWith('.md')).sort();
+
+  // Written as a loop over the directory so 34-04's six new fixtures inherit the check and
+  // cannot skip it. Five today.
+  assert.ok(files.length >= 5, `expected the five known-broken fixtures, found ${files.join(', ')}`);
+
+  for (const file of files) {
+    const parsed = loadBroken(file);
+    const expected = declaredCode(parsed.body);
+    assert.ok(expected, `${file} carries no <!-- BROKEN: … expected code XXXNNN --> marker`);
+
+    const result = validateSurfaceSpec(parsed.frontMatter, ctx());
+    const observed = codesOf(result);
+
+    // A fixture that trips three invariants proves nothing about the one it is named for.
+    assert.strictEqual(observed.length, 1, `${file} -> ${JSON.stringify(result.errors, null, 1)}`);
+    assert.strictEqual(observed[0], expected, `${file}: marker says ${expected}, validator says ${observed[0]}`);
+  }
 });
