@@ -770,4 +770,26 @@ test.describe('agent-shell-harness — the `# harness:` annotation vocabulary (A
     assert.strictEqual(eq.calls[0].executed, 'echo --driver=x.dart');
   });
 
+  // A6 — the single easiest way to make this harness worthless is a `skip` that counts
+  // green. A skip is MISSING: the prose was never exercised, so nothing about it was
+  // proven. A section of nothing but skips must not be `ok`.
+  test('Case A6 — `# harness: skip <reason>` is MISSING, never a pass', () => {
+    const res = harness.runSection(
+      harness.splitCalls('# harness: skip needs a booted device\nflutter test'),
+      { root: makeRoot() });
+    assert.notStrictEqual(res.ok, true, 'a section of only skips is NOT ok');
+    assert.strictEqual(res.calls[0].status, 'skipped');
+    assert.ok(res.missing, 'and the section carries a MISSING reason');
+    assert.match(String(res.missing), /needs a booted device/, 'which quotes the declared reason');
+    assert.ok(res.findings.some(f => f.type === 'skipped'));
+
+    // A skipped call is not executed at all: it can move nothing and produce nothing.
+    const root = makeRoot();
+    const inert = harness.runSection(
+      harness.splitCalls('# harness: skip no device\ntouch should-not-exist.txt'), { root });
+    assert.strictEqual(fs.existsSync(path.join(root, 'should-not-exist.txt')), false,
+      'a skipped call is never run');
+    assert.strictEqual(inert.calls[0].cwd_after, inert.calls[0].cwd_before);
+  });
+
 });
