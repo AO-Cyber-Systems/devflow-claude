@@ -18,7 +18,7 @@
  *   - gate-interactive.test.js
  */
 
-const { test, describe, beforeEach, afterEach } = require('node:test');
+const { test, describe, beforeEach, after, afterEach } = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 const http = require('http');
@@ -541,6 +541,38 @@ describe('handoff pipeline — PTY-path mock auth (TRD 19-05)', () => {
     if (leak) throw new Error(`${leak}\n--- daemon output (tail) ---\n${log}`);
   }
 
+  // THE OTHER HALF OF #93's WEDGE, and the same blindness that produced it.
+  //
+  // afterEach below closes the mock servers — and on node 22 it NEVER RUNS for
+  // a test that calls t.skip() at runtime. Three of this suite's tests do
+  // exactly that (MA-6-synth on its architectural gap; MA-7 and MA-6 when
+  // doctl is absent, which is the case on ubuntu-latest), so six HTTP servers
+  // were left listening and the file could not exit: 27s of tests, then 153s
+  // of nothing, then 'test timed out after 180000ms'. Measured on node 22 in a
+  // container: beforeEach ran 7 times, afterEach 4.
+  //
+  // node 25 — what a developer here actually runs — does run the hook, so the
+  // file exits locally and the wedge is Linux/node-22-only, exactly like the
+  // bracketed-paste bug in the same PR.
+  //
+  // Two changes, because relying on the hook is what failed:
+  //   1. unref() every fixture server. A mock that exists to answer requests
+  //      during one test must never be the reason node cannot exit, on any
+  //      runner and under any hook semantics.
+  //   2. Track them and close whatever survives in a suite-level after(),
+  //      which runs once and does not depend on per-test hook behaviour.
+  const liveServers = new Set();
+
+  async function closeServer(server) {
+    if (!server) return;
+    liveServers.delete(server);
+    if (!server.listening) return;
+    // closeAllConnections first: close() alone waits for keep-alive sockets,
+    // and a mock whose client went away with a socket open would hang here.
+    try { server.closeAllConnections(); } catch {}
+    await new Promise((r) => { try { server.close(() => r()); } catch { r(); } });
+  }
+
   let home, project, mockGh, mockDoctl, mockGhPort, mockDoctlPort;
   beforeEach(async () => {
     home = mkTmp();
@@ -559,14 +591,22 @@ describe('handoff pipeline — PTY-path mock auth (TRD 19-05)', () => {
       mockDoctl.once('error', rej);
       mockDoctl.listen(0, '127.0.0.1', () => r());
     });
+    mockGh.unref();
+    mockDoctl.unref();
+    liveServers.add(mockGh);
+    liveServers.add(mockDoctl);
     mockGhPort = mockGh.address().port;
     mockDoctlPort = mockDoctl.address().port;
   });
   afterEach(async () => {
-    try { if (mockGh) await new Promise(r => mockGh.close(() => r())); } catch {}
-    try { if (mockDoctl) await new Promise(r => mockDoctl.close(() => r())); } catch {}
+    await closeServer(mockGh);
+    await closeServer(mockDoctl);
     mockGh = null; mockDoctl = null; mockGhPort = null; mockDoctlPort = null;
     rmTmp(home); rmTmp(project);
+  });
+  after(async () => {
+    // Whatever afterEach did not get to — i.e. every skipped test's pair.
+    for (const s of Array.from(liveServers)) await closeServer(s);
   });
 
   test('MA-2 mockGhServer responds to POST /login/device/code with cassette', { timeout: 10000 }, async (t) => {
