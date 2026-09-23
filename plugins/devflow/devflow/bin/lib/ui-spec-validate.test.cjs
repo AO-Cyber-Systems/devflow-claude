@@ -463,3 +463,98 @@ test('Case I3h — every broken fixture fails with exactly ONE code, the one its
     assert.strictEqual(observed[0], expected, `${file}: marker says ${expected}, validator says ${observed[0]}`);
   }
 });
+
+// ─── I4: states, seeds, and the outage/empty distinction (TRD 34-04) ─────────
+//
+// §4.4 (amended): every surface declares at minimum populated, empty, error, outage,
+// long-content, narrow and dark; `loading` only when the surface owns an async fetch. Every
+// state has a seed. `outage.must_show ∩ empty.must_show = ∅` — DISJOINT, not merely unequal.
+// The amendment states the intersection rule in BOTH §4.4 and §4.5 I4, so there is nothing to
+// reconcile: equality is one INSTANCE of an intersection, and I4b/I4c pin both.
+
+test('Case I4a — state-without-seed.md fails with exactly STATE001, naming the state', () => {
+  const result = validateSurfaceSpec(loadBroken('state-without-seed.md').frontMatter, ctx());
+
+  assert.deepStrictEqual(codesOf(result), ['STATE001'], JSON.stringify(result.errors));
+  assert.strictEqual(result.errors.length, 1);
+  assert.strictEqual(result.errors[0].path, 'states[3].seed');
+  assert.match(result.errors[0].msg, /error/);
+});
+
+test('Case I4b — outage.must_show EQUAL to empty.must_show is exactly STATE002', () => {
+  const spec = mutate(loadPositiveControl(), (s) => {
+    const outage = s.states.find((st) => st.id === 'outage');
+    const empty = s.states.find((st) => st.id === 'empty');
+    outage.content.must_show = [...empty.content.must_show]; // the §4.4 "equal" half
+    outage.content.must_not_show = [];
+  });
+
+  const result = validateSurfaceSpec(spec, ctx());
+
+  assert.deepStrictEqual(codesOf(result), ['STATE002'], JSON.stringify(result.errors));
+  assert.strictEqual(result.errors.length, 1);
+  assert.match(result.errors[0].msg, /Create a project/);
+});
+
+test('Case I4c — a NON-equal intersection is STATE002 too (the stronger, amended rule)', () => {
+  // The fixture: outage shows ["unavailable", "Create a project"], empty shows
+  // ["Create a project"]. NOT equal — an equality-only implementation passes this and an
+  // outage then evidences itself with the emptiness sentence. That is the whole point of the
+  // amendment, so the FIXTURE carries the strong case and I4b carries the weak one.
+  const result = validateSurfaceSpec(loadBroken('outage-equals-empty.md').frontMatter, ctx());
+
+  assert.deepStrictEqual(codesOf(result), ['STATE002'], JSON.stringify(result.errors));
+  assert.strictEqual(result.errors.length, 1);
+  assert.match(result.errors[0].msg, /Create a project/);
+
+  // And it is the INTERSECTION that is named, not the whole list.
+  assert.doesNotMatch(result.errors[0].msg, /unavailable/);
+});
+
+test('Case I4d — a missing minimum state is exactly STATE003, ONE error naming every one', () => {
+  const noDark = mutate(loadPositiveControl(), (s) => {
+    s.states = s.states.filter((st) => st.id !== 'dark');
+  });
+
+  const result = validateSurfaceSpec(noDark, ctx());
+
+  assert.deepStrictEqual(codesOf(result), ['STATE003'], JSON.stringify(result.errors));
+  assert.strictEqual(result.errors.length, 1);
+  assert.strictEqual(result.errors[0].path, 'states');
+  assert.match(result.errors[0].msg, /dark/);
+
+  // CRITICAL: ONE error listing every missing state, never one error per state — otherwise a
+  // minimal spec produces five errors and the fixture-hygiene loop (I3h) reddens for every
+  // fixture that happens to be short of states.
+  const twoMissing = mutate(loadPositiveControl(), (s) => {
+    s.states = s.states.filter((st) => st.id !== 'dark' && st.id !== 'narrow');
+    // `narrow` is in the header control's visible_in; drop it there too so this case is about
+    // STATE003 alone and not about CTRL006.
+    s.controls.forEach((c) => { c.visible_in = c.visible_in.filter((v) => v !== 'narrow'); });
+    // With `narrow` gone the header's third behaviour matches nothing it needs to cover, but
+    // exclusivity/coverage still hold: B3 (`when: {viewport: narrow}`) simply never matches.
+  });
+
+  const two = validateSurfaceSpec(twoMissing, ctx());
+  const state003 = two.errors.filter((e) => e.code === 'STATE003');
+  assert.strictEqual(state003.length, 1, `expected ONE STATE003: ${JSON.stringify(two.errors)}`);
+  assert.match(state003[0].msg, /dark/);
+  assert.match(state003[0].msg, /narrow/);
+});
+
+test('Case I4e — `loading` is NOT in the minimum set (the negative, so I4d cannot over-fire)', () => {
+  // The positive control declares no `loading` state at all and V1 is green; assert the rule
+  // directly too, because "seven states plus loading" written by mistake reddens V1 and the
+  // diagnosis then costs an hour.
+  const spec = loadPositiveControl();
+  assert.ok(!spec.states.some((st) => st.id === 'loading'), 'the positive control declares no loading state');
+
+  const result = validateSurfaceSpec(spec, ctx());
+  assert.ok(!result.errors.some((e) => e.code === 'STATE003'), JSON.stringify(result.errors));
+
+  // And declaring one is equally fine — `loading` is allowed, just never required.
+  const withLoading = mutate(spec, (s) => {
+    s.states.push({ id: 'loading', seed: 'projects-3-conversations-12' });
+  });
+  assert.deepStrictEqual(validateSurfaceSpec(withLoading, ctx()).errors, []);
+});
