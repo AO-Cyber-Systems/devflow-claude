@@ -952,3 +952,54 @@ test.describe('agent-shell-harness — the real agents/executor.md (R)', () => {
   }
 
 });
+
+// ══════════════════════════════════════════════════════════════════════════════════════
+// CI (C). Path-filtered CI is a known false-green class in this fleet
+// (memory: path-filtered-ci-hides-red): the job must RUN, and must be able to FAIL.
+// ══════════════════════════════════════════════════════════════════════════════════════
+
+test.describe('agent-shell-harness — the CI gate (C)', () => {
+
+  const WORKFLOW = path.resolve(__dirname, '..', '..', '..', '..', '..',
+    '.github', 'workflows', 'agent-shell-harness.yml');
+
+  test('Case C1 — the workflow runs the harness on every PR touching agent prose', () => {
+    assert.ok(fs.existsSync(WORKFLOW), `${WORKFLOW} must exist`);
+    const yml = fs.readFileSync(WORKFLOW, 'utf-8');
+
+    // A text-level structural check, deliberately: this repo has no YAML dependency and
+    // this TRD adds none. What it can still prove is what actually matters below.
+    assert.ok(!/^\t| \t/m.test(yml), 'YAML must not be indented with tabs');
+    assert.match(yml, /^name: .+$/m);
+    assert.match(yml, /^on:$/m);
+    assert.match(yml, /^\s{2}pull_request:$/m);
+    assert.match(yml, /^jobs:$/m);
+    assert.match(yml, /^\s{4}runs-on: ubuntu-latest$/m);
+
+    for (const p of [
+      "'plugins/devflow/agents/**'",
+      "'plugins/devflow/devflow/workflows/**'",
+      "'plugins/devflow/devflow/bin/lib/agent-shell-harness*'",
+      // The gate's OWN path, so a change to the gate re-runs the gate. Without it a PR
+      // that weakens this workflow is merged by a check that never ran.
+      "'.github/workflows/agent-shell-harness.yml'",
+    ]) {
+      assert.ok(yml.includes(p), `the path filter must include ${p}`);
+    }
+
+    assert.ok(
+      yml.includes('node --test plugins/devflow/devflow/bin/lib/agent-shell-harness.test.cjs'),
+      'the job must actually run this suite');
+    // The fixtures must be executable in a fresh checkout or every section is MISSING.
+    assert.ok(/git ls-files|chmod \+x|\bcheck the fixture/.test(yml),
+      'and it must verify the stub binaries survived the checkout as executable');
+  });
+
+  test('Case C2 — the job cannot swallow its own exit code', () => {
+    const yml = fs.readFileSync(WORKFLOW, 'utf-8');
+    assert.ok(!/continue-on-error/.test(yml), 'no continue-on-error');
+    assert.ok(!/\|\|\s*true/.test(yml), 'no `|| true`');
+    assert.ok(!/if:\s*always\(\)/.test(yml), 'no always() step that would mask a failure');
+  });
+
+});
