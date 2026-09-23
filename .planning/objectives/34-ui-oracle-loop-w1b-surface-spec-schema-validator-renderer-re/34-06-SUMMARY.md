@@ -415,11 +415,40 @@ exactly as `render` does. It does not refuse the sheet and it is not swallowed.
 plugins/devflow/devflow/bin/lib/__fixtures__/ui-spec/sheet/projects-rail.sheet.html
 ```
 
+> ### Addendum (2026-09-22) — regenerated after the verifier's Q1/Q3 gap-closing fix
+> A verifier opened the sheet below and ran the checkpoint's own three questions against it
+> (that is exactly what the checkpoint asks for — it does not require a human to have answered
+> yet). **Q2 passed** on the real render. **Q1 and Q3 failed:**
+> * **Q1** — `rail.project.chevron` printed as the raw SUBJECT of a sentence in the section
+>   titled "Controls, in plain language" (`renderSurfaceSpec`'s prose), and separately the whole
+>   control table was HTML-escaped wholesale into a `<pre>`, so a human read literal `##`, `###`
+>   and `*Design read:*` markdown syntax instead of English (`renderSheetHtml`'s presentation).
+> * **Q3** — the sheet's dark palette responded only to system `prefers-color-scheme`, not to an
+>   explicit Artifact-viewer `data-theme` choice, so "light and dark both legible" could fail
+>   whenever a viewer's explicit theme disagreed with their OS setting; the page also had no
+>   defensive backstop against a page-level horizontal scrollbar.
+>
+> Both gaps are fixed (TDD, RED before GREEN, `test:` → `fix:` commits — see *Gap-closing fix
+> evidence* below). **`sheet_hash` moved**, from
+> `33af7614188bfe47d7e06eefa798dba149d0008ebde0e181662357de818af2b3` to
+> **`8befadf8851847d34666b3ae0a8fa81cfd0923083cf617723790dc2848716d7f`** — expected and correct:
+> the Q1 prose fix changes `controlTableMd`, which is part of the hashed model (§ "IN the hashed
+> payload", above). The Q1 markdown→HTML conversion and the Q3 CSS both live in
+> `renderSheetHtml`/the template, which the hash structurally cannot see (Case H1, unmodified,
+> still green) — so neither one moved it. **The cost of the hash moving is zero: no look-lock
+> exists anywhere yet.** `acceptance.locked_sheet` in the positive-control fixture is a
+> hand-transcribed placeholder from the proposal document (see that file's own header comment),
+> never a real `ui lock` output, and 34-07's re-lock logic has never run against this hash in
+> production. Nothing that exists today is invalidated by it moving.
+>
+> The three checkpoint questions below remain **`_(awaiting the human)_`** — closing a verifier's
+> findings is not the same as a human approving the sheet, and only a human may record an answer.
+
 | | |
 |---|---|
-| `sheet_hash` | **`33af7614188bfe47d7e06eefa798dba149d0008ebde0e181662357de818af2b3`** |
+| `sheet_hash` | **`8befadf8851847d34666b3ae0a8fa81cfd0923083cf617723790dc2848716d7f`** (was `33af7614188bfe47d7e06eefa798dba149d0008ebde0e181662357de818af2b3` — see the addendum above) |
 | states (rows) | 8 |
-| size | 57,574 bytes |
+| size | 21,633 bytes |
 | images inlined | 6 (5 renders + 1 reference) |
 
 **`missing[]` — MISSING by design, so the checkpoint's second question can be answered:**
@@ -478,8 +507,9 @@ review sheet nobody has looked at is not a review artifact, it is a file.
 1. Open it in a browser — it is self-contained, so `open <path>` (or dragging it into a tab) is
    enough; no server and no network. Alternatively paste its contents into a Claude Artifact,
    which additionally draws the navigation graph.
-2. `sheet_hash` `33af7614188bfe47d7e06eefa798dba149d0008ebde0e181662357de818af2b3` · 8 rows ·
-   3 MISSING (`error`, `outage`, `guard-denied`).
+2. `sheet_hash` `8befadf8851847d34666b3ae0a8fa81cfd0923083cf617723790dc2848716d7f` · 8 rows ·
+   3 MISSING (`error`, `outage`, `guard-denied`). (Regenerated after the gap-closing fix — see
+   the *Addendum* above; the earlier `33af7614…` hash predates that fix.)
 3. Answer the three questions below, verbatim, and record the answers in this section.
 
 **Question 1 — is the control table readable as English?**
@@ -503,6 +533,98 @@ depends on it.
 
 Any "no" becomes a fix **in this TRD** (layout) or a follow-up noted against **34-05** (wording) —
 not a deferred issue.
+
+---
+
+## Gap-closing fix (2026-09-22) — the verifier's Q1/Q3 findings, closed
+
+See the *Addendum* under "The committed fixture sheet" above for what changed and why the hash
+moved. This section is the TDD evidence for that fix — six commits, `test:` before `fix:` at
+every step, on `df/w1b-surface-spec`:
+
+| # | Gap | RED | GREEN | Files |
+|---|---|---|---|---|
+| 1a | Control id leaking into control-table prose (`ui-spec-render.cjs`, `renderSurfaceSpec`'s layer — **moves the hash**) | `9617716` (Case T5) | `e5039fa` | `ui-spec-render.{cjs,test.cjs}`, `__fixtures__/ui-spec/snapshots/projects-rail.controls.md` |
+| 1b | Raw markdown syntax (`##`, `*text*`) dumped into `<pre>` instead of real HTML (`ui-sheet.cjs`/the template — **must not** move the hash) | `b516665` (Case G8; Case G9 is a differential control — already green) | `3037e07` | `ui-sheet.cjs` |
+| 2 | Grid legible only under system `prefers-color-scheme`, no body-scroll backstop (the template — **must not** move the hash) | `15651a2` (Cases G10-G11) | `6eae038` | `templates/ui-sheet.html` |
+
+**What each fix does:**
+
+* **1a** — `humanName(id)` (new, in `ui-spec-render.cjs`): drops the leading namespace segment
+  when an id has 3+ dot-separated segments and joins the remainder with spaces
+  (`rail.project.chevron` -> `project chevron`); a 2-segment id keeps both. The control heading
+  becomes `### <human name> — *<id>* (<kind>)` — the id survives, but only there, wrapped in
+  emphasis. The single-`does` fallback sentence becomes `Clicking`/`Activating the <human
+  name> …` (`Clicking` iff `activation.pointer === true`) instead of `Activating <raw id> …`.
+  Case T5 asserts the id appears NOWHERE outside its own heading, for every control in the
+  positive control.
+* **1b** — `controlTableHtml()`/`inlineMd()` (new, in `ui-sheet.cjs`): a small explicit converter
+  for the CLOSED markdown subset `buildControlTable` emits (`##`/`### ` headings, `- ` bullets,
+  `*text*` emphasis) — not a markdown dependency. Every text node still runs through the
+  existing `esc()`. Case G9 (a differential control — it was already green, because the old
+  wholesale-escape-into-`<pre>` also escaped correctly) proves a spec value that LOOKS like
+  markup (`<script>…`, `&`, `<b>…`) still comes out escaped, not interpreted.
+* **2** — the dark-palette block in `templates/ui-sheet.html` is now guarded
+  `@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { … } }` PLUS a
+  standalone `:root[data-theme="dark"] { … }` block outside the media query, so an explicit
+  Claude-Artifact-viewer theme choice always wins over a guessed system preference in both
+  directions. `body { overflow-x: hidden; }` is a defensive backstop; the pre-existing
+  `overflow-x: auto` on `pre` and the new `.control-table` container is where wide content is
+  meant to scroll instead.
+
+**H1 (the hash's independence from the template/renderer) was run, unmodified, after every
+step** — it is the executable form of the rule that 1b and 2 must not move `sheet_hash`, and it
+stayed green throughout.
+
+**RED, verbatim (Case T5, the load-bearing one for `sheet_hash` moving):**
+
+```
+$ cd plugins/devflow/devflow/bin/lib && node --test --test-name-pattern="Case T5" ui-spec-render.test.cjs
+✖ Case T5 — a control id never appears inside a generated prose sentence…
+  AssertionError: control id "rail.project.chevron" leaked into prose outside its heading:
+  "- Activating rail.project.chevron toggles children visibility only. (toggle)"
+ℹ tests 1 / ℹ pass 0 / ℹ fail 1
+```
+
+**GREEN — the same suites, full run:**
+
+```
+$ cd plugins/devflow/devflow/bin/lib && node --test ui-sheet.test.cjs ui-spec-cli.test.cjs \
+    ui-spec-render.test.cjs ui-spec-validate.test.cjs ui-spec.test.cjs yaml-lite.test.cjs 2>&1 | tail -8
+ℹ tests 132
+ℹ suites 0
+ℹ pass 132
+ℹ fail 0
+ℹ skipped 0
+```
+
+132 vs. the original row's 113 — the +19 is exactly this fix's new cases (T5, G8, G9, G10, G11)
+plus the pre-existing suite, all green.
+
+**`npm test` at the end of this fix — not this row's gate, recorded for drift:**
+
+```
+ℹ tests 3233
+ℹ suites 467
+ℹ pass 3173
+ℹ fail 10
+ℹ skipped 50
+```
+
+All 10 failures are the same three pre-existing, unrelated files the original row already named
+— `devflow-watch` (5), `handoff-e2e`/"handoff pipeline" (4), `awareness` S1 (1) — CLI-spawn /
+timing flakes. **None is in a file this fix touched**
+(`ui-spec-render.{cjs,test.cjs}`, `ui-sheet.{cjs,test.cjs}`, `templates/ui-sheet.html`, the
+committed snapshot, or the fixture sheet). 10 sits at the top of the orchestrator's own stated
+8-10 flake band the original row recorded — this fix did not grow the failure set.
+
+**The fixture sheet was regenerated** with the same five-present/three-missing composition as the
+original row (`populated`, `long-content`, `empty`, `narrow`, `dark` present; `error`, `outage`,
+`guard-denied` MISSING by design; `populated` also carries `locked/populated.png`), via a
+re-derived `scratchpad/make-sheet-fixture.cjs` (the original generator script lived in a
+prior session's scratchpad and does not persist across sessions — this one reproduces the same
+recipe from the TRD's own recorded command). New size 21,633 bytes (placeholder renders are
+smaller flat-color PNGs than the original run's; nothing asserts an exact byte count).
 
 ---
 
@@ -548,6 +670,12 @@ not a deferred issue.
    and never reads `devflow/templates/`. `loadSheetTemplate()` therefore follows **34-02's**
    precedent instead (`path.join(__dirname, '..', '..', …)`, exactly as `SCHEMA_DIR` is resolved),
    which is the pattern M1 guards.
+
+8. **`34-07-SUMMARY.md` still shows the OLD `33af7614…` hash in one illustrative CLI transcript**
+   (its own `ui lock … --sheet-hash 33af7614…` demo, against an unrelated `/tmp/pv.md` spec —
+   not this fixture). Left untouched: it is a different, already-closed TRD's committed evidence
+   transcript, not a live assertion against `projects-rail.sheet.html`, and this fix's mandate is
+   34-06 only. Flagged here so a reader of 34-07 is not confused by the mismatch.
 
 ## Not in this TRD
 
