@@ -368,6 +368,49 @@ function hasHelpFlag(args) {
   return args.some(a => HELP_FLAGS.has(a));
 }
 
+/**
+ * Subcommands whose remaining argv is a FREE-FORM TAIL — text df-tools carries
+ * rather than reads. `handoff create <command...>` joins its tail into a
+ * command line handed to the user's shell, so a `--help` in it belongs to THAT
+ * command, not to df-tools.
+ *
+ * Issue #100 finding 6: the global scan was flat, so
+ * `df-tools handoff create gh auth login --help` printed df-tools' handoff
+ * usage, exited 0, and queued NOTHING — the handoff silently never happened.
+ * Mapped `command -> subcommands`; the tail starts after the subcommand.
+ */
+const FREEFORM_TAIL = {
+  'handoff': new Set(['create']),
+};
+
+/**
+ * The index at which the dispatcher's scan for a help flag must STOP: the
+ * start of a free-form tail, or a literal `--`, whichever comes first.
+ *
+ * The tail's FIRST token is still scanned: `handoff create --help` forwards no
+ * command at all (a shell line cannot begin with `--help`), so there it really
+ * is a question. From the second token on — `handoff create gh auth login
+ * --help` — the flag is addressed to the command being carried. A literal `--`
+ * ends the flag region unconditionally, tail or no tail.
+ */
+function helpScanLimit(args) {
+  let limit = args.length;
+  const tail = FREEFORM_TAIL[args[0]];
+  if (tail && tail.has(args[1])) limit = Math.min(limit, 3);
+  const dashdash = args.indexOf('--');
+  if (dashdash !== -1) limit = Math.min(limit, dashdash);
+  return limit;
+}
+
+/**
+ * Is a help flag addressed to df-tools ITSELF? Unlike `hasHelpFlag` (which a
+ * subcommand uses on its own argv, where every token is its own), this stops
+ * at anything df-tools is only carrying.
+ */
+function hasTopLevelHelpFlag(args) {
+  return args.slice(0, helpScanLimit(args)).some(a => HELP_FLAGS.has(a));
+}
+
 function topLevelUsage() {
   const names = Object.keys(COMMANDS).sort();
   const width = names.reduce((w, n) => Math.max(w, n.length), 0);
@@ -406,4 +449,8 @@ function printHelp(name) {
   process.exit(0);
 }
 
-module.exports = { COMMANDS, HELP_FLAGS, OWN_HELP, ownsHelp, hasHelpFlag, topLevelUsage, commandUsage, printHelp };
+module.exports = {
+  COMMANDS, HELP_FLAGS, OWN_HELP, FREEFORM_TAIL,
+  ownsHelp, hasHelpFlag, hasTopLevelHelpFlag, helpScanLimit,
+  topLevelUsage, commandUsage, printHelp,
+};

@@ -253,7 +253,9 @@ const { cmdProjectDecline, cmdProjectAccept } = require('./lib/decline-tracker.c
 const { cmdProjectState } = require('./lib/project-state.cjs');
 const { cmdGlobalConfig } = require('./lib/global-config.cjs');
 const { cmdExecContextRoute } = require('./lib/exec-context.cjs');
-const { hasHelpFlag, ownsHelp, HELP_FLAGS, printHelp } = require('./lib/help.cjs');
+const {
+  hasTopLevelHelpFlag, ownsHelp, HELP_FLAGS, printHelp, topLevelUsage, COMMANDS: HELP_TABLE,
+} = require('./lib/help.cjs');
 const { cmdGenerateUAT } = require('./lib/uat-generator.cjs');
 
 // ─── CLI Router ───────────────────────────────────────────────────────────────
@@ -268,16 +270,34 @@ async function main() {
   const cwd = process.cwd();
 
   // ── `--help` is a question, never an instruction (issue #87) ───────────────
-  // Answered BEFORE the switch so no subcommand can ever see a help flag as
-  // data. `df-tools commit --help` used to take '--help' as the commit MESSAGE
-  // and commit whatever was dirty; a per-subcommand fix would have left the
-  // same hole open in the next subcommand added.
-  // A handful of commands print their own, richer help (which judge modes are
-  // binding, which scope a scaffold writes to). Those are delegated to — every
-  // one of them prints and returns before doing any work, which
-  // help-delegation.test.cjs enforces.
-  if (!command || (hasHelpFlag(args) && !ownsHelp(args))) {
-    printHelp(command && !HELP_FLAGS.has(command) ? command : null);
+  // Answered BEFORE the switch, so no subcommand can take a help flag ADDRESSED
+  // TO DF-TOOLS as data. `df-tools commit --help` used to take '--help' as the
+  // commit MESSAGE and commit whatever was dirty; a per-subcommand fix would
+  // have left the same hole open in the next subcommand added.
+  //
+  // Two boundaries the first cut of this got wrong (issue #100):
+  //   - Some argv is CARRIED, not read: `handoff create <command...>` hands its
+  //     tail to the user's shell, so `--help` there is the forwarded command's.
+  //     `hasTopLevelHelpFlag` stops at that tail (and at a literal `--`).
+  //   - A handful of commands print their own, richer help (which judge modes
+  //     are binding, which scope a scaffold writes to). Those are delegated to
+  //     — each honours a help flag at ANY argv position and returns before
+  //     doing any work, which help-delegation.test.cjs enforces in every form
+  //     (`<cmd> [<sub>] [<positional>] --help|-h`).
+  if (hasTopLevelHelpFlag(args) && !ownsHelp(args)) {
+    const name = command && !HELP_FLAGS.has(command) ? command : null;
+    // A help flag on a name that is not a command is a TYPO, not a question
+    // (issue #100 finding 7). Fall through to the `default:` arm, which names
+    // it and exits 1, rather than printing the listing and reporting success.
+    if (!name || HELP_TABLE[name]) printHelp(name);
+  }
+
+  // No command named at all. A script building a command name dynamically that
+  // produced an empty one must not read `rc=0` (issue #100 finding 7); this is
+  // the exit 1 the pre-#87 `error(...)` path gave.
+  if (!command) {
+    process.stderr.write(topLevelUsage());
+    process.exit(1);
   }
 
   switch (command) {
