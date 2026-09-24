@@ -23,12 +23,30 @@ df-tools commit --help      # usage for one command
 ```
 
 `--help` and `-h` are answered by the dispatcher **before** it selects a
-subcommand, so no subcommand can receive a help flag as data. This used to be
-false in the worst possible place: `df-tools commit --help` took `--help` as the
-commit message, found no `--files`, and committed whatever was dirty
-([#87](https://github.com/AO-Cyber-Systems/devflow-claude/issues/87)).
+subcommand, so no subcommand can receive a help flag *addressed to df-tools* as
+data. This used to be false in the worst possible place: `df-tools commit --help`
+took `--help` as the commit message, found no `--files`, and committed whatever
+was dirty ([#87](https://github.com/AO-Cyber-Systems/devflow-claude/issues/87)).
 `config-set`, `milestone complete`, `handoff create`, `micro start`,
 `changelog update` and `project-decline` all wrote something too.
+
+Three boundaries make that guarantee exact
+([#100](https://github.com/AO-Cyber-Systems/devflow-claude/issues/100)):
+
+- **A handful of commands print their own, richer help** — `awareness`,
+  `org-awareness`, `dup-detect`, `defaults-table init`, `flutter-ui`
+  `bootstrap`/`eval`/`design-review`, `verify flutter-ui-eval`, `gh resolve`.
+  The dispatcher delegates to them, and each honours `--help` or `-h` at **any**
+  argv position and returns before doing any work. `flutter-ui bootstrap ./app
+  --help` used to scaffold five files; `flutter-ui eval -h` used to look for an
+  objective named `-h`.
+- **Some argv is carried, not read.** `handoff create <command...>` hands its
+  tail to your shell, so `df-tools handoff create gh auth login --help` is a
+  handoff of `gh auth login --help` — df-tools does not answer for `gh`. A
+  literal `--` ends the flag region anywhere.
+- **A name that is not a command is a typo, not a question.** `df-tools` with no
+  arguments, and `df-tools <typo> --help`, print the listing and exit **1**, so a
+  script that builds an empty or misspelled command name cannot read success.
 
 ## Complete command surface
 
@@ -72,6 +90,15 @@ Two safety rules, both from [#87](https://github.com/AO-Cyber-Systems/devflow-cl
   `.planning/` — the planning docs the command is named for — and still never
   the rest of the working tree. Pass `--files` anyway: it is the only form that
   says what you meant.
+
+A commit that did **not** happen now exits non-zero and says why
+([#100](https://github.com/AO-Cyber-Systems/devflow-claude/issues/100)). The
+pathspec form above is a *partial commit*, and git refuses one while a merge is
+in progress — which surfaced as `{"reason": "nothing_to_commit"}` and `rc=0`, the
+one wording that makes you stop looking. Resolving a merge now reports
+`reason: "merge_in_progress"`, names the merge, and tells you to finish it with
+the whole index; any other git failure is `reason: "commit_failed"`. Only a
+genuinely empty commit is still `nothing_to_commit` with `rc=0`.
 
 ### Validation and health
 
