@@ -243,3 +243,112 @@ describe('exec-context worktree — explicit repo and base (issue #86)', () => {
     assert.match(r.stdout + r.stderr, /--id/);
   });
 });
+
+/**
+ * Issue #100 Group B — the guard's own blind spots. Each of these passed the
+ * #86 acceptance tests and was still wrong in the scenario #86 exists for.
+ */
+describe('exec-context — the guard must not certify itself (issue #100)', () => {
+  afterEach(cleanupAll);
+
+  test('finding 1: in a linked worktree, `checkout` is where work goes, not `repo_root`', () => {
+    const repo = makeRepo('target');
+    const wt = path.join(path.dirname(repo), `${path.basename(repo)}-wt`);
+    tmpRoots.push(wt);
+    git(repo, `worktree add -q -b wave2 "${wt}"`);
+
+    const r = run(['exec-context', 'check', '--repo', repo], wt);
+    assert.strictEqual(r.status, 0, r.stderr);
+    const json = JSON.parse(r.stdout);
+
+    // `repo_root` is the REPOSITORY's main checkout — for a linked worktree that
+    // is the SHARED tree every other wave is using. An executor told to write
+    // "absolute from repo_root" writes into it, which is precisely the collision
+    // explicit provisioning exists to prevent.
+    assert.strictEqual(fs.realpathSync(json.checkout), fs.realpathSync(wt),
+      '`checkout` must be the tree this spawn is actually standing in');
+    assert.notStrictEqual(fs.realpathSync(json.repo_root), fs.realpathSync(wt),
+      'fixture sanity: repo_root and checkout must differ for a linked worktree');
+    assert.strictEqual(json.is_worktree, true);
+  });
+
+  test('finding 3: a relative --repo is refused — it would compare cwd with itself', () => {
+    const target = makeRepo('target');
+    const other = makeRepo('other');
+    // `--repo .` resolves against the SPAWN's own cwd, so the guard compares the
+    // repo it is in with the repo it is in and can never fail. Run from the
+    // WRONG repo, which a working guard must reject.
+    const r = run(['exec-context', 'check', '--repo', '.'], other);
+    assert.strictEqual(r.status, 1,
+      `a cwd-relative --repo must be refused, not silently self-certified; stdout: ${r.stdout}`);
+    assert.match(r.stdout + r.stderr, /absolute/i,
+      'the refusal must say the path has to be absolute');
+    // And the absolute form still works from the right repo.
+    assert.strictEqual(run(['exec-context', 'check', '--repo', target], target).status, 0);
+  });
+
+  test('finding 8: a repository with no commits is not green', () => {
+    const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'df-exec-unborn-'));
+    tmpRoots.push(empty);
+    git(empty, 'init -q .');
+    // `git rev-parse HEAD` on an unborn HEAD prints the literal string "HEAD"
+    // and exits 128. Taking .stdout without the exit code produced
+    // {"ok":true,"branch":"HEAD","head_sha":"HEAD"} — a green check on a repo
+    // that cannot hold a commit yet.
+    const r = run(['exec-context', 'check', '--repo', empty], empty);
+    assert.strictEqual(r.status, 1, `an unborn HEAD must exit 1; stdout: ${r.stdout}`);
+    assert.doesNotMatch(r.stdout, /"head_sha": "HEAD"/,
+      'the literal string "HEAD" must never be reported as a sha');
+    assert.match(r.stdout + r.stderr, /no commits|unborn/i,
+      'the message must name the real cause, not blame the base');
+  });
+
+  test('finding 8: with --base, an unborn HEAD is not reported as BASE NOT VISIBLE', () => {
+    // A repo WITH commits, checked out on an orphan branch: `main` resolves, so
+    // the check reaches the ancestry test with head_sha = the literal "HEAD".
+    // It then blamed the base — "BASE NOT VISIBLE" — for an unborn checkout.
+    const repo = makeRepo('orphan');
+    git(repo, 'checkout -q --orphan fresh');
+    const r = run(['exec-context', 'check', '--repo', repo, '--base', 'main'], repo);
+    assert.strictEqual(r.status, 1);
+    assert.doesNotMatch(r.stdout + r.stderr, /BASE NOT VISIBLE/,
+      'naming the base is naming the wrong cause when HEAD is unborn');
+    assert.match(r.stdout + r.stderr, /no commits|unborn/i,
+      'the message must name the unborn HEAD');
+  });
+
+  test('finding 2: merge_back targets the checkout the orchestrator is standing in', () => {
+    // #86's own scenario: the orchestrator dispatches FROM a linked worktree, on
+    // the objective branch. `git -C <mainRoot> merge` would merge the wave into
+    // whatever the main checkout happens to have out — usually `main`.
+    const repo = makeRepo('target');
+    const wt = path.join(path.dirname(repo), `${path.basename(repo)}-orch`);
+    tmpRoots.push(wt);
+    git(repo, `worktree add -q -b df/objective-571 "${wt}"`);
+
+    const r = run(['exec-context', 'worktree', '--repo', repo, '--id', '571-06'], wt);
+    assert.strictEqual(r.status, 0, r.stderr);
+    const json = JSON.parse(r.stdout);
+    tmpRoots.push(json.worktree_path);
+
+    assert.ok(!json.merge_back.includes(`-C ${repo} merge`),
+      `merge_back must not merge into the main checkout's current branch: ${json.merge_back}`);
+    assert.match(json.merge_back, new RegExp(`merge --no-ff ${json.branch.replace('/', '\\/')}$`),
+      `merge_back must still merge the wave branch: ${json.merge_back}`);
+    assert.ok(json.merge_back.includes(fs.realpathSync(wt)) || !json.merge_back.includes(' -C '),
+      `merge_back must target the orchestrator's own checkout: ${json.merge_back}`);
+  });
+
+  test('finding 2: from an unrelated cwd, merge_back still targets the named repo', () => {
+    const target = makeRepo('target');
+    const other = makeRepo('other');
+    const r = run(['exec-context', 'worktree', '--repo', target, '--id', '571-07'], other);
+    assert.strictEqual(r.status, 0, r.stderr);
+    const json = JSON.parse(r.stdout);
+    tmpRoots.push(json.worktree_path);
+    assert.ok(json.merge_back.includes(fs.realpathSync(target)),
+      `merge_back must fall back to the named repo when cwd is elsewhere: ${json.merge_back}`);
+    assert.ok(!json.merge_back.includes(fs.realpathSync(other)),
+      `merge_back must never target an unrelated repo: ${json.merge_back}`);
+  });
+});

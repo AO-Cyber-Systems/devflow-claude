@@ -76,6 +76,32 @@ describe('executor isolation wiring (issue #86)', () => {
       'reader the defect is still live');
   });
 
+  // ── issue #100 Group B — the guard pointed at the wrong tree ───────────────
+
+  test('#100 finding 1: the executor writes relative to `checkout`, not `repo_root`', () => {
+    const body = read(EXECUTOR);
+    // `check` reports repo_root = the REPOSITORY's main checkout, and checkout =
+    // the tree this spawn is standing in. For a wave provisioned into
+    // `.df-worktrees/<repo>/<id>` they are different directories, and repo_root
+    // is the SHARED one. Telling the executor "every path you write is absolute
+    // from repo_root" sends every parallel wave into the same tree.
+    assert.match(body, /`?checkout`?/,
+      'executor.md must name the `checkout` field the preflight returns');
+    assert.doesNotMatch(body, /absolute from (?:it|`?repo_root`?)/i,
+      'executor.md must not tell the executor to write relative to `repo_root` — ' +
+      'in a linked worktree that is the shared main checkout');
+  });
+
+  test('#100 finding 3: the no-REPO_ROOT fallback does not self-certify', () => {
+    const body = read(EXECUTOR);
+    // Running the guard against the spawn's OWN toplevel compares the repo with
+    // itself, so it can never fail. A guard that cannot fail is not a guard.
+    assert.doesNotMatch(body, /exec-context check --repo \$\(git rev-parse --show-toplevel\)/,
+      'the fallback must not run the check against the session\'s own repo root');
+    assert.match(body, /unproven|cannot be proven|not proven/i,
+      'a dispatch with no REPO_ROOT must be reported as UNPROVEN, not quietly self-certified');
+  });
+
   test('quick.md dispatches its executor with the same repo preflight', () => {
     const body = read(QUICK);
     assert.match(body, /exec-context check --repo/,
