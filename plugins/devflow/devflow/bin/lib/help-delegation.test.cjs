@@ -34,6 +34,42 @@ function delegationTargets() {
   return out;
 }
 
+/**
+ * A plausible FIRST POSITIONAL for each target — the argument a caller would
+ * really type before reaching for `--help` ("what were the flags on this
+ * again?"). Issue #100 finding 4: every delegated handler only recognised a
+ * help flag in the first positional slot, so `flutter-ui bootstrap ./app
+ * --help` SCAFFOLDED FIVE FILES instead of printing usage. The contract is
+ * positional, not "argv[0] happens to be --help".
+ *
+ * A whole-command owner (`awareness`) needs a real subcommand here, or the
+ * route rejects the probe before the question of help even arises.
+ */
+const PROBE = {
+  'awareness': 'show',
+  'org-awareness': 'scan-siblings',
+  'dup-detect': 'log',
+  'defaults-table init': '--scope=project',
+  'flutter-ui bootstrap': '.',
+  'flutter-ui design-review': 'ui_eval/manifests/web.manifest.json',
+  'flutter-ui eval': 'ui_eval/manifests/web.manifest.json',
+  'verify flutter-ui-eval': 'ui_eval/manifests/web.manifest.json',
+  'gh resolve': '01-probe',
+};
+
+/**
+ * Every argv form a help flag can legitimately arrive in. `-h` is in HELP_FLAGS
+ * and therefore in the contract; it is NOT spelled `--help`, which is how
+ * `flutter-ui eval -h` came to be read as an objective NAME
+ * (`"objective '-h' not found"`) rather than as a question.
+ */
+function helpForms(target) {
+  const probe = PROBE[target.join(' ')];
+  const forms = [[...target, '--help'], [...target, '-h']];
+  if (probe) forms.push([...target, probe, '--help'], [...target, probe, '-h']);
+  return forms;
+}
+
 let tmpDir;
 
 before(() => {
@@ -44,6 +80,11 @@ before(() => {
   fs.writeFileSync(path.join(tmpDir, '.planning', 'config.json'), '{"commit_docs":true}\n');
   fs.writeFileSync(path.join(tmpDir, '.planning', 'STATE.md'), '# State\n');
   fs.writeFileSync(path.join(tmpDir, '.planning', 'ROADMAP.md'), '# Roadmap\n');
+  // A Flutter package, so `flutter-ui bootstrap . --help` reaches the scaffolder
+  // rather than short-circuiting on `flutter-not-detected`. Without this the
+  // finding-4 probe passes for the wrong reason.
+  fs.writeFileSync(path.join(tmpDir, 'pubspec.yaml'),
+    'name: probe_app\nenvironment:\n  sdk: ">=3.0.0"\ndependencies:\n  flutter:\n    sdk: flutter\n');
   execSync('git init -q .', { cwd: tmpDir, stdio: 'pipe' });
   execSync('git config user.email "t@t.t"', { cwd: tmpDir, stdio: 'pipe' });
   execSync('git config user.name "T"', { cwd: tmpDir, stdio: 'pipe' });
@@ -62,21 +103,24 @@ function snapshot() {
 
 describe('commands that own their --help still honour the #87 contract', () => {
   for (const target of delegationTargets()) {
-    test(`${target.join(' ')} --help: exit 0, prints usage, changes nothing`, () => {
-      const before = snapshot();
-      const head = execSync('git rev-parse HEAD', { cwd: tmpDir, encoding: 'utf-8' }).trim();
+    for (const argv of helpForms(target)) {
+      const label = argv.join(' ');
+      test(`${label}: exit 0, prints usage, changes nothing`, () => {
+        const before = snapshot();
+        const head = execSync('git rev-parse HEAD', { cwd: tmpDir, encoding: 'utf-8' }).trim();
 
-      const r = spawnSync(process.execPath, [TOOLS_PATH, ...target, '--help'],
-        { cwd: tmpDir, encoding: 'utf-8', timeout: 20000 });
+        const r = spawnSync(process.execPath, [TOOLS_PATH, ...argv],
+          { cwd: tmpDir, encoding: 'utf-8', timeout: 60000 });
 
-      const said = (r.stdout || '') + (r.stderr || '');
-      assert.strictEqual(r.status, 0, `${target.join(' ')} --help must exit 0; output: ${said}`);
-      assert.match(said, /usage|options|--/i, `${target.join(' ')} --help printed nothing useful`);
-      assert.strictEqual(snapshot(), before, `${target.join(' ')} --help changed files on disk`);
-      assert.strictEqual(
-        execSync('git rev-parse HEAD', { cwd: tmpDir, encoding: 'utf-8' }).trim(), head,
-        `${target.join(' ')} --help moved HEAD`);
-    });
+        const said = (r.stdout || '') + (r.stderr || '');
+        assert.strictEqual(r.status, 0, `${label} must exit 0; output: ${said}`);
+        assert.match(said, /usage|options|--/i, `${label} printed nothing useful`);
+        assert.strictEqual(snapshot(), before, `${label} changed files on disk`);
+        assert.strictEqual(
+          execSync('git rev-parse HEAD', { cwd: tmpDir, encoding: 'utf-8' }).trim(), head,
+          `${label} moved HEAD`);
+      });
+    }
   }
 
   test('ownsHelp only matches the declared pairs', () => {
