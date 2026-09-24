@@ -1,6 +1,21 @@
 # Assessment — headless / generative UI for the Trades re-work
 
-**Status: DECISION DEFERRED.** Commitment is held until wave 1★'s dogfood reports. This
+> **SUPERSEDED IN PART, 2026-09-24.** Mark has given direction, and it is narrower than what
+> this document assessed: **business administration and oversight move off wired UIs to a
+> headless agent — the user states an outcome in a conversational UI and the agent spawns
+> component UI to get there — while curated experiences (field service, dispatch, POS) stay
+> hand-built.** That matches §4's option B, the one this assessment recommended, rather than
+> option A, which it argued against. The 47-route Trades port is unaffected.
+>
+> §5's deferral therefore no longer governs *whether*. What it still governs is *how much can be
+> trusted*: the dogfood has not run, so the claim "a machine-checkable contract catches real
+> defects without a human in the loop" remains unevidenced. Everything §2 measured — the route
+> ratio, the global offline machinery, the fail-closed authorization — still holds and still
+> bounds what generative UI should be pointed at.
+>
+> The agreed cross-repo contract is in `docs/HEADLESS-AGENT-UI-CONTRACT.md`.
+
+**Status: DECISION DEFERRED (see the note above — the *whether* is now decided).** Commitment is held until wave 1★'s dogfood reports. This
 document records what was measured, what it implies, and — most importantly — **what evidence
 would change the answer**, so the deferral is a scheduled decision rather than an open question.
 
