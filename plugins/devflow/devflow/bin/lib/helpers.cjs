@@ -15,7 +15,14 @@ const MODEL_IDS = _modelProfilesData.models || {};
 
 // ─── Output / Error ──────────────────────────────────────────────────────────
 
-function output(result, raw, rawValue) {
+/**
+ * Emit a result and exit.
+ *
+ * `exitCode` defaults to 0 — the overwhelmingly common case. Pass a non-zero
+ * code for a result that reports a FAILURE: a payload saying `committed:false`
+ * beside `rc=0` is how a refused commit read as a no-op (issue #100 finding 5).
+ */
+function output(result, raw, rawValue, exitCode = 0) {
   if (raw && rawValue !== undefined) {
     process.stdout.write(String(rawValue));
   } else {
@@ -30,7 +37,7 @@ function output(result, raw, rawValue) {
       process.stdout.write(json);
     }
   }
-  process.exit(0);
+  process.exit(exitCode);
 }
 
 function error(message) {

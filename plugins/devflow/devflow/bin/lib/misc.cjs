@@ -422,6 +422,14 @@ async function cmdWebsearch(query, options, raw) {
   }
 }
 
+/**
+ * Is a merge in progress? git refuses a partial (pathspec-scoped) commit while
+ * MERGE_HEAD exists, so `df-tools commit` cannot use its normal scoped form.
+ */
+function mergeInProgress(cwd) {
+  return execGit(cwd, ['rev-parse', '-q', '--verify', 'MERGE_HEAD']).exitCode === 0;
+}
+
 function cmdCommit(cwd, message, files, raw, amend) {
   if (!message && !amend) {
     error('commit message required');
@@ -466,15 +474,48 @@ function cmdCommit(cwd, message, files, raw, amend) {
   } else {
     commitArgs = ['commit', '-m', message, '--', ...filesToStage];
   }
+  // Issue #100 finding 5: a merge in progress makes the pathspec form above a
+  // PARTIAL COMMIT, which git refuses outright. That refusal used to surface as
+  // `nothing_to_commit` with exit 0 — the one wording that makes a human stop
+  // looking — so the merge resolution was silently never committed. Detect it
+  // BEFORE the attempt so the message can name the cause and the remedy.
+  if (!amend && mergeInProgress(cwd)) {
+    const result = {
+      committed: false,
+      hash: null,
+      reason: 'merge_in_progress',
+      staged: filesToStage,
+      error:
+        'A merge is in progress (MERGE_HEAD exists), and git refuses a partial ' +
+        '(pathspec-scoped) commit during a merge. Your changes ARE staged — ' +
+        'nothing was lost. Finish the merge with the whole index:\n' +
+        '  DEVFLOW_ALLOW_RAW_COMMIT=1 git commit --no-edit\n' +
+        'or, to abandon it: git merge --abort',
+    };
+    output(result, raw, 'merge_in_progress', 1);
+    return;
+  }
+
   const commitResult = execGit(cwd, commitArgs);
   if (commitResult.exitCode !== 0) {
-    if (commitResult.stdout.includes('nothing to commit') || commitResult.stderr.includes('nothing to commit')) {
+    const said = commitResult.stdout + '\n' + commitResult.stderr;
+    if (said.includes('nothing to commit')) {
+      // The benign case, and the ONLY one that keeps exit 0: there was simply
+      // nothing staged under the pathspecs.
       const result = { committed: false, hash: null, reason: 'nothing_to_commit' };
       output(result, raw, 'nothing');
       return;
     }
-    const result = { committed: false, hash: null, reason: 'nothing_to_commit', error: commitResult.stderr };
-    output(result, raw, 'nothing');
+    // Anything else is a real failure. Reporting it as `nothing_to_commit`
+    // with exit 0 was how a refused commit read as a no-op (issue #100).
+    const result = {
+      committed: false,
+      hash: null,
+      reason: 'commit_failed',
+      staged: filesToStage,
+      error: commitResult.stderr || commitResult.stdout,
+    };
+    output(result, raw, 'commit_failed', 1);
     return;
   }
 
