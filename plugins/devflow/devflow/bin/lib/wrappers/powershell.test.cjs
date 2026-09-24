@@ -78,8 +78,23 @@ describe('wrappers/powershell.cjs — Group PW end-to-end', () => {
     const r = spawnSync(cmd, ['-NoLogo', '-NoProfile', '-Command', lines.join('\n')], {
       encoding: 'utf8', timeout: 10000,
     });
-    // Even if cmd exits 7, our outer pwsh -Command runs the whole script;
-    // outer exit may differ — what matters is the END marker shows :7
+    // KNOWN RED on any host with pwsh, and the assertion is deliberately kept
+    // as-is. Its original comment claimed "our outer pwsh -Command runs the
+    // whole script". It does not: `exit 7` is a PowerShell LANGUAGE statement,
+    // and inside `& { ... }` it terminates the host before the END sentinel
+    // line runs, so r.stdout is ''.
+    //
+    // Determined against pwsh 7.4.2 (issue #95): a `finally` DOES run, so the
+    // sentinel can be made to survive — but $LASTEXITCODE is empty there, a
+    // separate runspace survives the host and still yields no code, and ONLY a
+    // child `pwsh -Command` recovers the 7. Running every dispatch in a child
+    // would end the long-lived session the daemon exists for (cwd, variables,
+    // functions, aliases, $env: set by the command), so the gap stands.
+    //
+    // The same statement has the same effect in bash — `{ exit 7 ; }` exits
+    // that shell too — so this is a limit of the in-session sentinel protocol,
+    // not of the pwsh wrapper. The assertion is what the protocol SHOULD do;
+    // it is listed in .github/known-test-failures.json until it can.
     assert.match(r.stdout, /__DFW_END_pw-9__:7/);
   });
 });

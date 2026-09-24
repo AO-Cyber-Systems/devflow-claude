@@ -44,6 +44,11 @@ const VERSION = '0.1.0'; // bumped per release
 const LOG_DIR_NAME = '.devflow';
 const LOG_FILE_NAME = 'devflow-watch.log';
 const STOP_TIMEOUT_MS = 5000;
+// How long the daemon's own SIGTERM handler may spend draining before it exits
+// regardless (issue #93). Deliberately the SAME budget `stop` above waits for,
+// so "stop waits up to 5s for a clean exit" is a contract both sides keep
+// rather than a hope about how long draining takes.
+const SHUTDOWN_DEADLINE_MS = STOP_TIMEOUT_MS;
 
 function homeDir() { return process.env.HOME || os.homedir(); }
 function logFilePath() { return path.join(homeDir(), LOG_DIR_NAME, LOG_FILE_NAME); }
@@ -304,18 +309,45 @@ function runForeground({ projects, shell }) {
 
   let loop = null;
   let shuttingDown = false;
+
+  function finish(code, why) {
+    try { state.removePidFile(); } catch {}
+    log(code === 0 ? 'info' : 'error', why);
+    try { fs.closeSync(logFd); } catch {}
+    process.exit(code);
+  }
+
   async function shutdown(signal) {
     if (shuttingDown) return;
     shuttingDown = true;
     log('info', `received ${signal}, shutting down`);
-    if (loop) {
-      try { await loop.stop(); } catch (e) { log('error', `loop.stop: ${e.message}`); }
+
+    // A graceful shutdown that CANNOT finish must still exit (issue #93).
+    // loop.stop() awaits the in-flight dispatch, and a dispatch whose END
+    // sentinel never arrives runs to DEFAULT_DISPATCH_TIMEOUT_MS — ten
+    // minutes. Without this deadline the daemon ignores its SIGTERM for that
+    // whole window: observed as devflow-watch processes alive 8+ minutes after
+    // the tests that started them, holding their parent's stdio open so node
+    // could never exit. `stop` already documents a 5s wait; this makes the
+    // daemon's side of that contract true rather than hopeful.
+    const deadline = setTimeout(() => {
+      finish(0, `graceful shutdown exceeded ${SHUTDOWN_DEADLINE_MS}ms; exiting anyway`);
+    }, SHUTDOWN_DEADLINE_MS);
+
+    try {
+      if (loop) {
+        try { await loop.stop(); } catch (e) { log('error', `loop.stop: ${e.message}`); }
+      }
+      try { await session.kill(); } catch {}
+    } catch (e) {
+      // Never leave the process alive because teardown threw — an unhandled
+      // rejection here is indistinguishable from a daemon that ignored SIGTERM.
+      clearTimeout(deadline);
+      finish(0, `shutdown threw (${e && e.message}); exiting anyway`);
+      return;
     }
-    try { await session.kill(); } catch {}
-    state.removePidFile();
-    log('info', 'exited cleanly');
-    try { fs.closeSync(logFd); } catch {}
-    process.exit(0);
+    clearTimeout(deadline);
+    finish(0, 'exited cleanly');
   }
 
   process.on('SIGTERM', () => shutdown('SIGTERM'));

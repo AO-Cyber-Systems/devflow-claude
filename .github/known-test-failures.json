@@ -18,49 +18,15 @@
   },
   "entries": [
     {
-      "test": "plugins/devflow/devflow/bin/handoff-e2e.test.cjs",
-      "file": "plugins/devflow/devflow/bin/handoff-e2e.test.cjs",
-      "reason": "Whole-FILE timeout, not a single assertion: withDaemon's teardown sends SIGTERM and waits 3s, which is not enough, so devflow-watch daemons survive their tests holding the file process's stdio handles open and node can never exit that file. Observed locally with two daemons still alive 8+ minutes after their tests ended; on CI it surfaces as 'test timed out after 180000ms'. Licensing this entry licenses losing that whole file's coverage until issue #93 lands.",
-      "nondeterministic": true,
-      "tracking": "https://github.com/AO-Cyber-Systems/devflow-claude/issues/93",
-      "expires": "2026-12-31"
-    },
-    {
-      "test": "S1: scanPeer with 1 valid branch returns 1 entry with all fields",
-      "file": "plugins/devflow/devflow/bin/lib/awareness.test.cjs",
-      "reason": "A calendar time bomb, and fully deterministic. The fixture hardcodes a last_commit timestamp of 2026-05-04T08:31:00Z; scanPeer filters branches older than DEFAULT_STALE_DAYS = 30, so the test passed until 2026-06-03 and has failed every day since. Fix by generating the timestamp relative to now, or by passing peer_stale_days: 0 — the test is about field mapping, not staleness. Tracked in issue #96."
-    },
-    {
-      "test": "PTY-2: dispatch(\"echo hello\") returns stdout=\"hello\\n\", exit_code=0, status=\"done\"",
-      "file": "plugins/devflow/devflow/bin/lib/watcher-shell.test.cjs",
-      "reason": "Linux-only, deterministic. readline's bracketed-paste pair ESC[?2004h / ESC[?2004l is emitted around every line read by the bash that ships on ubuntu-latest (readline >= 8.1). wrappers/bash.cjs initLines('pty') sends stty -echo, which suppresses the tty driver's echo and nothing readline writes itself, so the sequences land between the BEGIN and DELIM sentinels and become part of captured stdout. macOS bash 3.2 has no such mode, which is why no developer here has seen it. Product bug, not a test bug — see issue #95."
-    },
-    {
-      "test": "PTY-4: dispatch(\"echo err 1>&2\") captures stderr separately via sentinel protocol",
-      "file": "plugins/devflow/devflow/bin/lib/watcher-shell.test.cjs",
-      "reason": "Same mechanism as PTY-2: readline bracketed-paste sequences (ESC[?2004h / ESC[?2004l) from the ubuntu-latest bash land inside the sentinel-fenced capture region, so the captured stderr is the escape pair rather than empty. Deterministic on Linux, absent on macOS bash 3.2. Issue #95."
-    },
-    {
-      "test": "PTY-5: env preserved across two dispatches (export FOO=bar; echo $FOO -> \"bar\\n\")",
-      "file": "plugins/devflow/devflow/bin/lib/watcher-shell.test.cjs",
-      "reason": "Same mechanism as PTY-2: readline bracketed-paste sequences from the ubuntu-latest bash pollute the fenced capture region, so stdout is ESC[?2004h ESC[?2004l around 'bar' rather than 'bar\\n'. Deterministic on Linux, absent on macOS bash 3.2. Issue #95."
-    },
-    {
-      "test": "PTY-6: multi-line stdout preserved (printf a\\nb\\nc\\n)",
-      "file": "plugins/devflow/devflow/bin/lib/watcher-shell.test.cjs",
-      "reason": "Same mechanism as PTY-2: readline bracketed-paste sequences from the ubuntu-latest bash bracket the multi-line output inside the fenced capture region. Deterministic on Linux, absent on macOS bash 3.2. Issue #95."
-    },
-    {
-      "test": "DL-5: PTY mode: attachDataListener fires on dispatch chunks",
-      "file": "plugins/devflow/devflow/bin/lib/watcher-shell.test.cjs",
-      "reason": "Same mechanism as PTY-2: the data listener receives the readline bracketed-paste sequences from the ubuntu-latest bash alongside the payload, so the chunk is not 'ptydata\\n'. Deterministic on Linux, absent on macOS bash 3.2. Issue #95."
-    },
-    {
       "test": "PW-9 exit 7 reports exit_code=7",
       "file": "plugins/devflow/devflow/bin/lib/wrappers/powershell.test.cjs",
-      "reason": "Runs only where pwsh is on PATH, which ubuntu-latest has and a typical macOS checkout does not, so it skips locally and runs in CI. `exit 7` inside `& { ... }` terminates the whole `pwsh -Command` host before the __DFW_END_ sentinel line executes, so stdout is empty — the test's own comment asserts the opposite premise. PW-8 (same shape, no exit) passes, so pwsh itself is fine. Decide whether wrappers/powershell.cjs can report a non-zero exit code at all before touching the assertion. Issue #95."
+      "nondeterministic": true,
+      "tracking": "https://github.com/AO-Cyber-Systems/devflow-claude/issues/95",
+      "expires": "2026-12-31",
+      "$why-nondeterministic": "Not the assertion — that is deterministic. What varies is whether the test RUNS AT ALL: it is gated on pwsh being on PATH, and ubuntu-latest's pwsh availability is not stable run to run. Demonstrated minutes apart on the same image label (Image: ubuntu-24.04): run 35902475340 had pwsh (PW-8/PW-9/W-4 executed, PW-9 failed, gate PASS) and run 35902484923 did not (all three SKIPPED, so PW-9 counted as not-failing and the shrink-only ratchet failed the gate with 'PASSED this run'). A deterministic entry therefore cannot hold: with pwsh the gate needs the entry, without it the gate rejects it. Quarantining is the designed answer. The alternative is to make the runner deterministic — pin the image or install pwsh in .github/workflows/test.yml — which is a change to the gate itself and belongs with whoever owns it.",
+      "reason": "DETERMINED, and deliberately still listed. Runs only where pwsh is on PATH, which ubuntu-latest sometimes has and a typical macOS checkout does not, so it skips locally and usually runs in CI. `exit 7` is a PowerShell LANGUAGE statement, not a native exit status: inside `& { ... }` it terminates the whole host before the __DFW_END_ sentinel line executes, so stdout is empty. Probed against pwsh 7.4.2 (mcr.microsoft.com/powershell) on 2026-09-23: (a) `try { & { exit 7 } } finally { ... }` DOES run the finally, so the sentinel CAN be made to survive, but $LASTEXITCODE is empty there and execution still stops afterwards; (b) a separate runspace ([powershell]::Create().AddScript('exit 7').Invoke()) survives the host but also yields no exit code, in the runspace or outside it; (c) only a CHILD pwsh (`& pwsh -NoProfile -Command <cmd>`) sets $LASTEXITCODE to 7. So PowerShell exposes the value passed to `exit` to nothing in-session, and the only fix is to run every dispatch in a child process — which ends the long-lived session that is the daemon's entire purpose: cwd, PowerShell variables, functions, aliases and any $env: the command sets would stop persisting across dispatches (env flows parent to child only). Reporting one exit code correctly is not worth losing session state, so the gap stands and the test stays red rather than being weakened to match it. Note the same statement has the same effect in bash — `{ exit 7 ; }` exits that shell too — so this is a limitation of the in-session sentinel protocol, not of wrappers/powershell.cjs specifically; there is simply no bash test asserting it. Issue #95."
     }
   ],
   "$why-the-key-is-the-name": "Not file::name, which was the first design. node 22's junit reporter emits no testcase file attribute and node 25's does, so a file-based key resolves differently on a developer's machine and on the runner — the list would appear to shrink locally and silently fail to match in CI. The name is identical on every version. The cost is ambiguity, and it is paid explicitly: the gate FAILS when a listed name matches more than one test in the run.",
-  "$environment": "This list describes the GATE's environment: ubuntu-latest + node 22, as pinned in .github/workflows/test.yml. Six of these entries are platform-specific and PASS or SKIP on macOS, so a developer running scripts/ci-unit-gate.cjs locally will see the shrink-only ratchet complain that they 'PASSED this run' — except where they SKIP, which the ratchet now leaves alone. That is expected: the gate is a CI gate, and the ratchet is evaluated against CI."
+  "$environment": "This list describes the GATE's environment: ubuntu-latest + node 22, as pinned in .github/workflows/test.yml. ONE entry remains (PW-9) and it is platform-specific: it runs only where pwsh is on PATH, so on a typical macOS checkout it SKIPS — which the ratchet now leaves alone rather than reading as a pass. That change matters here specifically, because ubuntu-latest's own pwsh availability is not stable run to run. The reverse direction is the trap: a Linux-only failure is invisible on a macOS checkout. `docker run --rm -v \"$PWD\":/src:ro node:22 bash -c 'cp -a /src /repo && cd /repo && rm -rf node_modules && npm ci && node --test <file>'` reproduces the runner's bash 5.2 / readline 8.1 environment locally — that is how the five bracketed-paste entries were reproduced and cleared, and it is the recipe to reach for before assuming a CI-only failure is a flake."
 }

@@ -71,6 +71,11 @@ function _loadPTY() {
   }
 }
 
+// Liveness ceiling for the PTY readiness handshake (issue #93). NOT a guess
+// about how long the shell takes to start — that guess is what this replaced.
+// It only bounds a shell that will never answer at all.
+const READY_TIMEOUT_MS = 10000;
+
 class ShellSessionClosed extends Error {
   constructor(msg) {
     super(msg || 'shell session closed');
@@ -98,6 +103,7 @@ class ShellSession extends EventEmitter {
     this._stdoutBuf = '';
     this._stderrBuf = '';
     this._activeDispatch = null; // { id, beginRx, endRx, resolve, timeout }
+    this._readyProbe = null;     // { token, resolve, abort, timer, settled } — PTY only
     // TRD 19-02: external data listeners for token-passing prompt detection.
     // Daemon attaches a detector that scans the data stream for prompt
     // regexes and writes resolved secrets back to the shell. Both PTY mode
@@ -180,6 +186,7 @@ class ShellSession extends EventEmitter {
         // _tryComplete so the detector can inject a secret in time for the
         // running command to consume it before the END sentinel arrives.
         this._emitExtData(chunk);
+        this._tryReady();
         this._tryComplete();
       });
       this.proc.onExit(() => this._onExit());
@@ -193,10 +200,19 @@ class ShellSession extends EventEmitter {
       // only program output, identical-shape to pipe mode.
       const initLines = this._wrapper.initLines('pty');
       this._writeRaw(initLines.concat(['']).join('\r'));
-      // Drain any prelude noise (PS1 prompt before clear, login messages,
-      // etc.) so the first dispatch's buffer scan starts clean. Also gives
-      // `stty -echo` enough time to take effect before the next write.
-      await new Promise((r) => setTimeout(r, 100));
+      // Then WAIT FOR PROOF, not for a duration (issue #93). This used to be
+      // `await sleep(100)` — a guess about how long `bash -i` takes to start
+      // and apply `stty -echo`. When the guess lost (a loaded machine, a slow
+      // runner, several agents building at once) the tty was still in cooked
+      // mode when the first dispatch was written, so it echoed the wrapper's
+      // own lines back into the buffer the sentinel scanner reads, and the
+      // echo of `cat $__DFW_OUT` landed BETWEEN the BEGIN and DELIM sentinels.
+      // The capture was then the command text instead of the command's output.
+      // See _awaitShellReady: no timing assumption survives it.
+      await this._awaitShellReady();
+      // Drain the prelude (PS1 before it was cleared, login messages, the
+      // readiness probe itself) so the first dispatch's buffer scan starts
+      // clean.
       this._stdoutBuf = '';
       this._stderrBuf = '';
     } else {
@@ -244,8 +260,72 @@ class ShellSession extends EventEmitter {
     else this.proc.stdin.write(s);
   }
 
+  /**
+   * Block until the PTY shell has PROVED it is ready, rather than until a
+   * duration has elapsed (issue #93).
+   *
+   * Writes `echo <token>` after the init lines and waits for a line that ENDS
+   * with the token but is not the echo of that input — the echoed input line
+   * ends with `echo <token>`, the shell's answer ends with the token alone.
+   * That distinction is the whole trick: an echo can never be mistaken for the
+   * answer, so seeing the answer proves the shell consumed every init line
+   * before it and produced output, which means `stty -echo` has already run —
+   * however long that took.
+   *
+   * Only the END of the line is matched, not the whole of it. Whatever the
+   * shell printed before PS1 was cleared shares the physical line with the
+   * answer: on macOS bash 3.2 the real buffer reads
+   * `bash-3.2$ bash-3.2$ bash-3.2$ bash-3.2$ __DFW_READY_x__`. Requiring
+   * whole-line equality there waits forever.
+   *
+   * The ceiling is a liveness bound, not a readiness assumption: a shell that
+   * cannot echo a token in 10s is not one we can dispatch to, and failing
+   * loudly here beats a session that silently captures the wrong bytes.
+   */
+  _awaitShellReady(timeoutMs = READY_TIMEOUT_MS) {
+    const token = `__DFW_READY_${Math.random().toString(36).slice(2, 10)}__`;
+    return new Promise((resolve, reject) => {
+      const probe = { token, settled: false, timer: null };
+      const settle = (fn, arg) => {
+        if (probe.settled) return;
+        probe.settled = true;
+        clearTimeout(probe.timer);
+        this._readyProbe = null;
+        fn(arg);
+      };
+      probe.resolve = () => settle(resolve);
+      // The shell dying during startup must not park spawn() on the ceiling.
+      // Resolve rather than reject: the session is _closed by then, isAlive()
+      // is false and dispatch() rejects with ShellSessionClosed, which is the
+      // path every caller already handles.
+      probe.abort = () => settle(resolve);
+      probe.timer = setTimeout(() => settle(reject, new Error(
+        `PTY shell did not become ready within ${timeoutMs}ms ` +
+        `(readiness probe ${token} was never echoed back cleanly)`
+      )), timeoutMs);
+      this._readyProbe = probe;
+      this._writeRaw(`echo ${token}\r`);
+      this._tryReady(); // in case the answer already landed
+    });
+  }
+
+  _tryReady() {
+    const probe = this._readyProbe;
+    if (!probe || probe.settled) return;
+    for (const line of this._stdoutBuf.split('\n')) {
+      const text = stripAnsi(line).replace(/\s+$/, '');
+      if (!text.endsWith(probe.token)) continue;
+      // Reject the echo of our own input: it reads `… echo <token>`.
+      const before = text.slice(0, text.length - probe.token.length);
+      if (/echo\s*$/.test(before)) continue;
+      probe.resolve();
+      return;
+    }
+  }
+
   _onExit() {
     this._closed = true;
+    if (this._readyProbe && !this._readyProbe.settled) this._readyProbe.abort();
     if (this._activeDispatch && !this._activeDispatch.settled) {
       this._activeDispatch.settled = true;
       clearTimeout(this._activeDispatch.timer);
@@ -273,12 +353,15 @@ class ShellSession extends EventEmitter {
     // Split the stdout buffer into the three sections fenced by
     // BEGIN / DELIM / END sentinels.
     let { stdout, stderr } = splitDispatchOutput(this._stdoutBuf, d.begin, d.delim, d.end);
-    // PTY mode normalization: PTY emits \r\n line endings (PTY cooked-mode
-    // convention). Strip the \r so the result shape is byte-identical to
-    // pipe-mode output. Pipe mode never emits \r so this is a no-op there.
+    // PTY mode normalization: drop readline's bracketed-paste artifacts (see
+    // stripBracketedPaste — they carry their own CRLF, so this MUST run before
+    // the \r\n collapse below or it leaves blank lines behind), then strip the
+    // \r of the PTY's cooked-mode line endings so the result shape is
+    // byte-identical to pipe-mode output. Pipe mode has neither, so neither
+    // step exists there.
     if (this._isPTY) {
-      stdout = stdout.replace(/\r\n/g, '\n');
-      stderr = stderr.replace(/\r\n/g, '\n');
+      stdout = stripBracketedPaste(stdout).replace(/\r\n/g, '\n');
+      stderr = stripBracketedPaste(stderr).replace(/\r\n/g, '\n');
     }
     // Trim everything up through the END line.
     this._stdoutBuf = trimAfter(this._stdoutBuf, d.end);
@@ -425,6 +508,54 @@ function escapeRegex(s) {
 }
 
 /**
+ * readline's bracketed-paste artifacts, as they appear inside a PTY capture.
+ *
+ * Since readline 8.1 (every current Linux bash; NOT macOS's bash 3.2) the line
+ * editor turns bracketed-paste mode on before reading a line and off when it
+ * accepts one, and the accept is followed by the CRLF it writes itself. On the
+ * wire, one line read looks like:
+ *
+ *   ESC[?2004h            enable, written before the read
+ *   ESC[?2004l \r\r\n     disable + accept-line newline
+ *
+ * Both of those sit between the BEGIN and DELIM sentinels of the dispatch
+ * wrapper, which is why captured stdout on Linux was
+ * `ESC[?2004hESC[?2004l\r\r\nhello\r\n…` rather than `hello\n` (issue #95).
+ *
+ * The line terminator is consumed WITH the disable sequence and only there: it
+ * is the artifact's own terminator, not output. Note the DOUBLE carriage
+ * return — readline writes its own `\r` and the PTY's ONLCR then turns the `\n`
+ * into `\r\n`. Captured verbatim from a bash 5.2 PTY; matching only `\r\n` here
+ * leaves a stray newline behind and the capture is still wrong, so the pattern
+ * allows any run of `\r`. A blank line produced by the command is a bare `\r\n`
+ * with no escape in front of it and survives untouched.
+ *
+ * ESC[200~ / ESC[201~ are the paste delimiters the terminal injects around
+ * pasted text when the mode is on; they are stripped for the same reason.
+ *
+ * This is the SECOND layer. The first is wrappers/bash.cjs initLines('pty'),
+ * which turns the mode off at the source — a denylist cannot know about the
+ * next readline feature, so it is defence in depth and not the fix.
+ */
+const BRACKETED_PASTE_RX = /\x1b\[\?2004[hl](?:\r*\n)?|\x1b\[20[01]~/g;
+
+function stripBracketedPaste(s) {
+  return s.indexOf('\x1b') === -1 ? s : s.replace(BRACKETED_PASTE_RX, '');
+}
+
+/**
+ * Drop CSI / OSC escape sequences from a line so its *content* can be compared.
+ * Used by the PTY readiness probe, which matches a line by equality and must
+ * not be defeated by whatever the terminal decided to wrap it in.
+ */
+function stripAnsi(s) {
+  return s
+    .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, '')
+    .replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, '')
+    .replace(/[\r\x00]/g, '');
+}
+
+/**
  * Split a stdout buffer fenced by BEGIN / DELIM / END sentinels into
  * { stdout, stderr } sections. Each section is the content of the lines
  * BETWEEN its bounding sentinels (exclusive of the sentinel lines).
@@ -470,4 +601,11 @@ function trimAfter(buf, end) {
   return buf.slice(eol + 1);
 }
 
-module.exports = { ShellSession, ShellSessionClosed, splitDispatchOutput, UnsupportedShell };
+module.exports = {
+  ShellSession,
+  ShellSessionClosed,
+  splitDispatchOutput,
+  stripBracketedPaste,
+  stripAnsi,
+  UnsupportedShell,
+};
