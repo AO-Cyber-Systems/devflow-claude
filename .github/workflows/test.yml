@@ -10,8 +10,9 @@
 # Three properties this job is built to hold:
 #
 #   1. NO PATH FILTER. The harness workflow is path-filtered, which is a known
-#      false-green class in this fleet. This job runs on every push and every
-#      pull request, so "the job did not run" can never read as "the job passed".
+#      false-green class in this fleet. This job runs on every pull request and
+#      on every push to main, so "the job did not run" can never read as "the
+#      job passed" for any tree that can reach main.
 #
 #   2. IT CANNOT PASS BY NOT RUNNING. `node --test` exits 0 when its file
 #      patterns match nothing. scripts/ci-unit-gate.cjs asserts floors on the
@@ -28,8 +29,22 @@
 # still merge with this job red.
 name: Unit suite
 
+# `push:` unqualified plus `pull_request:` runs this ~3-minute, 3,300-test job
+# TWICE for every PR push, on two separate runners, and the concurrency group
+# cannot dedupe them because github.ref differs (refs/heads/<branch> vs
+# refs/pull/N/merge). Measured on this very PR: every SHA carried both a push run
+# and a pull_request run. Worse than the waste, the pair can DISAGREE — runs
+# 35902475340 (push) and 35902484923 (pull_request) on the same SHA 9a0b374a,
+# four seconds apart, reported 31 vs 34 skipped and PASS vs FAIL, because
+# ubuntu-latest's pwsh availability moved between them. Two verdicts on one tree
+# is not twice the confidence; it is none.
+#
+# Restricting push to main keeps the guarantee intact: a PR is covered by the
+# pull_request event, and the merge commit on main is covered by the push event.
+# Nothing that can reach main goes unrun.
 on:
   push:
+    branches: [main]
   pull_request:
 
 # A superseded run tells you nothing about the tip; do not spend a runner on it.
@@ -41,8 +56,14 @@ jobs:
   test:
     name: test (npm test, gated)
     runs-on: ubuntu-latest
-    # The suite takes ~10 min locally. A generous ceiling still fails rather than
-    # hanging the required check forever.
+    # MEASURED on this runner (run 35893407704, the green run of this PR):
+    # checkout 1s, setup-node 1s, `npm ci` 7s with the npm cache warm, gate
+    # self-test <1s, the suite itself 181s — 3m17s for the whole job. The
+    # preamble is ~15s, so the gate's own 22-minute SUITE_TIMEOUT_MS fires around
+    # 22m15s into the job and this ceiling is never the thing that stops it. That
+    # ordering is deliberate: the internal timeout prints which file it died in,
+    # a GitHub-level timeout prints nothing. Keep this ceiling above the internal
+    # one, with room for a cold npm cache.
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4

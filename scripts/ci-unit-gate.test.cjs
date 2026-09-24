@@ -18,7 +18,8 @@ const path = require('path');
 
 const gate = require('./ci-unit-gate.cjs');
 const { tokenize, derivePatterns, globToRegExp, resolveTestFiles,
-        parseJunit, loadAllowlist, evaluate, key } = gate;
+        parseJunit, loadAllowlist, evaluate, key, expiryInstant,
+        notesForRun, MAX_QUARANTINE_DAYS } = gate;
 
 const REPO_ROOT = path.resolve(__dirname, '..');
 
@@ -32,19 +33,42 @@ function xmlEscape(s) {
     .replace(/"/g, '&quot;');
 }
 
-/** One <testcase>. status: 'pass' | 'fail' | 'skip'. */
-function buildTestCase({ name, file, status = 'pass', message = 'AssertionError' }) {
+/**
+ * One <testcase>. status: 'pass' | 'fail' | 'skip' | 'todo' | 'todo-fail'.
+ *
+ * `todo-fail` is the shape `{ todo: '…' }` on a test that actually throws: node
+ * emits BOTH <skipped type="todo"> and <failure> inside one <testcase>, and
+ * exits 0. Verified against node 22.23.3 and 25.9.0.
+ *
+ * `rawMessage: true` emits the message attribute the way node really does — node
+ * escapes `&` and `"` in attribute values but leaves `>` RAW, so a failure
+ * message containing a shell redirect arrives with a literal `>` mid-attribute.
+ */
+function buildTestCase({ name, file, status = 'pass', message = 'AssertionError',
+                         rawMessage = false, omitFile = false }) {
   // node's junit reporter escapes attribute values twice; mimic that so the
   // parser is exercised against the real shape, not a tidied one.
   const attrs =
-    `name="${xmlEscape(xmlEscape(name))}" time="0.001" classname="test" ` +
-    `file="${xmlEscape(path.join(REPO_ROOT, file))}"`;
+    `name="${xmlEscape(xmlEscape(name))}" time="0.001" classname="test"` +
+    // node 22 emits no file= at all; node 25 does. Both shapes are fixtures.
+    (omitFile ? '' : ` file="${xmlEscape(path.join(REPO_ROOT, file))}"`);
+  // node escapes & and " but NOT > inside attribute values.
+  const msgAttr = rawMessage
+    ? String(message).replace(/&/g, '&amp;').replace(/"/g, '&amp;quot;')
+    : xmlEscape(xmlEscape(message));
+  const failEl = `<failure type="testCodeFailure" message="${msgAttr}"/>`;
   if (status === 'pass') return `\t\t<testcase ${attrs}/>`;
   if (status === 'skip') {
     return `\t\t<testcase ${attrs}>\n\t\t\t<skipped type="skipped" message="true"/>\n\t\t</testcase>`;
   }
-  return `\t\t<testcase ${attrs}>\n\t\t\t<failure type="testCodeFailure" ` +
-         `message="${xmlEscape(xmlEscape(message))}"/>\n\t\t</testcase>`;
+  if (status === 'todo') {
+    return `\t\t<testcase ${attrs}>\n\t\t\t<skipped type="todo" message="later"/>\n\t\t</testcase>`;
+  }
+  if (status === 'todo-fail') {
+    return `\t\t<testcase ${attrs}>\n\t\t\t<skipped type="todo" message="later"/>\n` +
+           `\t\t\t${failEl}\n\t\t</testcase>`;
+  }
+  return `\t\t<testcase ${attrs}>\n\t\t\t${failEl}\n\t\t</testcase>`;
 }
 
 /** A whole junit document from a flat list of case specs. */
@@ -57,13 +81,18 @@ function buildJunit(cases, { suiteName = 'suite' } = {}) {
 }
 
 /** A run object shaped like parseJunit's output, for evaluate() tests. */
-function buildRun({ total = 5000, fileCount = 200, failing = [], nameCounts } = {}) {
+function buildRun({ total = 5000, fileCount = 200, failing = [], nameCounts,
+                    skippedNames = [] } = {}) {
   const files = new Set();
   for (let i = 0; i < fileCount; i++) files.add(`plugins/devflow/f${i}.test.cjs`);
   for (const f of failing) files.add(f.file);
   const counts = new Map(nameCounts || []);
   for (const f of failing) if (!counts.has(f.test)) counts.set(f.test, 1);
-  return { total, failures: failing.length, skipped: 0, files, nameCounts: counts, failing };
+  for (const n of skippedNames) if (!counts.has(n)) counts.set(n, 1);
+  return {
+    total, failures: failing.length, skipped: skippedNames.length,
+    skippedNames: new Set(skippedNames), files, nameCounts: counts, failing,
+  };
 }
 
 function buildEntry(over = {}) {
@@ -280,7 +309,7 @@ test('EV-2 ZERO tests fails — this is the "passed by not running" guard', () =
 test('EV-3 a run below the test floor fails even with no failures', () => {
   const r = evaluate(buildRun({ total: 12 }), [], { minTests: 3000, minTestFiles: 100 });
   assert.ok(!r.ok);
-  assert.match(r.errors.join('\n'), /Only 12 tests ran/);
+  assert.match(r.errors.join('\n'), /Only 12 tests actually EXECUTED/);
 });
 
 test('EV-4 patterns resolving to too FEW files fails, whatever the reporter says', () => {
@@ -468,7 +497,8 @@ function buildQuarantine(over = {}) {
   return buildEntry({
     nondeterministic: true,
     tracking: 'https://github.com/AO-Cyber-Systems/devflow-claude/issues/91',
-    expires: '2099-01-01',
+    // Inside MAX_QUARANTINE_DAYS of the '2026-09-23' the QR cases evaluate at.
+    expires: '2026-11-30',
     ...over,
   });
 }
@@ -531,4 +561,389 @@ test('QR-8 a quarantine still cannot use "flaky" as its reason', () => {
     })),
     /calls the test flaky/
   );
+});
+
+// ─── Group RT — real-runner differentials ────────────────────────────────────
+//
+// The fixtures above restate what we believe node's reporter does. These run the
+// real reporter over a throwaway file and check the belief. Every one of them
+// was written RED against the previous gate.
+
+const { execFileSync } = require('child_process');
+const fs = require('fs');
+const os = require('os');
+
+/**
+ * Write `src` to a throwaway .cjs OUTSIDE the repo (so package.json's patterns
+ * can never pick it up), run node's real junit reporter over it, and return
+ * { xml, status }. The junit destination is a file because node writes the two
+ * reporters to different sinks and mixing them into stdout is what the gate
+ * itself avoids.
+ */
+function runRealRunner(src) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gate-differential-'));
+  const file = path.join(dir, 'fixture.cjs');
+  const out = path.join(dir, 'results.xml');
+  fs.writeFileSync(file, src, 'utf8');
+  let status = 0;
+  try {
+    execFileSync(
+      process.execPath,
+      ['--test', '--test-reporter=junit', `--test-reporter-destination=${out}`, file],
+      {
+        cwd: dir,
+        stdio: 'ignore',
+        // NODE_TEST_* in the parent makes the grandchild speak node's internal
+        // child-process protocol instead of junit — see PJR-3.
+        env: Object.fromEntries(
+          Object.entries(process.env).filter(([k]) => !k.startsWith('NODE_TEST_'))
+        ),
+      }
+    );
+  } catch (e) {
+    status = typeof e.status === 'number' ? e.status : 1;
+  }
+  const xml = fs.readFileSync(out, 'utf8');
+  fs.rmSync(dir, { recursive: true, force: true });
+  return { xml, status };
+}
+
+test('RT-1 a throwing describe-scoped after() hook: the gate NEVER disagrees with node', () => {
+  // The defect: node can exit non-zero while writing failures="0" and no
+  // <failure> element at all, because a suite-level hook failure is attributed
+  // to no test. A gate that reads only the XML then prints PASS over a suite
+  // node itself reported as failed.
+  //
+  // The assertion is the invariant, not a hardcoded exit code, because the exit
+  // code for THIS shape is version-dependent: node 25.9.0 exits 1, node 22.23.3
+  // exits 0 and drops the hook failure from the report entirely. Either way the
+  // gate's verdict must equal the runner's.
+  const { xml, status } = runRealRunner(`
+const test = require('node:test');
+const { describe, it, after } = test;
+describe('RT-1 suite', () => {
+  it('RT-1 inner passes', () => {});
+  after(() => { throw new Error('after-hook boom'); });
+});
+`);
+  const run = parseJunit(xml);
+  const r = evaluate(run, [], {
+    minTests: 1, minTestFiles: 0, matchedFiles: 500,
+    runnerExit: status,
+  });
+  assert.strictEqual(
+    r.ok, status === 0,
+    `runner exited ${status} with ${run.failures} reported failure(s); ` +
+    `gate said ok=${r.ok}. The gate must never be more optimistic than the runner.\n` +
+    r.errors.join('\n')
+  );
+});
+
+test('RT-2 a { todo } test that genuinely FAILS is not laundered past the gate', () => {
+  // node emits <skipped type="todo"> AND <failure> in the same <testcase>, and
+  // exits 0. Reading the skip first and `continue`ing dropped the failure, so a
+  // one-word edit (`test(...)` -> `test(..., { todo: 'x' }, ...)`) turned any red
+  // test green with no allowlist entry.
+  const { xml, status } = runRealRunner(`
+const test = require('node:test');
+test('RT-2 failing but marked todo', { todo: 'later' }, () => {
+  throw new Error('a real assertion failure');
+});
+`);
+  const run = parseJunit(xml);
+  assert.strictEqual(run.failures, 1, 'the failure must survive the todo marking');
+  assert.strictEqual(run.skipped, 1, 'and it is still recorded as a todo/skip');
+  assert.strictEqual(run.failing[0].message, 'a real assertion failure');
+  const r = evaluate(run, [], { minTests: 1, minTestFiles: 0, matchedFiles: 500 });
+  assert.ok(!r.ok, 'an undeclared failure must fail the gate whatever its todo status');
+  assert.match(r.errors.join('\n'), /NOT in \.github\/known-test-failures\.json/);
+  // Node's own exit code does NOT catch this one — which is why the report-side
+  // fix has to exist independently of RT-1's exit-code guard.
+  assert.strictEqual(status, 0, 'node exits 0 for a todo failure; the gate cannot lean on the exit code here');
+});
+
+test('RT-3 a { todo } test that PASSES is a skip, not a failure', () => {
+  const { xml } = runRealRunner(`
+const test = require('node:test');
+test('RT-3 todo that passes', { todo: 'later' }, () => {});
+`);
+  const run = parseJunit(xml);
+  assert.strictEqual(run.failures, 0);
+  assert.strictEqual(run.skipped, 1);
+});
+
+test('RT-4 a RAW ">" inside a real failure MESSAGE is reported, not blanked', () => {
+  // The same defect findTagEnd exists to fix on <testcase>, repeated on the
+  // <failure> matcher: node leaves `>` raw inside message="…", so a `[^>]*` scan
+  // ends the tag mid-attribute and the message reports as EMPTY. A failure whose
+  // message is blank is a failure nobody can act on.
+  const { xml } = runRealRunner(`
+const test = require('node:test');
+const assert = require('node:assert');
+test('RT-4 redirect in the message', () => {
+  assert.fail('expected { echo hello ; } > $__DFW_OUT to be "x"');
+});
+`);
+  const run = parseJunit(xml);
+  assert.strictEqual(run.failures, 1);
+  assert.strictEqual(
+    run.failing[0].message,
+    'expected { echo hello ; } > $__DFW_OUT to be "x"'
+  );
+});
+
+test('RT-5 a test that SKIPS is neither counted as run nor as passed', () => {
+  const { xml, status } = runRealRunner(`
+const test = require('node:test');
+test('RT-5 platform-gated', { skip: 'no pwsh on PATH' }, () => {});
+`);
+  const run = parseJunit(xml);
+  assert.strictEqual(run.total, 1);
+  assert.strictEqual(run.skipped, 1);
+  assert.strictEqual(run.failures, 0);
+  assert.ok(run.skippedNames.has('RT-5 platform-gated'));
+  assert.strictEqual(status, 0, 'a skip does not make node exit non-zero');
+});
+
+// ─── Group EX — Guard 0: the report and the process must agree ───────────────
+
+test('EX-1 a non-zero exit with a CLEAN report FAILS the gate', () => {
+  const r = evaluate(buildRun({ failing: [] }), [], { matchedFiles: 200, runnerExit: 1 });
+  assert.ok(!r.ok);
+  assert.match(r.errors.join('\n'), /report and the process DISAGREE/);
+});
+
+test('EX-2 the SAME clean report with exit 0 passes — the exit code is the only difference', () => {
+  const r = evaluate(buildRun({ failing: [] }), [], { matchedFiles: 200, runnerExit: 0 });
+  assert.ok(r.ok, r.errors.join('\n'));
+});
+
+test('EX-3 a non-zero exit EXPLAINED by a declared failure is not a disagreement', () => {
+  // node exits non-zero whenever a <failure> is emitted. That is ordinary and is
+  // judged by the allowlist, not by Guard 0 — otherwise every quarantined
+  // failure would double-report as a process/report disagreement.
+  const failing = [{ file: 'plugins/devflow/a.test.cjs', test: 'known', message: 'boom' }];
+  const entries = [buildEntry({ file: 'plugins/devflow/a.test.cjs', test: 'known' })];
+  const r = evaluate(buildRun({ failing }), entries, { matchedFiles: 200, runnerExit: 1 });
+  assert.ok(r.ok, r.errors.join('\n'));
+});
+
+test('EX-4 a caller that supplies no exit code gets no Guard 0 verdict', () => {
+  const r = evaluate(buildRun({ failing: [] }), [], { matchedFiles: 200 });
+  assert.ok(r.ok, r.errors.join('\n'));
+});
+
+test('EX-5 the signal is reported when there is one', () => {
+  const r = evaluate(buildRun({ failing: [] }), [], {
+    matchedFiles: 200, runnerExit: null, runnerSignal: 'SIGTERM',
+  });
+  // No exit code means no verdict; the signal alone does not manufacture one.
+  assert.ok(r.ok);
+  const r2 = evaluate(buildRun({ failing: [] }), [], {
+    matchedFiles: 200, runnerExit: 7, runnerSignal: 'SIGTERM',
+  });
+  assert.match(r2.errors.join('\n'), /exited 7 \(signal SIGTERM\)/);
+});
+
+// ─── Group SK — a skip is its own verdict ────────────────────────────────────
+
+test('SK-1 an allowlisted test that SKIPPED keeps its entry', () => {
+  // The live hazard: PW-9 runs only where pwsh is on PATH, and ubuntu-latest's
+  // pwsh availability has moved within one image label. Reading the skip as a
+  // pass would tell a human to DELETE a quarantine for a test that still fails
+  // every time pwsh is present.
+  const entries = [buildEntry({ file: 'plugins/devflow/a.test.cjs', test: 'PW-9 exit 7' })];
+  const r = evaluate(buildRun({ skippedNames: ['PW-9 exit 7'] }), entries, { matchedFiles: 200 });
+  assert.ok(r.ok, r.errors.join('\n'));
+  assert.deepStrictEqual(r.unexercised, ['PW-9 exit 7']);
+});
+
+test('SK-2 control: the SAME entry whose test actually PASSED still trips the ratchet', () => {
+  // One edit from SK-1 — the name moves out of skippedNames — and the verdict
+  // flips. That is what makes SK-1 a policy and not a hole.
+  const entries = [buildEntry({ file: 'plugins/devflow/a.test.cjs', test: 'PW-9 exit 7' })];
+  const r = evaluate(buildRun({ skippedNames: [] }), entries, { matchedFiles: 200 });
+  assert.ok(!r.ok);
+  assert.match(r.errors.join('\n'), /PASSED this run/);
+});
+
+test('SK-3 a skipped allowlisted entry is REPORTED, not silently kept', () => {
+  const entries = [buildEntry({ file: 'plugins/devflow/a.test.cjs', test: 'PW-9 exit 7' })];
+  const run = buildRun({ skippedNames: ['PW-9 exit 7'] });
+  const notes = notesForRun(run, evaluate(run, entries, { matchedFiles: 200 }));
+  assert.match(notes.join('\n'), /SKIPPED rather than ran/);
+  assert.match(notes.join('\n'), /PW-9 exit 7/);
+});
+
+test('SK-4 skipped tests do NOT count toward the executed floor', () => {
+  // 3,200 reported but 300 of them skipped is 2,900 executed — below the floor.
+  // Counting skips toward "the suite ran" reproduces the exact hole the floor
+  // exists to close.
+  const r = evaluate(
+    buildRun({ total: 3200, skippedNames: Array.from({ length: 300 }, (_, i) => `s${i}`) }),
+    [], { minTests: 3000, minTestFiles: 100, matchedFiles: 200 }
+  );
+  assert.ok(!r.ok);
+  assert.match(r.errors.join('\n'), /Only 2900 tests actually EXECUTED \(3200 reported, 300 skipped\)/);
+});
+
+test('SK-5 control: the same 3,200 with nothing skipped clears the floor', () => {
+  const r = evaluate(buildRun({ total: 3200 }), [], {
+    minTests: 3000, minTestFiles: 100, matchedFiles: 200,
+  });
+  assert.ok(r.ok, r.errors.join('\n'));
+});
+
+test('SK-6 every skipped name is listed on every run, so a NEW skip is a log diff', () => {
+  const run = buildRun({ skippedNames: ['alpha skipped', 'beta skipped'] });
+  const notes = notesForRun(run, evaluate(run, [], { matchedFiles: 200 }));
+  assert.match(notes.join('\n'), /alpha skipped/);
+  assert.match(notes.join('\n'), /beta skipped/);
+});
+
+// ─── Group TD — todo cannot launder a failure (fixture side) ─────────────────
+
+test('TD-1 a testcase carrying BOTH <skipped type="todo"> and <failure> counts as a failure', () => {
+  const xml = buildJunit([
+    { name: 'laundered', file: 'plugins/devflow/a.test.cjs', status: 'todo-fail', message: 'real boom' },
+  ]);
+  const r = parseJunit(xml);
+  assert.strictEqual(r.failures, 1);
+  assert.strictEqual(r.skipped, 1);
+  assert.strictEqual(r.failing[0].message, 'real boom');
+});
+
+test('TD-2 a todo that did not fail is a skip and nothing else', () => {
+  const xml = buildJunit([
+    { name: 'honest todo', file: 'plugins/devflow/a.test.cjs', status: 'todo' },
+  ]);
+  const r = parseJunit(xml);
+  assert.strictEqual(r.failures, 0);
+  assert.strictEqual(r.skipped, 1);
+  assert.ok(r.skippedNames.has('honest todo'));
+});
+
+// ─── Group AF — Guard 2c works on EVERY node version ─────────────────────────
+
+test('AF-1 an entry whose file is not in the selected suite fails the gate', () => {
+  // Checked statically against the resolved pattern set, so it runs on node 22 —
+  // the version CI pins and the only environment the allowlist describes.
+  const entries = [buildEntry({ file: 'plugins/devflow/moved-away.test.cjs', test: 'T1 does a thing' })];
+  const r = evaluate(buildRun({ failing: [] }), entries, {
+    matchedFiles: 200,
+    matchedFileSet: new Set(['plugins/devflow/a.test.cjs']),
+  });
+  assert.ok(!r.ok);
+  assert.match(r.errors.join('\n'), /not \s*one of the 1 test files/);
+});
+
+test('AF-2 control: the same entry pointing at a selected file passes the static check', () => {
+  const entries = [buildEntry({ file: 'plugins/devflow/a.test.cjs', test: 'T1 does a thing' })];
+  const failing = [{ file: '<unknown>', test: 'T1 does a thing', message: '' }];
+  const r = evaluate(buildRun({ failing }), entries, {
+    matchedFiles: 200,
+    matchedFileSet: new Set(['plugins/devflow/a.test.cjs']),
+  });
+  assert.ok(r.ok, r.errors.join('\n'));
+});
+
+test('AF-3 the static check runs even when the reporter gives NO file attribution', () => {
+  // node 22 emits no testcase file=, which is precisely why the old
+  // runner-attribution cross-check could never fire on the pinned runner.
+  const xml = buildJunit([
+    { name: 'T1 does a thing', file: 'plugins/devflow/a.test.cjs', status: 'fail', omitFile: true },
+  ]);
+  const run = parseJunit(xml);
+  assert.strictEqual(run.files.size, 0, 'the fixture must reproduce node 22\'s missing file=');
+  const entries = [buildEntry({ file: 'plugins/devflow/gone.test.cjs', test: 'T1 does a thing' })];
+  const r = evaluate(run, entries, {
+    minTests: 1, minTestFiles: 0, matchedFiles: 200,
+    matchedFileSet: new Set(['plugins/devflow/a.test.cjs']),
+  });
+  assert.ok(!r.ok);
+  assert.match(r.errors.join('\n'), /not one of the 1 test files/);
+});
+
+test('AF-4 every file in THIS repo\'s committed allowlist is a file the patterns select', () => {
+  const fsx = require('fs');
+  const pkg = require(path.join(REPO_ROOT, 'package.json'));
+  const selected = new Set(resolveTestFiles(derivePatterns(pkg.scripts.test)));
+  const entries = loadAllowlist(
+    fsx.readFileSync(path.join(REPO_ROOT, '.github', 'known-test-failures.json'), 'utf8')
+  );
+  for (const e of entries) {
+    assert.ok(selected.has(e.file), `allowlist entry "${e.test}" points at ${e.file}, which the patterns do not select`);
+  }
+});
+
+// ─── Group QC — the quarantine meter has a maximum reading ───────────────────
+
+test('QC-1 a quarantine expiring past the ceiling is rejected', () => {
+  // "nondeterministic: true" + any parseable date was a PERMANENT exemption:
+  // 2099-01-01 parses.
+  const entries = [buildQuarantine({
+    file: 'plugins/devflow/a.test.cjs', test: 'racy', expires: '2099-01-01',
+  })];
+  const r = evaluate(buildRun({ failing: [] }), entries, { now: '2026-09-23' });
+  assert.ok(!r.ok);
+  assert.match(r.errors.join('\n'), /expire more than 180 days from now/);
+});
+
+test('QC-2 control: the same entry inside the ceiling is accepted', () => {
+  const entries = [buildQuarantine({
+    file: 'plugins/devflow/a.test.cjs', test: 'racy', expires: '2026-11-30',
+  })];
+  const r = evaluate(buildRun({ failing: [] }), entries, { now: '2026-09-23' });
+  assert.ok(r.ok, r.errors.join('\n'));
+});
+
+test('QC-3 the ceiling is configurable and binds at the edge', () => {
+  const entries = [buildQuarantine({
+    file: 'plugins/devflow/a.test.cjs', test: 'racy', expires: '2026-10-03',
+  })];
+  assert.ok(evaluate(buildRun({}), entries, { now: '2026-09-23', maxQuarantineDays: 11 }).ok);
+  assert.ok(!evaluate(buildRun({}), entries, { now: '2026-09-23', maxQuarantineDays: 9 }).ok);
+});
+
+test('QC-4 MAX_QUARANTINE_DAYS is exported so the ceiling is discoverable', () => {
+  assert.strictEqual(typeof MAX_QUARANTINE_DAYS, 'number');
+  assert.ok(MAX_QUARANTINE_DAYS > 0 && MAX_QUARANTINE_DAYS <= 365);
+});
+
+test('QC-5 the committed allowlist satisfies the ceiling as of today', () => {
+  const fsx = require('fs');
+  const entries = loadAllowlist(
+    fsx.readFileSync(path.join(REPO_ROOT, '.github', 'known-test-failures.json'), 'utf8')
+  );
+  const r = evaluate(buildRun({ failing: entries.map((e) => ({ file: e.file, test: e.test, message: '' })) }),
+                     entries, { matchedFiles: 200 });
+  const ceiling = r.errors.filter((e) => /expire more than/.test(e));
+  assert.deepStrictEqual(ceiling, [], ceiling.join('\n'));
+});
+
+// ─── Group XD — expiry is measured in DAYS, not midnights ────────────────────
+
+test('XD-1 a date-only expiry is valid through the END of its named day', () => {
+  // `2026-12-31` names a day. Comparing against Date.parse (midnight UTC) killed
+  // the quarantine at 00:00:01 on the day it was licensed through.
+  const entries = [buildQuarantine({
+    file: 'plugins/devflow/a.test.cjs', test: 'racy', expires: '2026-12-31',
+  })];
+  const r = evaluate(buildRun({ failing: [] }), entries, { now: '2026-12-31T12:00:00Z' });
+  assert.ok(r.ok, r.errors.join('\n'));
+});
+
+test('XD-2 control: one second into the NEXT day it is expired', () => {
+  const entries = [buildQuarantine({
+    file: 'plugins/devflow/a.test.cjs', test: 'racy', expires: '2026-12-31',
+  })];
+  const r = evaluate(buildRun({ failing: [] }), entries, { now: '2027-01-01T00:00:01Z' });
+  assert.ok(!r.ok);
+  assert.match(r.errors.join('\n'), /EXPIRED/);
+});
+
+test('XD-3 expiryInstant: date-only gets end-of-day, an explicit time is taken literally', () => {
+  assert.strictEqual(expiryInstant('2026-12-31'), Date.parse('2027-01-01T00:00:00Z') - 1);
+  assert.strictEqual(expiryInstant('2026-12-31T09:00:00Z'), Date.parse('2026-12-31T09:00:00Z'));
+  assert.ok(Number.isNaN(expiryInstant('someday')));
 });
