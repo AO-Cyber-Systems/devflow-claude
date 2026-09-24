@@ -17,6 +17,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { anthropicMessagesCall } = require('./flutter-ui-eval.cjs');
 const { output } = require('./helpers.cjs');
+const { hasHelpFlag } = require('./help.cjs');
 
 // Design dimensions the critic scores. Findings tag one dimension each.
 const DESIGN_DIMENSIONS = [
@@ -263,7 +264,8 @@ function cmdDesignReview(cwd, args, raw) {
   const manifestArg = positional[0];
   const live = list.includes('--live');
 
-  if (!manifestArg || list.includes('--help')) {
+  // A help flag at ANY position, `-h` included (issue #100 finding 4).
+  if (!manifestArg || hasHelpFlag(list)) {
     output({
       usage: 'flutter-ui design-review <manifest> [--live] [--raw]',
       description: 'ADVISORY UI design critique (never gates). Loads a manifest of states + a design_system_path reference anchor, runs ONE qualitative design critique per state (--live, needs ANTHROPIC_API_KEY or ANTHROPIC_AUTH_TOKEN+ANTHROPIC_BASE_URL), aggregates a prioritized design-debt list, and writes design-review-report.md + .json next to the manifest. Without --live / a credential, every state is skipped.',

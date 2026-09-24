@@ -24,6 +24,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 const { output } = require('./helpers.cjs');
+const { hasHelpFlag } = require('./help.cjs');
 const { extractFrontmatter } = require('./frontmatter.cjs');
 const { recordSync, hashFrontmatter } = require('./sync-state.cjs');
 
@@ -558,14 +559,23 @@ function linkSubIssue(parentRef, childRef) {
  * calls. On failure, structured JSON error is written to stderr and process exits 1.
  * Stdout stays clean so downstream JSON consumers are not corrupted.
  */
-function cmdGhResolve(cwd, objectiveId, raw) {
+function cmdGhResolve(cwd, objectiveId, raw, argv) {
   const USAGE = 'Usage: df-tools gh resolve <objectiveId> [--raw]\n' +
     '  Walks objective frontmatter through the org chain and prints JSON result.\n' +
     '  Options: --raw  emit compact JSON instead of pretty-print\n';
 
-  if (!objectiveId || objectiveId === '--help' || objectiveId === '-h') {
+  // A help flag ANYWHERE in argv is a question, never a target (issue #100
+  // finding 4): `gh resolve 12 --help` used to run the resolve — an auth call
+  // and an org-chain walk — because only the first positional was inspected.
+  const list = Array.isArray(argv) ? argv : [objectiveId].filter(Boolean);
+  if (hasHelpFlag(list)) {
     process.stderr.write(USAGE);
-    process.exit(objectiveId ? 0 : 1);
+    process.exit(0);
+    return;
+  }
+  if (!objectiveId) {
+    process.stderr.write(USAGE);
+    process.exit(1);
     return;
   }
 

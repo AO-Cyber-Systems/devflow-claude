@@ -13,6 +13,7 @@ const fsBase = require('fs');
 const pathBase = require('path');
 const oa = require('./org-awareness.cjs');
 const { output } = require('./helpers.cjs');
+const { hasHelpFlag } = require('./help.cjs');
 const { extractFrontmatter } = require('./frontmatter.cjs');
 
 // Read `.planning/config.json` awareness block. Returns {} on any read/parse error.
@@ -241,7 +242,8 @@ function cmdOrgAwarenessRoute(cwd, args, raw) {
   const sub = args[0];
   const rest = args.slice(1);
 
-  if (!sub || sub === '--help' || sub === '-h') {
+  // A help flag ANYWHERE, not only in the subcommand slot (issue #100 finding 4).
+  if (!sub || hasHelpFlag(args)) {
     process.stderr.write([
       'Usage: df-tools org-awareness <subcommand> [args]',
       '',

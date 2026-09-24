@@ -469,7 +469,7 @@ async function main() {
         cmdVerifyFlutterUIEval(cwd, args.slice(2), raw);
       } else if (subcommand === 'bootstrap') {
         // flutter-ui bootstrap [project-dir] [--raw]
-        cmdFlutterUIEvalBootstrap(cwd, args[2], raw);
+        cmdFlutterUIEvalBootstrap(cwd, args[2], raw, args.slice(2));
       } else if (subcommand === 'design-review') {
         // flutter-ui design-review <manifest> [--live] [--raw]
         cmdDesignReview(cwd, args.slice(2), raw);
@@ -964,7 +964,7 @@ async function main() {
         cmdGhSyncRelease(cwd, args[2], raw);
       } else if (subcommand === 'resolve') {
         // df-tools gh resolve <objectiveId> [--raw]
-        cmdGhResolve(cwd, args[2], raw);
+        cmdGhResolve(cwd, args[2], raw, args.slice(2));
       } else if (subcommand === 'sync') {
         // df-tools gh sync <objectiveId> — singular: sync one objective's state to GH
         // With no objectiveId, fall back to sync-objectives (plural, all objectives)

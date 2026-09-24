@@ -18,6 +18,7 @@
 const dd = require('./dup-detect.cjs');
 const { detectDuplicates } = dd;
 const { output } = require('./helpers.cjs');
+const { hasHelpFlag } = require('./help.cjs');
 const path = require('path');
 const fs = require('fs');
 
@@ -247,7 +248,9 @@ function cmdDupDetectRoute(cwd, args, raw) {
   const sub = args[0];
 
   // No args or explicit help flags
-  if (!sub || sub === '--help' || sub === '-h') {
+  // A help flag ANYWHERE, not only in the subcommand slot (issue #100 finding
+  // 4): `dup-detect log <id> --help` used to WRITE a detection log entry.
+  if (!sub || hasHelpFlag(args)) {
     process.stderr.write([
       'Usage: df-tools dup-detect <subcommand|--mode> [args]',
       '',

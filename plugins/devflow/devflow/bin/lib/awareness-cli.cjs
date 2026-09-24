@@ -9,6 +9,7 @@
  */
 
 const { output, error } = require('./helpers.cjs');
+const { hasHelpFlag } = require('./help.cjs');
 const aw = require('./awareness.cjs');
 
 // ─── Flag parsing (pure) ──────────────────────────────────────────────────────
@@ -317,7 +318,9 @@ function cmdAwarenessRoute(cwd, args, raw) {
   const sub = args[0];
   const rest = args.slice(1);
 
-  if (!sub || sub === '--help' || sub === '-h') {
+  // A help flag ANYWHERE, not only in the subcommand slot (issue #100 finding
+  // 4): `awareness show --help` used to run the scan and print nothing useful.
+  if (!sub || hasHelpFlag(args)) {
     process.stderr.write([
       'Usage: df-tools awareness <subcommand> [args]',
       '',
