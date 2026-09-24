@@ -339,6 +339,33 @@ describe('exec-context — the guard must not certify itself (issue #100)', () =
       `merge_back must target the orchestrator's own checkout: ${json.merge_back}`);
   });
 
+  test('finding 2 (adjacent): a bare --base resolves in the orchestrator\'s own checkout', () => {
+    // Same root cause as the merge_back defect. `HEAD` resolved in
+    // `repo.mainRoot` is the MAIN checkout's HEAD — usually the default branch.
+    // Dispatching from a worktree on the objective branch therefore defaulted
+    // the base to `main` and starved the wave: #86's own failure, re-created by
+    // the replacement's default.
+    const repo = makeRepo('target');
+    const mainSha = git(repo, 'rev-parse main');
+    const wt = path.join(path.dirname(repo), `${path.basename(repo)}-orch2`);
+    tmpRoots.push(wt);
+    git(repo, `worktree add -q -b df/objective-572 "${wt}"`);
+    fs.writeFileSync(path.join(wt, 'wave1.txt'), 'wave 1 output\n');
+    git(wt, 'add -A');
+    git(wt, 'commit -q -m "feat(572-01): wave 1"');
+    const waveOne = git(wt, 'rev-parse HEAD');
+    assert.notStrictEqual(waveOne, mainSha, 'fixture sanity');
+
+    const r = run(['exec-context', 'worktree', '--repo', repo, '--id', '572-02'], wt);
+    assert.strictEqual(r.status, 0, r.stderr);
+    const json = JSON.parse(r.stdout);
+    tmpRoots.push(json.worktree_path);
+    assert.strictEqual(json.base_sha, waveOne,
+      'a bare --base must be the tip the orchestrator is standing on, not main');
+    assert.ok(fs.existsSync(path.join(json.worktree_path, 'wave1.txt')),
+      'the provisioned worktree must contain the previous wave\'s output');
+  });
+
   test('finding 2: from an unrelated cwd, merge_back still targets the named repo', () => {
     const target = makeRepo('target');
     const other = makeRepo('other');

@@ -43,8 +43,15 @@ Prove both before you do any work:
 node ~/.claude/devflow/bin/df-tools.cjs exec-context check --repo <REPO_ROOT> --base <WAVE_BASE>
 ```
 
-**Exit 0** — the JSON reports `repo_root`, `branch`, `head_sha`, `base_visible: true`.
-Note `repo_root` down as a literal absolute path; every path you write is absolute from it.
+**Exit 0** — the JSON reports `checkout`, `repo_root`, `branch`, `head_sha`,
+`base_visible: true`.
+
+Note **`checkout`** down as a literal absolute path: that is the tree you are standing in,
+and every path you write is absolute from it. **Not `repo_root`** — `repo_root` names the
+REPOSITORY, and when `is_worktree` is `true` it is the MAIN checkout, which is the tree the
+orchestrator and every other wave share (issue #100 finding 1). A parallel wave provisioned
+into `.df-worktrees/<repo>/<id>` that writes "absolute from `repo_root`" writes into that
+shared tree — exactly the collision explicit provisioning exists to prevent.
 
 **Exit 1 — STOP. Do not proceed, do not "try the paths anyway", do not create files.**
 The two failures it reports are the two halves of issue #86:
@@ -57,8 +64,13 @@ The two failures it reports are the two halves of issue #86:
 Both are hard stops. Say which one fired, quote the command's output, and end your turn —
 a failed preflight is a dispatch defect, not something to work around.
 
-If your dispatch gave you no `REPO_ROOT`, run the check against the session's own repo root
-and say in your report that the dispatch omitted it:
+If your dispatch gave you no `REPO_ROOT`, **you cannot run the check at all** — checking
+against your own working directory compares the repository you are in with the repository
+you are in, so it always passes and proves nothing (issue #100 finding 3; `exec-context
+check` now refuses a relative `--repo` for the same reason).
+
+Instead: record where you actually are, and say in your report that the repo is **UNPROVEN**
+because the dispatch omitted `REPO_ROOT`.
 
 ```bash
 git rev-parse --show-toplevel

@@ -99,7 +99,19 @@ function cmdExecContextCheck(cwd, args, raw) {
   if (repoArg === null || repoArg === undefined) {
     error('exec-context check requires --repo <path> — the repository this spawn is supposed to be working in.\nUsage: df-tools exec-context check --repo <path> [--base <ref>] [--raw]');
   }
-  const expectedPath = path.resolve(cwd, repoArg);
+  // Issue #100 finding 3: a relative --repo resolves against the SPAWN's OWN
+  // cwd, so `--repo .` compares the repo the spawn is in with the repo the
+  // spawn is in and can never fail. A guard that cannot fail is not a guard —
+  // the whole point is to prove a claim made ELSEWHERE, by the dispatch.
+  if (!path.isAbsolute(repoArg)) {
+    error(
+      `--repo must be an ABSOLUTE path; got: ${repoArg}\n` +
+      `A relative path is resolved against this spawn's own working directory, so the ` +
+      `check would compare the repository it is standing in with itself and always pass. ` +
+      `Pass the literal absolute path your dispatch named (resolved here: ${path.resolve(cwd, repoArg)}).`
+    );
+  }
+  const expectedPath = repoArg;
   if (!fs.existsSync(expectedPath)) {
     error(`--repo does not exist: ${expectedPath}`);
   }
@@ -127,7 +139,24 @@ function cmdExecContextCheck(cwd, args, raw) {
     );
   }
 
-  const headSha = git(cwd, ['rev-parse', 'HEAD']).stdout;
+  // Issue #100 finding 8: on an unborn HEAD `git rev-parse HEAD` prints the
+  // LITERAL STRING "HEAD" and exits 128. Taking .stdout without the exit code
+  // reported {"ok":true,"branch":"HEAD","head_sha":"HEAD"} for a repository
+  // that cannot hold a commit yet — and, with --base, blamed the base for it.
+  const head = git(cwd, ['rev-parse', 'HEAD']);
+  if (head.exitCode !== 0) {
+    error(
+      `NO COMMITS — this checkout has an unborn HEAD.\n` +
+      `  checkout : ${actual.checkout}\n` +
+      `  repo     : ${actual.mainRoot}\n` +
+      `There is nothing here to build on: no commit is checked out, so no base can be ` +
+      `visible and nothing committed here would land on the intended branch. This is a ` +
+      `dispatch defect — the spawn was pointed at a freshly initialised or orphan-branch ` +
+      `tree. Re-dispatch into a checkout with history, or provision one with:\n` +
+      `  df-tools exec-context worktree --repo ${expected.mainRoot} --id <trd-id> --base <ref>`
+    );
+  }
+  const headSha = head.stdout;
   const branch = git(cwd, ['rev-parse', '--abbrev-ref', 'HEAD']).stdout;
 
   const baseArg = flag(args, '--base');
@@ -196,16 +225,25 @@ function cmdExecContextWorktree(cwd, args, raw) {
   const repo = repoIdentity(repoPath);
   if (!repo) error(`--repo is not a git repository: ${repoPath}`);
 
-  // The base is EXPLICIT. Defaulting to the repo's current HEAD — the tip the
-  // orchestrator is standing on — is the one thing forced isolation got wrong:
-  // it used the default branch, so a sequential wave started without the
-  // previous wave's commits.
+  // Where the orchestrator is actually standing. When that is a linked worktree
+  // OF the named repo, it is NOT `repo.mainRoot`: the main checkout has some
+  // other branch out. Both the default base and the merge-back target follow
+  // from this (issue #100 finding 2).
+  const here = repoIdentity(cwd);
+  const sameRepo = !!here && here.commonDir === repo.commonDir;
+  const refDir = sameRepo ? here.checkout : repo.mainRoot;
+
+  // The base is EXPLICIT. Defaulting to the tip the orchestrator is standing on
+  // is the one thing forced isolation got wrong: it used the default branch, so
+  // a sequential wave started without the previous wave's commits. Resolving a
+  // bare `HEAD` in `repo.mainRoot` recreated exactly that when the orchestrator
+  // dispatched from a worktree — mainRoot's HEAD is usually `main`.
   const baseArg = flag(args, '--base');
   if (baseArg === undefined) error('--base was given without a value.');
   const baseRef = baseArg === null ? 'HEAD' : baseArg;
-  const resolved = git(repo.mainRoot, ['rev-parse', '--verify', `${baseRef}^{commit}`]);
+  const resolved = git(refDir, ['rev-parse', '--verify', `${baseRef}^{commit}`]);
   if (resolved.exitCode !== 0) {
-    error(`--base does not resolve to a commit in ${repo.mainRoot}: ${baseRef}\n${resolved.stderr}`);
+    error(`--base does not resolve to a commit in ${refDir}: ${baseRef}\n${resolved.stderr}`);
   }
   const baseSha = resolved.stdout;
 
@@ -231,6 +269,15 @@ function cmdExecContextWorktree(cwd, args, raw) {
     error(`git worktree add failed in ${repo.mainRoot}:\n${add.stderr || add.stdout}`);
   }
 
+  // Issue #100 finding 2: `git -C <mainRoot> merge` merges into whatever the
+  // MAIN checkout currently has out. In #86's own scenario — an orchestrator
+  // dispatching from a linked worktree on the objective branch — that lands the
+  // wave on `main` instead of the objective branch. Merge into the checkout the
+  // orchestrator is actually standing in, which is what execute-objective.md
+  // step 5b already says to do; fall back to the named repo only when cwd
+  // belongs to a different repository altogether.
+  const mergeInto = refDir;
+
   const result = {
     ok: true,
     repo_root: repo.mainRoot,
@@ -238,7 +285,8 @@ function cmdExecContextWorktree(cwd, args, raw) {
     branch,
     base_ref: baseRef,
     base_sha: baseSha,
-    merge_back: `git -C ${repo.mainRoot} merge --no-ff ${branch}`,
+    merge_into: mergeInto,
+    merge_back: `git -C ${mergeInto} merge --no-ff ${branch}`,
     remove: `git -C ${repo.mainRoot} worktree remove ${worktreePath}`,
   };
   output(result, raw, realpath(worktreePath));

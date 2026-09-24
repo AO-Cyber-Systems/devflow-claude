@@ -85,11 +85,17 @@ describe('executor isolation wiring (issue #86)', () => {
     // `.df-worktrees/<repo>/<id>` they are different directories, and repo_root
     // is the SHARED one. Telling the executor "every path you write is absolute
     // from repo_root" sends every parallel wave into the same tree.
-    assert.match(body, /`?checkout`?/,
-      'executor.md must name the `checkout` field the preflight returns');
-    assert.doesNotMatch(body, /absolute from (?:it|`?repo_root`?)/i,
+    const preflight = body.slice(
+      body.indexOf('<step name="repo_base_preflight"'),
+      body.indexOf('<step name="load_project_state"'));
+    assert.ok(preflight.length > 0, 'fixture sanity: the preflight step must be findable');
+    assert.doesNotMatch(preflight, /Note `repo_root` down as a literal absolute path/,
       'executor.md must not tell the executor to write relative to `repo_root` — ' +
       'in a linked worktree that is the shared main checkout');
+    assert.match(preflight, /`checkout`/,
+      'executor.md must name the `checkout` field the preflight returns');
+    assert.match(preflight, /is_worktree|main checkout|shared/i,
+      'executor.md must say WHY repo_root is the wrong root in a linked worktree');
   });
 
   test('#100 finding 3: the no-REPO_ROOT fallback does not self-certify', () => {
