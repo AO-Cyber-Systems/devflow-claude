@@ -24,8 +24,20 @@ windows rather than one window carrying all three jobs' reconnaissance.
 
 ### Worktree isolation
 
-The `executor` agent declares `isolation: worktree`. Each parallel executor gets
-its own git worktree, so concurrent jobs cannot collide on the working tree.
+Each parallel executor gets its own git worktree, so concurrent jobs cannot collide
+on the working tree. The orchestrator provisions them itself:
+
+```bash
+df-tools exec-context worktree --repo <repo> --id <plan-id> --base <wave-base>
+```
+
+The repo and the base are both stated. They used to be inferred — the `executor`
+agent declared `isolation: worktree` and let the harness resolve it, which took the
+repo from the *controller session's* cwd (a dispatch into one repository could land
+in another) and the base from the *default branch* (so wave 2 started without wave
+1's commits). Each executor now runs `df-tools exec-context check --repo ... --base ...`
+first and stops loudly on either mismatch
+([#86](https://github.com/AO-Cyber-Systems/devflow-claude/issues/86)).
 
 {{< callout title="The worktree guard is not a DevFlow hook" type="warn" >}}
 Claude Code's harness has its own worktree-isolation guard that refuses compound

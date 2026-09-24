@@ -8,6 +8,12 @@
  *
  * Usage: node df-tools.cjs <command> [args] [--raw]
  *
+ * Help:
+ *   df-tools --help                    List every command (writing ones marked *)
+ *   df-tools <command> --help          Usage for one command
+ *   `--help`/`-h` is answered by the dispatcher BEFORE the switch, so no
+ *   subcommand can ever receive it as data (issue #87).
+ *
  * Atomic Commands:
  *   state load                         Load project config + state
  *   state update <field> <value>       Update a STATE.md field
@@ -15,7 +21,9 @@
  *   state patch --field val ...        Batch update STATE.md fields
  *   resolve-model <agent-type>         Get model for agent based on profile
  *   find-objective <objective>                 Find objective directory by number
- *   commit <message> [--files f1 f2]   Commit planning docs
+ *   commit <message> [--files f1 f2]   Commit planning docs. A message starting
+ *                                      with `--` is refused; with no --files the
+ *                                      commit is scoped to `.planning/` alone.
  *   verify-summary <path>              Verify a SUMMARY.md file
  *   generate-slug <text>               Convert text to URL-safe slug
  *   current-timestamp [format]         Get timestamp (full|date|filename)
@@ -141,7 +149,10 @@
  *   ui metrics baseline [--since D] [--paths p1,p2] [--out f]  Fix/feat commit baseline JSON for UI paths
  *
  * UI Surface Specs:
- *   ui spec validate <file> [--patterns catalogue.json]  Static invariants (§4.5); EXITS 1 when invalid
+ *   ui spec validate <file> [--patterns catalogue.json]  Static invariants (§4.5)
+ *     EXIT 0 checked and clean · 1 a real violation · 2 clean, but a check DID NOT RUN.
+ *     `render`, `sheet` and `lock` share the three codes; on those, 2 still produced the
+ *     artifact. Only 1 refuses.
  *
  * Compound Commands (workflow-specific initialization):
  *   init execute-objective <objective>         All context for execute-objective workflow
@@ -241,6 +252,10 @@ const { cmdMicro } = require('./lib/micro.cjs');
 const { cmdProjectDecline, cmdProjectAccept } = require('./lib/decline-tracker.cjs');
 const { cmdProjectState } = require('./lib/project-state.cjs');
 const { cmdGlobalConfig } = require('./lib/global-config.cjs');
+const { cmdExecContextRoute } = require('./lib/exec-context.cjs');
+const {
+  hasTopLevelHelpFlag, ownsHelp, HELP_FLAGS, printHelp, topLevelUsage, COMMANDS: HELP_TABLE,
+} = require('./lib/help.cjs');
 const { cmdGenerateUAT } = require('./lib/uat-generator.cjs');
 
 // ─── CLI Router ───────────────────────────────────────────────────────────────
@@ -254,8 +269,35 @@ async function main() {
   const command = args[0];
   const cwd = process.cwd();
 
+  // ── `--help` is a question, never an instruction (issue #87) ───────────────
+  // Answered BEFORE the switch, so no subcommand can take a help flag ADDRESSED
+  // TO DF-TOOLS as data. `df-tools commit --help` used to take '--help' as the
+  // commit MESSAGE and commit whatever was dirty; a per-subcommand fix would
+  // have left the same hole open in the next subcommand added.
+  //
+  // Two boundaries the first cut of this got wrong (issue #100):
+  //   - Some argv is CARRIED, not read: `handoff create <command...>` hands its
+  //     tail to the user's shell, so `--help` there is the forwarded command's.
+  //     `hasTopLevelHelpFlag` stops at that tail (and at a literal `--`).
+  //   - A handful of commands print their own, richer help (which judge modes
+  //     are binding, which scope a scaffold writes to). Those are delegated to
+  //     — each honours a help flag at ANY argv position and returns before
+  //     doing any work, which help-delegation.test.cjs enforces in every form
+  //     (`<cmd> [<sub>] [<positional>] --help|-h`).
+  if (hasTopLevelHelpFlag(args) && !ownsHelp(args)) {
+    const name = command && !HELP_FLAGS.has(command) ? command : null;
+    // A help flag on a name that is not a command is a TYPO, not a question
+    // (issue #100 finding 7). Fall through to the `default:` arm, which names
+    // it and exits 1, rather than printing the listing and reporting success.
+    if (!name || HELP_TABLE[name]) printHelp(name);
+  }
+
+  // No command named at all. A script building a command name dynamically that
+  // produced an empty one must not read `rc=0` (issue #100 finding 7); this is
+  // the exit 1 the pre-#87 `error(...)` path gave.
   if (!command) {
-    error('Usage: df-tools <command> [args] [--raw]\nCommands: state, resolve-model, find-objective, commit, verify-summary, verify, detect, generate, frontmatter, template, generate-slug, current-timestamp, list-todos, verify-path-exists, config-ensure-section, awareness, benchmark, planning, init');
+    process.stderr.write(topLevelUsage());
+    process.exit(1);
   }
 
   switch (command) {
@@ -333,6 +375,11 @@ async function main() {
     case 'commit': {
       const amend = args.includes('--amend');
       const message = args[1];
+      // A message starting with `--` is a mistyped flag far more often than an
+      // intended subject line (issue #87). Refuse rather than commit under it.
+      if (typeof message === 'string' && message.startsWith('--') && message !== '--') {
+        error(`Refusing to commit with '${message}' as the message — that looks like a flag, not a subject.\nRun \`df-tools commit --help\` for usage.`);
+      }
       // Parse --files flag (collect args after --files, stopping at other flags)
       const filesIndex = args.indexOf('--files');
       const files = filesIndex !== -1 ? args.slice(filesIndex + 1).filter(a => !a.startsWith('--')) : [];
@@ -442,7 +489,7 @@ async function main() {
         cmdVerifyFlutterUIEval(cwd, args.slice(2), raw);
       } else if (subcommand === 'bootstrap') {
         // flutter-ui bootstrap [project-dir] [--raw]
-        cmdFlutterUIEvalBootstrap(cwd, args[2], raw);
+        cmdFlutterUIEvalBootstrap(cwd, args[2], raw, args.slice(2));
       } else if (subcommand === 'design-review') {
         // flutter-ui design-review <manifest> [--live] [--raw]
         cmdDesignReview(cwd, args.slice(2), raw);
@@ -458,10 +505,17 @@ async function main() {
       //   fix/feat baseline JSON (W0-6, UI-process redesign "before" numbers).
       // ui spec validate <file> [--patterns <catalogue.json>]
       //   Validates a Surface Spec against the §4.5 static invariants. Prints the verdict
-      //   JSON on stdout and EXITS 1 when the spec is invalid — that exit code is the gate
-      //   (34-04); `ok` drives it, so a MISSING row never fails a run.
+      //   JSON on stdout; the exit code is the gate (34-04), and it has THREE values:
+      //     0  every check ran and nothing violated
+      //     1  a real violation
+      //     2  nothing violated, but one or more checks DID NOT RUN (a MISSING row)
+      //   2 exists because `validate "$spec" || exit 1` cannot tell 0 from 0: before issue
+      //   #90 an invariant that was never evaluated exited 0 and so read as verified. The
+      //   payload carries `complete` and `unchecked` beside `ok` for the same reason.
       // ui sheet <spec> [--renders <dir>] [--refs <dir>] --out <file> [--patterns <c.json>]
-      //   Writes the §8.3 static review sheet and prints {sheet_hash, out, states, missing}.
+      //   Writes the §8.3 static review sheet and prints {sheet_hash, out, states, missing,
+      //   complete, unchecked}. Exits 2 when a declared state has no render or a spec check
+      //   did not run — the sheet is still written; only an invalid spec (exit 1) refuses.
       //   `sheet_hash` is the sha256 of the canonical MODEL, never of the HTML — 34-07's
       //   look-lock anchors on it, and a hash that moved on a CSS tweak would train the lock
       //   out of existence. A declared state with no render is a MISSING cell, never a
@@ -473,7 +527,8 @@ async function main() {
       //   covers `{routes, controls, states}` and nothing else — §4.1's three keys — so a
       //   prose or `design_read` edit does NOT clear a human's approval and a control edit
       //   DOES. Refuses (exit 1, writes nothing) on an invalid spec, a `--sheet-hash` that is
-      //   not 64 hex, or an absent `--by`.
+      //   not 64 hex, or an absent `--by`. Exits 2 when the lock WAS written over a spec one
+      //   of whose invariants never ran — a signature standing over an unchecked spec.
       const subcommand = args[1];
       if (subcommand === 'metrics') {
         cmdUiMetrics(cwd, args.slice(2), raw);
@@ -929,7 +984,7 @@ async function main() {
         cmdGhSyncRelease(cwd, args[2], raw);
       } else if (subcommand === 'resolve') {
         // df-tools gh resolve <objectiveId> [--raw]
-        cmdGhResolve(cwd, args[2], raw);
+        cmdGhResolve(cwd, args[2], raw, args.slice(2));
       } else if (subcommand === 'sync') {
         // df-tools gh sync <objectiveId> — singular: sync one objective's state to GH
         // With no objectiveId, fall back to sync-objectives (plural, all objectives)
@@ -1153,6 +1208,13 @@ async function main() {
       // df-tools micro commit [--files <path>...]
       // df-tools micro abort
       cmdMicro(cwd, args.slice(1), raw);
+      break;
+    }
+
+    case 'exec-context': {
+      // df-tools exec-context check --repo <path> [--base <ref>]
+      // df-tools exec-context worktree --repo <path> --id <slug> [--base <ref>] [--path <dir>]
+      cmdExecContextRoute(cwd, args.slice(1), raw);
       break;
     }
 

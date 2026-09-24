@@ -146,11 +146,28 @@ controls:
         does: "opens the project in the drawer"
         effect: [navigation]
     must_not: ["fire twice per activation", "cover sibling hit rects"]   # applies to every behaviour
-    activation: [pointer, keyboard: [Enter, Space]]
+    activation: {pointer: true, keyboard: [Enter, Space]}
     disabled_when: null               # or {condition: "...", reason_shown: "..."}
     a11y: {role: button, announces: [expanded, collapsed]}
-    hit_rect: {disjoint_from: [rail.project.chevron]}
+    hit_rect: {disjoint_from: [rail.project.chevron]}   # reciprocal; the probe measures the rects
     destructive: false                # true requires `confirm:` naming the dialog control
+
+  - id: rail.project.chevron
+    kind: toggle
+    visible_in: [populated, long-content, narrow]
+    does: "toggles children visibility only"
+    effect: [toggle]
+    must_not: ["select the project", "change route"]
+    hit_rect:
+      max: "40x40"                    # an upper bound the probe asserts, not a layout instruction
+      disjoint_from: [rail.project.header]   # reciprocal with the header above. This pair IS the
+                                      # declarable form of the aodex#544 defect, where the
+                                      # chevron's semantics node spanned the whole 360px row and
+                                      # swallowed every click meant for the header.
+                                      # Note what is NOT written here: `within: rail.project.header`.
+                                      # The chevron sits inside the header's visual row, but I6
+                                      # forbids naming the same control in `within` and
+                                      # `disjoint_from` — see §4.5 I6.
 
 states:
   - id: populated
@@ -176,8 +193,12 @@ states:
     seed: projects-3
     as: non-member
     content: {must_show: ["You don't have access"], must_not_show: ["{project.name}"]}
-  - id: narrow      {viewport: 390x844, seed: projects-3-conversations-12}
-  - id: dark        {theme: dark, seed: projects-3-conversations-12}
+  - id: narrow
+    viewport: "390x844"
+    seed: projects-3-conversations-12
+  - id: dark
+    theme: dark
+    seed: projects-3-conversations-12
 
 flows:
   - id: open-project-conversation
@@ -191,7 +212,7 @@ scope_rules:
   - {on: project-move,     invalidate: [project-pane, project-count-badge]}
 
 acceptance:
-  locked_sheet: sha256:...            # hash of the approved review sheet (§8.3)
+  locked_sheet: "sha256:9f2c1b7e4a6d0835c1e9b4f7a2d6c8e013b5a7f9d2c4e6081a3b5c7d9e1f3a5b"
   locked_by: mark@aocyber.ai
   locked_at: 2026-09-18
 ```
@@ -222,7 +243,9 @@ enforce:
 Every surface declares at minimum `populated`, `empty`, `error`, `outage`, `long-content`,
 `narrow`, and `dark`. `loading` is declared when the surface owns an async fetch. Each state
 has a `seed` (§7.4) and a `content` block: `must_show` / `must_not_show` strings, or a `rule`.
-`outage` must differ from `empty` in `must_show`; the schema rejects a spec where they are equal.
+`outage.must_show` and `empty.must_show` must be **disjoint** — an outage and an emptiness may
+never be evidenced by the same sentence. The validator rejects any intersection, not merely
+equality.
 
 ### 4.5 Static invariants (run on the spec alone, no app needed)
 
@@ -232,16 +255,66 @@ has a `seed` (§7.4) and a `content` block: `must_show` / `must_not_show` string
 2. every route has ≥1 `entry` and a `back` (or is the declared root); every `entry.control`
    exists in `controls` or in another spec of the same repo (cross-surface entries are resolved);
 3. every control has one `does` or an exclusive, covering `behaviors[]`; effects from the vocabulary; `visible_in` ⊆ states;
-4. every state has a seed; `outage.must_show ∩ empty.must_show = ∅`;
+4. every state has a seed; `outage.must_show ∩ empty.must_show = ∅` — disjoint, not merely
+   unequal (the stronger reading; §4.4 states it the same way);
 5. every referenced pattern exists in the pinned `eden-ui-flutter` release; a control of a
    pattern kind inherits that pattern's `must_not` defaults (a surface may not silently drop them);
-6. no two controls declare overlapping hit rects unless one lists the other in `disjoint_from`
-   (which the probe then asserts);
+
+   **Measured enforcement surface, 2026-09-23 — I5 is narrower than it reads.** The first real
+   catalogue (`eden-ui-flutter@design/patterns.json`) states **78** `must_not` rules across ten
+   patterns. PAT002 can enforce **2** of them. The reason is structural, not a bug: inheritance
+   is keyed on a control `kind`, **one** of the ten patterns has a kind at all (seven are
+   compositions — a shell, a three-pane layout, a state matrix — which are not a control
+   archetype), and that one kind (`disclosure-header`) is **one of the six** the schema admits.
+   The other 76 rules are `must_not_scoped`: rules a spec author is expected to declare per
+   behaviour, which no consumer currently reads.
+
+   So the honest statement is that I5 enforces *inherited defaults*, and inherited defaults are
+   a small and legitimate subset of what a pattern states. What is **not** yet checked is
+   whether a spec that references a pattern has acknowledged that pattern's scoped rules at all
+   — a coverage question, not an inheritance one, and a different check. It is deliberately not
+   added here: it would change what W1★ enforces before W1★ has run once, and a check that
+   surfaces 76 findings on the first surface is not a gate, it is a wall. Revisit with the
+   dogfood's evidence.
+
+   Recorded rather than quietly fixed, because "every referenced pattern's rules are enforced"
+   is what this line reads like and is not what it does.
+6. every `hit_rect.disjoint_from` entry resolves to a control in this spec, is reciprocal (both
+   controls name each other) and never names its own control; a `hit_rect.within` entry resolves
+   and does not also appear in that control's `disjoint_from` — a control cannot be both inside
+   another's area and disjoint from it. The two keys answer different questions and are never
+   two views of one relationship: `within` names the **container** a control must not escape
+   (a card, a row, a toolbar — usually not itself an activation target), while `disjoint_from`
+   names the **sibling activation targets** whose rects it must not touch. A control nested in
+   a row alongside a peer declares `within: <the row>` and `disjoint_from: [<the peer>]`, never
+   `within` and `disjoint_from` against the same id. **Overlap itself is not statically checkable and is not
+   checked here**: the spec declares intent, the probe measures rects (§7.5 `disjoint`,
+   `hit-target`, `within`);
 7. every `flow` step references existing controls and routes and ends in a `back` or a declared
    terminal route;
 8. `guards` name the denied state each renders.
 
 A spec that fails validation is not reviewable and cannot seed a TRD.
+
+**Exit contract (all four `ui` arms — `spec validate`, `spec render`, `sheet`, `lock`):**
+
+| Code | Meaning |
+|---|---|
+| `0` | every check ran, nothing violated |
+| `1` | a real violation |
+| `2` | nothing violated, but one or more checks reported `MISSING` |
+
+`2` is what §2 goal 5 ("a check that did not run reports `MISSING`, never `pass`") costs at the
+process boundary. A gate is written `validate "$spec" || exit 1`, and that idiom can only tell
+zero from non-zero — so while *incomplete* shared the `0` with *clean*, an invariant that was
+never evaluated read as verified (issue #90). A caller who genuinely accepts an incomplete check
+now says so (`[ $? -eq 2 ]`) instead of inheriting it. The verdict JSON says the same thing to a
+JSON consumer: `complete: false` and `unchecked: ["PAT000"]` sit beside `ok`, so `ok` is never
+the whole answer on its own.
+
+On `render`, `sheet` and `lock`, **exit 2 means the artifact was produced** — the graph printed,
+the sheet written, the lock recorded. Only `1` refuses. `sheet` counts its own second axis of
+incompleteness: a declared state with no render is a cell nobody looked at, and it exits 2 too.
 
 ### 4.6 Scope rules
 
@@ -395,13 +468,15 @@ Checks are pure functions over `ProbeResult` + spec, each named by the rule it e
 |---|---|
 | `present` | a spec control visible in this state is absent from the semantics tree (aodex#529 class) |
 | `hit-target` | `elementFromPoint` at a control's centre is not that control's node |
-| `disjoint` | rects of `disjoint_from` pairs overlap |
+| `disjoint` | rects of a `disjoint_from` pair overlap |
+| `within` | a control declaring `hit_rect.within` has a rect not contained by that control's, or exceeding a declared `max` |
 | `target-size` | control rect < 24 px on either axis |
 | `overflow` | bridge reports a RenderFlex exception or a rect exits the viewport |
 | `contrast` | text node contrast below guideline |
 | `content` | `must_show` absent or `must_not_show` present |
 | `effect` | activating a control yields an effect class ≠ the `effect` of the behaviour whose `when` matches the observed pre-activation state (classified from the before/after diff: `navigation` = route changed; `toggle` = announced state flipped; `select` = selection node changed; `dialog` = new modal node; `submit` = request + result node; `inert` = zero delta) |
 | `no-op` | effect is `inert` and the control is not `disabled_when` with `reason_shown` rendered |
+| `inert` | a control whose `kind` is interactive either publishes **no** activation action, **or** publishes one that nothing can reach — a pointer at the centre of the rect the control publishes does not land on the object that owns it. Two different defects, one verdict: *never wired up* and *wired up, but something in between eats the pointer*. Checked before any activation, and the precondition for every check that locates its subject by interacting with it |
 | `must-not` | any `must_not` negation fails (e.g. route changed on close) |
 | `once` | one activation produced two effects |
 | `route-entry` | a route cannot be reached via a declared entry |
@@ -414,7 +489,49 @@ Checks are pure functions over `ProbeResult` + spec, each named by the rule it e
 | `bundle` | served hash ≠ worktree build hash |
 
 A check that could not run (no probe, unknown seed, chrome missing) reports `MISSING` with the
-`ui doctor` reason. No check ever narrows itself; a flaky check is fixed or filed.
+`ui doctor` reason. No check ever narrows itself; a flaky check is fixed or filed. `MISSING`
+never passes — at the process boundary that is exit 2, §4.5's exit contract.
+
+**A dead control must never buy a clean report, and that is not automatic.** Several checks above
+locate their subject by interacting with it — `hit-target` and `contrast` find a node by hitting a
+point, `effect` and `once` need an activation to observe. When the control underneath is inert,
+those checks find nothing to measure and, unless told otherwise, find nothing to complain about
+either. The surface then scores *better* the more broken it is.
+
+This is not hypothetical. It was measured on 2026-09-23 in `eden-ui-flutter`, by a differential
+control that broke one line in the mobile nav (`ExcludeSemantics` → `IgnorePointer`, killing all
+four bottom-nav buttons). The oracle did not merely miss the dead buttons — it went **fully
+green**, `All tests passed!`, and a real WCAG contrast violation that had been correctly reported
+a moment earlier *disappeared*, because the guideline locates its paragraph by hit test. Four dead
+buttons bought a cleaner report than four working ones.
+
+Two rules follow, and neither is optional:
+
+1. `inert` is a **precondition**, not a peer. It runs first, before anything tries to activate
+   anything. The library-level oracle had only the upper bound — *never more than one tap
+   action* — so zero passed in silence.
+
+   **A count is not enough, and this is the part worth reading twice.** The obvious rule —
+   *an interactive control must publish at least one activation action* — does **not** catch the
+   case above. Measured on Flutter 3.41.9: `RenderIgnorePointer` refuses the hit test *and* sets
+   `isBlockingUserActions`, which strips the inner gesture detector's implicit route from the
+   published tree. The outer `Semantics(onTap:)` survives, so each of the four dead buttons
+   published **exactly one** well-formed tap action. A lower-bound-only rule would have been
+   written, shipped, and stayed silent on the very defect that motivated it.
+
+   So `inert` has to assert **reachability**, not arity: a pointer at the centre of the rect the
+   control publishes must land on the object that owns it. Both arms are kept, because they are
+   genuinely different faults — zero means nothing was ever wired up; unreachable means it was
+   wired up and something in between eats the pointer. Only the second one describes what
+   actually happened here.
+2. A check whose subject could not be located reports **`MISSING`, never `pass`** — the same rule
+   §7 already states for a check that could not run, applied to the case where the check ran and
+   found nothing to run *on*. "Zero violations" is evidence only when read together with the
+   liveness verdict; alone it is compatible with a screen on which nothing works.
+
+The general form is worth stating because it outlives this instance: **an instrument that locates
+its subject by touching it cannot distinguish "nothing wrong" from "nothing there".** Any check
+added to the table later must say which of the two it reports.
 
 ## 8. Phase A — design and mockup
 
@@ -432,7 +549,13 @@ under `refs/<surface>/donor/` as completeness references.
 
 ### 8.2 Validation
 
-`ui spec validate` (§4.5) must pass. The navigation graph is rendered (mermaid) from `routes`;
+`ui spec validate` (§4.5) must pass. "Pass" is exit **0**, not merely "not 1": exit 2 says some
+invariant was never evaluated, and §2 goal 5 forbids reading that as a pass. Until the
+`eden-ui-flutter` catalogue is pinned (§6, §13) I5 cannot run at all and every real spec is a 2,
+so for now Phase A proceeds on a 2 with the `unchecked` codes named to the human at look-lock —
+what the machine did not check is precisely what the human is being asked to carry. Once the
+catalogue is pinned, 2 becomes a defect to fix rather than a fact to report.
+The navigation graph is rendered (mermaid) from `routes`;
 "can the user get back from here" is answered by arrows before code exists.
 
 ### 8.3 Look-lock on the review sheet
@@ -746,3 +869,82 @@ Three amendments follow, binding for wave 1 onward:
 Go/no-go for wave 2 is the W1★ dogfood: the nav feature must go through one look-lock and zero
 surprise fix rounds. If it does not, stop and rethink before wave 2.
 
+
+---
+
+## 22. Wave-1 retrospective — 2026-09-23
+
+Wave 1 shipped W1a, W1b (released as v2.9.0) and W1c (merged in both consumers). It also
+produced **one structural finding, seven times in one day**, which is worth stating as a rule
+because every instance was found the same way and none was found by reading.
+
+### 22.1 The rule
+
+> **A check whose failure mode is indistinguishable from its success mode is not a check.**
+
+Each of the seven below emitted the *same signal* for "everything is fine" and for "I could not
+tell". All seven reported success.
+
+| # | The check | "fine" and "could not tell" were both… |
+|---|---|---|
+| 1 | `expectUiSane` on a surface with four dead nav buttons | zero violations — and a real contrast failure *vanished*, because the guideline finds its subject by hit test |
+| 2 | aodex's fault-seam boundary gate (`go list \| grep -q`) | no matching lines — whether the dependency was absent or `go list` had failed outright |
+| 3 | `ui spec validate` | exit `0` — whether every invariant passed or one never ran |
+| 4 | the pattern catalogue's freshness test | bytes match — but against the generator's own front-matter input, never the doc bodies the rules actually live in (2 of ~78 rules carried) |
+| 5 | `db-reset.sh` applying a seed profile | the script exited — nothing asserted the resulting database state, and one of the two "working" profiles could not run at all |
+| 6 | `flutter analyze` on this machine | clean — on a toolchain five months behind the one CI pins, where the CI-breaking incompatibility does not exist |
+| 7 | a devflow-claude PR's green tick | all checks pass — while the 3,248-test suite is never executed by CI at all |
+
+Two of these were in gates written *that same day, specifically to prevent false greens*.
+
+### 22.2 What follows, binding from wave 2
+
+1. **Every check declares which of the two it is reporting.** A verdict is `pass`, `fail`, or
+   `could-not-determine` — never two of those collapsed into one value. §7's `MISSING`, §7.5's
+   `inert` precondition and the `0/1/2` exit contract are three instances of the same rule; a
+   check added later must say where it stands on it.
+2. **The indeterminate case fails closed.** "Could not tell" must cost something — a non-zero
+   exit, a `MISSING` row, a refusal — or it becomes the cheapest way to make a gate quiet.
+3. **A generated artifact is verified against its source, not against its generator.** Round-
+   tripping a generator's own input proves the generator is deterministic and nothing else.
+4. **A check is tested by making it fail.** All seven were caught by a differential control, by
+   counting, or by running the thing on a machine that differs from the one that wrote it —
+   none by review. The question to ask of any new gate is not "does it pass?" but *"what is the
+   single edit that should make this red, and does it?"*
+5. **Verification runs where the gate runs.** A green measured on a different toolchain,
+   different runner or different data than the gate uses is evidence about the measurer, not the
+   gate. State the environment alongside the number, or the number is not a result.
+
+### 22.3 Five more, found after this section was written
+
+§22.1 was written at seven instances. Within the same day it reached twelve, and
+the five below are worth listing separately because they are **different in kind** —
+they are not checks in the ordinary sense, which is the point. The rule is not
+about test assertions; it is about anything whose output a reader treats as a
+verdict.
+
+| # | The thing | "fine" and "could not tell" were both… |
+|---|---|---|
+| 8 | aodex's fault-seam gate, take two | every PASS line printed — while it enumerated **2 of 6** shipped binaries, so a seam in `cmd/migrate` passed unseen |
+| 9 | the golden **regeneration workflow step** | nothing uploaded — the regenerate step sat after an unconditional comparison that fails by definition whenever regeneration is needed, so the recovery path could only run when it was not needed |
+| 10 | `.gitignore`'s golden re-include | baselines absent — `!test/**/goldens/*.png` matched one level above where the job writes, so the gate compared at tolerance 0 against files the repo forbade storing. **Nobody had ever had a baseline, and the reason was not that nobody generated one** |
+| 11 | aodex's chromedp gate | `0 matching packages` — whether the closure was clean or `go list` had failed outright. A package that does not exist scored 0 and printed PASS |
+| 12 | a CI run that is "not green" | one word — covering `failure`, `cancelled`, and *cancelled by supersession when a newer push arrived*. Only the first means something is wrong |
+
+Instances 9 and 10 are the sharpest, because neither is a test. One is the order of
+two steps in a workflow; the other is a glob one asterisk short. Both produced a
+confident, wrong verdict for the entire life of the feature they gated — and both
+were found only by asking why an expected artifact was *absent*, which is the same
+question §22.2(2) says to make expensive.
+
+Instance 12 is the one to watch for in reporting rather than in code: three distinct
+outcomes collapse into "CI isn't green", and an agent or a person who does not open
+the run will act on the wrong one. It was caught here only because a subagent
+checked the conclusion field instead of the colour.
+
+### 22.4 The honest caveat
+
+W1a's reported figures — "4,840 passing, analyze at baseline" and similar, repeated through the
+wave — were measured on Flutter 3.41.9 while CI pins 3.47.4. The work appears sound; the
+evidence for it was weaker than stated at the time. That is instance 6 applied to this
+document's own reporting, and it is why 22.2(5) exists.

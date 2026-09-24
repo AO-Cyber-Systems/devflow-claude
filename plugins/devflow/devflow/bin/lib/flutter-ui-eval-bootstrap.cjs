@@ -34,6 +34,7 @@ const fs = require('fs');
 const path = require('path');
 const { output } = require('./helpers.cjs');
 const { resolveFlutterPackageDir } = require('./flutter-package-dir.cjs');
+const { hasHelpFlag } = require('./help.cjs');
 
 // ─── Canonical scaffold target paths (repo-relative) ─────────────────────────
 
@@ -240,19 +241,26 @@ const USAGE = {
 
 /**
  * CLI entry point: resolve target dir, run the scaffolder, emit the result.
- * `--help`/`-h` emits a usage object and exits 0.
+ *
+ * A help flag ANYWHERE in argv emits the usage object and writes nothing
+ * (issue #100 finding 4). It used to be recognised only in the first
+ * positional slot, so `flutter-ui bootstrap ./app --help` scaffolded five
+ * files — a question answered by mutating the questioner's repo.
  *
  * @param {string} cwd
  * @param {string} projectDir - optional override path (args[2] from CLI)
  * @param {boolean} raw
+ * @param {string[]} [argv] - the full argument tail after `bootstrap`
  */
-function cmdFlutterUIEvalBootstrap(cwd, projectDir, raw) {
-  if (projectDir === '--help' || projectDir === '-h') {
+function cmdFlutterUIEvalBootstrap(cwd, projectDir, raw, argv) {
+  const list = Array.isArray(argv) ? argv : [projectDir].filter(Boolean);
+  if (hasHelpFlag(list)) {
     output(USAGE, raw);
     return;
   }
-  const target = projectDir
-    ? (path.isAbsolute(projectDir) ? projectDir : path.join(cwd, projectDir))
+  const dir = projectDir && !projectDir.startsWith('-') ? projectDir : null;
+  const target = dir
+    ? (path.isAbsolute(dir) ? dir : path.join(cwd, dir))
     : cwd;
   const result = scaffoldUIEval({ projectDir: target });
   output(result, raw);

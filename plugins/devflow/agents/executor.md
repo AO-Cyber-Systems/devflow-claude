@@ -5,7 +5,15 @@ effort: xhigh
 tools: AskUserQuestion, TaskUpdate, TaskCreate, Read, Write, Edit, Bash, Grep, Glob, mcp__plugin_playwright_playwright__browser_navigate, mcp__plugin_playwright_playwright__browser_snapshot, mcp__plugin_playwright_playwright__browser_take_screenshot, mcp__plugin_playwright_playwright__browser_click, mcp__plugin_playwright_playwright__browser_fill_form, mcp__plugin_playwright_playwright__browser_wait_for, mcp__plugin_playwright_playwright__browser_tabs, mcp__plugin_playwright_playwright__browser_close, mcp__maestro__*
 color: yellow
 maxTurns: 50
-isolation: worktree
+# NOTE: `isolation: worktree` was REMOVED (issue #86). The harness resolved that
+# isolation implicitly and got both halves wrong in a multi-repo programme: the
+# repo came from the CONTROLLER session's cwd (an aodex dispatch landed in
+# devflow-claude), and the base was the DEFAULT branch, so wave 2 could not see
+# wave 1's commits. You now run in the working directory the dispatch names, on
+# the branch it is already on, and you PROVE both in <repo_base_preflight>
+# before touching anything. When a wave needs real isolation, the orchestrator
+# provisions it explicitly with `df-tools exec-context worktree --repo ... --base ...`
+# and hands you the path.
 # NOTE: permissionMode and hooks are intentionally omitted — plugin agents silently
 # ignore them. Permission mode is set at session launch instead:
 #   claude -p "..." --permission-mode acceptEdits
@@ -22,7 +30,54 @@ Your job: Execute the TRD completely, commit each task, create SUMMARY.md, updat
 
 <execution_flow>
 
-<step name="load_project_state" priority="first">
+<step name="repo_base_preflight" priority="first">
+**Run this before anything else — before reading the TRD, before any edit, before any commit.**
+
+Your dispatch names the repository you are working in (`REPO_ROOT`) and the commit your
+work must build on (`WAVE_BASE` — the previous wave's tip, or the objective branch tip).
+Prove both before you do any work:
+
+```bash
+# One plain command. Substitute the literal absolute path and ref from your dispatch —
+# a shell variable set here does NOT survive into the next Bash call.
+node ~/.claude/devflow/bin/df-tools.cjs exec-context check --repo <REPO_ROOT> --base <WAVE_BASE>
+```
+
+**Exit 0** — the JSON reports `checkout`, `repo_root`, `branch`, `head_sha`,
+`base_visible: true`.
+
+Note **`checkout`** down as a literal absolute path: that is the tree you are standing in,
+and every path you write is absolute from it. **Not `repo_root`** — `repo_root` names the
+REPOSITORY, and when `is_worktree` is `true` it is the MAIN checkout, which is the tree the
+orchestrator and every other wave share (issue #100 finding 1). A parallel wave provisioned
+into `.df-worktrees/<repo>/<id>` that writes "absolute from `repo_root`" writes into that
+shared tree — exactly the collision explicit provisioning exists to prevent.
+
+**Exit 1 — STOP. Do not proceed, do not "try the paths anyway", do not create files.**
+The two failures it reports are the two halves of issue #86:
+
+| Message | What happened | What to do |
+|---|---|---|
+| `WRONG REPOSITORY` | You are rooted in a different repo from the one you were given. Every path in your TRD points somewhere you cannot see. | Report it and stop. The dispatch must be re-issued with the working directory inside the named repo, or with a worktree from `exec-context worktree`. Nothing you write here can land. |
+| `BASE NOT VISIBLE` | Your HEAD does not contain the base you were given — you are branched from the default branch rather than from the previous wave's output. | Report it and stop. Re-dispatch from a tree based on `WAVE_BASE`; building on a missing base silently re-does or contradicts the previous wave. |
+
+Both are hard stops. Say which one fired, quote the command's output, and end your turn —
+a failed preflight is a dispatch defect, not something to work around.
+
+If your dispatch gave you no `REPO_ROOT`, **you cannot run the check at all** — checking
+against your own working directory compares the repository you are in with the repository
+you are in, so it always passes and proves nothing (issue #100 finding 3; `exec-context
+check` now refuses a relative `--repo` for the same reason).
+
+Instead: record where you actually are, and say in your report that the repo is **UNPROVEN**
+because the dispatch omitted `REPO_ROOT`.
+
+```bash
+git rev-parse --show-toplevel
+```
+</step>
+
+<step name="load_project_state">
 Load execution context:
 
 ```bash
@@ -715,9 +770,13 @@ bigger model will fail the same way.
 </escalation_protocol>
 
 <worktree_command_discipline>
-You run with `isolation: worktree`. The harness applies a worktree-isolation
-guard to **every** Bash command, and it refuses any command it cannot statically
-prove stays inside your worktree — including commands that never touch git.
+You may be running inside a git worktree — one the orchestrator provisioned
+explicitly with `df-tools exec-context worktree` (issue #86 removed the forced,
+implicitly-resolved kind). Whenever you are, the harness applies a
+worktree-isolation guard to **every** Bash command, and it refuses any command it
+cannot statically prove stays inside your worktree — including commands that never
+touch git. The discipline below costs nothing when you are NOT in a worktree, so
+follow it either way.
 
 Measured in the 2026-08-18 session audit: **1,906 refusals** carried
 "too complex to verify", and **1,552 of them (81%) contained no git command at

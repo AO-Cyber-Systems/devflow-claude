@@ -32,6 +32,7 @@ const path = require('path');
 // rather than letting it silently fall through to the offline path.
 // eslint-disable-next-line no-unused-vars
 const { output, error, pluginVersion } = require('./helpers.cjs');
+const { hasHelpFlag } = require('./help.cjs');
 
 // ─── Contract enums ──────────────────────────────────────────────────────────
 
@@ -654,7 +655,10 @@ function cmdVerifyFlutterUIEval(cwd, args, raw) {
   const positional = list.filter(a => a && !a.startsWith('--'));
   const manifestArg = positional[0];
 
-  if (!manifestArg || list.includes('--help')) {
+  // A help flag at ANY position, `-h` included (issue #100 finding 4). Testing
+  // `includes('--help')` alone let `-h` fall through as the TARGET, so
+  // `flutter-ui eval -h` answered `"objective '-h' not found"`.
+  if (!manifestArg || hasHelpFlag(list)) {
     output({
       usage: 'verify flutter-ui-eval <manifest|captureResults> [--raw] [--judge live|labels] [--samples N]',
       description: 'Score a UI visual-eval manifest. Default (no --judge, or --judge labels): offline label-echo judge (deterministic, NO network) — this is an ADVISORY labels lookup, not a visual gate; its rollup carries gate:"advisory" and CANNOT clear a surface from human verification. --judge live runs the REAL Anthropic vision judge (needs ANTHROPIC_API_KEY, or ANTHROPIC_AUTH_TOKEN+ANTHROPIC_BASE_URL) N times/state -> real N-sample voting (flake) + per-page token cost; its rollup carries gate:"binding" — the ONLY standing that may retire a surface from human verification. An unrecognised --judge value is rejected with a usage error.',

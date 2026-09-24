@@ -1,17 +1,17 @@
 {
-  "generatedAt": "2026-09-01T13:33:30.142Z",
-  "version": "2.5.0",
-  "packageVersion": "2.5.0",
+  "generatedAt": "2026-09-24T00:37:18.495Z",
+  "version": "2.9.0",
+  "packageVersion": "2.9.0",
   "repo": "AO-Cyber-Systems/devflow-claude",
   "marketplace": "devflow@aocyber",
   "counts": {
-    "skills": 31,
+    "skills": 32,
     "agents": 13,
     "hooks": 15,
-    "workflows": 39,
-    "references": 36,
-    "templates": 27,
-    "dfToolsCommands": 66
+    "workflows": 40,
+    "references": 35,
+    "templates": 28,
+    "dfToolsCommands": 63
   },
   "skills": [
     {
@@ -136,6 +136,42 @@
       "tools": [
         "Bash",
         "Read"
+      ],
+      "agent": null,
+      "userOnly": false
+    },
+    {
+      "name": "design-review",
+      "slug": "design-review",
+      "command": "/devflow:design-review",
+      "summary": "Run the ADVISORY UI design-critique sweep on a Flutter surface or objective: capture (or reuse) each declared UI state, critique it against the project design system through the design-critic engine, and present a prioritized design-debt list.",
+      "notes": [
+        "This is advisory design critique — it NEVER gates. The heavy first-run produces a ranked design-debt backlog whose high-priority items feed the objective-work loop.",
+        "Use when the user wants a design review, design critique, polish pass, or design-debt audit of a UI surface."
+      ],
+      "triggers": [
+        "design review",
+        "design-review",
+        "critique the design",
+        "design debt",
+        "polish pass",
+        "how's the design",
+        "review the UI design"
+      ],
+      "args": "[objective number, manifest path, or surface]",
+      "tools": [
+        "Read",
+        "Bash",
+        "Glob",
+        "Grep",
+        "Write",
+        "Task",
+        "mcp__plugin_playwright_playwright__browser_navigate",
+        "mcp__plugin_playwright_playwright__browser_snapshot",
+        "mcp__plugin_playwright_playwright__browser_take_screenshot",
+        "mcp__plugin_playwright_playwright__browser_click",
+        "mcp__plugin_playwright_playwright__browser_wait_for",
+        "mcp__plugin_playwright_playwright__browser_close"
       ],
       "agent": null,
       "userOnly": false
@@ -707,7 +743,7 @@
       "name": "ui-eval",
       "slug": "ui-eval",
       "command": "/devflow:ui-eval",
-      "summary": "Run the UI visual-evaluation pipeline on a Flutter surface or objective: capture each declared UI state, score it through the offline visual-eval engine, and write machine-judged evidence the verifier consumes.",
+      "summary": "Run the UI visual-evaluation pipeline on a Flutter surface or objective: capture each declared UI state and score it. Default (no --judge, or --judge labels) is an ADVISORY offline label-echo lookup (no network, no real vision comparison) — it can never clear a surface from human verification. Only --judge live (a real Anthropic vision call) produces a BINDING gate.",
       "notes": [
         "Use when the user wants to visually evaluate, judge, or dogfood a UI surface's rendered states."
       ],
@@ -872,7 +908,7 @@
       "effort": "xhigh",
       "color": "yellow",
       "maxTurns": 50,
-      "isolation": "worktree",
+      "isolation": null,
       "memory": null,
       "models": {
         "quality": "opus",
@@ -956,7 +992,7 @@
         "WebFetch",
         "mcp__context7__*"
       ],
-      "effort": "xhigh",
+      "effort": null,
       "color": "green",
       "maxTurns": null,
       "isolation": null,
@@ -1069,7 +1105,7 @@
         "mcp__plugin_playwright_playwright__browser_close",
         "mcp__maestro__*"
       ],
-      "effort": "high",
+      "effort": null,
       "color": "green",
       "maxTurns": null,
       "isolation": null,
@@ -1324,10 +1360,6 @@
       "subcommands": []
     },
     {
-      "command": "context",
-      "subcommands": []
-    },
-    {
       "command": "current-timestamp",
       "subcommands": []
     },
@@ -1358,6 +1390,10 @@
       "subcommands": []
     },
     {
+      "command": "exec-context",
+      "subcommands": []
+    },
+    {
       "command": "find-objective",
       "subcommands": []
     },
@@ -1366,7 +1402,8 @@
       "subcommands": [
         "setup",
         "eval",
-        "bootstrap"
+        "bootstrap",
+        "design-review"
       ]
     },
     {
@@ -1492,10 +1529,6 @@
       "subcommands": []
     },
     {
-      "command": "override",
-      "subcommands": []
-    },
-    {
       "command": "planning",
       "subcommands": [
         "sibling-trd-scan"
@@ -1548,10 +1581,6 @@
       "subcommands": []
     },
     {
-      "command": "session-audit",
-      "subcommands": []
-    },
-    {
       "command": "skill-active",
       "subcommands": []
     },
@@ -1593,10 +1622,6 @@
       "subcommands": []
     },
     {
-      "command": "telemetry",
-      "subcommands": []
-    },
-    {
       "command": "template",
       "subcommands": [
         "select",
@@ -1610,10 +1635,6 @@
       ]
     },
     {
-      "command": "transcript-export",
-      "subcommands": []
-    },
-    {
       "command": "trd-tdd",
       "subcommands": [
         "inspect"
@@ -1622,6 +1643,15 @@
     {
       "command": "tui",
       "subcommands": []
+    },
+    {
+      "command": "ui",
+      "subcommands": [
+        "metrics",
+        "spec",
+        "sheet",
+        "lock"
+      ]
     },
     {
       "command": "validate",
@@ -1694,6 +1724,10 @@
     },
     {
       "name": "complete-milestone",
+      "status": "active"
+    },
+    {
+      "name": "design-review",
       "status": "active"
     },
     {
@@ -1829,7 +1863,6 @@
     "anti-patterns",
     "auto-behaviors",
     "checkpoints",
-    "codex-agent-policy",
     "context-discipline",
     "continuation-format",
     "debugging-methods",
@@ -1888,6 +1921,7 @@
     "state_archive.md",
     "summary.md",
     "trd-prompt.md",
+    "ui-sheet.html",
     "user-setup.md",
     "verification-report.md",
     "workstream-marker.json"

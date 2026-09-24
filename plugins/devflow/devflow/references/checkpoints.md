@@ -106,6 +106,11 @@ reports `lock: "absent"` (never look-locked) or `lock: "cleared"` (locked, then 
 `controls` or `states` changed). `lock: "held"` means the approval still stands and no
 checkpoint is due.
 
+"Validates" means the verdict carries no real violation: exit **0** (every check ran) or exit
+**2** (nothing violated, but `unchecked[]` names checks that did not run). Exit **1** is a
+violation and there is nothing to review yet. The `lock` field is a separate axis and never
+moves the exit code — a spec mid-authoring is legitimately `absent`, and that is not an error.
+
 **What the human is shown** — all four, or the approval is not informed:
 
 1. The **absolute path to the sheet** (`--out` of `ui sheet`). It is static, self-contained
@@ -114,7 +119,10 @@ checkpoint is due.
    approved, and it is what gets recorded.
 3. The **`missing[]` capture list** — every declared state with no render. A MISSING cell is a
    state nobody has looked at; approving a sheet whose states are mostly MISSING approves very
-   little, and the human has to be able to see that before they answer.
+   little, and the human has to be able to see that before they answer. `ui sheet` **exits 2**
+   whenever `missing[]` is non-empty or `complete` is false — the sheet was still written (only
+   exit 1 refuses), and 2 is the machine-readable form of this same sentence. Do not read a 2
+   from `ui sheet` as a failure to render; read it as the list you have to show.
 4. The **`lock` status and its reason**, so a re-review says which of `routes` / `controls` /
    `states` moved since the last approval.
 
@@ -127,7 +135,9 @@ locked_section_hashes}` into the spec's own front matter and leaves the prose bo
 byte-identical. `locked_shape_hash` covers `{routes, controls, states}` and nothing else, so a
 later prose or `design_read` edit leaves the lock `held`, while a control edit clears it. The
 command refuses (exit 1, writes nothing) if the spec does not validate, if `--sheet-hash` is not
-64 hex characters, or if `--by` is absent.
+64 hex characters, or if `--by` is absent. It **exits 2** when the lock was written over a spec
+one or more of whose invariants never ran — the lock exists, and its `unchecked` list names what
+the human's signature is now standing over unaided. Say that list back to them.
 
 **What a rejection does:** comments on the sheet are the revision channel. The executor fixes
 the spec or re-captures the affected states, re-runs `ui sheet`, and presents the new sheet with
@@ -152,6 +162,7 @@ the user's, on the user's behalf.
     navigation graph has a way back from every route, the control table says what you expect
     each control to do, and the content contract matches what the screenshot shows.
     The MISSING rows are states with no render — they are not approved by approving this sheet.
+    (`ui sheet` exited 2 for exactly this reason; the sheet itself was written.)
   </how-to-verify>
   <resume-signal>Type "approved" (the lock is then written with your address), or describe
     what is wrong — a rejection writes no lock.</resume-signal>

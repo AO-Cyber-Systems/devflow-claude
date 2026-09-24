@@ -257,6 +257,21 @@ Offer: 1) Force proceed, 2) Abort
 
 **Step 6: Spawn executor**
 
+First read the repo root and the commit the work builds on, so the executor is told both
+rather than left to infer them (issue #86 — inferred isolation put an executor in a
+different repository and based it on the default branch):
+
+```bash
+git rev-parse --show-toplevel
+```
+```bash
+git rev-parse HEAD
+```
+
+Note both down as literals (`REPO_ROOT`, `BASE`); a shell variable does not survive into
+the next Bash call. A quick task is a single executor on the current branch, so there is no
+worktree to provision — the preflight is what proves that is actually where it landed.
+
 Spawn executor with plan reference:
 
 ```
@@ -266,6 +281,15 @@ Execute quick task ${next_num}.
 
 Job: @${QUICK_DIR}/${next_num}-JOB.md
 Project state: @.planning/STATE.md
+
+<repo_and_base>
+Before anything else, prove you are in the right repository on the right base:
+
+  node ~/.claude/devflow/bin/df-tools.cjs exec-context check --repo <REPO_ROOT> --base <BASE>
+
+Exit 1 (WRONG REPOSITORY or BASE NOT VISIBLE) is a hard stop: report which fired, quote the
+output, and end your turn without writing anything.
+</repo_and_base>
 
 <constraints>
 - Execute all tasks in the job
